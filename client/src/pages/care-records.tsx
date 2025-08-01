@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -303,208 +303,84 @@ export default function CareRecords() {
 
   if (view === 'detail' && selectedResident) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <Header />
-        
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Header with back button */}
-          <div className="flex items-center justify-between mb-6">
+      <div className="min-h-screen bg-blue-100">
+        <div className="bg-blue-200 p-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 onClick={() => setView('list')}
-                className="flex items-center space-x-2"
+                className="flex items-center space-x-2 bg-blue-300 hover:bg-blue-400"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>戻る</span>
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">{selectedResident.name}様の介護記録</h1>
+                <h1 className="text-xl font-bold text-slate-800">
+                  {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
+                  <span className="text-sm font-normal">
+                    {selectedResident.gender} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
+                  </span>
+                </h1>
               </div>
             </div>
-            
-            <Button 
-              onClick={addNewRecordBlock}
-              className="bg-blue-600 hover:bg-blue-700 mb-4"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              新規記録
+            <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
+              <MoreHorizontal className="w-4 h-4" />
             </Button>
-
-            {/* New Record Blocks for Detail View */}
-            {newRecordBlocks.map((block) => (
-              <Card key={block.id} className="mb-6 border-2 border-blue-200 bg-blue-50/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-blue-700">
-                    <span className="flex items-center space-x-2">
-                      <Plus className="w-5 h-5" />
-                      <span>新規記録作成中</span>
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id))}
-                      className="text-slate-500 hover:text-red-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ *</label>
-                      <InlineEditableField
-                        value={block.category}
-                        onSave={(value) => handleNewRecordEdit(block.id, "category", value)}
-                        type="select"
-                        options={categoryOptions}
-                        placeholder="カテゴリを選択してください"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
-                      <InlineEditableField
-                        value={block.recordDate}
-                        onSave={(value) => handleNewRecordEdit(block.id, "recordDate", value)}
-                        type="datetime-local"
-                        placeholder="記録日時を選択してください"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">記録内容 *</label>
-                    <InlineEditableField
-                      value={block.description}
-                      onSave={(value) => handleNewRecordEdit(block.id, "description", value)}
-                      multiline
-                      placeholder="記録内容を入力してください（必須）"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
-                    <InlineEditableField
-                      value={block.notes}
-                      onSave={(value) => handleNewRecordEdit(block.id, "notes", value)}
-                      multiline
-                      placeholder="備考があれば入力してください"
-                    />
-                  </div>
-                  {(block.category || block.description) && (
-                    <div className="text-sm text-blue-600 flex items-center space-x-2">
-                      <Check className="w-4 h-4" />
-                      <span>
-                        {block.category && block.description 
-                          ? "必須項目が入力されました。保存されます。" 
-                          : "カテゴリと記録内容を入力してください。"
-                        }
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
           </div>
+        </div>
 
-          {/* Resident Info Card */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <User className="w-5 h-5 text-blue-600" />
-                <span>利用者情報</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <div>
-                  <span className="text-sm text-slate-600">居室番号:</span>
-                  <p className="font-medium">{selectedResident.roomNumber || "未設定"}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-slate-600">階:</span>
-                  <p className="font-medium">{selectedResident.floor || "未設定"}</p>
-                </div>
-                <div>
-                  <span className="text-sm text-slate-600">年齢:</span>
-                  <p className="font-medium">{selectedResident.age || "未設定"}歳</p>
-                </div>
-                <div>
-                  <span className="text-sm text-slate-600">介護度:</span>
-                  <p className="font-medium">{selectedResident.careLevel || "未設定"}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="bg-blue-150 p-2 text-center">
+          <span className="text-sm font-medium">{format(new Date(), "M月d日", { locale: ja })}</span>
+        </div>
 
-          {/* Records List */}
-          <div className="space-y-6">
-              <div className="space-y-4">
-                {residentRecords.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-8">
-                      <ClipboardList className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                      <p className="text-slate-600">介護記録がありません</p>
-                      <p className="text-sm text-slate-500 mt-2">「新規記録」ボタンから記録を追加してください</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  residentRecords.map((record: any) => {
-                      const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
-                      
-                      return (
-                        <Card key={record.id} className="hover:shadow-md transition-shadow">
-                          <CardHeader className="pb-3">
-                            <div className="space-y-3">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ</label>
-                                  <InlineEditableField
-                                    value={record.category}
-                                    onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
-                                    type="select"
-                                    options={categoryOptions}
-                                    placeholder="カテゴリを選択"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
-                                  <InlineEditableField
-                                    value={record.recordDate}
-                                    onSave={(value) => updateMutation.mutate({ id: record.id, field: 'recordDate', value })}
-                                    type="datetime-local"
-                                    placeholder="記録日時を選択"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div>
-                              <label className="text-sm font-medium text-slate-600 block mb-1">記録内容</label>
-                              <InlineEditableField
-                                value={record.description}
-                                onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
-                                multiline
-                                placeholder="記録内容を入力してください"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
-                              <InlineEditableField
-                                value={record.notes || ""}
-                                onSave={(value) => updateMutation.mutate({ id: record.id, field: 'notes', value })}
-                                multiline
-                                placeholder="備考があれば入力してください"
-                              />
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })
-                )}
-              </div>
-          </div>
+        <main className="max-w-4xl mx-auto px-4 py-4 space-y-2">
+          {residentRecords.length === 0 ? (
+            <div className="text-center py-8 text-slate-600">
+              <p>介護記録がありません</p>
+            </div>
+          ) : (
+            residentRecords
+              .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime())
+              .map((record: any) => {
+                const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
+                const recordTime = format(new Date(record.recordDate), "HH : mm", { locale: ja });
+                
+                return (
+                  <div key={record.id} className="bg-white border border-slate-200 p-4 shadow-sm">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-4 mb-2">
+                          <span className="text-lg font-bold text-slate-800">{recordTime}</span>
+                          <span className="text-sm text-slate-600">{record.description}</span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-slate-500">
+                          <span className="bg-slate-100 px-2 py-1 rounded">{categoryLabel}</span>
+                          <span className="bg-slate-100 px-2 py-1 rounded">記録者</span>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2 ml-4">
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
+                          <Info className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
+                          <Search className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+          )}
         </main>
+
+        <div className="fixed bottom-0 left-0 right-0 bg-blue-200 p-4 flex justify-between">
+          <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
+            <FileText className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     );
   }
