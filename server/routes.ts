@@ -112,7 +112,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/care-records/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const record = await storage.updateCareRecord(req.params.id, req.body);
+      const updateData = { ...req.body };
+      if (updateData.recordDate) {
+        updateData.recordDate = new Date(updateData.recordDate);
+      }
+      const record = await storage.updateCareRecord(req.params.id, updateData);
       res.json(record);
     } catch (error) {
       console.error("Error updating care record:", error);
