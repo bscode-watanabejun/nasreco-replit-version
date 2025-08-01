@@ -76,7 +76,7 @@ export default function UserInfo() {
       admissionDate: "",
       retirementDate: "",
       dateOfBirth: "",
-      age: undefined,
+      age: "",
       postalCode: "",
       address: "",
       attendingPhysician: "",
