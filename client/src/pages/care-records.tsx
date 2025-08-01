@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -343,6 +343,134 @@ export default function CareRecords() {
   // 記録内容全文表示用のstate
   const [selectedRecordContent, setSelectedRecordContent] = useState<string>("");
   const [contentDialogOpen, setContentDialogOpen] = useState(false);
+  
+  // 記録詳細画面用のstate
+  const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<any>(null);
+  const [showRecordDetail, setShowRecordDetail] = useState(false);
+  
+  // ファイルアップロード用state
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; url: string; type: string }>>([]);
+
+  // ファイルアップロード処理
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const url = URL.createObjectURL(file);
+        setUploadedFiles(prev => [...prev, {
+          name: file.name,
+          url: url,
+          type: file.type
+        }]);
+      });
+    }
+  };
+
+  // 介護記録詳細画面
+  if (showRecordDetail && selectedRecordForDetail && selectedResident) {
+    const recordTime = format(new Date(selectedRecordForDetail.recordDate), "HH : mm", { locale: ja });
+    const categoryLabel = categoryOptions.find(opt => opt.value === selectedRecordForDetail.category)?.label || selectedRecordForDetail.category;
+    
+    return (
+      <div className="min-h-screen bg-blue-100">
+        <div className="bg-blue-200 p-4">
+          <div className="text-center mb-3">
+            <h1 className="text-xl font-bold text-slate-800">介護記録詳細</h1>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-medium text-slate-800">
+              {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　　
+              <span className="text-sm font-normal">
+                {selectedResident.gender === 'male' ? '男性' : selectedResident.gender === 'female' ? '女性' : '未設定'} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <main className="max-w-4xl mx-auto px-4 py-4">
+          {/* 記録情報カード */}
+          <div className="bg-white border border-slate-200 p-4 shadow-sm mb-4">
+            <div className="flex h-auto">
+              <div className="flex flex-col justify-start min-w-[150px] mr-4">
+                <div className="text-lg font-medium text-slate-800 mb-2">{recordTime}</div>
+                <div className="text-sm text-slate-600 mb-2">{categoryLabel}</div>
+                <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded text-center">
+                  記録者: {(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="border border-slate-200 p-4 bg-slate-50 rounded-lg mb-4">
+                  <p className="text-slate-800 whitespace-pre-wrap">{selectedRecordForDetail.description}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ファイル添付エリア */}
+          <div className="bg-white border border-slate-200 p-4 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-800 mb-4">添付ファイル</h3>
+            
+            {/* アップロードされたファイル表示 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {uploadedFiles.map((file, index) => (
+                <div key={index} className="border border-slate-200 p-4 rounded-lg bg-slate-50 relative">
+                  {file.type.startsWith('image/') ? (
+                    <img src={file.url} alt={file.name} className="w-full h-32 object-cover rounded mb-2" />
+                  ) : (
+                    <div className="w-full h-32 bg-slate-200 rounded mb-2 flex items-center justify-center">
+                      <FileText className="w-8 h-8 text-slate-500" />
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-600 truncate">{file.name}</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-2 right-2 text-red-500 hover:bg-red-50"
+                    onClick={() => {
+                      setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              
+              {/* ファイルアップロードエリア */}
+              <label className="border-2 border-dashed border-slate-300 p-4 rounded-lg bg-slate-50 cursor-pointer hover:bg-slate-100 flex flex-col items-center justify-center h-32">
+                <Paperclip className="w-8 h-8 text-slate-400 mb-2" />
+                <span className="text-sm text-slate-600">ファイルを追加</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  multiple
+                  accept="image/*,.pdf"
+                  onChange={handleFileUpload}
+                />
+              </label>
+            </div>
+
+            {/* ページングドット */}
+            <div className="flex justify-center space-x-2 mb-4">
+              <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+              <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
+              <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
+            </div>
+          </div>
+        </main>
+
+        {/* 戻るボタン */}
+        <div className="fixed bottom-0 left-0 right-0 bg-blue-200 p-4 flex justify-start">
+          <Button 
+            variant="ghost" 
+            className="bg-blue-300 hover:bg-blue-400"
+            onClick={() => setShowRecordDetail(false)}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'detail' && selectedResident) {
     return (
@@ -440,7 +568,15 @@ export default function CareRecords() {
                         
                         {/* 右側：アイコンを縦並び */}
                         <div className="flex flex-col justify-center space-y-1">
-                          <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 p-1 h-8 w-8">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-blue-600 hover:bg-blue-50 p-1 h-8 w-8"
+                            onClick={() => {
+                              setSelectedRecordForDetail(record);
+                              setShowRecordDetail(true);
+                            }}
+                          >
                             <Info className="w-4 h-4" />
                           </Button>
                           <Button 
