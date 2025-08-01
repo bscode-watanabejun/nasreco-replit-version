@@ -307,6 +307,22 @@ export default function CareRecords() {
     if (selectedFloor !== "all" && resident.floor?.toString() !== selectedFloor) {
       return false;
     }
+    
+    // 日付フィルター（入所日・退所日による絞り込み）
+    const filterDate = new Date(selectedDate);
+    const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
+    const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
+    
+    // 入所日がある場合、選択した日付が入所日以降である必要がある
+    if (admissionDate && filterDate < admissionDate) {
+      return false;
+    }
+    
+    // 退所日がある場合、選択した日付が退所日以前である必要がある
+    if (retirementDate && filterDate > retirementDate) {
+      return false;
+    }
+    
     return true;
   });
 
@@ -420,7 +436,7 @@ export default function CareRecords() {
         <div className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white rounded-lg border border-slate-200">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">日付</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">日付（入所・退所による絞り込み）</label>
               <Input
                 type="date"
                 value={selectedDate}
