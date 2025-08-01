@@ -363,7 +363,7 @@ export default function CareRecords() {
             <div className="text-lg font-medium text-slate-800">
               {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
               <span className="text-sm font-normal">
-                {selectedResident.gender || "未設定"} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
+                {selectedResident.gender === 'male' ? '男性' : selectedResident.gender === 'female' ? '女性' : '未設定'} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
               </span>
             </div>
           </div>
