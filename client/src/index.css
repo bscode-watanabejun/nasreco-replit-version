@@ -1,0 +1,227 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(210, 40%, 98%);
+  --foreground: hsl(222, 84%, 4.9%);
+  --muted: hsl(210, 40%, 96%);
+  --muted-foreground: hsl(215, 16%, 46.9%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(222, 84%, 4.9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(222, 84%, 4.9%);
+  --border: hsl(214, 32%, 91%);
+  --input: hsl(214, 32%, 91%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(210, 40%, 96%);
+  --secondary-foreground: hsl(222, 84%, 4.9%);
+  --accent: hsl(210, 40%, 96%);
+  --accent-foreground: hsl(222, 84%, 4.9%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --ring: hsl(221, 83%, 53%);
+  --radius: 0.75rem;
+  
+  /* Healthcare specific colors */
+  --healthcare-blue: hsl(207, 90%, 54%);
+  --healthcare-blue-light: hsl(207, 90%, 94%);
+  --healthcare-green: hsl(142, 71%, 45%);
+  --healthcare-green-light: hsl(142, 71%, 94%);
+  --healthcare-orange: hsl(25, 95%, 53%);
+  --healthcare-orange-light: hsl(25, 95%, 94%);
+  --healthcare-red: hsl(0, 84%, 60%);
+  --healthcare-red-light: hsl(0, 84%, 95%);
+  --healthcare-pink: hsl(328, 85%, 70%);
+  --healthcare-pink-light: hsl(328, 85%, 94%);
+  --healthcare-slate: hsl(215, 16%, 46.9%);
+  --healthcare-slate-light: hsl(215, 16%, 96%);
+}
+
+.dark {
+  --background: hsl(222, 84%, 4.9%);
+  --foreground: hsl(210, 40%, 98%);
+  --muted: hsl(217, 32%, 17.5%);
+  --muted-foreground: hsl(215, 20%, 65%);
+  --popover: hsl(222, 84%, 4.9%);
+  --popover-foreground: hsl(210, 40%, 98%);
+  --card: hsl(222, 84%, 4.9%);
+  --card-foreground: hsl(210, 40%, 98%);
+  --border: hsl(217, 32%, 17.5%);
+  --input: hsl(217, 32%, 17.5%);
+  --primary: hsl(221, 83%, 53%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(217, 32%, 17.5%);
+  --secondary-foreground: hsl(210, 40%, 98%);
+  --accent: hsl(217, 32%, 17.5%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 62%, 30%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --ring: hsl(221, 83%, 53%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', 'Hiragino Sans', 'Meiryo', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium;
+  }
+}
+
+@layer components {
+  .module-card {
+    @apply bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer group;
+  }
+
+  .module-card:hover {
+    @apply transform translate-y-[-1px];
+  }
+
+  .module-card-blue {
+    @apply hover:border-blue-200;
+  }
+
+  .module-card-blue .module-icon {
+    @apply bg-blue-100 group-hover:bg-blue-200;
+  }
+
+  .module-card-blue .module-icon svg {
+    @apply text-blue-600;
+  }
+
+  .module-card-green {
+    @apply hover:border-green-200;
+  }
+
+  .module-card-green .module-icon {
+    @apply bg-green-100 group-hover:bg-green-200;
+  }
+
+  .module-card-green .module-icon svg {
+    @apply text-green-600;
+  }
+
+  .module-card-orange {
+    @apply hover:border-orange-200;
+  }
+
+  .module-card-orange .module-icon {
+    @apply bg-orange-100 group-hover:bg-orange-200;
+  }
+
+  .module-card-orange .module-icon svg {
+    @apply text-orange-600;
+  }
+
+  .module-card-red {
+    @apply hover:border-red-200;
+  }
+
+  .module-card-red .module-icon {
+    @apply bg-red-100 group-hover:bg-red-200;
+  }
+
+  .module-card-red .module-icon svg {
+    @apply text-red-600;
+  }
+
+  .module-card-pink {
+    @apply hover:border-pink-200;
+  }
+
+  .module-card-pink .module-icon {
+    @apply bg-pink-100 group-hover:bg-pink-200;
+  }
+
+  .module-card-pink .module-icon svg {
+    @apply text-pink-600;
+  }
+
+  .module-card-slate {
+    @apply hover:border-slate-300;
+  }
+
+  .module-card-slate .module-icon {
+    @apply bg-slate-700 group-hover:bg-slate-600;
+  }
+
+  .module-card-slate .module-icon svg {
+    @apply text-white;
+  }
+
+  .date-filter-button {
+    @apply inline-flex items-center px-4 py-2 bg-sky-100 border border-sky-200 rounded-lg text-sky-800 hover:bg-sky-200 transition-colors text-sm font-medium;
+  }
+
+  .vital-sign-item {
+    @apply flex items-center gap-2 text-sm;
+  }
+
+  .record-card {
+    @apply bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow;
+  }
+
+  .loading-spinner {
+    @apply animate-spin rounded-full border-b-2 mx-auto;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Japanese font optimization */
+@media (prefers-color-scheme: light) {
+  body {
+    color: hsl(222, 84%, 4.9%);
+    background-color: hsl(210, 40%, 98%);
+  }
+}
+
+/* Touch optimization for mobile */
+@media (max-width: 768px) {
+  .module-card {
+    @apply p-4;
+  }
+  
+  button, .cursor-pointer {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :root {
+    --border: hsl(0, 0%, 40%);
+    --ring: hsl(0, 0%, 20%);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
