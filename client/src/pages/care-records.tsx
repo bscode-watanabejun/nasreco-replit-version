@@ -40,7 +40,7 @@ function InlineEditableField({
 }: {
   value: string;
   onSave: (newValue: string) => void;
-  type?: "text" | "datetime-local" | "select";
+  type?: "text" | "datetime-local" | "select" | "time";
   placeholder?: string;
   multiline?: boolean;
   options?: { value: string; label: string; }[];
@@ -336,31 +336,23 @@ export default function CareRecords() {
     enabled: !!selectedResident,
   });
 
+  // 記録内容全文表示用のstate
+  const [selectedRecordContent, setSelectedRecordContent] = useState<string>("");
+  const [contentDialogOpen, setContentDialogOpen] = useState(false);
+
   if (view === 'detail' && selectedResident) {
     return (
       <div className="min-h-screen bg-blue-100">
         <div className="bg-blue-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button 
-                variant="ghost" 
-                onClick={() => setView('list')}
-                className="flex items-center space-x-2 bg-blue-300 hover:bg-blue-400"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">
-                  {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
-                  <span className="text-sm font-normal">
-                    {selectedResident.gender} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
-                  </span>
-                </h1>
-              </div>
+          <div className="flex items-center justify-center">
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">
+                {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
+                <span className="text-sm font-normal">
+                  {selectedResident.gender} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
+                </span>
+              </h1>
             </div>
-            <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
           </div>
         </div>
 
@@ -385,11 +377,36 @@ export default function CareRecords() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-4 mb-2">
-                          <span className="text-lg font-bold text-slate-800">{recordTime}</span>
-                          <span className="text-sm text-slate-600">{record.description}</span>
+                          <InlineEditableField
+                            value={recordTime}
+                            onSave={(value) => {
+                              // 時刻の更新処理
+                              const [hours, minutes] = value.split(':');
+                              const currentDate = new Date(record.recordDate);
+                              currentDate.setHours(parseInt(hours), parseInt(minutes));
+                              updateMutation.mutate({ 
+                                id: record.id, 
+                                field: 'recordDate', 
+                                value: currentDate.toISOString()
+                              });
+                            }}
+                            type="time"
+                            placeholder="時刻"
+                          />
+                          <InlineEditableField
+                            value={record.description}
+                            onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
+                            placeholder="記録内容"
+                          />
                         </div>
                         <div className="flex items-center space-x-4 text-sm text-slate-500">
-                          <span className="bg-slate-100 px-2 py-1 rounded">{categoryLabel}</span>
+                          <InlineEditableField
+                            value={record.category}
+                            onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
+                            type="select"
+                            options={categoryOptions}
+                            placeholder="カテゴリ"
+                          />
                           <span className="bg-slate-100 px-2 py-1 rounded">記録者</span>
                         </div>
                       </div>
@@ -397,7 +414,15 @@ export default function CareRecords() {
                         <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
                           <Info className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="text-blue-600 hover:bg-blue-50"
+                          onClick={() => {
+                            setSelectedRecordContent(record.description);
+                            setContentDialogOpen(true);
+                          }}
+                        >
                           <Search className="w-4 h-4" />
                         </Button>
                       </div>
@@ -409,13 +434,31 @@ export default function CareRecords() {
         </main>
 
         <div className="fixed bottom-0 left-0 right-0 bg-blue-200 p-4 flex justify-between">
-          <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
+          <Button 
+            variant="ghost" 
+            className="bg-blue-300 hover:bg-blue-400"
+            onClick={() => setView('list')}
+          >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
             <FileText className="w-4 h-4" />
           </Button>
         </div>
+
+        {/* 記録内容全文表示ダイアログ */}
+        <Dialog open={contentDialogOpen} onOpenChange={setContentDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>記録内容</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              <div className="p-4 bg-slate-50 rounded-lg border">
+                <p className="text-slate-800 whitespace-pre-wrap">{selectedRecordContent}</p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
