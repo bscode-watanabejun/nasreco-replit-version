@@ -141,6 +141,8 @@ export default function CareRecords() {
   const [selectedResident, setSelectedResident] = useState<any>(null);
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [newRecordBlocks, setNewRecordBlocks] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [selectedFloor, setSelectedFloor] = useState<string>("all");
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -291,6 +293,23 @@ export default function CareRecords() {
     selectedResident ? record.residentId === selectedResident.id : false
   );
 
+  // 階数のオプションを生成（利用者データから）
+  const floorOptions = [
+    { value: "all", label: "全階" },
+    ...Array.from(new Set((residents as any[]).map(r => r.floor).filter(Boolean)))
+      .sort((a, b) => a - b)
+      .map(floor => ({ value: floor.toString(), label: `${floor}階` }))
+  ];
+
+  // フィルター適用済みの利用者一覧
+  const filteredResidents = (residents as any[]).filter((resident: any) => {
+    // 階数フィルター
+    if (selectedFloor !== "all" && resident.floor?.toString() !== selectedFloor) {
+      return false;
+    }
+    return true;
+  });
+
   const { data: vitals = [] } = useQuery({
     queryKey: ["/api/vitals", selectedResident?.id],
     enabled: !!selectedResident,
@@ -397,10 +416,40 @@ export default function CareRecords() {
           </div>
         </div>
 
+        {/* Filter Controls */}
+        <div className="mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white rounded-lg border border-slate-200">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">日付</label>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">階数</label>
+              <Select value={selectedFloor} onValueChange={setSelectedFloor}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {floorOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
         {/* Residents Selection Grid */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">利用者一覧</h2>
-          {(residents as any[]).length === 0 ? (
+          {filteredResidents.length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
                 <User className="w-12 h-12 text-slate-400 mx-auto mb-4" />
@@ -410,7 +459,7 @@ export default function CareRecords() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {(residents as any[]).map((resident: any) => (
+              {filteredResidents.map((resident: any) => (
                 <Card 
                   key={resident.id} 
                   className="hover:shadow-md transition-shadow cursor-pointer"
