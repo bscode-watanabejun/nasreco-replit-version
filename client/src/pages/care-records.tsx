@@ -533,7 +533,7 @@ export default function CareRecords() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            <div className="space-y-2">
               {(residents as any[]).map((resident: any) => (
                 <Card 
                   key={resident.id} 
@@ -544,25 +544,39 @@ export default function CareRecords() {
                     form.setValue('residentId', resident.id);
                   }}
                 >
-                  <CardHeader className="pb-2 pt-3">
-                    <CardTitle className="text-base leading-tight">{resident.name}</CardTitle>
-                    <CardDescription className="space-y-1">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
-                          {resident.roomNumber || "未設定"}号室
-                        </Badge>
-                        {resident.age && (
-                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                            {resident.age}歳
-                          </Badge>
-                        )}
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="text-center min-w-[60px]">
+                          <div className="text-lg font-bold text-blue-600">
+                            {resident.roomNumber || "未設定"}
+                          </div>
+                          <div className="text-xs text-slate-500">号室</div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-base truncate">{resident.name}</div>
+                        </div>
+                        <div className="text-center min-w-[80px]">
+                          <div className="text-sm font-medium text-slate-700">
+                            {resident.careLevel || "未設定"}
+                          </div>
+                          <div className="text-xs text-slate-500">介護度</div>
+                        </div>
                       </div>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 pb-3">
-                    <Button size="sm" variant="outline" className="w-full text-xs h-7">
-                      記録を見る
-                    </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 w-8 p-0 flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedResident(resident);
+                          setView('detail');
+                          form.setValue('residentId', resident.id);
+                        }}
+                      >
+                        <FileText className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
