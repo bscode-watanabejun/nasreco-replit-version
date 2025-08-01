@@ -320,7 +320,6 @@ export default function CareRecords() {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">{selectedResident.name}様の介護記録</h1>
-                <p className="text-slate-600">個人記録・バイタル・食事・服薬・排泄・ラウンドの確認</p>
               </div>
             </div>
             
