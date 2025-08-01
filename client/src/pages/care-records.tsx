@@ -140,6 +140,13 @@ export default function CareRecords() {
   const [open, setOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any>(null);
   const [view, setView] = useState<'list' | 'detail'>('list');
+  const [newRecord, setNewRecord] = useState({
+    residentId: "",
+    category: "",
+    recordDate: new Date().toISOString().slice(0, 16),
+    description: "",
+    notes: "",
+  });
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -223,6 +230,33 @@ export default function CareRecords() {
     createMutation.mutate(data);
   };
 
+  // インライン新規記録作成ハンドラー
+  const handleNewRecord = (field: string, value: string) => {
+    const updatedRecord = { ...newRecord, [field]: value };
+    setNewRecord(updatedRecord);
+
+    // 必須フィールドがすべて入力されたら自動保存
+    const hasRequiredFields = selectedResident 
+      ? updatedRecord.category && updatedRecord.description // 利用者詳細画面
+      : updatedRecord.residentId && updatedRecord.category && updatedRecord.description; // メイン画面
+
+    if (hasRequiredFields) {
+      const submitData = {
+        ...updatedRecord,
+        residentId: selectedResident ? selectedResident.id : updatedRecord.residentId,
+      };
+      createMutation.mutate(submitData);
+      // リセット
+      setNewRecord({
+        residentId: "",
+        category: "",
+        recordDate: new Date().toISOString().slice(0, 16),
+        description: "",
+        notes: "",
+      });
+    }
+  };
+
   const categoryOptions = [
     { value: "daily_care", label: "日常介護" },
     { value: "assistance", label: "介助" },
@@ -274,130 +308,67 @@ export default function CareRecords() {
               </div>
             </div>
             
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => {
-                    form.setValue('residentId', selectedResident.id);
-                  }}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  新規記録
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>新規介護記録 - {selectedResident.name}様</DialogTitle>
-                  <DialogDescription>
-                    介護記録を入力してください
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="residentId"
-                      render={({ field }) => (
-                        <input type="hidden" {...field} />
-                      )}
+            {/* 新規記録作成フォーム（インライン形式） */}
+            <Card className="border-dashed border-2 border-blue-300 hover:border-blue-400 transition-colors">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-blue-600">
+                  <Plus className="w-5 h-5" />
+                  <span>新規記録追加 - カテゴリと記録内容を入力すると自動保存されます</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ *</label>
+                    <InlineEditableField
+                      value={newRecord.category}
+                      onSave={(value) => handleNewRecord("category", value)}
+                      type="select"
+                      options={categoryOptions}
+                      placeholder="カテゴリを選択してください"
                     />
-                    
-                    <FormField
-                      control={form.control}
-                      name="recordDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>記録日時</FormLabel>
-                          <FormControl>
-                            <Input type="datetime-local" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
+                    <InlineEditableField
+                      value={newRecord.recordDate}
+                      onSave={(value) => handleNewRecord("recordDate", value)}
+                      type="datetime-local"
+                      placeholder="記録日時を選択してください"
                     />
-
-                    <FormField
-                      control={form.control}
-                      name="category"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>カテゴリ</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="カテゴリを選択" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {categoryOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>記録内容</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="介護記録の内容を入力してください"
-                              className="min-h-[100px]"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="notes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>備考</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="特記事項があれば入力してください"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="flex justify-end space-x-2">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => setOpen(false)}
-                      >
-                        キャンセル
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={createMutation.isPending}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        {createMutation.isPending ? "保存中..." : "保存"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-600 block mb-1">記録内容 *</label>
+                  <InlineEditableField
+                    value={newRecord.description}
+                    onSave={(value) => handleNewRecord("description", value)}
+                    multiline
+                    placeholder="記録内容を入力してください（必須）"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
+                  <InlineEditableField
+                    value={newRecord.notes}
+                    onSave={(value) => handleNewRecord("notes", value)}
+                    multiline
+                    placeholder="備考があれば入力してください"
+                  />
+                </div>
+                {(newRecord.category || newRecord.description) && (
+                  <div className="text-sm text-blue-600 flex items-center space-x-2">
+                    <Check className="w-4 h-4" />
+                    <span>
+                      {newRecord.category && newRecord.description 
+                        ? "カテゴリと記録内容が入力されました。自動保存されます。" 
+                        : "カテゴリと記録内容を両方入力してください。"
+                      }
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Resident Info Card */}
@@ -570,146 +541,80 @@ export default function CareRecords() {
           )}
         </div>
 
-        {/* Recent Records Overview */}
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">最近の記録</h2>
+        {/* Quick Add Record Form */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">クイック記録追加</h2>
           
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="w-4 h-4 mr-2" />
-                新規記録
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>新規介護記録</DialogTitle>
-                <DialogDescription>
-                  介護記録を入力してください
-                </DialogDescription>
-              </DialogHeader>
-              
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="residentId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>利用者</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="利用者を選択" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {(residents as any[]).map((resident: any) => (
-                              <SelectItem key={resident.id} value={resident.id}>
-                                {resident.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+          <Card className="border-dashed border-2 border-green-300 hover:border-green-400 transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-green-600">
+                <Plus className="w-5 h-5" />
+                <span>新規記録作成 - 利用者、カテゴリ、記録内容を入力すると自動保存されます</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-600 block mb-1">利用者 *</label>
+                  <InlineEditableField
+                    value={newRecord.residentId || ""}
+                    onSave={(value) => handleNewRecord("residentId", value)}
+                    type="select"
+                    options={(residents as any[]).map(r => ({ value: r.id, label: r.name }))}
+                    placeholder="利用者を選択してください"
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="recordDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>記録日時</FormLabel>
-                        <FormControl>
-                          <Input type="datetime-local" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ *</label>
+                  <InlineEditableField
+                    value={newRecord.category}
+                    onSave={(value) => handleNewRecord("category", value)}
+                    type="select"
+                    options={categoryOptions}
+                    placeholder="カテゴリを選択してください"
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>カテゴリ</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="カテゴリを選択" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {categoryOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
+                  <InlineEditableField
+                    value={newRecord.recordDate}
+                    onSave={(value) => handleNewRecord("recordDate", value)}
+                    type="datetime-local"
+                    placeholder="記録日時を選択してください"
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>記録内容</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="介護記録の内容を入力してください"
-                            className="min-h-[100px]"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>備考</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="特記事項があれば入力してください"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex justify-end space-x-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => setOpen(false)}
-                    >
-                      キャンセル
-                    </Button>
-                    <Button 
-                      type="submit" 
-                      disabled={createMutation.isPending}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      {createMutation.isPending ? "保存中..." : "保存"}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-600 block mb-1">記録内容 *</label>
+                <InlineEditableField
+                  value={newRecord.description}
+                  onSave={(value) => handleNewRecord("description", value)}
+                  multiline
+                  placeholder="記録内容を入力してください（必須）"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
+                <InlineEditableField
+                  value={newRecord.notes}
+                  onSave={(value) => handleNewRecord("notes", value)}
+                  multiline
+                  placeholder="備考があれば入力してください"
+                />
+              </div>
+              {(newRecord.residentId || newRecord.category || newRecord.description) && (
+                <div className="text-sm text-green-600 flex items-center space-x-2">
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {newRecord.residentId && newRecord.category && newRecord.description 
+                      ? "すべての必須項目が入力されました。自動保存されます。" 
+                      : "利用者、カテゴリ、記録内容をすべて入力してください。"
+                    }
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Records List */}
