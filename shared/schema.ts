@@ -42,16 +42,101 @@ export const users = pgTable("users", {
 // Residents/Patients table
 export const residents = pgTable("residents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name").notNull(),
-  nameKana: varchar("name_kana"),
-  dateOfBirth: date("date_of_birth"),
-  gender: varchar("gender"), // male, female, other
-  roomNumber: varchar("room_number"),
-  floor: varchar("floor"),
-  admissionDate: date("admission_date"),
-  emergencyContact: varchar("emergency_contact"),
-  medicalHistory: text("medical_history"),
-  allergies: text("allergies"),
+  roomNumber: varchar("room_number"), // 居室番号
+  floor: varchar("floor"), // 階
+  name: varchar("name").notNull(), // 利用者名
+  gender: varchar("gender"), // 性別 (男性/女性)
+  admissionDate: date("admission_date"), // 入居日
+  retirementDate: date("retirement_date"), // 退居日
+  dateOfBirth: date("date_of_birth"), // 生年月日
+  age: integer("age"), // 年齢
+  postalCode: varchar("postal_code"), // 郵便番号
+  address: text("address"), // 住所
+  attendingPhysician: varchar("attending_physician"), // 主治医
+  careLevel: varchar("care_level"), // 介護度
+  insuranceNumber: varchar("insurance_number"), // 被保険者番号
+  careAuthorizationPeriod: varchar("care_authorization_period"), // 介護認定期間
+  isAdmitted: boolean("is_admitted").default(false), // 入院
+  
+  // 緊急連絡先1
+  emergencyContact1Name: varchar("emergency_contact1_name"), // 氏名
+  emergencyContact1Relationship: varchar("emergency_contact1_relationship"), // 続柄
+  emergencyContact1Phone1: varchar("emergency_contact1_phone1"), // 電話1
+  emergencyContact1Phone2: varchar("emergency_contact1_phone2"), // 電話2
+  emergencyContact1Address: text("emergency_contact1_address"), // 住所
+  
+  // 緊急連絡先2
+  emergencyContact2Name: varchar("emergency_contact2_name"), // 氏名
+  emergencyContact2Relationship: varchar("emergency_contact2_relationship"), // 続柄
+  emergencyContact2Phone1: varchar("emergency_contact2_phone1"), // 電話1
+  emergencyContact2Phone2: varchar("emergency_contact2_phone2"), // 電話2
+  emergencyContact2Address: text("emergency_contact2_address"), // 住所
+  
+  // 服薬情報
+  medicationMorning: boolean("medication_morning").default(false), // 朝後
+  medicationEvening: boolean("medication_evening").default(false), // 夕後
+  medicationMorningBefore: boolean("medication_morning_before").default(false), // 朝前
+  medicationEveningBefore: boolean("medication_evening_before").default(false), // 夕前
+  medicationBedtime: boolean("medication_bedtime").default(false), // 昼後
+  medicationOther: boolean("medication_other").default(false), // 夕前
+  
+  // 点眼情報
+  eyeDropsMorning: boolean("eye_drops_morning").default(false), // 朝後
+  eyeDropsEvening: boolean("eye_drops_evening").default(false), // 夕後
+  eyeDropsMorningBefore: boolean("eye_drops_morning_before").default(false), // 朝前
+  eyeDropsEveningBefore: boolean("eye_drops_evening_before").default(false), // 夕前
+  eyeDropsBedtime: boolean("eye_drops_bedtime").default(false), // 昼後
+  eyeDropsOther: boolean("eye_drops_other").default(false), // 夕前
+  
+  // 清拭情報
+  bathingSunday: boolean("bathing_sunday").default(false), // 月曜日
+  bathingMonday: boolean("bathing_monday").default(false), // 火曜日
+  bathingTuesday: boolean("bathing_tuesday").default(false), // 水曜日
+  bathingWednesday: boolean("bathing_wednesday").default(false), // 木曜日
+  bathingThursday: boolean("bathing_thursday").default(false), // 金曜日
+  bathingFriday: boolean("bathing_friday").default(false), // 土曜日
+  bathingSaturday: boolean("bathing_saturday").default(false), // 日曜日
+  
+  // 入浴情報
+  bathSunday: boolean("bath_sunday").default(false), // 月曜日
+  bathMonday: boolean("bath_monday").default(false), // 火曜日
+  bathTuesday: boolean("bath_tuesday").default(false), // 水曜日
+  bathWednesday: boolean("bath_wednesday").default(false), // 木曜日
+  bathThursday: boolean("bath_thursday").default(false), // 金曜日
+  bathFriday: boolean("bath_friday").default(false), // 土曜日
+  bathSaturday: boolean("bath_saturday").default(false), // 日曜日
+  
+  // 服薬時間
+  medicationTimeSunday: boolean("medication_time_sunday").default(false), // 月曜日
+  medicationTimeMonday: boolean("medication_time_monday").default(false), // 火曜日
+  medicationTimeTuesday: boolean("medication_time_tuesday").default(false), // 水曜日
+  medicationTimeWednesday: boolean("medication_time_wednesday").default(false), // 木曜日
+  medicationTimeThursday: boolean("medication_time_thursday").default(false), // 金曜日
+  medicationTimeFriday: boolean("medication_time_friday").default(false), // 土曜日
+  medicationTimeSaturday: boolean("medication_time_saturday").default(false), // 日曜日
+  
+  // 排泄情報
+  excretionTimeUrineStanding: boolean("excretion_time_urine_standing").default(false), // 自立便
+  excretionTimeUrineAssisted: boolean("excretion_time_urine_assisted").default(false), // 介助便
+  excretionTime: varchar("excretion_time"), // 排泄時間
+  diaperSize: varchar("diaper_size"), // おむつサイズ
+  diaperType: varchar("diaper_type"), // おむつコース
+  
+  // 服薬週次情報
+  medicationWeekMonday: boolean("medication_week_monday").default(false), // 月曜日
+  medicationWeekTuesday: boolean("medication_week_tuesday").default(false), // 火曜日
+  medicationWeekWednesday: boolean("medication_week_wednesday").default(false), // 水曜日
+  medicationWeekThursday: boolean("medication_week_thursday").default(false), // 金曜日
+  medicationWeekFriday: boolean("medication_week_friday").default(false), // 土曜日
+  medicationWeekSaturday: boolean("medication_week_saturday").default(false), // 日曜日
+  medicationWeekSunday: boolean("medication_week_sunday").default(false), // 土曜日
+  
+  // 腹膜透析時間
+  medicationFrequency: varchar("medication_frequency"), // 月次
+  mealLunch: boolean("meal_lunch").default(false), // 経口
+  mealDinner: boolean("meal_dinner").default(false), // 経口
+  
+  notes: text("notes"), // 備考
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -170,6 +255,7 @@ export const communications = pgTable("communications", {
 export const insertResidentSchema = createInsertSchema(residents, {
   dateOfBirth: z.string().optional().transform((str) => str ? str : undefined),
   admissionDate: z.string().optional().transform((str) => str ? str : undefined),
+  retirementDate: z.string().optional().transform((str) => str ? str : undefined),
 }).omit({
   id: true,
   createdAt: true,
