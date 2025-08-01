@@ -299,36 +299,8 @@ export default function CareRecords() {
             </CardContent>
           </Card>
 
-          {/* Tabs for different record types */}
-          <Tabs defaultValue="records" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="records" className="flex items-center space-x-2">
-                <ClipboardList className="w-4 h-4" />
-                <span>記録</span>
-              </TabsTrigger>
-              <TabsTrigger value="vitals" className="flex items-center space-x-2">
-                <Activity className="w-4 h-4" />
-                <span>バイタル</span>
-              </TabsTrigger>
-              <TabsTrigger value="meals" className="flex items-center space-x-2">
-                <Utensils className="w-4 h-4" />
-                <span>食事</span>
-              </TabsTrigger>
-              <TabsTrigger value="medication" className="flex items-center space-x-2">
-                <Pill className="w-4 h-4" />
-                <span>服薬</span>
-              </TabsTrigger>
-              <TabsTrigger value="excretion" className="flex items-center space-x-2">
-                <Baby className="w-4 h-4" />
-                <span>排泄</span>
-              </TabsTrigger>
-              <TabsTrigger value="rounds" className="flex items-center space-x-2">
-                <FileText className="w-4 h-4" />
-                <span>ラウンド</span>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="records">
+          {/* Records List */}
+          <div className="space-y-6">
               <div className="space-y-4">
                 {residentRecords.length === 0 ? (
                   <Card>
@@ -371,56 +343,7 @@ export default function CareRecords() {
                     })
                 )}
               </div>
-            </TabsContent>
-
-            <TabsContent value="vitals">
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Activity className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600">バイタル記録は別画面で管理されています</p>
-                  <p className="text-sm text-slate-500 mt-2">バイタル記録画面をご利用ください</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="meals">
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Utensils className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600">食事記録は別画面で管理されています</p>
-                  <p className="text-sm text-slate-500 mt-2">食事・服薬記録画面をご利用ください</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="medication">
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Pill className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600">服薬記録は別画面で管理されています</p>
-                  <p className="text-sm text-slate-500 mt-2">食事・服薬記録画面をご利用ください</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="excretion">
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Baby className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600">排泄記録機能は今後実装予定です</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="rounds">
-              <Card>
-                <CardContent className="text-center py-8">
-                  <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <p className="text-slate-600">ラウンド記録機能は今後実装予定です</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          </div>
         </main>
       </div>
     );
