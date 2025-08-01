@@ -115,9 +115,8 @@ function InlineEditableField({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="min-h-[4rem] max-h-[12rem] resize-none"
+        className="h-full min-h-[5rem] resize-none"
         autoFocus
-        rows={3}
       />
     );
   }
@@ -349,14 +348,23 @@ export default function CareRecords() {
     return (
       <div className="min-h-screen bg-blue-100">
         <div className="bg-blue-200 p-4">
-          <div className="flex items-center justify-center">
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">
-                {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
-                <span className="text-sm font-normal">
-                  {selectedResident.gender} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
-                </span>
-              </h1>
+          <div className="text-center mb-3">
+            <h1 className="text-xl font-bold text-slate-800">介護記録</h1>
+          </div>
+          <div className="text-center mb-3">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-3 py-2 border border-slate-300 rounded-md text-slate-700 bg-white"
+            />
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-medium text-slate-800">
+              {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
+              <span className="text-sm font-normal">
+                {selectedResident.gender} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
+              </span>
             </div>
           </div>
         </div>
@@ -366,82 +374,96 @@ export default function CareRecords() {
         </div>
 
         <main className="max-w-4xl mx-auto px-4 py-4 space-y-2">
-          {residentRecords.length === 0 ? (
-            <div className="text-center py-8 text-slate-600">
-              <p>介護記録がありません</p>
-            </div>
-          ) : (
-            residentRecords
-              .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime())
-              .map((record: any) => {
-                const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
-                const recordTime = format(new Date(record.recordDate), "HH : mm", { locale: ja });
-                
-                return (
-                  <div key={record.id} className="bg-white border border-slate-200 p-4 shadow-sm">
-                    <div className="flex">
-                      {/* 左側：時間、カテゴリ、記録者を縦並び */}
-                      <div className="flex flex-col space-y-2 min-w-[120px] mr-4">
-                        <InlineEditableField
-                          value={recordTime}
-                          onSave={(value) => {
-                            // 時刻の更新処理
-                            const [hours, minutes] = value.split(':');
-                            const currentDate = new Date(record.recordDate);
-                            currentDate.setHours(parseInt(hours), parseInt(minutes));
-                            updateMutation.mutate({ 
-                              id: record.id, 
-                              field: 'recordDate', 
-                              value: currentDate.toISOString()
-                            });
-                          }}
-                          type="time"
-                          placeholder="時刻"
-                        />
-                        <InlineEditableField
-                          value={record.category}
-                          onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
-                          type="select"
-                          options={categoryOptions}
-                          placeholder="カテゴリ"
-                        />
-                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                          {currentUser?.firstName || currentUser?.email || "記録者"}
-                        </span>
-                      </div>
-                      
-                      {/* 中央：記録内容（最大化） */}
-                      <div className="flex-1 mr-4">
-                        <InlineEditableField
-                          value={record.description}
-                          onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
-                          placeholder="記録内容"
-                          multiline={true}
-                        />
-                      </div>
-                      
-                      {/* 右側：アイコンを縦並び */}
-                      <div className="flex flex-col space-y-2">
-                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 p-2">
-                          <Info className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-blue-600 hover:bg-blue-50 p-2"
-                          onClick={() => {
-                            setSelectedRecordContent(record.description);
-                            setContentDialogOpen(true);
-                          }}
-                        >
-                          <Search className="w-4 h-4" />
-                        </Button>
+          {(careRecords as any[])
+            .filter((record: any) => {
+              if (record.residentId !== selectedResident.id) return false;
+              const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+              return recordDate === selectedDate;
+            })
+            .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime())
+            .length === 0 ? (
+              <div className="text-center py-8 text-slate-600">
+                <p>選択した日付の介護記録がありません</p>
+              </div>
+            ) : (
+              (careRecords as any[])
+                .filter((record: any) => {
+                  if (record.residentId !== selectedResident.id) return false;
+                  const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+                  return recordDate === selectedDate;
+                })
+                .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime())
+                .map((record: any) => {
+                  const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
+                  const recordTime = format(new Date(record.recordDate), "HH : mm", { locale: ja });
+                  
+                  return (
+                    <div key={record.id} className="bg-white border border-slate-200 p-3 shadow-sm">
+                      <div className="flex h-20">
+                        {/* 左側：時間、カテゴリ、記録者を縦並び */}
+                        <div className="flex flex-col justify-between min-w-[120px] mr-3">
+                          <InlineEditableField
+                            value={recordTime}
+                            onSave={(value) => {
+                              // 時刻の更新処理
+                              const [hours, minutes] = value.split(':');
+                              const currentDate = new Date(record.recordDate);
+                              currentDate.setHours(parseInt(hours), parseInt(minutes));
+                              updateMutation.mutate({ 
+                                id: record.id, 
+                                field: 'recordDate', 
+                                value: currentDate.toISOString()
+                              });
+                            }}
+                            type="time"
+                            placeholder="時刻"
+                          />
+                          <InlineEditableField
+                            value={record.category}
+                            onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
+                            type="select"
+                            options={categoryOptions}
+                            placeholder="カテゴリ"
+                          />
+                          <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded truncate">
+                            {(currentUser as any)?.firstName || (currentUser as any)?.email || "記録者"}
+                          </span>
+                        </div>
+                        
+                        {/* 中央：記録内容（高さいっぱい） */}
+                        <div className="flex-1 mr-3">
+                          <div className="h-full">
+                            <InlineEditableField
+                              value={record.description}
+                              onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
+                              placeholder="記録内容"
+                              multiline={true}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* 右側：アイコンを縦並び */}
+                        <div className="flex flex-col justify-center space-y-1">
+                          <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 p-1 h-8 w-8">
+                            <Info className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-blue-600 hover:bg-blue-50 p-1 h-8 w-8"
+                            onClick={() => {
+                              setSelectedRecordContent(record.description);
+                              setContentDialogOpen(true);
+                            }}
+                          >
+                            <Search className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-          )}
+                  );
+                })
+            )}
         </main>
 
         <div className="fixed bottom-0 left-0 right-0 bg-blue-200 p-4 flex justify-between">
@@ -453,7 +475,7 @@ export default function CareRecords() {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
-            <FileText className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
           </Button>
         </div>
 
