@@ -52,6 +52,61 @@ const residentSchema = z.object({
   emergencyContact2Phone2: z.string().optional(),
   emergencyContact2Address: z.string().optional(),
   
+  // 服薬時間帯
+  medicationMorning: z.boolean().optional(),
+  medicationEvening: z.boolean().optional(),
+  medicationMorningBefore: z.boolean().optional(),
+  medicationEveningBefore: z.boolean().optional(),
+  medicationBedtime: z.boolean().optional(),
+  medicationOther: z.boolean().optional(),
+  
+  // 点眼時間帯
+  eyeDropsMorning: z.boolean().optional(),
+  eyeDropsEvening: z.boolean().optional(),
+  eyeDropsMorningBefore: z.boolean().optional(),
+  eyeDropsEveningBefore: z.boolean().optional(),
+  eyeDropsBedtime: z.boolean().optional(),
+  eyeDropsOther: z.boolean().optional(),
+  
+  // 入浴日
+  bathSunday: z.boolean().optional(),
+  bathMonday: z.boolean().optional(),
+  bathTuesday: z.boolean().optional(),
+  bathWednesday: z.boolean().optional(),
+  bathThursday: z.boolean().optional(),
+  bathFriday: z.boolean().optional(),
+  bathSaturday: z.boolean().optional(),
+  
+  // 清拭・リネン交換日
+  bathingSunday: z.boolean().optional(),
+  bathingMonday: z.boolean().optional(),
+  bathingTuesday: z.boolean().optional(),
+  bathingWednesday: z.boolean().optional(),
+  bathingThursday: z.boolean().optional(),
+  bathingFriday: z.boolean().optional(),
+  bathingSaturday: z.boolean().optional(),
+  
+  // 服薬週次
+  medicationTimeSunday: z.boolean().optional(),
+  medicationTimeMonday: z.boolean().optional(),
+  medicationTimeTuesday: z.boolean().optional(),
+  medicationTimeWednesday: z.boolean().optional(),
+  medicationTimeThursday: z.boolean().optional(),
+  medicationTimeFriday: z.boolean().optional(),
+  medicationTimeSaturday: z.boolean().optional(),
+  
+  // 排泄情報
+  excretionTimeUrineStanding: z.boolean().optional(),
+  excretionTimeUrineAssisted: z.boolean().optional(),
+  excretionTime: z.string().optional(),
+  diaperSize: z.string().optional(),
+  diaperType: z.string().optional(),
+  
+  // 腹膜透析
+  medicationFrequency: z.string().optional(),
+  mealLunch: z.boolean().optional(),
+  mealDinner: z.boolean().optional(),
+  
   notes: z.string().optional(),
 });
 
@@ -95,6 +150,62 @@ export default function UserInfo() {
       emergencyContact2Phone1: "",
       emergencyContact2Phone2: "",
       emergencyContact2Address: "",
+      
+      // 服薬時間帯
+      medicationMorning: false,
+      medicationEvening: false,
+      medicationMorningBefore: false,
+      medicationEveningBefore: false,
+      medicationBedtime: false,
+      medicationOther: false,
+      
+      // 点眼時間帯
+      eyeDropsMorning: false,
+      eyeDropsEvening: false,
+      eyeDropsMorningBefore: false,
+      eyeDropsEveningBefore: false,
+      eyeDropsBedtime: false,
+      eyeDropsOther: false,
+      
+      // 入浴日
+      bathSunday: false,
+      bathMonday: false,
+      bathTuesday: false,
+      bathWednesday: false,
+      bathThursday: false,
+      bathFriday: false,
+      bathSaturday: false,
+      
+      // 清拭・リネン交換日
+      bathingSunday: false,
+      bathingMonday: false,
+      bathingTuesday: false,
+      bathingWednesday: false,
+      bathingThursday: false,
+      bathingFriday: false,
+      bathingSaturday: false,
+      
+      // 服薬週次
+      medicationTimeSunday: false,
+      medicationTimeMonday: false,
+      medicationTimeTuesday: false,
+      medicationTimeWednesday: false,
+      medicationTimeThursday: false,
+      medicationTimeFriday: false,
+      medicationTimeSaturday: false,
+      
+      // 排泄情報
+      excretionTimeUrineStanding: false,
+      excretionTimeUrineAssisted: false,
+      excretionTime: "",
+      diaperSize: "",
+      diaperType: "",
+      
+      // 腹膜透析
+      medicationFrequency: "",
+      mealLunch: false,
+      mealDinner: false,
+      
       notes: "",
     },
   });
@@ -127,6 +238,62 @@ export default function UserInfo() {
       emergencyContact2Phone1: "",
       emergencyContact2Phone2: "",
       emergencyContact2Address: "",
+      
+      // 服薬時間帯
+      medicationMorning: false,
+      medicationEvening: false,
+      medicationMorningBefore: false,
+      medicationEveningBefore: false,
+      medicationBedtime: false,
+      medicationOther: false,
+      
+      // 点眼時間帯
+      eyeDropsMorning: false,
+      eyeDropsEvening: false,
+      eyeDropsMorningBefore: false,
+      eyeDropsEveningBefore: false,
+      eyeDropsBedtime: false,
+      eyeDropsOther: false,
+      
+      // 入浴日
+      bathSunday: false,
+      bathMonday: false,
+      bathTuesday: false,
+      bathWednesday: false,
+      bathThursday: false,
+      bathFriday: false,
+      bathSaturday: false,
+      
+      // 清拭・リネン交換日
+      bathingSunday: false,
+      bathingMonday: false,
+      bathingTuesday: false,
+      bathingWednesday: false,
+      bathingThursday: false,
+      bathingFriday: false,
+      bathingSaturday: false,
+      
+      // 服薬週次
+      medicationTimeSunday: false,
+      medicationTimeMonday: false,
+      medicationTimeTuesday: false,
+      medicationTimeWednesday: false,
+      medicationTimeThursday: false,
+      medicationTimeFriday: false,
+      medicationTimeSaturday: false,
+      
+      // 排泄情報
+      excretionTimeUrineStanding: false,
+      excretionTimeUrineAssisted: false,
+      excretionTime: "",
+      diaperSize: "",
+      diaperType: "",
+      
+      // 腹膜透析
+      medicationFrequency: "",
+      mealLunch: false,
+      mealDinner: false,
+      
       notes: "",
     },
   });
@@ -265,6 +432,62 @@ export default function UserInfo() {
       emergencyContact2Phone1: resident.emergencyContact2Phone1 || "",
       emergencyContact2Phone2: resident.emergencyContact2Phone2 || "",
       emergencyContact2Address: resident.emergencyContact2Address || "",
+      
+      // 服薬時間帯
+      medicationMorning: resident.medicationMorning || false,
+      medicationEvening: resident.medicationEvening || false,
+      medicationMorningBefore: resident.medicationMorningBefore || false,
+      medicationEveningBefore: resident.medicationEveningBefore || false,
+      medicationBedtime: resident.medicationBedtime || false,
+      medicationOther: resident.medicationOther || false,
+      
+      // 点眼時間帯
+      eyeDropsMorning: resident.eyeDropsMorning || false,
+      eyeDropsEvening: resident.eyeDropsEvening || false,
+      eyeDropsMorningBefore: resident.eyeDropsMorningBefore || false,
+      eyeDropsEveningBefore: resident.eyeDropsEveningBefore || false,
+      eyeDropsBedtime: resident.eyeDropsBedtime || false,
+      eyeDropsOther: resident.eyeDropsOther || false,
+      
+      // 入浴日
+      bathSunday: resident.bathSunday || false,
+      bathMonday: resident.bathMonday || false,
+      bathTuesday: resident.bathTuesday || false,
+      bathWednesday: resident.bathWednesday || false,
+      bathThursday: resident.bathThursday || false,
+      bathFriday: resident.bathFriday || false,
+      bathSaturday: resident.bathSaturday || false,
+      
+      // 清拭・リネン交換日
+      bathingSunday: resident.bathingSunday || false,
+      bathingMonday: resident.bathingMonday || false,
+      bathingTuesday: resident.bathingTuesday || false,
+      bathingWednesday: resident.bathingWednesday || false,
+      bathingThursday: resident.bathingThursday || false,
+      bathingFriday: resident.bathingFriday || false,
+      bathingSaturday: resident.bathingSaturday || false,
+      
+      // 服薬週次
+      medicationTimeSunday: resident.medicationTimeSunday || false,
+      medicationTimeMonday: resident.medicationTimeMonday || false,
+      medicationTimeTuesday: resident.medicationTimeTuesday || false,
+      medicationTimeWednesday: resident.medicationTimeWednesday || false,
+      medicationTimeThursday: resident.medicationTimeThursday || false,
+      medicationTimeFriday: resident.medicationTimeFriday || false,
+      medicationTimeSaturday: resident.medicationTimeSaturday || false,
+      
+      // 排泄情報
+      excretionTimeUrineStanding: resident.excretionTimeUrineStanding || false,
+      excretionTimeUrineAssisted: resident.excretionTimeUrineAssisted || false,
+      excretionTime: resident.excretionTime || "",
+      diaperSize: resident.diaperSize || "",
+      diaperType: resident.diaperType || "",
+      
+      // 腹膜透析
+      medicationFrequency: resident.medicationFrequency || "",
+      mealLunch: resident.mealLunch || false,
+      mealDinner: resident.mealDinner || false,
+      
       notes: resident.notes || "",
     };
     
@@ -1288,6 +1511,638 @@ export default function UserInfo() {
                             <Input placeholder="神奈川県横浜市..." {...field} />
                           </FormControl>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 服薬時間帯セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">服薬時間帯</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="medicationMorning"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>朝後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationEvening"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>夕後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationMorningBefore"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>朝前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationEveningBefore"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>夕前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationBedtime"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>昼後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="medicationOther"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>夕前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 点眼時間帯セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">点眼時間帯</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="eyeDropsMorning"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>朝後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="eyeDropsEvening"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>夕後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="eyeDropsMorningBefore"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>朝前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="eyeDropsEveningBefore"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>夕前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="eyeDropsBedtime"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>昼後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="eyeDropsOther"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>夕前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 入浴日セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">入浴日</h3>
+                  <div className="grid grid-cols-3 md:grid-cols-7 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="bathSunday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>日曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathMonday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>月曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathTuesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>火曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathWednesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>水曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathThursday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>木曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathFriday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>金曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathSaturday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>土曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 清拭・リネン交換日セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">清拭・リネン交換日</h3>
+                  <div className="grid grid-cols-3 md:grid-cols-7 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="bathingSunday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>日曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathingMonday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>月曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathingTuesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>火曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathingWednesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>水曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathingThursday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>木曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathingFriday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>金曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="bathingSaturday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>土曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 排泄情報セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">排泄情報</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="excretionTimeUrineStanding"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>自立便</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="excretionTimeUrineAssisted"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>介助便</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="diaperSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>おむつサイズ</FormLabel>
+                          <FormControl>
+                            <Input placeholder="L" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="diaperType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>おむつコース</FormLabel>
+                          <FormControl>
+                            <Input placeholder="テープ" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="excretionTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>排泄時間</FormLabel>
+                        <FormControl>
+                          <Input placeholder="詳細な排泄時間を記入" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* 腹膜透析情報セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">腹膜透析情報</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="medicationFrequency"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>月次</FormLabel>
+                          <FormControl>
+                            <Input placeholder="月1回" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="mealLunch"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>経口</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="mealDinner"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </FormControl>
+                          <FormLabel>経口</FormLabel>
                         </FormItem>
                       )}
                     />
