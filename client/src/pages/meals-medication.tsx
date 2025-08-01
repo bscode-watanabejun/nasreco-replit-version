@@ -64,8 +64,13 @@ export default function MealsMedication() {
     mutationFn: async (data: MealMedicationForm) => {
       const recordData = {
         ...data,
-        recordDate: new Date(data.recordDate),
-        administeredTime: data.administeredTime ? new Date(data.administeredTime) : null,
+        recordDate: data.recordDate,
+        administeredTime: data.administeredTime || undefined,
+        mealType: data.mealType || undefined,
+        mealIntake: data.mealIntake || undefined,
+        medicationName: data.medicationName || undefined,
+        dosage: data.dosage || undefined,
+        notes: data.notes || undefined,
       };
       
       await apiRequest("POST", "/api/meals-medication", recordData);

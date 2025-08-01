@@ -199,7 +199,10 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
 
 export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedication, {
   recordDate: z.string().transform((str) => new Date(str)),
-  administeredTime: z.string().optional().transform((str) => str ? new Date(str) : undefined),
+  administeredTime: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (!val || val === null) return undefined;
+    return new Date(val);
+  }),
 }).omit({
   id: true,
   createdAt: true,
