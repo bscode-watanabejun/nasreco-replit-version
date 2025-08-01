@@ -2,6 +2,12 @@
 
 NASRECO is a comprehensive healthcare management system designed for nursing and care facilities. The application provides Japanese language support and manages all aspects of resident care including personal information, care records, nursing documentation, vital signs monitoring, meal and medication tracking, and various daily care activities. Built as a full-stack web application, it serves healthcare staff with an intuitive interface for comprehensive patient care documentation and management.
 
+## Recent Changes (January 2025)
+- Successfully implemented and tested core functionality including vital signs recording, care records management, meals/medication tracking, and resident registration
+- Fixed critical date field validation issues in Zod schemas by adding proper string-to-date transformations
+- Resolved null value handling errors in optional fields across all record types
+- Confirmed all major modules are working properly with live testing
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
