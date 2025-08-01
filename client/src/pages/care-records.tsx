@@ -115,15 +115,16 @@ function InlineEditableField({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="min-h-[2.5rem] resize-none"
+        className="min-h-[4rem] max-h-[12rem] resize-none"
         autoFocus
+        rows={3}
       />
     );
   }
 
   return (
     <Input
-      type={type}
+      type={type === "time" ? "time" : type}
       value={currentValue}
       onChange={(e) => setCurrentValue(e.target.value)}
       onBlur={handleBlur}
@@ -150,6 +151,10 @@ export default function CareRecords() {
 
   const { data: careRecords = [], isLoading } = useQuery({
     queryKey: ["/api/care-records"],
+  });
+
+  const { data: currentUser } = useQuery({
+    queryKey: ["/api/auth/user"],
   });
 
   const form = useForm<CareRecordForm>({
@@ -374,50 +379,56 @@ export default function CareRecords() {
                 
                 return (
                   <div key={record.id} className="bg-white border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-4 mb-2">
-                          <InlineEditableField
-                            value={recordTime}
-                            onSave={(value) => {
-                              // 時刻の更新処理
-                              const [hours, minutes] = value.split(':');
-                              const currentDate = new Date(record.recordDate);
-                              currentDate.setHours(parseInt(hours), parseInt(minutes));
-                              updateMutation.mutate({ 
-                                id: record.id, 
-                                field: 'recordDate', 
-                                value: currentDate.toISOString()
-                              });
-                            }}
-                            type="time"
-                            placeholder="時刻"
-                          />
-                          <InlineEditableField
-                            value={record.description}
-                            onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
-                            placeholder="記録内容"
-                          />
-                        </div>
-                        <div className="flex items-center space-x-4 text-sm text-slate-500">
-                          <InlineEditableField
-                            value={record.category}
-                            onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
-                            type="select"
-                            options={categoryOptions}
-                            placeholder="カテゴリ"
-                          />
-                          <span className="bg-slate-100 px-2 py-1 rounded">記録者</span>
-                        </div>
+                    <div className="flex">
+                      {/* 左側：時間、カテゴリ、記録者を縦並び */}
+                      <div className="flex flex-col space-y-2 min-w-[120px] mr-4">
+                        <InlineEditableField
+                          value={recordTime}
+                          onSave={(value) => {
+                            // 時刻の更新処理
+                            const [hours, minutes] = value.split(':');
+                            const currentDate = new Date(record.recordDate);
+                            currentDate.setHours(parseInt(hours), parseInt(minutes));
+                            updateMutation.mutate({ 
+                              id: record.id, 
+                              field: 'recordDate', 
+                              value: currentDate.toISOString()
+                            });
+                          }}
+                          type="time"
+                          placeholder="時刻"
+                        />
+                        <InlineEditableField
+                          value={record.category}
+                          onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
+                          type="select"
+                          options={categoryOptions}
+                          placeholder="カテゴリ"
+                        />
+                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                          {currentUser?.firstName || currentUser?.email || "記録者"}
+                        </span>
                       </div>
-                      <div className="flex space-x-2 ml-4">
-                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50">
+                      
+                      {/* 中央：記録内容（最大化） */}
+                      <div className="flex-1 mr-4">
+                        <InlineEditableField
+                          value={record.description}
+                          onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
+                          placeholder="記録内容"
+                          multiline={true}
+                        />
+                      </div>
+                      
+                      {/* 右側：アイコンを縦並び */}
+                      <div className="flex flex-col space-y-2">
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-50 p-2">
                           <Info className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="text-blue-600 hover:bg-blue-50"
+                          className="text-blue-600 hover:bg-blue-50 p-2"
                           onClick={() => {
                             setSelectedRecordContent(record.description);
                             setContentDialogOpen(true);
@@ -451,6 +462,7 @@ export default function CareRecords() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>記録内容</DialogTitle>
+              <DialogDescription>記録の詳細内容を表示しています</DialogDescription>
             </DialogHeader>
             <div className="mt-4">
               <div className="p-4 bg-slate-50 rounded-lg border">
