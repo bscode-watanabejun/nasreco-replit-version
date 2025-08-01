@@ -533,7 +533,7 @@ export default function CareRecords() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
               {(residents as any[]).map((resident: any) => (
                 <Card 
                   key={resident.id} 
@@ -544,31 +544,25 @@ export default function CareRecords() {
                     form.setValue('residentId', resident.id);
                   }}
                 >
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">{resident.name}</CardTitle>
+                  <CardHeader className="pb-2 pt-3">
+                    <CardTitle className="text-base leading-tight">{resident.name}</CardTitle>
                     <CardDescription className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
                           {resident.roomNumber || "未設定"}号室
                         </Badge>
                         {resident.age && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
                             {resident.age}歳
                           </Badge>
                         )}
                       </div>
-                      {resident.careLevel && (
-                        <p className="text-sm text-slate-600">介護度: {resident.careLevel}</p>
-                      )}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-500">クリックして記録を確認</span>
-                      <Button size="sm" variant="outline">
-                        記録を見る
-                      </Button>
-                    </div>
+                  <CardContent className="pt-0 pb-3">
+                    <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                      記録を見る
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
