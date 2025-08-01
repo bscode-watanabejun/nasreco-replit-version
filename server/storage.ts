@@ -47,6 +47,7 @@ export interface IStorage {
   // Care record operations
   getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<CareRecord[]>;
   createCareRecord(record: InsertCareRecord): Promise<CareRecord>;
+  updateCareRecord(id: string, data: Partial<InsertCareRecord>): Promise<CareRecord>;
 
   // Nursing record operations
   getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<NursingRecord[]>;
@@ -149,6 +150,18 @@ export class DatabaseStorage implements IStorage {
   async createCareRecord(record: InsertCareRecord): Promise<CareRecord> {
     const [newRecord] = await db.insert(careRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateCareRecord(id: string, data: Partial<InsertCareRecord>): Promise<CareRecord> {
+    const [record] = await db
+      .update(careRecords)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(careRecords.id, id))
+      .returning();
+    return record;
   }
 
   // Nursing record operations

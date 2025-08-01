@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -28,6 +28,112 @@ const careRecordSchema = z.object({
 });
 
 type CareRecordForm = z.infer<typeof careRecordSchema>;
+
+// インライン編集用のコンポーネント
+function InlineEditableField({ 
+  value, 
+  onSave, 
+  type = "text", 
+  placeholder = "", 
+  multiline = false,
+  options = [] 
+}: {
+  value: string;
+  onSave: (newValue: string) => void;
+  type?: "text" | "datetime-local" | "select";
+  placeholder?: string;
+  multiline?: boolean;
+  options?: { value: string; label: string; }[];
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentValue, setCurrentValue] = useState(value);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (currentValue !== value) {
+      setIsSaving(true);
+      await onSave(currentValue);
+      setIsSaving(false);
+    }
+    setIsEditing(false);
+  };
+
+  const handleBlur = () => {
+    handleSave();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !multiline) {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setCurrentValue(value);
+      setIsEditing(false);
+    }
+  };
+
+  if (!isEditing) {
+    return (
+      <div 
+        className="cursor-pointer hover:bg-slate-50 p-2 rounded border-2 border-transparent hover:border-slate-200 transition-colors relative group"
+        onClick={() => setIsEditing(true)}
+      >
+        {type === "datetime-local" && value ? (
+          format(new Date(value), "PPP HH:mm", { locale: ja })
+        ) : type === "select" && options.length > 0 ? (
+          options.find(opt => opt.value === value)?.label || value
+        ) : (
+          value || <span className="text-slate-400">{placeholder}</span>
+        )}
+        <Edit className="w-3 h-3 absolute top-1 right-1 opacity-0 group-hover:opacity-50 transition-opacity" />
+        {isSaving && <Check className="w-3 h-3 absolute top-1 right-1 text-green-600" />}
+      </div>
+    );
+  }
+
+  if (type === "select") {
+    return (
+      <Select value={currentValue} onValueChange={setCurrentValue} onOpenChange={(open) => !open && handleBlur()}>
+        <SelectTrigger className="h-auto min-h-[2.5rem]">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (multiline) {
+    return (
+      <Textarea
+        value={currentValue}
+        onChange={(e) => setCurrentValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className="min-h-[2.5rem] resize-none"
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <Input
+      type={type}
+      value={currentValue}
+      onChange={(e) => setCurrentValue(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      className="h-auto min-h-[2.5rem]"
+      autoFocus
+    />
+  );
+}
 
 export default function CareRecords() {
   const { toast } = useToast();
@@ -83,6 +189,31 @@ export default function CareRecords() {
       toast({
         title: "エラー",
         description: "介護記録の作成に失敗しました",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 記録更新用ミューテーション
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: string }) => {
+      const updateData: any = { [field]: value };
+      if (field === 'recordDate') {
+        updateData[field] = new Date(value);
+      }
+      await apiRequest("PATCH", `/api/care-records/${id}`, updateData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
+      toast({
+        title: "保存完了",
+        description: "記録を更新しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "エラー",
+        description: "記録の更新に失敗しました",
         variant: "destructive",
       });
     },
@@ -317,26 +448,49 @@ export default function CareRecords() {
                       return (
                         <Card key={record.id} className="hover:shadow-md transition-shadow">
                           <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between">
-                              <div className="space-y-1">
-                                <CardTitle className="text-lg">{categoryLabel}</CardTitle>
-                                <CardDescription className="flex items-center gap-1">
-                                  <Calendar className="w-4 h-4" />
-                                  {format(new Date(record.recordDate), "PPP HH:mm", { locale: ja })}
-                                </CardDescription>
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ</label>
+                                  <InlineEditableField
+                                    value={record.category}
+                                    onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
+                                    type="select"
+                                    options={categoryOptions}
+                                    placeholder="カテゴリを選択"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
+                                  <InlineEditableField
+                                    value={record.recordDate}
+                                    onSave={(value) => updateMutation.mutate({ id: record.id, field: 'recordDate', value })}
+                                    type="datetime-local"
+                                    placeholder="記録日時を選択"
+                                  />
+                                </div>
                               </div>
-                              <Button variant="ghost" size="sm">
-                                <Edit className="w-4 h-4" />
-                              </Button>
                             </div>
                           </CardHeader>
-                          <CardContent>
-                            <p className="text-slate-700 mb-2">{record.description}</p>
-                            {record.notes && (
-                              <p className="text-sm text-slate-600 bg-slate-50 p-2 rounded">
-                                <strong>備考:</strong> {record.notes}
-                              </p>
-                            )}
+                          <CardContent className="space-y-4">
+                            <div>
+                              <label className="text-sm font-medium text-slate-600 block mb-1">記録内容</label>
+                              <InlineEditableField
+                                value={record.description}
+                                onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
+                                multiline
+                                placeholder="記録内容を入力してください"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
+                              <InlineEditableField
+                                value={record.notes || ""}
+                                onSave={(value) => updateMutation.mutate({ id: record.id, field: 'notes', value })}
+                                multiline
+                                placeholder="備考があれば入力してください"
+                              />
+                            </div>
                           </CardContent>
                         </Card>
                       );

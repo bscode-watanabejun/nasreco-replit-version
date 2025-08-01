@@ -110,6 +110,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/care-records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const record = await storage.updateCareRecord(req.params.id, req.body);
+      res.json(record);
+    } catch (error) {
+      console.error("Error updating care record:", error);
+      res.status(500).json({ message: "Failed to update care record" });
+    }
+  });
+
   // Nursing records routes
   app.get('/api/nursing-records', isAuthenticated, async (req, res) => {
     try {
