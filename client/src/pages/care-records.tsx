@@ -376,7 +376,7 @@ export default function CareRecords() {
               const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
               return recordDate === selectedDate;
             })
-            .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime())
+            .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime())
             .length === 0 ? (
               <div className="text-center py-8 text-slate-600">
                 <p>選択した日付の介護記録がありません</p>
@@ -388,7 +388,7 @@ export default function CareRecords() {
                   const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
                   return recordDate === selectedDate;
                 })
-                .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime())
+                .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime())
                 .map((record: any) => {
                   const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
                   const recordTime = format(new Date(record.recordDate), "HH : mm", { locale: ja });
