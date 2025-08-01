@@ -361,16 +361,12 @@ export default function CareRecords() {
           </div>
           <div className="text-center">
             <div className="text-lg font-medium text-slate-800">
-              {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
+              {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　　
               <span className="text-sm font-normal">
                 {selectedResident.gender === 'male' ? '男性' : selectedResident.gender === 'female' ? '女性' : '未設定'} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
               </span>
             </div>
           </div>
-        </div>
-
-        <div className="bg-blue-150 p-2 text-center">
-          <span className="text-sm font-medium">{format(new Date(), "M月d日", { locale: ja })}</span>
         </div>
 
         <main className="max-w-4xl mx-auto px-4 py-4 space-y-2">
@@ -399,9 +395,9 @@ export default function CareRecords() {
                   
                   return (
                     <div key={record.id} className="bg-white border border-slate-200 p-3 shadow-sm">
-                      <div className="flex h-24">
+                      <div className="flex h-32">
                         {/* 左側：時間、カテゴリ、記録者を縦並び */}
-                        <div className="flex flex-col justify-between min-w-[140px] mr-3">
+                        <div className="flex flex-col justify-between min-w-[150px] mr-3">
                           <InlineEditableField
                             value={recordTime}
                             onSave={(value) => {
@@ -425,8 +421,8 @@ export default function CareRecords() {
                             options={categoryOptions}
                             placeholder="カテゴリ"
                           />
-                          <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                            {(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "記録者"}
+                          <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded text-center break-words">
+                            記録者: {(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
                           </div>
                         </div>
                         
@@ -474,7 +470,21 @@ export default function CareRecords() {
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" className="bg-blue-300 hover:bg-blue-400">
+          <Button 
+            variant="ghost" 
+            className="bg-blue-300 hover:bg-blue-400"
+            onClick={() => {
+              const now = new Date();
+              const newRecord = {
+                residentId: selectedResident.id,
+                recordDate: now.toISOString(),
+                category: 'general',
+                description: '',
+              };
+              
+              createMutation.mutate(newRecord);
+            }}
+          >
             <Plus className="w-4 h-4" />
           </Button>
         </div>
