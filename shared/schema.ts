@@ -192,6 +192,30 @@ export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
 
 export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
   recordDate: z.string().transform((str) => new Date(str)),
+  temperature: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'string' ? val : val.toString();
+  }),
+  bloodPressureSystolic: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  bloodPressureDiastolic: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  pulseRate: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  respirationRate: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  oxygenSaturation: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'string' ? val : val.toString();
+  }),
 }).omit({
   id: true,
   createdAt: true,
