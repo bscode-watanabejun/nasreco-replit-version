@@ -167,48 +167,68 @@ export const communications = pgTable("communications", {
 });
 
 // Insert schemas
-export const insertResidentSchema = createInsertSchema(residents).omit({
+export const insertResidentSchema = createInsertSchema(residents, {
+  dateOfBirth: z.string().optional().transform((str) => str ? str : undefined),
+  admissionDate: z.string().optional().transform((str) => str ? str : undefined),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertCareRecordSchema = createInsertSchema(careRecords).omit({
+export const insertCareRecordSchema = createInsertSchema(careRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertNursingRecordSchema = createInsertSchema(nursingRecords).omit({
+export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertVitalSignsSchema = createInsertSchema(vitalSigns).omit({
+export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedication).omit({
+export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedication, {
+  recordDate: z.string().transform((str) => new Date(str)),
+  administeredTime: z.string().optional().transform((str) => str ? new Date(str) : undefined),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertBathingRecordSchema = createInsertSchema(bathingRecords).omit({
+export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertExcretionRecordSchema = createInsertSchema(excretionRecords).omit({
+export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertWeightRecordSchema = createInsertSchema(weightRecords).omit({
+export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
 
-export const insertCommunicationSchema = createInsertSchema(communications).omit({
+export const insertCommunicationSchema = createInsertSchema(communications, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
   id: true,
   createdAt: true,
 });
