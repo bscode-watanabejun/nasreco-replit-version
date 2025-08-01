@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -140,13 +140,7 @@ export default function CareRecords() {
   const [open, setOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any>(null);
   const [view, setView] = useState<'list' | 'detail'>('list');
-  const [newRecord, setNewRecord] = useState({
-    residentId: "",
-    category: "",
-    recordDate: new Date().toISOString().slice(0, 16),
-    description: "",
-    notes: "",
-  });
+  const [newRecordBlocks, setNewRecordBlocks] = useState<any[]>([]);
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -230,30 +224,52 @@ export default function CareRecords() {
     createMutation.mutate(data);
   };
 
+  // 新規追加ブロック作成
+  const addNewRecordBlock = () => {
+    const newBlock = {
+      id: Date.now().toString(),
+      residentId: selectedResident ? selectedResident.id : "",
+      category: "",
+      recordDate: new Date().toISOString().slice(0, 16),
+      description: "",
+      notes: "",
+    };
+    setNewRecordBlocks(prev => [...prev, newBlock]);
+  };
+
   // インライン新規記録作成ハンドラー
-  const handleNewRecord = (field: string, value: string) => {
-    const updatedRecord = { ...newRecord, [field]: value };
-    setNewRecord(updatedRecord);
+  const handleNewRecordEdit = (blockId: string, field: string, value: string) => {
+    setNewRecordBlocks(prev => 
+      prev.map(block => 
+        block.id === blockId 
+          ? { ...block, [field]: value }
+          : block
+      )
+    );
+
+    // 更新されたブロックを取得
+    const updatedBlocks = newRecordBlocks.map(block => 
+      block.id === blockId 
+        ? { ...block, [field]: value }
+        : block
+    );
+    
+    const updatedBlock = updatedBlocks.find(block => block.id === blockId);
+    if (!updatedBlock) return;
 
     // 必須フィールドがすべて入力されたら自動保存
     const hasRequiredFields = selectedResident 
-      ? updatedRecord.category && updatedRecord.description // 利用者詳細画面
-      : updatedRecord.residentId && updatedRecord.category && updatedRecord.description; // メイン画面
+      ? updatedBlock.category && updatedBlock.description // 利用者詳細画面
+      : updatedBlock.residentId && updatedBlock.category && updatedBlock.description; // メイン画面
 
     if (hasRequiredFields) {
       const submitData = {
-        ...updatedRecord,
-        residentId: selectedResident ? selectedResident.id : updatedRecord.residentId,
+        ...updatedBlock,
+        residentId: selectedResident ? selectedResident.id : updatedBlock.residentId,
       };
       createMutation.mutate(submitData);
-      // リセット
-      setNewRecord({
-        residentId: "",
-        category: "",
-        recordDate: new Date().toISOString().slice(0, 16),
-        description: "",
-        notes: "",
-      });
+      // 保存後にブロックを削除
+      setNewRecordBlocks(prev => prev.filter(block => block.id !== blockId));
     }
   };
 
@@ -308,67 +324,87 @@ export default function CareRecords() {
               </div>
             </div>
             
-            {/* 新規記録作成フォーム（インライン形式） */}
-            <Card className="border-dashed border-2 border-blue-300 hover:border-blue-400 transition-colors">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2 text-blue-600">
-                  <Plus className="w-5 h-5" />
-                  <span>新規記録追加 - カテゴリと記録内容を入力すると自動保存されます</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ *</label>
-                    <InlineEditableField
-                      value={newRecord.category}
-                      onSave={(value) => handleNewRecord("category", value)}
-                      type="select"
-                      options={categoryOptions}
-                      placeholder="カテゴリを選択してください"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
-                    <InlineEditableField
-                      value={newRecord.recordDate}
-                      onSave={(value) => handleNewRecord("recordDate", value)}
-                      type="datetime-local"
-                      placeholder="記録日時を選択してください"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-600 block mb-1">記録内容 *</label>
-                  <InlineEditableField
-                    value={newRecord.description}
-                    onSave={(value) => handleNewRecord("description", value)}
-                    multiline
-                    placeholder="記録内容を入力してください（必須）"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
-                  <InlineEditableField
-                    value={newRecord.notes}
-                    onSave={(value) => handleNewRecord("notes", value)}
-                    multiline
-                    placeholder="備考があれば入力してください"
-                  />
-                </div>
-                {(newRecord.category || newRecord.description) && (
-                  <div className="text-sm text-blue-600 flex items-center space-x-2">
-                    <Check className="w-4 h-4" />
-                    <span>
-                      {newRecord.category && newRecord.description 
-                        ? "カテゴリと記録内容が入力されました。自動保存されます。" 
-                        : "カテゴリと記録内容を両方入力してください。"
-                      }
+            <Button 
+              onClick={addNewRecordBlock}
+              className="bg-blue-600 hover:bg-blue-700 mb-4"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              新規記録
+            </Button>
+
+            {/* New Record Blocks for Detail View */}
+            {newRecordBlocks.map((block) => (
+              <Card key={block.id} className="mb-6 border-2 border-blue-200 bg-blue-50/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-blue-700">
+                    <span className="flex items-center space-x-2">
+                      <Plus className="w-5 h-5" />
+                      <span>新規記録作成中</span>
                     </span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id))}
+                      className="text-slate-500 hover:text-red-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ *</label>
+                      <InlineEditableField
+                        value={block.category}
+                        onSave={(value) => handleNewRecordEdit(block.id, "category", value)}
+                        type="select"
+                        options={categoryOptions}
+                        placeholder="カテゴリを選択してください"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
+                      <InlineEditableField
+                        value={block.recordDate}
+                        onSave={(value) => handleNewRecordEdit(block.id, "recordDate", value)}
+                        type="datetime-local"
+                        placeholder="記録日時を選択してください"
+                      />
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  <div>
+                    <label className="text-sm font-medium text-slate-600 block mb-1">記録内容 *</label>
+                    <InlineEditableField
+                      value={block.description}
+                      onSave={(value) => handleNewRecordEdit(block.id, "description", value)}
+                      multiline
+                      placeholder="記録内容を入力してください（必須）"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
+                    <InlineEditableField
+                      value={block.notes}
+                      onSave={(value) => handleNewRecordEdit(block.id, "notes", value)}
+                      multiline
+                      placeholder="備考があれば入力してください"
+                    />
+                  </div>
+                  {(block.category || block.description) && (
+                    <div className="text-sm text-blue-600 flex items-center space-x-2">
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {block.category && block.description 
+                          ? "必須項目が入力されました。保存されます。" 
+                          : "カテゴリと記録内容を入力してください。"
+                        }
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Resident Info Card */}
@@ -541,34 +577,55 @@ export default function CareRecords() {
           )}
         </div>
 
-        {/* Quick Add Record Form */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">クイック記録追加</h2>
-          
-          <Card className="border-dashed border-2 border-green-300 hover:border-green-400 transition-colors">
+        {/* Add New Record Button */}
+        <div className="mb-6">
+          <Button 
+            onClick={addNewRecordBlock}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            新規追加
+          </Button>
+        </div>
+
+        {/* New Record Blocks */}
+        {newRecordBlocks.map((block) => (
+          <Card key={block.id} className="mb-6 border-2 border-blue-200 bg-blue-50/50">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2 text-green-600">
-                <Plus className="w-5 h-5" />
-                <span>新規記録作成 - 利用者、カテゴリ、記録内容を入力すると自動保存されます</span>
+              <CardTitle className="flex items-center justify-between text-blue-700">
+                <span className="flex items-center space-x-2">
+                  <Plus className="w-5 h-5" />
+                  <span>新規記録作成中</span>
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id))}
+                  className="text-slate-500 hover:text-red-600"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-600 block mb-1">利用者 *</label>
-                  <InlineEditableField
-                    value={newRecord.residentId || ""}
-                    onSave={(value) => handleNewRecord("residentId", value)}
-                    type="select"
-                    options={(residents as any[]).map(r => ({ value: r.id, label: r.name }))}
-                    placeholder="利用者を選択してください"
-                  />
-                </div>
+                {!selectedResident && (
+                  <div>
+                    <label className="text-sm font-medium text-slate-600 block mb-1">利用者 *</label>
+                    <InlineEditableField
+                      value={block.residentId || ""}
+                      onSave={(value) => handleNewRecordEdit(block.id, "residentId", value)}
+                      type="select"
+                      options={(residents as any[]).map(r => ({ value: r.id, label: r.name }))}
+                      placeholder="利用者を選択してください"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-slate-600 block mb-1">カテゴリ *</label>
                   <InlineEditableField
-                    value={newRecord.category}
-                    onSave={(value) => handleNewRecord("category", value)}
+                    value={block.category}
+                    onSave={(value) => handleNewRecordEdit(block.id, "category", value)}
                     type="select"
                     options={categoryOptions}
                     placeholder="カテゴリを選択してください"
@@ -577,8 +634,8 @@ export default function CareRecords() {
                 <div>
                   <label className="text-sm font-medium text-slate-600 block mb-1">記録日時</label>
                   <InlineEditableField
-                    value={newRecord.recordDate}
-                    onSave={(value) => handleNewRecord("recordDate", value)}
+                    value={block.recordDate}
+                    onSave={(value) => handleNewRecordEdit(block.id, "recordDate", value)}
                     type="datetime-local"
                     placeholder="記録日時を選択してください"
                   />
@@ -587,8 +644,8 @@ export default function CareRecords() {
               <div>
                 <label className="text-sm font-medium text-slate-600 block mb-1">記録内容 *</label>
                 <InlineEditableField
-                  value={newRecord.description}
-                  onSave={(value) => handleNewRecord("description", value)}
+                  value={block.description}
+                  onSave={(value) => handleNewRecordEdit(block.id, "description", value)}
                   multiline
                   placeholder="記録内容を入力してください（必須）"
                 />
@@ -596,26 +653,28 @@ export default function CareRecords() {
               <div>
                 <label className="text-sm font-medium text-slate-600 block mb-1">備考</label>
                 <InlineEditableField
-                  value={newRecord.notes}
-                  onSave={(value) => handleNewRecord("notes", value)}
+                  value={block.notes}
+                  onSave={(value) => handleNewRecordEdit(block.id, "notes", value)}
                   multiline
                   placeholder="備考があれば入力してください"
                 />
               </div>
-              {(newRecord.residentId || newRecord.category || newRecord.description) && (
-                <div className="text-sm text-green-600 flex items-center space-x-2">
+              {(block.residentId || block.category || block.description) && (
+                <div className="text-sm text-blue-600 flex items-center space-x-2">
                   <Check className="w-4 h-4" />
                   <span>
-                    {newRecord.residentId && newRecord.category && newRecord.description 
-                      ? "すべての必須項目が入力されました。自動保存されます。" 
-                      : "利用者、カテゴリ、記録内容をすべて入力してください。"
+                    {(selectedResident || block.residentId) && block.category && block.description 
+                      ? "必須項目が入力されました。保存されます。" 
+                      : selectedResident 
+                        ? "カテゴリと記録内容を入力してください。"
+                        : "利用者、カテゴリ、記録内容をすべて入力してください。"
                     }
                   </span>
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
+        ))}
 
         {/* Records List */}
         <div className="space-y-4">
