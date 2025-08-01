@@ -363,7 +363,7 @@ export default function CareRecords() {
             <div className="text-lg font-medium text-slate-800">
               {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　
               <span className="text-sm font-normal">
-                {selectedResident.gender} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
+                {selectedResident.gender || "未設定"} {selectedResident.age || "未設定"}歳 {selectedResident.careLevel || "未設定"}
               </span>
             </div>
           </div>
@@ -399,9 +399,9 @@ export default function CareRecords() {
                   
                   return (
                     <div key={record.id} className="bg-white border border-slate-200 p-3 shadow-sm">
-                      <div className="flex h-20">
+                      <div className="flex h-24">
                         {/* 左側：時間、カテゴリ、記録者を縦並び */}
-                        <div className="flex flex-col justify-between min-w-[120px] mr-3">
+                        <div className="flex flex-col justify-between min-w-[140px] mr-3">
                           <InlineEditableField
                             value={recordTime}
                             onSave={(value) => {
@@ -425,9 +425,9 @@ export default function CareRecords() {
                             options={categoryOptions}
                             placeholder="カテゴリ"
                           />
-                          <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded truncate">
-                            {(currentUser as any)?.firstName || (currentUser as any)?.email || "記録者"}
-                          </span>
+                          <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                            {(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "記録者"}
+                          </div>
                         </div>
                         
                         {/* 中央：記録内容（高さいっぱい） */}
