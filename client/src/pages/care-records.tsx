@@ -11,9 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -30,6 +32,8 @@ type CareRecordForm = z.infer<typeof careRecordSchema>;
 export default function CareRecords() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [selectedResident, setSelectedResident] = useState<any>(null);
+  const [view, setView] = useState<'list' | 'detail'>('list');
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -42,7 +46,7 @@ export default function CareRecords() {
   const form = useForm<CareRecordForm>({
     resolver: zodResolver(careRecordSchema),
     defaultValues: {
-      residentId: "",
+      residentId: selectedResident?.id || "",
       recordDate: new Date().toISOString().slice(0, 16),
       category: "",
       description: "",
@@ -59,7 +63,16 @@ export default function CareRecords() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
-      form.reset();
+      if (selectedResident) {
+        queryClient.invalidateQueries({ queryKey: ["/api/care-records", selectedResident.id] });
+      }
+      form.reset({
+        residentId: selectedResident?.id || "",
+        recordDate: new Date().toISOString().slice(0, 16),
+        category: "",
+        description: "",
+        notes: "",
+      });
       setOpen(false);
       toast({
         title: "成功",
@@ -83,7 +96,335 @@ export default function CareRecords() {
     { value: "daily_care", label: "日常介護" },
     { value: "assistance", label: "介助" },
     { value: "observation", label: "観察" },
+    { value: "medication", label: "服薬" },
+    { value: "meal", label: "食事" },
+    { value: "excretion", label: "排泄" },
+    { value: "bath", label: "入浴" },
+    { value: "vital", label: "バイタル" },
+    { value: "round", label: "ラウンド" },
+    { value: "other", label: "その他" },
   ];
+
+  // 利用者詳細の記録を取得（既存のcareRecordsを利用）
+  const residentRecords = (careRecords as any[]).filter((record: any) => 
+    selectedResident ? record.residentId === selectedResident.id : false
+  );
+
+  const { data: vitals = [] } = useQuery({
+    queryKey: ["/api/vitals", selectedResident?.id],
+    enabled: !!selectedResident,
+  });
+
+  const { data: mealRecords = [] } = useQuery({
+    queryKey: ["/api/meal-records", selectedResident?.id],
+    enabled: !!selectedResident,
+  });
+
+  if (view === 'detail' && selectedResident) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Header />
+        
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Header with back button */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setView('list')}
+                className="flex items-center space-x-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>戻る</span>
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">{selectedResident.name}様の介護記録</h1>
+                <p className="text-slate-600">個人記録・バイタル・食事・服薬・排泄・ラウンドの確認</p>
+              </div>
+            </div>
+            
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => {
+                    form.setValue('residentId', selectedResident.id);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  新規記録
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>新規介護記録 - {selectedResident.name}様</DialogTitle>
+                  <DialogDescription>
+                    介護記録を入力してください
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="residentId"
+                      render={({ field }) => (
+                        <input type="hidden" {...field} />
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="recordDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>記録日時</FormLabel>
+                          <FormControl>
+                            <Input type="datetime-local" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>カテゴリ</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="カテゴリを選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {categoryOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>記録内容</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="介護記録の内容を入力してください"
+                              className="min-h-[100px]"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>備考</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="特記事項があれば入力してください"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="flex justify-end space-x-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setOpen(false)}
+                      >
+                        キャンセル
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={createMutation.isPending}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {createMutation.isPending ? "保存中..." : "保存"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Resident Info Card */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <User className="w-5 h-5 text-blue-600" />
+                <span>利用者情報</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div>
+                  <span className="text-sm text-slate-600">居室番号:</span>
+                  <p className="font-medium">{selectedResident.roomNumber || "未設定"}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-600">階:</span>
+                  <p className="font-medium">{selectedResident.floor || "未設定"}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-600">年齢:</span>
+                  <p className="font-medium">{selectedResident.age || "未設定"}歳</p>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-600">介護度:</span>
+                  <p className="font-medium">{selectedResident.careLevel || "未設定"}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tabs for different record types */}
+          <Tabs defaultValue="records" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="records" className="flex items-center space-x-2">
+                <ClipboardList className="w-4 h-4" />
+                <span>記録</span>
+              </TabsTrigger>
+              <TabsTrigger value="vitals" className="flex items-center space-x-2">
+                <Activity className="w-4 h-4" />
+                <span>バイタル</span>
+              </TabsTrigger>
+              <TabsTrigger value="meals" className="flex items-center space-x-2">
+                <Utensils className="w-4 h-4" />
+                <span>食事</span>
+              </TabsTrigger>
+              <TabsTrigger value="medication" className="flex items-center space-x-2">
+                <Pill className="w-4 h-4" />
+                <span>服薬</span>
+              </TabsTrigger>
+              <TabsTrigger value="excretion" className="flex items-center space-x-2">
+                <Baby className="w-4 h-4" />
+                <span>排泄</span>
+              </TabsTrigger>
+              <TabsTrigger value="rounds" className="flex items-center space-x-2">
+                <FileText className="w-4 h-4" />
+                <span>ラウンド</span>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="records">
+              <div className="space-y-4">
+                {residentRecords.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <ClipboardList className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                      <p className="text-slate-600">介護記録がありません</p>
+                      <p className="text-sm text-slate-500 mt-2">「新規記録」ボタンから記録を追加してください</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  residentRecords.map((record: any) => {
+                      const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
+                      
+                      return (
+                        <Card key={record.id} className="hover:shadow-md transition-shadow">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <CardTitle className="text-lg">{categoryLabel}</CardTitle>
+                                <CardDescription className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  {format(new Date(record.recordDate), "PPP HH:mm", { locale: ja })}
+                                </CardDescription>
+                              </div>
+                              <Button variant="ghost" size="sm">
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-slate-700 mb-2">{record.description}</p>
+                            {record.notes && (
+                              <p className="text-sm text-slate-600 bg-slate-50 p-2 rounded">
+                                <strong>備考:</strong> {record.notes}
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="vitals">
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Activity className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600">バイタル記録は別画面で管理されています</p>
+                  <p className="text-sm text-slate-500 mt-2">バイタル記録画面をご利用ください</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="meals">
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Utensils className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600">食事記録は別画面で管理されています</p>
+                  <p className="text-sm text-slate-500 mt-2">食事・服薬記録画面をご利用ください</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="medication">
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Pill className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600">服薬記録は別画面で管理されています</p>
+                  <p className="text-sm text-slate-500 mt-2">食事・服薬記録画面をご利用ください</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="excretion">
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Baby className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600">排泄記録機能は今後実装予定です</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="rounds">
+              <Card>
+                <CardContent className="text-center py-8">
+                  <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600">ラウンド記録機能は今後実装予定です</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -93,8 +434,68 @@ export default function CareRecords() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">介護記録</h1>
-            <p className="text-slate-600">日常介護記録の管理</p>
+            <p className="text-slate-600">利用者を選択して記録を確認・作成</p>
           </div>
+        </div>
+
+        {/* Residents Selection Grid */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">利用者一覧</h2>
+          {(residents as any[]).length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <User className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                <p className="text-slate-600">利用者情報がありません</p>
+                <p className="text-sm text-slate-500 mt-2">利用者情報画面から利用者を登録してください</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {(residents as any[]).map((resident: any) => (
+                <Card 
+                  key={resident.id} 
+                  className="hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => {
+                    setSelectedResident(resident);
+                    setView('detail');
+                    form.setValue('residentId', resident.id);
+                  }}
+                >
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">{resident.name}</CardTitle>
+                    <CardDescription className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {resident.roomNumber || "未設定"}号室
+                        </Badge>
+                        {resident.age && (
+                          <Badge variant="outline" className="text-xs">
+                            {resident.age}歳
+                          </Badge>
+                        )}
+                      </div>
+                      {resident.careLevel && (
+                        <p className="text-sm text-slate-600">介護度: {resident.careLevel}</p>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">クリックして記録を確認</span>
+                      <Button size="sm" variant="outline">
+                        記録を見る
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Records Overview */}
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">最近の記録</h2>
           
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -126,7 +527,7 @@ export default function CareRecords() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {residents.map((resident: any) => (
+                            {(residents as any[]).map((resident: any) => (
                               <SelectItem key={resident.id} value={resident.id}>
                                 {resident.name}
                               </SelectItem>
@@ -241,7 +642,7 @@ export default function CareRecords() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-slate-600">記録を読み込み中...</p>
             </div>
-          ) : careRecords.length === 0 ? (
+          ) : (careRecords as any[]).length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
                 <p className="text-slate-600">介護記録がありません</p>
@@ -249,8 +650,8 @@ export default function CareRecords() {
               </CardContent>
             </Card>
           ) : (
-            careRecords.map((record: any) => {
-              const resident = residents.find((r: any) => r.id === record.residentId);
+            (careRecords as any[]).map((record: any) => {
+              const resident = (residents as any[]).find((r: any) => r.id === record.residentId);
               const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
               
               return (
