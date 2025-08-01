@@ -60,13 +60,46 @@ type ResidentForm = z.infer<typeof residentSchema>;
 export default function UserInfo() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [selectedResident, setSelectedResident] = useState<any>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingResident, setEditingResident] = useState<any>(null);
 
   const { data: residents = [], isLoading } = useQuery({
     queryKey: ["/api/residents"],
   });
 
   const form = useForm<ResidentForm>({
+    resolver: zodResolver(residentSchema),
+    defaultValues: {
+      roomNumber: "",
+      floor: "",
+      name: "",
+      gender: "",
+      admissionDate: "",
+      retirementDate: "",
+      dateOfBirth: "",
+      age: "",
+      postalCode: "",
+      address: "",
+      attendingPhysician: "",
+      careLevel: "",
+      insuranceNumber: "",
+      careAuthorizationPeriod: "",
+      isAdmitted: false,
+      emergencyContact1Name: "",
+      emergencyContact1Relationship: "",
+      emergencyContact1Phone1: "",
+      emergencyContact1Phone2: "",
+      emergencyContact1Address: "",
+      emergencyContact2Name: "",
+      emergencyContact2Relationship: "",
+      emergencyContact2Phone1: "",
+      emergencyContact2Phone2: "",
+      emergencyContact2Address: "",
+      notes: "",
+    },
+  });
+
+  const editForm = useForm<ResidentForm>({
     resolver: zodResolver(residentSchema),
     defaultValues: {
       roomNumber: "",
@@ -144,8 +177,99 @@ export default function UserInfo() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async (data: ResidentForm & { id: string }) => {
+      const residentData = {
+        ...data,
+        dateOfBirth: data.dateOfBirth || undefined,
+        admissionDate: data.admissionDate || undefined,
+        retirementDate: data.retirementDate || undefined,
+        postalCode: data.postalCode || undefined,
+        address: data.address || undefined,
+        attendingPhysician: data.attendingPhysician || undefined,
+        careLevel: data.careLevel || undefined,
+        insuranceNumber: data.insuranceNumber || undefined,
+        careAuthorizationPeriod: data.careAuthorizationPeriod || undefined,
+        emergencyContact1Name: data.emergencyContact1Name || undefined,
+        emergencyContact1Relationship: data.emergencyContact1Relationship || undefined,
+        emergencyContact1Phone1: data.emergencyContact1Phone1 || undefined,
+        emergencyContact1Phone2: data.emergencyContact1Phone2 || undefined,
+        emergencyContact1Address: data.emergencyContact1Address || undefined,
+        emergencyContact2Name: data.emergencyContact2Name || undefined,
+        emergencyContact2Relationship: data.emergencyContact2Relationship || undefined,
+        emergencyContact2Phone1: data.emergencyContact2Phone1 || undefined,
+        emergencyContact2Phone2: data.emergencyContact2Phone2 || undefined,
+        emergencyContact2Address: data.emergencyContact2Address || undefined,
+        notes: data.notes || undefined,
+      };
+      
+      await apiRequest("PUT", `/api/residents/${data.id}`, residentData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/residents"] });
+      editForm.reset();
+      setEditOpen(false);
+      setEditingResident(null);
+      toast({
+        title: "成功",
+        description: "利用者情報を更新しました",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "エラー",
+        description: "利用者情報の更新に失敗しました",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: ResidentForm) => {
     createMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: ResidentForm) => {
+    if (editingResident) {
+      updateMutation.mutate({ ...data, id: editingResident.id });
+    }
+  };
+
+  const handleEditClick = (resident: any) => {
+    setEditingResident(resident);
+    
+    // Convert dates to string format for the form
+    const formData = {
+      ...resident,
+      admissionDate: resident.admissionDate ? new Date(resident.admissionDate).toISOString().split('T')[0] : "",
+      retirementDate: resident.retirementDate ? new Date(resident.retirementDate).toISOString().split('T')[0] : "",
+      dateOfBirth: resident.dateOfBirth ? new Date(resident.dateOfBirth).toISOString().split('T')[0] : "",
+      age: resident.age ? resident.age.toString() : "",
+      roomNumber: resident.roomNumber || "",
+      floor: resident.floor || "",
+      name: resident.name || "",
+      gender: resident.gender || "",
+      postalCode: resident.postalCode || "",
+      address: resident.address || "",
+      attendingPhysician: resident.attendingPhysician || "",
+      careLevel: resident.careLevel || "",
+      insuranceNumber: resident.insuranceNumber || "",
+      careAuthorizationPeriod: resident.careAuthorizationPeriod || "",
+      isAdmitted: resident.isAdmitted || false,
+      emergencyContact1Name: resident.emergencyContact1Name || "",
+      emergencyContact1Relationship: resident.emergencyContact1Relationship || "",
+      emergencyContact1Phone1: resident.emergencyContact1Phone1 || "",
+      emergencyContact1Phone2: resident.emergencyContact1Phone2 || "",
+      emergencyContact1Address: resident.emergencyContact1Address || "",
+      emergencyContact2Name: resident.emergencyContact2Name || "",
+      emergencyContact2Relationship: resident.emergencyContact2Relationship || "",
+      emergencyContact2Phone1: resident.emergencyContact2Phone1 || "",
+      emergencyContact2Phone2: resident.emergencyContact2Phone2 || "",
+      emergencyContact2Address: resident.emergencyContact2Address || "",
+      notes: resident.notes || "",
+    };
+    
+    editForm.reset(formData);
+    setEditOpen(true);
   };
 
   const genderOptions = [
@@ -683,7 +807,11 @@ export default function UserInfo() {
                             )}
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditClick(resident)}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
                       </div>
@@ -730,6 +858,484 @@ export default function UserInfo() {
             </div>
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-slate-800">利用者情報編集</DialogTitle>
+            </DialogHeader>
+            
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
+                {/* 基本情報セクション - Same as create form */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">基本情報</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Room and Floor */}
+                    <FormField
+                      control={editForm.control}
+                      name="roomNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>部屋番号</FormLabel>
+                          <FormControl>
+                            <Input placeholder="101" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="floor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>階</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="階を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {floorOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Name */}
+                    <FormField
+                      control={editForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>氏名 *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="山田 太郎" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Gender */}
+                    <FormField
+                      control={editForm.control}
+                      name="gender"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>性別</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="性別を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {genderOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Date of Birth */}
+                    <FormField
+                      control={editForm.control}
+                      name="dateOfBirth"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>生年月日</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="date" 
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                const age = calculateAge(e.target.value);
+                                if (age !== null) {
+                                  editForm.setValue("age", age.toString());
+                                }
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Age */}
+                    <FormField
+                      control={editForm.control}
+                      name="age"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>年齢</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="85" 
+                              {...field}
+                              readOnly
+                              className="bg-slate-50"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 連絡先情報セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">連絡先情報</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="postalCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>郵便番号</FormLabel>
+                          <FormControl>
+                            <Input placeholder="123-4567" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="address"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>住所</FormLabel>
+                          <FormControl>
+                            <Input placeholder="東京都渋谷区..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 医療・介護情報セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">医療・介護情報</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="attendingPhysician"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>主治医</FormLabel>
+                          <FormControl>
+                            <Input placeholder="田中医師" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="careLevel"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>介護度</FormLabel>
+                          <FormControl>
+                            <Input placeholder="要介護2" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="insuranceNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>保険証番号</FormLabel>
+                          <FormControl>
+                            <Input placeholder="12345678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="careAuthorizationPeriod"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>認定有効期間</FormLabel>
+                          <FormControl>
+                            <Input placeholder="2024年4月1日〜2025年3月31日" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="admissionDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>入所日</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="retirementDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>退所日</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={editForm.control}
+                    name="isAdmitted"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            onChange={field.onChange}
+                            className="h-4 w-4 rounded border-slate-300"
+                          />
+                        </FormControl>
+                        <FormLabel>現在入所中</FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* 緊急連絡先1セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">緊急連絡先1</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact1Name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>氏名</FormLabel>
+                          <FormControl>
+                            <Input placeholder="山田 花子" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact1Relationship"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>続柄</FormLabel>
+                          <FormControl>
+                            <Input placeholder="長女" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact1Phone1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>電話番号1</FormLabel>
+                          <FormControl>
+                            <Input placeholder="090-1234-5678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact1Phone2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>電話番号2</FormLabel>
+                          <FormControl>
+                            <Input placeholder="03-1234-5678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact1Address"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>住所</FormLabel>
+                          <FormControl>
+                            <Input placeholder="東京都新宿区..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 緊急連絡先2セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">緊急連絡先2</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact2Name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>氏名</FormLabel>
+                          <FormControl>
+                            <Input placeholder="山田 二郎" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact2Relationship"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>続柄</FormLabel>
+                          <FormControl>
+                            <Input placeholder="長男" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact2Phone1"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>電話番号1</FormLabel>
+                          <FormControl>
+                            <Input placeholder="080-1234-5678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact2Phone2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>電話番号2</FormLabel>
+                          <FormControl>
+                            <Input placeholder="042-123-4567" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="emergencyContact2Address"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>住所</FormLabel>
+                          <FormControl>
+                            <Input placeholder="神奈川県横浜市..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* 備考セクション */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">備考</h3>
+                  <FormField
+                    control={editForm.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>特記事項</FormLabel>
+                        <FormControl>
+                          <textarea
+                            placeholder="特記事項があれば記入してください..."
+                            className="w-full p-3 border border-slate-300 rounded-md resize-vertical min-h-[100px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditOpen(false)}
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="bg-orange-600 hover:bg-orange-700"
+                    disabled={updateMutation.isPending}
+                  >
+                    {updateMutation.isPending ? "更新中..." : "更新"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

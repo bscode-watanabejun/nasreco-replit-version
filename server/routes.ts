@@ -65,6 +65,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/residents/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertResidentSchema.parse(req.body);
+      const resident = await storage.updateResident(id, validatedData);
+      if (!resident) {
+        return res.status(404).json({ message: "Resident not found" });
+      }
+      res.json(resident);
+    } catch (error) {
+      console.error("Error updating resident:", error);
+      res.status(400).json({ message: "Invalid resident data" });
+    }
+  });
+
   // Care records routes
   app.get('/api/care-records', isAuthenticated, async (req, res) => {
     try {
