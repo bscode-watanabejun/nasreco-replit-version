@@ -247,74 +247,129 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="h-[calc(100%-80px)] overflow-y-auto">
-          {/* Primary Modules - より密なレイアウト */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mb-3">
-            {primaryModules.map((module) => (
-              <ModuleCard
-                key={module.path}
-                icon={module.icon}
-                title={module.title}
-                description={module.description}
-                color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-                onClick={() => handleModuleClick(module.path)}
-                compact={true}
-              />
-            ))}
+        <div className="flex flex-col h-[calc(100%-80px)]">
+          <div className="flex-shrink-0">
+            {/* Primary Modules - より密なレイアウト */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mb-2">
+              {primaryModules.map((module) => (
+                <ModuleCard
+                  key={module.path}
+                  icon={module.icon}
+                  title={module.title}
+                  description={module.description}
+                  color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
+                  onClick={() => handleModuleClick(module.path)}
+                  compact={true}
+                />
+              ))}
+            </div>
+
+            {/* Secondary Actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+              {secondaryModules.map((module) => (
+                <ModuleCard
+                  key={module.path}
+                  icon={module.icon}
+                  title={module.title}
+                  description={module.description}
+                  color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
+                  span={module.span}
+                  onClick={() => handleModuleClick(module.path)}
+                  compact={true}
+                />
+              ))}
+            </div>
+
+            {/* Management Actions */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+              {managementModules.map((module) => (
+                <ModuleCard
+                  key={module.path}
+                  icon={module.icon}
+                  title={module.title}
+                  description={module.description}
+                  color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
+                  span={module.span}
+                  onClick={() => handleModuleClick(module.path)}
+                  compact={true}
+                />
+              ))}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex gap-2 justify-center mb-2">
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
+                className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600"
+              >
+                <Book className="w-4 h-4 mr-1" />
+                マニュアル
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleLogout}
+                className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                ログアウト
+              </Button>
+            </div>
           </div>
 
-          {/* Secondary Actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-            {secondaryModules.map((module) => (
-              <ModuleCard
-                key={module.path}
-                icon={module.icon}
-                title={module.title}
-                description={module.description}
-                color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-                span={module.span}
-                onClick={() => handleModuleClick(module.path)}
-                compact={true}
-              />
-            ))}
-          </div>
-
-          {/* Management Actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-            {managementModules.map((module) => (
-              <ModuleCard
-                key={module.path}
-                icon={module.icon}
-                title={module.title}
-                description={module.description}
-                color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-                span={module.span}
-                onClick={() => handleModuleClick(module.path)}
-                compact={true}
-              />
-            ))}
-          </div>
-
-          {/* Bottom Actions */}
-          <div className="flex gap-2 justify-center pb-4">
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
-              className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600"
-            >
-              <Book className="w-4 h-4 mr-1" />
-              マニュアル
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleLogout}
-              className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
-            >
-              <LogOut className="w-4 h-4 mr-1" />
-              ログアウト
-            </Button>
+          {/* 今日の記録一覧 - 残りのスペースを使用 */}
+          <div className="flex-1 min-h-0 bg-white rounded-lg p-3 shadow-sm border border-slate-200">
+            <h2 className="text-sm font-medium text-slate-800 mb-2">今日の記録一覧</h2>
+            <div className="h-full overflow-y-auto">
+              {todaysRecords.length > 0 ? (
+                <div className="space-y-1">
+                  {todaysRecords.slice(0, 8).map((record) => ( // 表示を8件に制限
+                    <div key={record.id} className="p-2 bg-slate-50 rounded text-xs">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-slate-800 truncate">{record.title}</p>
+                          <p className="text-slate-600 text-xs">
+                            {record.residentName} - {new Date(record.createdAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full text-white ${
+                          {
+                            care: 'bg-blue-500',
+                            nursing: 'bg-green-500',
+                            vital: 'bg-orange-500',
+                            meal: 'bg-pink-500',
+                            bathing: 'bg-purple-500',
+                            medication: 'bg-red-500',
+                          }[record.type] || 'bg-slate-500'
+                        }`}>
+                          {
+                            {
+                              care: '介護',
+                              nursing: '看護',
+                              vital: 'バイタル',
+                              meal: '食事',
+                              bathing: '入浴',
+                              medication: '服薬',
+                            }[record.type] || record.type
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {todaysRecords.length > 8 && (
+                    <div className="text-center py-2">
+                      <span className="text-xs text-slate-500">他 {todaysRecords.length - 8} 件</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-20 text-slate-500 text-xs">
+                  今日の記録はまだありません
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </main>
