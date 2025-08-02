@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
@@ -40,6 +41,12 @@ export default function Dashboard() {
   // 日付とフロア選択のstate
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState("all");
+
+  // 今日の記録を取得
+  const { data: todaysRecords = [] } = useQuery({
+    queryKey: ['/api/care-records', { date: selectedDate }],
+    enabled: !!isAuthenticated,
+  });
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -329,31 +336,15 @@ export default function Dashboard() {
                     <div key={record.id} className="p-2 bg-slate-50 rounded text-xs">
                       <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-800 truncate">{record.title}</p>
+                          <p className="font-medium text-slate-800 truncate">
+                            {record.title || record.type || '記録'}
+                          </p>
                           <p className="text-slate-600 text-xs">
-                            {record.residentName} - {new Date(record.createdAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                            {record.residentId && `利用者ID: ${record.residentId}`} - {new Date(record.createdAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
-                        <span className={`text-xs px-2 py-1 rounded-full text-white ${
-                          {
-                            care: 'bg-blue-500',
-                            nursing: 'bg-green-500',
-                            vital: 'bg-orange-500',
-                            meal: 'bg-pink-500',
-                            bathing: 'bg-purple-500',
-                            medication: 'bg-red-500',
-                          }[record.type] || 'bg-slate-500'
-                        }`}>
-                          {
-                            {
-                              care: '介護',
-                              nursing: '看護',
-                              vital: 'バイタル',
-                              meal: '食事',
-                              bathing: '入浴',
-                              medication: '服薬',
-                            }[record.type] || record.type
-                          }
+                        <span className="text-xs px-2 py-1 rounded-full bg-blue-500 text-white">
+                          介護記録
                         </span>
                       </div>
                     </div>
