@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
@@ -42,11 +41,7 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState("all");
 
-  // 今日の記録を取得
-  const { data: todaysRecords = [] } = useQuery({
-    queryKey: ['/api/care-records', { date: selectedDate }],
-    enabled: !!isAuthenticated,
-  });
+
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -238,7 +233,7 @@ export default function Dashboard() {
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-16 sm:w-24 h-6 sm:h-8 text-xs sm:text-sm">
+                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
                   <SelectValue placeholder="フロア選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -254,8 +249,8 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="flex flex-col h-[calc(100%-60px)]">
-          <div className="flex-shrink-0">
+        <div className="h-[calc(100%-60px)]">
+          <div>
             {/* Primary Modules - より密なレイアウト */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-2 mb-1 sm:mb-2">
               {primaryModules.map((module) => (
@@ -271,8 +266,8 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {/* Secondary Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1 sm:gap-2 mb-1 sm:mb-2">
+            {/* Secondary Actions - 2列レイアウト */}
+            <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-1 sm:mb-2">
               {secondaryModules.map((module) => (
                 <ModuleCard
                   key={module.path}
@@ -280,15 +275,14 @@ export default function Dashboard() {
                   title={module.title}
                   description={module.description}
                   color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-                  span={module.span}
                   onClick={() => handleModuleClick(module.path)}
                   compact={true}
                 />
               ))}
             </div>
 
-            {/* Management Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1 sm:gap-2 mb-1 sm:mb-2">
+            {/* Management Actions - 2列レイアウト */}
+            <div className="grid grid-cols-2 gap-1 sm:gap-2 mb-1 sm:mb-2">
               {managementModules.map((module) => (
                 <ModuleCard
                   key={module.path}
@@ -296,70 +290,10 @@ export default function Dashboard() {
                   title={module.title}
                   description={module.description}
                   color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-                  span={module.span}
                   onClick={() => handleModuleClick(module.path)}
                   compact={true}
                 />
               ))}
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="flex gap-1 sm:gap-2 justify-center mb-1 sm:mb-2">
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
-                className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600 text-xs px-2 py-1"
-              >
-                <Book className="w-3 h-3 mr-1" />
-                マニュアル
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleLogout}
-                className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50 text-xs px-2 py-1"
-              >
-                <LogOut className="w-3 h-3 mr-1" />
-                ログアウト
-              </Button>
-            </div>
-          </div>
-
-          {/* 今日の記録一覧 - 残りのスペースを使用 */}
-          <div className="flex-1 min-h-0 bg-white rounded-lg p-2 shadow-sm border border-slate-200">
-            <h2 className="text-xs sm:text-sm font-medium text-slate-800 mb-1">今日の記録一覧</h2>
-            <div className="h-full overflow-y-auto">
-              {todaysRecords.length > 0 ? (
-                <div className="space-y-1">
-                  {todaysRecords.slice(0, 6).map((record) => ( // 表示を6件に制限
-                    <div key={record.id} className="p-1.5 bg-slate-50 rounded text-xs">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-800 truncate">
-                            {record.title || record.type || '記録'}
-                          </p>
-                          <p className="text-slate-600 text-xs">
-                            {record.residentId && `利用者ID: ${record.residentId}`} - {new Date(record.createdAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        <span className="text-xs px-2 py-1 rounded-full bg-blue-500 text-white">
-                          介護記録
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  {todaysRecords.length > 6 && (
-                    <div className="text-center py-1">
-                      <span className="text-xs text-slate-500">他 {todaysRecords.length - 6} 件</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-12 text-slate-500 text-xs">
-                  今日の記録はまだありません
-                </div>
-              )}
             </div>
           </div>
         </div>
