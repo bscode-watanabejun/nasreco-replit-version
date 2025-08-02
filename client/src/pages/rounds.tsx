@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,24 +25,42 @@ export default function Rounds() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  
+  // URLパラメータから初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), 'yyyy-MM-dd'));
+  const [selectedFloor, setSelectedFloor] = useState(urlParams.get('floor') || 'all');
   
   // 今日の日付を取得（日本語表示）
   const displayDate = format(new Date(selectedDate), 'M月d日', { locale: ja });
 
-  // ご利用者一覧を取得
-  const { data: residents = [] } = useQuery<Resident[]>({
+  // ご利用者一覧を取得（階数でフィルタリング）
+  const { data: allResidents = [] } = useQuery<Resident[]>({
     queryKey: ['/api/residents'],
   });
 
-  // ラウンド記録を取得
-  const { data: roundRecords = [], isLoading } = useQuery<RoundRecord[]>({
+  // 選択された階数に基づいてフィルタリング
+  const residents = allResidents.filter(resident => {
+    if (selectedFloor === 'all') return true;
+    return resident.floor === parseInt(selectedFloor);
+  });
+
+  // ラウンド記録を取得（選択された日付の記録のみ、フィルタリングは後で適用）
+  const { data: allRoundRecords = [], isLoading } = useQuery<RoundRecord[]>({
     queryKey: ['/api/round-records', selectedDate],
     queryFn: async () => {
       const response = await fetch(`/api/round-records?recordDate=${selectedDate}`);
       return response.json();
     },
   });
+
+  // 選択された階数の利用者IDを取得
+  const residentIds = residents.map(r => r.id);
+  
+  // ラウンド記録を選択された階数の利用者に絞り込み
+  const roundRecords = allRoundRecords.filter(record => 
+    residentIds.includes(record.residentId)
+  );
 
   // ラウンド記録作成のミューテーション
   const createRoundMutation = useMutation({
@@ -131,6 +149,14 @@ export default function Rounds() {
     }
   };
 
+  // 日付や階数が変更されたときにURLパラメータを更新
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('date', selectedDate);
+    params.set('floor', selectedFloor);
+    window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+  }, [selectedDate, selectedFloor]);
+
   // 時間軸（0-23時）
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
@@ -160,21 +186,45 @@ export default function Rounds() {
             </Button>
             <h1 className="text-xl font-bold text-gray-800">ラウンド一覧</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-          >
-            <Calendar className="h-3 w-3 mr-1" />
-            全階
-          </Button>
         </div>
 
-        {/* 日付表示 */}
-        <div className="mb-4">
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            {displayDate}
-          </Badge>
+        {/* 日付とフロア選択 */}
+        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+            {/* 日付選択 */}
+            <div className="flex items-center space-x-1">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+              />
+            </div>
+            
+            {/* フロア選択 */}
+            <div className="flex items-center space-x-1">
+              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <Select value={selectedFloor} onValueChange={setSelectedFloor}>
+                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
+                  <SelectValue placeholder="フロア選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全階</SelectItem>
+                  <SelectItem value="1">1階</SelectItem>
+                  <SelectItem value="2">2階</SelectItem>
+                  <SelectItem value="3">3階</SelectItem>
+                  <SelectItem value="4">4階</SelectItem>
+                  <SelectItem value="5">5階</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 日付表示バッジ */}
+            <Badge variant="secondary" className="text-xs px-2 py-1">
+              {displayDate}
+            </Badge>
+          </div>
         </div>
 
         {/* ラウンド記録テーブル */}
