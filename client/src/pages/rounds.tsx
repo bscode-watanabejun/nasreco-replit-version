@@ -42,7 +42,10 @@ export default function Rounds() {
   // 選択された階数に基づいてフィルタリング
   const residents = allResidents.filter(resident => {
     if (selectedFloor === 'all') return true;
-    return resident.floor === parseInt(selectedFloor);
+    // 数値と文字列（"1F", "2F"など）の両方に対応
+    return resident.floor === selectedFloor || 
+           resident.floor === `${selectedFloor}F` ||
+           resident.floor === selectedFloor.toString();
   });
 
   // ラウンド記録を取得（選択された日付の記録のみ、フィルタリングは後で適用）
@@ -220,10 +223,7 @@ export default function Rounds() {
               </Select>
             </div>
 
-            {/* 日付表示バッジ */}
-            <Badge variant="secondary" className="text-xs px-2 py-1">
-              {displayDate}
-            </Badge>
+
           </div>
         </div>
 
