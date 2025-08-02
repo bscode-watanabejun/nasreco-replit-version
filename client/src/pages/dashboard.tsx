@@ -321,16 +321,7 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* Mobile Quick Action */}
-      <div className="fixed bottom-4 right-4 sm:hidden">
-        <Button 
-          size="lg" 
-          className="w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg"
-          onClick={() => handleModuleClick('/care-records')}
-        >
-          <ClipboardList className="w-6 h-6" />
-        </Button>
-      </div>
+
     </div>
   );
 }
