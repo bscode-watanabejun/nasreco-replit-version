@@ -1,8 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
-import DateFilter from "@/components/dashboard/date-filter";
 import ModuleCard from "@/components/dashboard/module-card";
 import { 
   Users, 
@@ -22,9 +21,14 @@ import {
   CheckSquare,
   Settings,
   Book,
-  LogOut
+  LogOut,
+  Calendar,
+  Building
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format } from "date-fns";
+import { ja } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -32,6 +36,10 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
+  
+  // 日付とフロア選択のstate
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [selectedFloor, setSelectedFloor] = useState("all");
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -64,7 +72,11 @@ export default function Dashboard() {
   }
 
   const handleModuleClick = (path: string) => {
-    navigate(path);
+    // 選択された日付とフロアをURLパラメータとして渡す
+    const params = new URLSearchParams();
+    params.set('date', selectedDate);
+    params.set('floor', selectedFloor);
+    navigate(`${path}?${params.toString()}`);
   };
 
   const handleLogout = () => {
@@ -201,7 +213,39 @@ export default function Dashboard() {
       <Header />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <DateFilter />
+        {/* 日付とフロア選択 */}
+        <div className="bg-white rounded-lg p-4 mb-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+            {/* 日付選択 */}
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-md text-slate-700 bg-white"
+              />
+            </div>
+            
+            {/* フロア選択 */}
+            <div className="flex items-center space-x-2">
+              <Building className="w-5 h-5 text-blue-600" />
+              <Select value={selectedFloor} onValueChange={setSelectedFloor}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="フロア選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全階</SelectItem>
+                  <SelectItem value="1">1階</SelectItem>
+                  <SelectItem value="2">2階</SelectItem>
+                  <SelectItem value="3">3階</SelectItem>
+                  <SelectItem value="4">4階</SelectItem>
+                  <SelectItem value="5">5階</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
         
         {/* Primary Modules */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
@@ -211,7 +255,7 @@ export default function Dashboard() {
               icon={module.icon}
               title={module.title}
               description={module.description}
-              color={module.color}
+              color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
               onClick={() => handleModuleClick(module.path)}
             />
           ))}
@@ -225,7 +269,7 @@ export default function Dashboard() {
               icon={module.icon}
               title={module.title}
               description={module.description}
-              color={module.color}
+              color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
               span={module.span}
               onClick={() => handleModuleClick(module.path)}
             />
@@ -240,7 +284,7 @@ export default function Dashboard() {
               icon={module.icon}
               title={module.title}
               description={module.description}
-              color={module.color}
+              color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
               span={module.span}
               onClick={() => handleModuleClick(module.path)}
             />

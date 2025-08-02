@@ -36,6 +36,11 @@ export default function MealsMedication() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [recordType, setRecordType] = useState<"meal" | "medication">("meal");
+  
+  // URLパラメータから日付とフロアの初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
+  const selectedFloor = urlParams.get('floor') || "all";
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],

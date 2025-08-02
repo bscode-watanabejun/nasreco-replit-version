@@ -141,8 +141,10 @@ export default function CareRecords() {
   const [selectedResident, setSelectedResident] = useState<any>(null);
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [newRecordBlocks, setNewRecordBlocks] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
-  const [selectedFloor, setSelectedFloor] = useState<string>("all");
+  // URLパラメータから日付とフロアの初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
+  const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],

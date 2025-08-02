@@ -34,6 +34,11 @@ type VitalSignsForm = z.infer<typeof vitalSignsSchema>;
 export default function Vitals() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  
+  // URLパラメータから日付とフロアの初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
+  const selectedFloor = urlParams.get('floor') || "all";
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
