@@ -38,6 +38,10 @@ export default function Rounds() {
   // ラウンド記録を取得
   const { data: roundRecords = [], isLoading } = useQuery<RoundRecord[]>({
     queryKey: ['/api/round-records', selectedDate],
+    queryFn: async () => {
+      const response = await fetch(`/api/round-records?recordDate=${selectedDate}`);
+      return response.json();
+    },
   });
 
   // ラウンド記録作成のミューテーション
@@ -48,11 +52,18 @@ export default function Rounds() {
       recordType: 'patrol' | 'position_change';
       positionValue?: string;
     }) => {
-      return apiRequest('/api/round-records', {
-        ...data,
-        recordDate: selectedDate,
-        staffName: (user as any)?.firstName?.charAt(0) || '?',
+      const response = await fetch('/api/round-records', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...data,
+          recordDate: selectedDate,
+          staffName: (user as any)?.firstName?.charAt(0) || '?',
+        }),
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/round-records', selectedDate] });
