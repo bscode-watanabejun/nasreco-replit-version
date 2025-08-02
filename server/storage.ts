@@ -9,6 +9,7 @@ import {
   excretionRecords,
   weightRecords,
   communications,
+  roundRecords,
   type User,
   type UpsertUser,
   type Resident,
@@ -29,6 +30,8 @@ import {
   type InsertWeightRecord,
   type Communication,
   type InsertCommunication,
+  type RoundRecord,
+  type InsertRoundRecord,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
@@ -77,6 +80,11 @@ export interface IStorage {
   getCommunications(residentId?: string, startDate?: Date, endDate?: Date): Promise<Communication[]>;
   createCommunication(communication: InsertCommunication): Promise<Communication>;
   markCommunicationAsRead(id: string): Promise<void>;
+
+  // Round record operations
+  getRoundRecords(recordDate: Date): Promise<RoundRecord[]>;
+  createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord>;
+  deleteRoundRecord(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -355,6 +363,20 @@ export class DatabaseStorage implements IStorage {
 
   async markCommunicationAsRead(id: string): Promise<void> {
     await db.update(communications).set({ isRead: true }).where(eq(communications.id, id));
+  }
+
+  // Round record operations
+  async getRoundRecords(recordDate: Date): Promise<RoundRecord[]> {
+    return await db.select().from(roundRecords).where(eq(roundRecords.recordDate, recordDate)).orderBy(roundRecords.hour);
+  }
+
+  async createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord> {
+    const [newRecord] = await db.insert(roundRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async deleteRoundRecord(id: string): Promise<void> {
+    await db.delete(roundRecords).where(eq(roundRecords.id, id));
   }
 }
 

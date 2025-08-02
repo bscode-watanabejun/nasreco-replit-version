@@ -346,6 +346,26 @@ export const insertCommunicationSchema = createInsertSchema(communications, {
   createdAt: true,
 });
 
+// Round Records table - ラウンド記録
+export const roundRecords = pgTable("round_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  residentId: varchar("resident_id").notNull(),
+  recordDate: date("record_date").notNull(),
+  hour: integer("hour").notNull(), // 0-23 (時間)
+  recordType: varchar("record_type").notNull(), // 'patrol' or 'position_change'
+  staffName: varchar("staff_name").notNull(), // スタッフ名のスタンプ
+  positionValue: varchar("position_value"), // 体位交換の場合: '右', '左', '仰'
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -367,3 +387,5 @@ export type WeightRecord = typeof weightRecords.$inferSelect;
 export type InsertWeightRecord = z.infer<typeof insertWeightRecordSchema>;
 export type Communication = typeof communications.$inferSelect;
 export type InsertCommunication = z.infer<typeof insertCommunicationSchema>;
+export type RoundRecord = typeof roundRecords.$inferSelect;
+export type InsertRoundRecord = z.infer<typeof insertRoundRecordSchema>;

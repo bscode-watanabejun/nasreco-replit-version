@@ -12,6 +12,7 @@ import {
   insertExcretionRecordSchema,
   insertWeightRecordSchema,
   insertCommunicationSchema,
+  insertRoundRecordSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -341,6 +342,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking communication as read:", error);
       res.status(500).json({ message: "Failed to mark communication as read" });
+    }
+  });
+
+  // Round Records routes
+  app.get('/api/round-records', isAuthenticated, async (req, res) => {
+    try {
+      const { recordDate } = req.query;
+      const rounds = await storage.getRoundRecords(
+        recordDate ? new Date(recordDate as string) : new Date()
+      );
+      res.json(rounds);
+    } catch (error) {
+      console.error("Error fetching round records:", error);
+      res.status(500).json({ message: "Failed to fetch round records" });
+    }
+  });
+
+  app.post('/api/round-records', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertRoundRecordSchema.parse({
+        ...req.body,
+        createdBy: req.user.claims.sub,
+      });
+      const roundRecord = await storage.createRoundRecord(validatedData);
+      res.status(201).json(roundRecord);
+    } catch (error) {
+      console.error("Error creating round record:", error);
+      res.status(400).json({ message: "Invalid round record data" });
+    }
+  });
+
+  app.delete('/api/round-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteRoundRecord(req.params.id);
+      res.json({ message: "Round record deleted" });
+    } catch (error) {
+      console.error("Error deleting round record:", error);
+      res.status(500).json({ message: "Failed to delete round record" });
     }
   });
 
