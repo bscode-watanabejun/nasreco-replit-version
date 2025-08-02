@@ -219,26 +219,26 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 h-[calc(100vh-80px)] overflow-hidden">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 h-[calc(100vh-60px)] overflow-hidden">
         {/* 日付とフロア選択 */}
-        <div className="bg-white rounded-lg p-3 mb-3 shadow-sm">
-          <div className="flex gap-4 items-center justify-center">
+        <div className="bg-white rounded-lg p-2 mb-2 shadow-sm">
+          <div className="flex gap-2 sm:gap-4 items-center justify-center">
             {/* 日付選択 */}
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
+            <div className="flex items-center space-x-1">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-2 py-1 text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             
             {/* フロア選択 */}
-            <div className="flex items-center space-x-2">
-              <Building className="w-4 h-4 text-blue-600" />
+            <div className="flex items-center space-x-1">
+              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-24 h-8 text-sm">
+                <SelectTrigger className="w-16 sm:w-24 h-6 sm:h-8 text-xs sm:text-sm">
                   <SelectValue placeholder="フロア選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -254,10 +254,10 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="flex flex-col h-[calc(100%-80px)]">
+        <div className="flex flex-col h-[calc(100%-60px)]">
           <div className="flex-shrink-0">
             {/* Primary Modules - より密なレイアウト */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-2 mb-1 sm:mb-2">
               {primaryModules.map((module) => (
                 <ModuleCard
                   key={module.path}
@@ -272,7 +272,7 @@ export default function Dashboard() {
             </div>
 
             {/* Secondary Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1 sm:gap-2 mb-1 sm:mb-2">
               {secondaryModules.map((module) => (
                 <ModuleCard
                   key={module.path}
@@ -288,7 +288,7 @@ export default function Dashboard() {
             </div>
 
             {/* Management Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1 sm:gap-2 mb-1 sm:mb-2">
               {managementModules.map((module) => (
                 <ModuleCard
                   key={module.path}
@@ -304,36 +304,36 @@ export default function Dashboard() {
             </div>
 
             {/* Bottom Actions */}
-            <div className="flex gap-2 justify-center mb-2">
+            <div className="flex gap-1 sm:gap-2 justify-center mb-1 sm:mb-2">
               <Button 
                 variant="outline"
                 size="sm"
                 onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
-                className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600"
+                className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600 text-xs px-2 py-1"
               >
-                <Book className="w-4 h-4 mr-1" />
+                <Book className="w-3 h-3 mr-1" />
                 マニュアル
               </Button>
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={handleLogout}
-                className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50 text-xs px-2 py-1"
               >
-                <LogOut className="w-4 h-4 mr-1" />
+                <LogOut className="w-3 h-3 mr-1" />
                 ログアウト
               </Button>
             </div>
           </div>
 
           {/* 今日の記録一覧 - 残りのスペースを使用 */}
-          <div className="flex-1 min-h-0 bg-white rounded-lg p-3 shadow-sm border border-slate-200">
-            <h2 className="text-sm font-medium text-slate-800 mb-2">今日の記録一覧</h2>
+          <div className="flex-1 min-h-0 bg-white rounded-lg p-2 shadow-sm border border-slate-200">
+            <h2 className="text-xs sm:text-sm font-medium text-slate-800 mb-1">今日の記録一覧</h2>
             <div className="h-full overflow-y-auto">
               {todaysRecords.length > 0 ? (
                 <div className="space-y-1">
-                  {todaysRecords.slice(0, 8).map((record) => ( // 表示を8件に制限
-                    <div key={record.id} className="p-2 bg-slate-50 rounded text-xs">
+                  {todaysRecords.slice(0, 6).map((record) => ( // 表示を6件に制限
+                    <div key={record.id} className="p-1.5 bg-slate-50 rounded text-xs">
                       <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-slate-800 truncate">
@@ -349,14 +349,14 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
-                  {todaysRecords.length > 8 && (
-                    <div className="text-center py-2">
-                      <span className="text-xs text-slate-500">他 {todaysRecords.length - 8} 件</span>
+                  {todaysRecords.length > 6 && (
+                    <div className="text-center py-1">
+                      <span className="text-xs text-slate-500">他 {todaysRecords.length - 6} 件</span>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-20 text-slate-500 text-xs">
+                <div className="flex items-center justify-center h-12 text-slate-500 text-xs">
                   今日の記録はまだありません
                 </div>
               )}

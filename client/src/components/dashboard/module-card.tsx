@@ -39,24 +39,18 @@ export default function ModuleCard({
       onClick={onClick}
     >
       {compact ? (
-        <div className="flex flex-col items-center text-center space-y-2">
+        <div className="flex flex-col items-center text-center space-y-1 sm:space-y-2">
           <div className={cn(
             "rounded-lg flex items-center justify-center module-icon transition-colors",
-            compact ? "w-8 h-8" : "w-12 h-12"
+            "w-6 h-6 sm:w-8 sm:h-8"
           )}>
-            <Icon className={cn(compact ? "w-4 h-4" : "w-6 h-6")} />
+            <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
           </div>
           <div>
-            <h3 className={cn(
-              "font-medium text-slate-900 leading-tight",
-              compact ? "text-xs" : "text-base"
-            )}>
+            <h3 className="font-medium text-slate-900 leading-tight text-xs">
               {title}
             </h3>
-            <p className={cn(
-              "text-slate-600 leading-tight",
-              compact ? "text-xs mt-0" : "text-sm mt-1"
-            )}>
+            <p className="text-slate-600 leading-tight text-xs mt-0 hidden sm:block">
               {description}
             </p>
           </div>
