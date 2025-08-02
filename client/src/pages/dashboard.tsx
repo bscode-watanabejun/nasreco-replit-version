@@ -212,26 +212,26 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 h-[calc(100vh-80px)] overflow-hidden">
         {/* 日付とフロア選択 */}
-        <div className="bg-white rounded-lg p-4 mb-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+        <div className="bg-white rounded-lg p-3 mb-3 shadow-sm">
+          <div className="flex gap-4 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
+              <Calendar className="w-4 h-4 text-blue-600" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="px-2 py-1 text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             
             {/* フロア選択 */}
             <div className="flex items-center space-x-2">
-              <Building className="w-5 h-5 text-blue-600" />
+              <Building className="w-4 h-4 text-blue-600" />
               <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-24 h-8 text-sm">
                   <SelectValue placeholder="フロア選択" />
                 </SelectTrigger>
                 <SelectContent>
@@ -247,70 +247,75 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* Primary Modules */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-          {primaryModules.map((module) => (
-            <ModuleCard
-              key={module.path}
-              icon={module.icon}
-              title={module.title}
-              description={module.description}
-              color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-              onClick={() => handleModuleClick(module.path)}
-            />
-          ))}
-        </div>
+        <div className="h-[calc(100%-80px)] overflow-y-auto">
+          {/* Primary Modules - より密なレイアウト */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 mb-3">
+            {primaryModules.map((module) => (
+              <ModuleCard
+                key={module.path}
+                icon={module.icon}
+                title={module.title}
+                description={module.description}
+                color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
+                onClick={() => handleModuleClick(module.path)}
+                compact={true}
+              />
+            ))}
+          </div>
 
-        {/* Secondary Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {secondaryModules.map((module) => (
-            <ModuleCard
-              key={module.path}
-              icon={module.icon}
-              title={module.title}
-              description={module.description}
-              color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-              span={module.span}
-              onClick={() => handleModuleClick(module.path)}
-            />
-          ))}
-        </div>
+          {/* Secondary Actions */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+            {secondaryModules.map((module) => (
+              <ModuleCard
+                key={module.path}
+                icon={module.icon}
+                title={module.title}
+                description={module.description}
+                color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
+                span={module.span}
+                onClick={() => handleModuleClick(module.path)}
+                compact={true}
+              />
+            ))}
+          </div>
 
-        {/* Management Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {managementModules.map((module) => (
-            <ModuleCard
-              key={module.path}
-              icon={module.icon}
-              title={module.title}
-              description={module.description}
-              color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
-              span={module.span}
-              onClick={() => handleModuleClick(module.path)}
-            />
-          ))}
-        </div>
+          {/* Management Actions */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+            {managementModules.map((module) => (
+              <ModuleCard
+                key={module.path}
+                icon={module.icon}
+                title={module.title}
+                description={module.description}
+                color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
+                span={module.span}
+                onClick={() => handleModuleClick(module.path)}
+                compact={true}
+              />
+            ))}
+          </div>
 
-        {/* Bottom Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button 
-            variant="outline"
-            size="lg"
-            onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
-            className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600"
-          >
-            <Book className="w-5 h-5 mr-2" />
-            マニュアル
-          </Button>
-          <Button 
-            variant="outline" 
-            size="lg"
-            onClick={handleLogout}
-            className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
-          >
-            <LogOut className="w-5 h-5 mr-2" />
-            ログアウト
-          </Button>
+          {/* Bottom Actions */}
+          <div className="flex gap-2 justify-center pb-4">
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
+              className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600"
+            >
+              <Book className="w-4 h-4 mr-1" />
+              マニュアル
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleLogout}
+              className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              <LogOut className="w-4 h-4 mr-1" />
+              ログアウト
+            </Button>
+          </div>
         </div>
       </main>
 

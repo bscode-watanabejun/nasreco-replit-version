@@ -8,6 +8,7 @@ interface ModuleCardProps {
   color: "blue" | "green" | "orange" | "red" | "pink" | "slate";
   onClick: () => void;
   span?: number;
+  compact?: boolean;
 }
 
 export default function ModuleCard({
@@ -17,6 +18,7 @@ export default function ModuleCard({
   color,
   onClick,
   span = 1,
+  compact = false,
 }: ModuleCardProps) {
   const colorClasses = {
     blue: "module-card-blue",
@@ -36,19 +38,44 @@ export default function ModuleCard({
       )}
       onClick={onClick}
     >
-      <div className="flex items-center space-x-3">
-        <div className="w-12 h-12 rounded-lg flex items-center justify-center module-icon transition-colors">
-          <Icon className="w-6 h-6" />
+      {compact ? (
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className={cn(
+            "rounded-lg flex items-center justify-center module-icon transition-colors",
+            compact ? "w-8 h-8" : "w-12 h-12"
+          )}>
+            <Icon className={cn(compact ? "w-4 h-4" : "w-6 h-6")} />
+          </div>
+          <div>
+            <h3 className={cn(
+              "font-medium text-slate-900 leading-tight",
+              compact ? "text-xs" : "text-base"
+            )}>
+              {title}
+            </h3>
+            <p className={cn(
+              "text-slate-600 leading-tight",
+              compact ? "text-xs mt-0" : "text-sm mt-1"
+            )}>
+              {description}
+            </p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-slate-900 text-base leading-tight">
-            {title}
-          </h3>
-          <p className="text-sm text-slate-600 mt-1 leading-tight">
-            {description}
-          </p>
+      ) : (
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 rounded-lg flex items-center justify-center module-icon transition-colors">
+            <Icon className="w-6 h-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-slate-900 text-base leading-tight">
+              {title}
+            </h3>
+            <p className="text-sm text-slate-600 mt-1 leading-tight">
+              {description}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

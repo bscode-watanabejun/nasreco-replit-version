@@ -78,7 +78,8 @@
 
 @layer components {
   .module-card {
-    @apply bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer;
+    @apply bg-white rounded-lg shadow-sm border border-slate-200 p-3 hover:shadow-md transition-all duration-200 cursor-pointer;
+    min-height: 70px;
   }
 
   .module-card:hover {
