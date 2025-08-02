@@ -295,6 +295,28 @@ export default function Dashboard() {
                 />
               ))}
             </div>
+
+            {/* Bottom Actions */}
+            <div className="flex gap-1 sm:gap-2 justify-center">
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => window.open('https://manual.nasreco.bscode.co.jp/', '_blank')}
+                className="bg-slate-600 hover:bg-slate-700 text-white border-slate-600 text-xs px-2 py-1"
+              >
+                <Book className="w-3 h-3 mr-1" />
+                マニュアル
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleLogout}
+                className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50 text-xs px-2 py-1"
+              >
+                <LogOut className="w-3 h-3 mr-1" />
+                ログアウト
+              </Button>
+            </div>
           </div>
         </div>
       </main>
