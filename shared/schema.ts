@@ -346,6 +346,23 @@ export const insertCommunicationSchema = createInsertSchema(communications, {
   createdAt: true,
 });
 
+// Meals Medication Records table - 食事/服薬記録（新仕様）
+export const mealsMedication = pgTable("meals_medication", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  residentId: varchar("resident_id").notNull(),
+  recordDate: date("record_date").notNull(), // 記録日
+  mealTime: varchar("meal_time").notNull(), // 朝/10時/昼/15時/夕
+  mainAmount: varchar("main_amount"), // 主食摂取量 (0-10, -, 欠, 拒, 空欄)
+  sideAmount: varchar("side_amount"), // 副食摂取量 (0-10, -, 欠, 拒, 空欄)
+  waterIntake: varchar("water_intake"), // 水分摂取量 (300, 250, 200, 150, 100, 50, 0, 空欄)
+  supplement: varchar("supplement"), // その他(栄養補助食品など)
+  staffName: varchar("staff_name"), // 記入者
+  notes: text("notes"), // 記録(フリー入力)
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Round Records table - ラウンド記録
 export const roundRecords = pgTable("round_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -357,6 +374,14 @@ export const roundRecords = pgTable("round_records", {
   positionValue: varchar("position_value"), // 体位交換の場合: '右', '左', '仰'
   createdBy: varchar("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMealsMedicationSchema = createInsertSchema(mealsMedication, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
@@ -387,5 +412,7 @@ export type WeightRecord = typeof weightRecords.$inferSelect;
 export type InsertWeightRecord = z.infer<typeof insertWeightRecordSchema>;
 export type Communication = typeof communications.$inferSelect;
 export type InsertCommunication = z.infer<typeof insertCommunicationSchema>;
+export type MealsMedication = typeof mealsMedication.$inferSelect;
+export type InsertMealsMedication = z.infer<typeof insertMealsMedicationSchema>;
 export type RoundRecord = typeof roundRecords.$inferSelect;
 export type InsertRoundRecord = z.infer<typeof insertRoundRecordSchema>;

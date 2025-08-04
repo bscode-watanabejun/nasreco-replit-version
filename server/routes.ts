@@ -345,6 +345,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Meals Medication routes (新仕様)
+  app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
+    try {
+      const { recordDate, mealTime, floor } = req.query;
+      const records = await storage.getMealsMedication(
+        recordDate as string, 
+        mealTime as string, 
+        floor as string
+      );
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching meals medication:", error);
+      res.status(500).json({ message: "Failed to fetch meals medication" });
+    }
+  });
+
+  app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertMealsMedicationSchema.parse({
+        ...req.body,
+        createdBy: req.user.claims.sub,
+      });
+      const record = await storage.createMealsMedication(validatedData);
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating meals medication:", error);
+      res.status(400).json({ message: "Invalid meals medication data" });
+    }
+  });
+
+  app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertMealsMedicationSchema.parse({
+        ...req.body,
+        createdBy: req.user.claims.sub,
+      });
+      const record = await storage.updateMealsMedication(req.params.id, validatedData);
+      res.json(record);
+    } catch (error) {
+      console.error("Error updating meals medication:", error);
+      res.status(400).json({ message: "Invalid meals medication data" });
+    }
+  });
+
   // Round Records routes
   app.get('/api/round-records', isAuthenticated, async (req, res) => {
     try {

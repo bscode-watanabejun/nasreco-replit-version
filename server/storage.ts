@@ -5,6 +5,7 @@ import {
   nursingRecords,
   vitalSigns,
   mealsAndMedication,
+  mealsMedication,
   bathingRecords,
   excretionRecords,
   weightRecords,
@@ -22,6 +23,8 @@ import {
   type InsertVitalSigns,
   type MealsAndMedication,
   type InsertMealsAndMedication,
+  type MealsMedication,
+  type InsertMealsMedication,
   type BathingRecord,
   type InsertBathingRecord,
   type ExcretionRecord,
@@ -63,6 +66,11 @@ export interface IStorage {
   // Meals and medication operations
   getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]>;
   createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication>;
+
+  // Meals Medication operations (新仕様)
+  getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]>;
+  createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication>;
+  updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication>;
 
   // Bathing record operations
   getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]>;
@@ -363,6 +371,48 @@ export class DatabaseStorage implements IStorage {
 
   async markCommunicationAsRead(id: string): Promise<void> {
     await db.update(communications).set({ isRead: true }).where(eq(communications.id, id));
+  }
+
+  // Meals Medication operations (新仕様)
+  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]> {
+    let query = db.select({
+      ...mealsMedication,
+      residentName: residents.name,
+      roomNumber: residents.roomNumber,
+      floor: residents.floor,
+    }).from(mealsMedication)
+      .leftJoin(residents, eq(mealsMedication.residentId, residents.id));
+
+    const conditions = [];
+    conditions.push(eq(mealsMedication.recordDate, recordDate));
+    
+    if (mealTime && mealTime !== 'all') {
+      conditions.push(eq(mealsMedication.mealTime, mealTime));
+    }
+
+    if (floor && floor !== 'all') {
+      conditions.push(eq(residents.floor, floor));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    return await query.orderBy(residents.roomNumber);
+  }
+
+  async createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication> {
+    const [newRecord] = await db.insert(mealsMedication).values(record).returning();
+    return newRecord;
+  }
+
+  async updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication> {
+    const [updatedRecord] = await db
+      .update(mealsMedication)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(mealsMedication.id, id))
+      .returning();
+    return updatedRecord;
   }
 
   // Round record operations
