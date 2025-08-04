@@ -259,7 +259,13 @@ export default function MealsMedicationPage() {
 
   const filteredResidents = residents.filter((resident: any) => {
     if (selectedFloor === 'all') return true;
-    return resident.floor === selectedFloor || resident.floor?.toString() === selectedFloor;
+    // Handle both number and string formats
+    const residentFloor = resident.floor?.toString();
+    const selectedFloorValue = selectedFloor.replace('F', ''); // Remove 'F' from "3F" -> "3"
+    
+    return residentFloor === selectedFloor || 
+           residentFloor === selectedFloorValue || 
+           `${residentFloor}F` === selectedFloor;
   });
 
   return (
