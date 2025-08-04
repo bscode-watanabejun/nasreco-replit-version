@@ -1645,18 +1645,18 @@ export default function UserInfo() {
                 return (
                   <Card key={resident.id} className="hover:shadow-md transition-shadow">
                     <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         {/* 情報アイコン */}
                         <div className="flex-shrink-0">
-                          <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
-                            <Users className="w-5 h-5 text-slate-600" />
+                          <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
+                            <Users className="w-4 h-4 text-slate-600" />
                           </div>
                         </div>
                         
                         {/* 部屋番号 */}
-                        <div className="flex-shrink-0 text-center min-w-[80px]">
-                          <div className="bg-slate-50 rounded-lg px-3 py-2 border">
-                            <div className="text-lg font-bold text-slate-700">
+                        <div className="flex-shrink-0 text-center">
+                          <div className="bg-slate-50 rounded-lg px-4 py-2 border min-w-[60px]">
+                            <div className="text-base font-bold text-slate-700">
                               {resident.roomNumber || "未設定"}
                             </div>
                           </div>
@@ -1664,21 +1664,16 @@ export default function UserInfo() {
                         
                         {/* 名前 */}
                         <div className="flex-1 min-w-0">
-                          <div className="bg-slate-50 rounded-lg px-4 py-3 border">
-                            <div className="font-semibold text-lg text-slate-800 truncate">
-                              {resident.name}
+                          <div className="bg-slate-50 rounded-lg px-4 py-2 border">
+                            <div className="font-semibold text-base text-slate-800 truncate">
+                              {resident.name || resident.residentName || "名前未設定"}
                             </div>
-                            {resident.nameKana && (
-                              <div className="text-sm text-slate-500 truncate">
-                                {resident.nameKana}
-                              </div>
-                            )}
                           </div>
                         </div>
                         
                         {/* 要介護度 */}
-                        <div className="flex-shrink-0 text-center min-w-[100px]">
-                          <div className="bg-slate-50 rounded-lg px-3 py-2 border">
+                        <div className="flex-shrink-0 text-center">
+                          <div className="bg-slate-50 rounded-lg px-3 py-2 border min-w-[80px]">
                             <div className="text-sm font-medium text-slate-700">
                               {resident.careLevel || "未設定"}
                             </div>
@@ -1691,9 +1686,9 @@ export default function UserInfo() {
                             variant="ghost" 
                             size="sm"
                             onClick={() => handleEditClick(resident)}
-                            className="h-10 w-10 p-0 hover:bg-slate-100"
+                            className="h-8 w-8 p-0 hover:bg-slate-100"
                           >
-                            <Edit className="w-5 h-5 text-slate-600" />
+                            <Edit className="w-4 h-4 text-slate-600" />
                           </Button>
                         </div>
                       </div>
