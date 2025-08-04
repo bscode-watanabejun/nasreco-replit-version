@@ -130,7 +130,13 @@ export default function MealsMedicationPage() {
 
   const mealTimes = ["朝", "10時", "昼", "15時", "夕"];
   const floors = ["all", "1F", "2F", "3F"];
-  const intakeOptions = ["none", "full", "partial", "minimal", "none"];
+  const intakeOptions = ["none", "full", "partial", "minimal"];
+  const mealCategories = [
+    { key: "mainDish", label: "主食" },
+    { key: "sideDish", label: "主菜" }, 
+    { key: "subDish", label: "副菜" },
+    { key: "water", label: "水分" }
+  ];
 
   const handleSaveRecord = (residentId: string, field: string, value: string, notes?: string) => {
     const existingRecord = mealsMedicationData.find(
@@ -138,22 +144,70 @@ export default function MealsMedicationPage() {
         record.residentId === residentId && record.mealType === selectedMealTime
     );
 
+    // 既存の食事カテゴリデータを解析
+    let mealData: any = {};
+    try {
+      if (existingRecord?.notes && existingRecord.notes.startsWith('{')) {
+        mealData = JSON.parse(existingRecord.notes);
+      }
+    } catch (e) {
+      mealData = { freeText: existingRecord?.notes || '' };
+    }
+
+    // フィールドを更新
+    if (field === 'notes') {
+      mealData.freeText = value;
+    } else if (['mainDish', 'sideDish', 'subDish', 'water'].includes(field)) {
+      if (!mealData.categories) mealData.categories = {};
+      mealData.categories[field] = value;
+    }
+
     const recordData: InsertMealsAndMedication = {
       residentId,
       recordDate: selectedDate,
       type: 'meal',
       mealType: selectedMealTime,
-      mealIntake: field === 'mealIntake' ? value : existingRecord?.mealIntake || '',
-      medicationName: field === 'medicationName' ? value : existingRecord?.medicationName || '',
-      dosage: field === 'dosage' ? value : existingRecord?.dosage || '',
-      notes: field === 'notes' ? value : existingRecord?.notes || '',
-      administeredTime: field === 'administeredTime' ? new Date() : existingRecord?.administeredTime,
+      mealIntake: value || existingRecord?.mealIntake || '',
+      medicationName: existingRecord?.medicationName || '',
+      dosage: existingRecord?.dosage || '',
+      notes: JSON.stringify(mealData),
+      administeredTime: new Date(),
     };
 
     if (existingRecord) {
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
       createMutation.mutate(recordData);
+    }
+  };
+
+  // 既存レコードから食事カテゴリデータを取得するヘルパー関数
+  const getMealCategoryValue = (record: MealsMedicationWithResident | undefined, category: string): string => {
+    if (!record?.notes) return "none";
+    
+    try {
+      if (record.notes.startsWith('{')) {
+        const mealData = JSON.parse(record.notes);
+        return mealData.categories?.[category] || "none";
+      }
+    } catch (e) {
+      // JSONパースに失敗した場合は"none"を返す
+    }
+    return "none";
+  };
+
+  // フリーテキストを取得するヘルパー関数
+  const getFreeText = (record: MealsMedicationWithResident | undefined): string => {
+    if (!record?.notes) return '';
+    
+    try {
+      if (record.notes.startsWith('{')) {
+        const mealData = JSON.parse(record.notes);
+        return mealData.freeText || '';
+      }
+      return record.notes; // 古い形式の場合はそのまま返す
+    } catch (e) {
+      return record.notes; // JSONパースに失敗した場合は元の値を返す
     }
   };
 
@@ -263,34 +317,36 @@ export default function MealsMedicationPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* 食事摂取量 */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">食事摂取量</Label>
-                  <Select
-                    value={existingRecord?.mealIntake || "none"}
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'mealIntake', value)}
-                  >
-                    <SelectTrigger data-testid={`select-meal-intake-${resident.id}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {intakeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option === "none" ? "選択" : 
-                           option === "full" ? "完食" :
-                           option === "partial" ? "半分" :
-                           option === "minimal" ? "少量" : "摂取なし"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* 食事カテゴリ（主食/主菜/副菜/水分） */}
+                {mealCategories.map((category) => (
+                  <div key={category.key} className="space-y-2">
+                    <Label className="text-sm font-medium">{category.label}</Label>
+                    <Select
+                      value={getMealCategoryValue(existingRecord, category.key)}
+                      onValueChange={(value) => handleSaveRecord(resident.id, category.key, value)}
+                    >
+                      <SelectTrigger data-testid={`select-${category.key}-${resident.id}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {intakeOptions.map((option, index) => (
+                          <SelectItem key={`${category.key}-${option}-${index}`} value={option}>
+                            {option === "none" ? "選択" : 
+                             option === "full" ? "完食" :
+                             option === "partial" ? "半分" :
+                             option === "minimal" ? "少量" : "摂取なし"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
 
                 {/* 記録（フリー入力） */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">記録</Label>
                   <Textarea
-                    value={existingRecord?.notes || ''}
+                    value={getFreeText(existingRecord)}
                     onChange={(e) => handleSaveRecord(resident.id, 'notes', e.target.value)}
                     placeholder="記録を入力..."
                     className="min-h-[60px]"
