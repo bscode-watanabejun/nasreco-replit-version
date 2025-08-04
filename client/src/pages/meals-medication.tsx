@@ -351,101 +351,141 @@ export default function MealsMedicationPage() {
 
           return (
             <div key={resident.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
-              {/* 1行目：部屋番号 + 各項目のドロップダウン + 記入者 */}
-              <div className="flex items-center gap-2 p-2">
-                {/* 部屋番号 */}
-                <div className="w-12 text-center flex-shrink-0">
-                  <div className="font-bold text-lg">{resident.roomNumber}</div>
-                </div>
-                
-                {/* 主 */}
-                <div className="w-16 flex-shrink-0">
-                  <div className="text-center text-xs mb-1">主</div>
-                  <Select
-                    value={getMealCategoryValue(existingRecord, 'main')}
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'main', value)}
-                  >
-                    <SelectTrigger className="h-6 text-xs">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mainOptions.filter(option => option !== "").map((option, idx) => (
-                        <SelectItem key={idx} value={option}>
-                          {option === "empty" ? "" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <div className="p-2 space-y-2">
+                {/* 1行目：部屋番号 + 主/副/水分 + 記入者 */}
+                <div className="flex items-center gap-2">
+                  {/* 部屋番号 */}
+                  <div className="w-12 text-center flex-shrink-0">
+                    <div className="font-bold text-lg">{resident.roomNumber}</div>
+                  </div>
+                  
+                  {/* 主 */}
+                  <div className="w-16 flex-shrink-0">
+                    <div className="text-center text-xs mb-1">主</div>
+                    <Select
+                      value={getMealCategoryValue(existingRecord, 'main')}
+                      onValueChange={(value) => handleSaveRecord(resident.id, 'main', value)}
+                    >
+                      <SelectTrigger className="h-6 text-xs">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mainOptions.filter(option => option !== "").map((option, idx) => (
+                          <SelectItem key={idx} value={option}>
+                            {option === "empty" ? "" : option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 副 */}
+                  <div className="w-16 flex-shrink-0">
+                    <div className="text-center text-xs mb-1">副</div>
+                    <Select
+                      value={getMealCategoryValue(existingRecord, 'side')}
+                      onValueChange={(value) => handleSaveRecord(resident.id, 'side', value)}
+                    >
+                      <SelectTrigger className="h-6 text-xs">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sideOptions.filter(option => option !== "").map((option, idx) => (
+                          <SelectItem key={idx} value={option}>
+                            {option === "empty" ? "" : option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 水分 */}
+                  <div className="w-20 flex-shrink-0">
+                    <div className="text-center text-xs mb-1">水分</div>
+                    <Select
+                      value={getMealCategoryValue(existingRecord, 'water')}
+                      onValueChange={(value) => handleSaveRecord(resident.id, 'water', value)}
+                    >
+                      <SelectTrigger className="h-6 text-xs">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {waterOptions.filter(option => option !== "").map((option, idx) => (
+                          <SelectItem key={idx} value={option}>
+                            {option === "empty" ? "" : option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 記入者 */}
+                  <div className="flex-1 ml-2">
+                    <div className="text-center text-xs mb-1">記入者</div>
+                    <div className="h-6 flex items-center justify-center px-1 bg-gray-50 rounded border text-xs">
+                      {(() => {
+                        const staffInfo = getStaffInfo(existingRecord);
+                        return staffInfo.name || '';
+                      })()}
+                    </div>
+                  </div>
                 </div>
 
-                {/* 副 */}
-                <div className="w-16 flex-shrink-0">
-                  <div className="text-center text-xs mb-1">副</div>
-                  <Select
-                    value={getMealCategoryValue(existingRecord, 'side')}
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'side', value)}
-                  >
-                    <SelectTrigger className="h-6 text-xs">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sideOptions.filter(option => option !== "").map((option, idx) => (
-                        <SelectItem key={idx} value={option}>
-                          {option === "empty" ? "" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* 2行目：利用者名 + その他 */}
+                <div className="flex items-center gap-2">
+                  <div className="w-12 text-center flex-shrink-0">
+                    <div className="text-xs font-medium">{resident.name}</div>
+                  </div>
+                  
+                  {/* その他 */}
+                  <div className="w-40 flex-shrink-0">
+                    <div className="text-center text-xs mb-1">その他</div>
+                    <Select
+                      value={getMealCategoryValue(existingRecord, 'supplement')}
+                      onValueChange={(value) => handleSaveRecord(resident.id, 'supplement', value)}
+                    >
+                      <SelectTrigger className="h-6 text-xs">
+                        <SelectValue placeholder="" />
+                      </SelectTrigger>
+                      <SelectContent className="min-w-[200px]">
+                        {otherOptions.filter(option => option !== "").map((option, idx) => (
+                          <SelectItem key={idx} value={option}>
+                            {option === "empty" ? "" : option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
-                {/* 水分 */}
-                <div className="w-20 flex-shrink-0">
-                  <div className="text-center text-xs mb-1">水分</div>
-                  <Select
-                    value={getMealCategoryValue(existingRecord, 'water')}
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'water', value)}
-                  >
-                    <SelectTrigger className="h-6 text-xs">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {waterOptions.filter(option => option !== "").map((option, idx) => (
-                        <SelectItem key={idx} value={option}>
-                          {option === "empty" ? "" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* その他 */}
-                <div className="w-32 flex-shrink-0">
-                  <div className="text-center text-xs mb-1">その他</div>
-                  <Select
-                    value={getMealCategoryValue(existingRecord, 'supplement')}
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'supplement', value)}
-                  >
-                    <SelectTrigger className="h-6 text-xs">
-                      <SelectValue placeholder="" />
-                    </SelectTrigger>
-                    <SelectContent className="min-w-[200px]">
-                      {otherOptions.filter(option => option !== "").map((option, idx) => (
-                        <SelectItem key={idx} value={option}>
-                          {option === "empty" ? "" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 記入者 */}
-                <div className="w-20 flex-shrink-0">
-                  <div className="text-center text-xs mb-1">記入者</div>
-                  <div className="h-6 flex items-center justify-center px-1 bg-gray-50 rounded border text-xs">
-                    {(() => {
-                      const staffInfo = getStaffInfo(existingRecord);
-                      return staffInfo.name || '';
-                    })()}
+                {/* 3行目：記録欄 */}
+                <div className="flex items-center gap-2">
+                  <div className="w-12 text-center flex-shrink-0">
+                    <div className="text-xs text-gray-500">記録</div>
+                  </div>
+                  
+                  {/* 記録欄 */}
+                  <div className="flex-1">
+                    <Textarea
+                      value={getFreeText(existingRecord, resident.id)}
+                      onChange={(e) => {
+                        setLocalNotes(prev => ({
+                          ...prev,
+                          [resident.id]: e.target.value
+                        }));
+                      }}
+                      onBlur={(e) => {
+                        handleSaveRecord(resident.id, 'notes', e.target.value);
+                        setLocalNotes(prev => {
+                          const newState = { ...prev };
+                          delete newState[resident.id];
+                          return newState;
+                        });
+                      }}
+                      className="h-6 text-xs resize-none w-full"
+                      placeholder="記録を入力..."
+                      data-testid={`textarea-notes-${resident.id}`}
+                    />
                   </div>
                 </div>
               </div>
