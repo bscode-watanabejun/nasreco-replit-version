@@ -362,7 +362,7 @@ export default function MealsMedicationPage() {
                 {/* 食事カテゴリ（主/副/水分は小さく、その他は大きく） */}
                 <div className="grid grid-cols-8 gap-2">
                   {mealCategories.map((category) => (
-                    <div key={category.key} className={`space-y-1 ${category.key === 'supplement' ? 'col-span-3' : 'col-span-1'}`}>
+                    <div key={category.key} className={`space-y-1 min-w-0 ${category.key === 'supplement' ? 'col-span-3' : 'col-span-1'}`}>
                       <Label className="text-xs font-medium">{category.label}</Label>
                       <Select
                         value={getMealCategoryValue(existingRecord, category.key)}
@@ -370,10 +370,10 @@ export default function MealsMedicationPage() {
                           handleSaveRecord(resident.id, category.key, value);
                         }}
                       >
-                        <SelectTrigger className="h-7 text-xs" data-testid={`select-${category.key}-${resident.id}`}>
-                          <SelectValue placeholder="空欄" />
+                        <SelectTrigger className="h-7 text-xs w-full min-w-0" data-testid={`select-${category.key}-${resident.id}`}>
+                          <SelectValue placeholder="空欄" className="truncate" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="w-auto min-w-[200px]">
                           {category.options.filter(option => option !== "").map((option, index) => (
                             <SelectItem key={`${category.key}-${option}-${index}`} value={option}>
                               {option === "empty" ? "空欄" : option}
