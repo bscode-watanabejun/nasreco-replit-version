@@ -147,10 +147,13 @@ export default function MealsMedicationPage() {
     { key: "main", label: "主", options: mainOptions },
     { key: "side", label: "副", options: sideOptions },
     { key: "water", label: "水分", options: waterOptions },
-    { key: "other", label: "その他", options: otherOptions }
+    { key: "supplement", label: "その他", options: otherOptions }
   ];
 
   const handleSaveRecord = (residentId: string, field: string, value: string, notes?: string) => {
+    // 自動で記入者情報を設定
+    const staffName = (user as any)?.firstName || 'スタッフ';
+    
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
         record.residentId === residentId && record.mealType === selectedMealTime
@@ -169,16 +172,17 @@ export default function MealsMedicationPage() {
     // フィールドを更新
     if (field === 'notes') {
       mealData.freeText = value;
-    } else if (['main', 'side', 'water', 'other'].includes(field)) {
+    } else if (['main', 'side', 'water', 'supplement'].includes(field)) {
       if (!mealData.categories) mealData.categories = {};
       mealData.categories[field] = value === "empty" ? "" : value;
-    } else if (field === 'staffStamp') {
-      mealData.staffName = value;
-      mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
     }
+    
+    // どの項目が更新されても記入者情報を自動設定
+    mealData.staffName = staffName;
+    mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
 
     const recordData: InsertMealsAndMedication = {
       residentId,
@@ -355,10 +359,10 @@ export default function MealsMedicationPage() {
                   <div className="text-xs text-muted-foreground">{resident.floor}F</div>
                 </div>
 
-                {/* 食事カテゴリ（4列で横並び） */}
-                <div className="grid grid-cols-4 gap-2">
+                {/* 食事カテゴリ（主/副は小さく、その他は大きく） */}
+                <div className="grid grid-cols-6 gap-2">
                   {mealCategories.map((category) => (
-                    <div key={category.key} className="space-y-1">
+                    <div key={category.key} className={`space-y-1 ${category.key === 'supplement' ? 'col-span-2' : 'col-span-1'}`}>
                       <Label className="text-xs font-medium">{category.label}</Label>
                       <Select
                         value={getMealCategoryValue(existingRecord, category.key)}
@@ -381,28 +385,15 @@ export default function MealsMedicationPage() {
                   ))}
                 </div>
 
-                {/* 記入者スタンプと記録を横並びに */}
+                {/* 記入者表示と記録を横並びに */}
                 <div className="grid grid-cols-5 gap-2">
-                  {/* 記入者スタンプ */}
+                  {/* 記入者表示 */}
                   <div className="col-span-2 space-y-1">
                     <Label className="text-xs font-medium">記入者</Label>
-                    <div className="flex flex-col gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => handleSaveRecord(resident.id, 'staffStamp', (user as any)?.firstName || 'スタッフ')}
-                        data-testid={`button-staff-stamp-${resident.id}`}
-                      >
-                        スタンプ
-                      </Button>
+                    <div className="h-7 flex items-center px-2 bg-gray-50 rounded border text-xs">
                       {(() => {
                         const staffInfo = getStaffInfo(existingRecord);
-                        return staffInfo.name && (
-                          <span className="text-xs text-muted-foreground">
-                            {staffInfo.name}
-                          </span>
-                        );
+                        return staffInfo.name || '未記入';
                       })()}
                     </div>
                   </div>
