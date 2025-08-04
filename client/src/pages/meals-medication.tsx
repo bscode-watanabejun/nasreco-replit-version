@@ -130,12 +130,31 @@ export default function MealsMedicationPage() {
 
   const mealTimes = ["朝", "10時", "昼", "15時", "夕"];
   const floors = ["all", "1F", "2F", "3F"];
-  const intakeOptions = ["none", "full", "partial", "minimal"];
+  
+  // 主・副の選択肢
+  const mainOptions = ["empty", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
+  const sideOptions = ["empty", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
+  
+  // 水分の選択肢
+  const waterOptions = ["empty", "300", "250", "200", "150", "100", "50", "0"];
+  
+  // その他の選択肢
+  const otherOptions = [
+    "empty",
+    "ラコール 200ml",
+    "エンシュア 200ml", 
+    "メイバランス 200ml",
+    "ツインラインNF 400ml",
+    "エンシュア 250ml",
+    "イノラス 187.5ml",
+    "ラコールＮＦ半固形剤 300g"
+  ];
+
   const mealCategories = [
-    { key: "mainDish", label: "主食" },
-    { key: "sideDish", label: "主菜" }, 
-    { key: "subDish", label: "副菜" },
-    { key: "water", label: "水分" }
+    { key: "main", label: "主", options: mainOptions },
+    { key: "side", label: "副", options: sideOptions },
+    { key: "water", label: "水分", options: waterOptions },
+    { key: "other", label: "その他", options: otherOptions }
   ];
 
   const handleSaveRecord = (residentId: string, field: string, value: string, notes?: string) => {
@@ -157,9 +176,15 @@ export default function MealsMedicationPage() {
     // フィールドを更新
     if (field === 'notes') {
       mealData.freeText = value;
-    } else if (['mainDish', 'sideDish', 'subDish', 'water'].includes(field)) {
+    } else if (['main', 'side', 'water', 'other'].includes(field)) {
       if (!mealData.categories) mealData.categories = {};
-      mealData.categories[field] = value;
+      mealData.categories[field] = value === "empty" ? "" : value;
+    } else if (field === 'staffStamp') {
+      mealData.staffName = value;
+      mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
     }
 
     const recordData: InsertMealsAndMedication = {
@@ -183,17 +208,36 @@ export default function MealsMedicationPage() {
 
   // 既存レコードから食事カテゴリデータを取得するヘルパー関数
   const getMealCategoryValue = (record: MealsMedicationWithResident | undefined, category: string): string => {
-    if (!record?.notes) return "none";
+    if (!record?.notes) return "empty";
     
     try {
       if (record.notes.startsWith('{')) {
         const mealData = JSON.parse(record.notes);
-        return mealData.categories?.[category] || "none";
+        const value = mealData.categories?.[category];
+        return value === "" || value === undefined ? "empty" : value;
       }
     } catch (e) {
-      // JSONパースに失敗した場合は"none"を返す
+      // JSONパースに失敗した場合は"empty"を返す
     }
-    return "none";
+    return "empty";
+  };
+
+  // スタッフ情報を取得するヘルパー関数
+  const getStaffInfo = (record: MealsMedicationWithResident | undefined): { name: string; time: string } => {
+    if (!record?.notes) return { name: '', time: '' };
+    
+    try {
+      if (record.notes.startsWith('{')) {
+        const mealData = JSON.parse(record.notes);
+        return {
+          name: mealData.staffName || '',
+          time: mealData.staffTime || ''
+        };
+      }
+    } catch (e) {
+      // JSONパースに失敗した場合は空文字を返す
+    }
+    return { name: '', time: '' };
   };
 
   // フリーテキストを取得するヘルパー関数
@@ -316,31 +360,53 @@ export default function MealsMedicationPage() {
                   </div>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 食事カテゴリ（主食/主菜/副菜/水分） */}
-                {mealCategories.map((category) => (
-                  <div key={category.key} className="space-y-2">
-                    <Label className="text-sm font-medium">{category.label}</Label>
-                    <Select
-                      value={getMealCategoryValue(existingRecord, category.key)}
-                      onValueChange={(value) => handleSaveRecord(resident.id, category.key, value)}
+              <CardContent className="space-y-3">
+                {/* 食事カテゴリ（主/副/水分/その他） */}
+                <div className="grid grid-cols-2 gap-3">
+                  {mealCategories.map((category) => (
+                    <div key={category.key} className="space-y-1">
+                      <Label className="text-sm font-medium">{category.label}</Label>
+                      <Select
+                        value={getMealCategoryValue(existingRecord, category.key)}
+                        onValueChange={(value) => handleSaveRecord(resident.id, category.key, value)}
+                      >
+                        <SelectTrigger className="h-8" data-testid={`select-${category.key}-${resident.id}`}>
+                          <SelectValue placeholder="空欄" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {category.options.filter(option => option !== "").map((option, index) => (
+                            <SelectItem key={`${category.key}-${option}-${index}`} value={option}>
+                              {option === "empty" ? "空欄" : option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 記入者スタンプ */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">記入者</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSaveRecord(resident.id, 'staffStamp', (user as any)?.firstName || 'スタッフ')}
+                      data-testid={`button-staff-stamp-${resident.id}`}
                     >
-                      <SelectTrigger data-testid={`select-${category.key}-${resident.id}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {intakeOptions.map((option, index) => (
-                          <SelectItem key={`${category.key}-${option}-${index}`} value={option}>
-                            {option === "none" ? "選択" : 
-                             option === "full" ? "完食" :
-                             option === "partial" ? "半分" :
-                             option === "minimal" ? "少量" : "摂取なし"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      スタンプ
+                    </Button>
+                    {(() => {
+                      const staffInfo = getStaffInfo(existingRecord);
+                      return staffInfo.name && (
+                        <span className="text-sm text-muted-foreground">
+                          {staffInfo.name} ({staffInfo.time})
+                        </span>
+                      );
+                    })()}
                   </div>
-                ))}
+                </div>
 
                 {/* 記録（フリー入力） */}
                 <div className="space-y-2">
@@ -353,17 +419,6 @@ export default function MealsMedicationPage() {
                     data-testid={`textarea-notes-${resident.id}`}
                   />
                 </div>
-
-                {/* 最終更新時間 */}
-                {existingRecord && (
-                  <div className="text-xs text-muted-foreground flex items-center mt-2">
-                    <ClockIcon className="h-3 w-3 mr-1" />
-                    {existingRecord.administeredTime ? 
-                      format(new Date(existingRecord.administeredTime), 'HH:mm') : 
-                      '記録なし'
-                    }
-                  </div>
-                )}
               </CardContent>
             </Card>
           );
@@ -375,6 +430,24 @@ export default function MealsMedicationPage() {
           該当する利用者がいません
         </div>
       )}
+
+      {/* 下部ボタン */}
+      <div className="flex justify-center gap-4 mt-8 pb-4">
+        <Button 
+          variant="outline" 
+          disabled
+          data-testid="button-bulk-register"
+        >
+          一括登録
+        </Button>
+        <Button 
+          variant="default"
+          onClick={() => setLocation('/medication-list')}
+          data-testid="button-medication-list"
+        >
+          服薬一覧へ
+        </Button>
+      </div>
     </div>
   );
 }
