@@ -487,7 +487,7 @@ export default function MealsMedicationPage() {
                           return newState;
                         });
                       }}
-                      className="h-10 text-xs resize-none w-full leading-tight"
+                      className="h-8 text-xs resize-none w-full leading-tight"
                       placeholder="記録を入力..."
                       data-testid={`textarea-notes-${resident.id}`}
                     />
