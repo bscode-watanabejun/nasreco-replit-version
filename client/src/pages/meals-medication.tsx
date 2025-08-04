@@ -360,9 +360,9 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* 食事カテゴリ（主/副/水分は小さく、その他は大きく） */}
-                <div className="grid grid-cols-8 gap-1">
+                <div className="grid grid-cols-10 gap-1">
                   {mealCategories.map((category) => (
-                    <div key={category.key} className={`space-y-1 ${category.key === 'supplement' ? 'col-span-3' : 'col-span-1'}`}>
+                    <div key={category.key} className={`space-y-1 ${category.key === 'supplement' ? 'col-span-4' : 'col-span-2'}`}>
                       <Label className="text-xs font-medium">{category.label}</Label>
                       <Select
                         value={getMealCategoryValue(existingRecord, category.key)}
@@ -371,10 +371,10 @@ export default function MealsMedicationPage() {
                         }}
                       >
                         <SelectTrigger 
-                          className={`h-7 text-xs w-full ${category.key === 'supplement' ? 'min-w-[120px]' : 'min-w-[50px]'}`}
+                          className={`h-7 text-xs w-full overflow-visible ${category.key === 'supplement' ? 'min-w-[150px]' : 'min-w-[60px]'}`}
                           data-testid={`select-${category.key}-${resident.id}`}
                         >
-                          <SelectValue placeholder="空欄" className="text-left whitespace-nowrap" />
+                          <SelectValue placeholder="空欄" className="block w-full text-left overflow-visible" />
                         </SelectTrigger>
                         <SelectContent className="w-auto min-w-[200px]">
                           {category.options.filter(option => option !== "").map((option, index) => (
@@ -389,7 +389,7 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* 記入者表示と記録を横並びに */}
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-5 gap-2">
                   {/* 記入者表示 */}
                   <div className="col-span-1 space-y-1">
                     <Label className="text-xs font-medium">記入者</Label>
@@ -402,7 +402,7 @@ export default function MealsMedicationPage() {
                   </div>
 
                   {/* 記録（フリー入力） */}
-                  <div className="col-span-5 space-y-1">
+                  <div className="col-span-4 space-y-1">
                     <Label className="text-xs font-medium">記録</Label>
                     <Textarea
                       value={getFreeText(existingRecord, resident.id)}
