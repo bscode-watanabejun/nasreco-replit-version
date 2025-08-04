@@ -78,11 +78,7 @@ export default function MealsMedicationPage() {
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertMealsAndMedication) => {
-      return apiRequest('/api/meals-medication', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      return apiRequest('/api/meals-medication', 'POST', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
@@ -102,11 +98,7 @@ export default function MealsMedicationPage() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: InsertMealsAndMedication }) => {
-      return apiRequest(`/api/meals-medication/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      return apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
