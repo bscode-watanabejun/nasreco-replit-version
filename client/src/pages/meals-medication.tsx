@@ -352,14 +352,14 @@ export default function MealsMedicationPage() {
           return (
             <div key={resident.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
               {/* 1行目：部屋番号 + 各項目のドロップダウン + 記入者 */}
-              <div className="grid grid-cols-12 gap-1 p-2 items-center">
+              <div className="flex items-center gap-2 p-2">
                 {/* 部屋番号 */}
-                <div className="col-span-1 text-center">
+                <div className="w-12 text-center flex-shrink-0">
                   <div className="font-bold text-lg">{resident.roomNumber}</div>
                 </div>
                 
                 {/* 主 */}
-                <div className="col-span-1">
+                <div className="w-16 flex-shrink-0">
                   <div className="text-center text-xs mb-1">主</div>
                   <Select
                     value={getMealCategoryValue(existingRecord, 'main')}
@@ -379,7 +379,7 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* 副 */}
-                <div className="col-span-1">
+                <div className="w-16 flex-shrink-0">
                   <div className="text-center text-xs mb-1">副</div>
                   <Select
                     value={getMealCategoryValue(existingRecord, 'side')}
@@ -399,7 +399,7 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* 水分 */}
-                <div className="col-span-2">
+                <div className="w-20 flex-shrink-0">
                   <div className="text-center text-xs mb-1">水分</div>
                   <Select
                     value={getMealCategoryValue(existingRecord, 'water')}
@@ -419,7 +419,7 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* その他 */}
-                <div className="col-span-3">
+                <div className="w-32 flex-shrink-0">
                   <div className="text-center text-xs mb-1">その他</div>
                   <Select
                     value={getMealCategoryValue(existingRecord, 'supplement')}
@@ -439,9 +439,9 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* 記入者 */}
-                <div className="col-span-4">
+                <div className="w-20 flex-shrink-0">
                   <div className="text-center text-xs mb-1">記入者</div>
-                  <div className="h-6 flex items-center justify-center px-2 bg-gray-50 rounded border text-xs">
+                  <div className="h-6 flex items-center justify-center px-1 bg-gray-50 rounded border text-xs">
                     {(() => {
                       const staffInfo = getStaffInfo(existingRecord);
                       return staffInfo.name || '';
@@ -451,14 +451,14 @@ export default function MealsMedicationPage() {
               </div>
 
               {/* 2行目：利用者名 + 記録欄 */}
-              <div className="grid grid-cols-12 gap-1 p-2 pt-0 items-center">
+              <div className="flex items-center gap-2 px-2 pb-2">
                 {/* 利用者名 */}
-                <div className="col-span-1 text-center">
+                <div className="w-12 text-center flex-shrink-0">
                   <div className="text-xs font-medium">{resident.name}</div>
                 </div>
                 
                 {/* 記録欄 */}
-                <div className="col-span-11">
+                <div className="flex-1">
                   <div className="text-left text-xs mb-1 text-gray-500">記録</div>
                   <Textarea
                     value={getFreeText(existingRecord, resident.id)}
