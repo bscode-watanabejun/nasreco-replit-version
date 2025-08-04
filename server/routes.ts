@@ -7,7 +7,7 @@ import {
   insertCareRecordSchema,
   insertNursingRecordSchema,
   insertVitalSignsSchema,
-  insertMealsAndMedicationSchema,
+  insertMealsMedicationSchema,
   insertBathingRecordSchema,
   insertExcretionRecordSchema,
   insertWeightRecordSchema,
@@ -189,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
-      const records = await storage.getMealsAndMedication(
+      const records = await storage.getMealsMedication(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
@@ -203,11 +203,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsAndMedicationSchema.parse({
+      const validatedData = insertMealsMedicationSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        createdBy: req.user.claims.sub,
       });
-      const record = await storage.createMealsAndMedication(validatedData);
+      const record = await storage.createMealsMedication(validatedData);
       res.status(201).json(record);
     } catch (error) {
       console.error("Error creating meals/medication record:", error);

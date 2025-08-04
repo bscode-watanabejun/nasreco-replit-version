@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { MealsMedication, InsertMealsMedication } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { useLocation } from "wouter";
 
 interface MealsMedicationWithResident extends MealsMedication {
   residentName: string;
@@ -26,6 +27,7 @@ export default function MealsMedicationPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedMealTime, setSelectedMealTime] = useState("朝");
@@ -189,7 +191,7 @@ export default function MealsMedicationPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => window.history.back()}
+            onClick={() => setLocation('/')}
             className="p-2"
             data-testid="button-back"
           >
