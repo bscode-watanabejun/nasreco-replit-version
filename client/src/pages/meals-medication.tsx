@@ -32,6 +32,7 @@ export default function MealsMedicationPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedMealTime, setSelectedMealTime] = useState("朝");
   const [selectedFloor, setSelectedFloor] = useState("all");
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // URLパラメータからstate復元
@@ -233,7 +234,12 @@ export default function MealsMedicationPage() {
   };
 
   // フリーテキストを取得するヘルパー関数
-  const getFreeText = (record: MealsMedicationWithResident | undefined): string => {
+  const getFreeText = (record: MealsMedicationWithResident | undefined, residentId: string): string => {
+    // ローカル状態があればそれを使用
+    if (localNotes[residentId] !== undefined) {
+      return localNotes[residentId];
+    }
+    
     if (!record?.notes) return '';
     
     try {
@@ -360,7 +366,11 @@ export default function MealsMedicationPage() {
                       <Label className="text-sm font-medium">{category.label}</Label>
                       <Select
                         value={getMealCategoryValue(existingRecord, category.key)}
-                        onValueChange={(value) => handleSaveRecord(resident.id, category.key, value)}
+                        onValueChange={(value) => {
+                          // 選択時は即座に保存せず、状態を更新するだけ
+                          // onBlurの代わりにSelect閉鎖時に保存
+                          handleSaveRecord(resident.id, category.key, value);
+                        }}
                       >
                         <SelectTrigger className="h-8" data-testid={`select-${category.key}-${resident.id}`}>
                           <SelectValue placeholder="空欄" />
@@ -404,8 +414,24 @@ export default function MealsMedicationPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">記録</Label>
                   <Textarea
-                    value={getFreeText(existingRecord)}
-                    onChange={(e) => handleSaveRecord(resident.id, 'notes', e.target.value)}
+                    value={getFreeText(existingRecord, resident.id)}
+                    onChange={(e) => {
+                      // ローカル状態を更新（表示用）
+                      setLocalNotes(prev => ({
+                        ...prev,
+                        [resident.id]: e.target.value
+                      }));
+                    }}
+                    onBlur={(e) => {
+                      // フォーカスアウト時に保存
+                      handleSaveRecord(resident.id, 'notes', e.target.value);
+                      // ローカル状態をクリア
+                      setLocalNotes(prev => {
+                        const newState = { ...prev };
+                        delete newState[resident.id];
+                        return newState;
+                      });
+                    }}
                     placeholder="記録を入力..."
                     className="min-h-[60px]"
                     data-testid={`textarea-notes-${resident.id}`}
