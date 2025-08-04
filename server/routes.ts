@@ -350,15 +350,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
       const { recordDate, mealTime, floor } = req.query;
+      // Use the correct method with proper parameters
       const records = await storage.getMealsAndMedication(
-        recordDate as string, 
-        mealTime as string, 
-        floor as string
+        undefined, // residentId
+        recordDate ? new Date(recordDate as string) : undefined, 
+        recordDate ? new Date(recordDate as string) : undefined
       );
       res.json(records);
     } catch (error) {
       console.error("Error fetching meals medication:", error);
       res.status(500).json({ message: "Failed to fetch meals medication" });
+    }
+  });
+
+  app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertMealsAndMedicationSchema.parse({
+        ...req.body,
+        staffId: req.user.claims.sub,
+        type: 'meal'
+      });
+      const record = await storage.createMealsAndMedication(validatedData);
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating meals medication:", error);
+      res.status(400).json({ message: "Invalid meals medication data" });
     }
   });
 

@@ -66,6 +66,7 @@ export interface IStorage {
   // Meals and medication operations
   getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]>;
   createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication>;
+  updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication>;
 
   // Meals Medication operations (新仕様)
   getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]>;
@@ -259,6 +260,18 @@ export class DatabaseStorage implements IStorage {
   async createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication> {
     const [newRecord] = await db.insert(mealsAndMedication).values(record).returning();
     return newRecord;
+  }
+
+  async updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication> {
+    const [updatedRecord] = await db
+      .update(mealsAndMedication)
+      .set({
+        ...record,
+        updatedAt: new Date(),
+      })
+      .where(eq(mealsAndMedication.id, id))
+      .returning();
+    return updatedRecord;
   }
 
   // Bathing record operations
