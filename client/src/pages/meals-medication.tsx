@@ -6,9 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeftIcon, CalendarIcon, UserIcon, ClockIcon } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,7 +31,6 @@ export default function MealsMedicationPage() {
   const [selectedMealTime, setSelectedMealTime] = useState("朝");
   const [selectedFloor, setSelectedFloor] = useState("all");
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // URLパラメータからstate復元
   useEffect(() => {
@@ -284,66 +281,56 @@ export default function MealsMedicationPage() {
         <h1 className="text-2xl font-bold">食事/服薬記録</h1>
       </div>
 
-      {/* フィルター（横一列） */}
-      <div className="flex items-center gap-3 mb-4">
-        {/* 日付選択 */}
-        <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "justify-start text-left font-normal",
-                !selectedDate && "text-muted-foreground"
-              )}
-              data-testid="button-date-picker"
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {selectedDate ? format(selectedDate, "yyyy年MM月dd日", { locale: ja }) : "日付を選択"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => {
-                if (date) {
-                  setSelectedDate(date);
-                  setIsCalendarOpen(false);
-                }
-              }}
-              initialFocus
-              locale={ja}
+      {/* 日付とフロア選択 */}
+      <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+        <div className="flex gap-2 sm:gap-4 items-center justify-center">
+          {/* 日付選択 */}
+          <div className="flex items-center space-x-1">
+            <CalendarIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <input
+              type="date"
+              value={format(selectedDate, 'yyyy-MM-dd')}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+              data-testid="input-date"
             />
-          </PopoverContent>
-        </Popover>
+          </div>
 
-        {/* 食事時間選択 */}
-        <Select value={selectedMealTime} onValueChange={setSelectedMealTime}>
-          <SelectTrigger className="w-[100px]" data-testid="select-meal-time">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {mealTimes.map((time) => (
-              <SelectItem key={time} value={time}>
-                {time}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* フロア選択 */}
-        <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-          <SelectTrigger className="w-[80px]" data-testid="select-floor">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {floors.map((floor) => (
-              <SelectItem key={floor} value={floor}>
-                {floor === "all" ? "全て" : floor}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {/* 食事時間選択 */}
+          <div className="flex items-center space-x-1">
+            <ClockIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <Select value={selectedMealTime} onValueChange={setSelectedMealTime}>
+              <SelectTrigger className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm" data-testid="select-meal-time">
+                <SelectValue placeholder="時間" />
+              </SelectTrigger>
+              <SelectContent>
+                {mealTimes.map((time) => (
+                  <SelectItem key={time} value={time} data-testid={`option-meal-time-${time}`}>
+                    {time}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* フロア選択 */}
+          <div className="flex items-center space-x-1">
+            <BuildingIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <Select value={selectedFloor} onValueChange={setSelectedFloor}>
+              <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm" data-testid="select-floor">
+                <SelectValue placeholder="フロア選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" data-testid="option-floor-all">全階</SelectItem>
+                <SelectItem value="1F" data-testid="option-floor-1F">1階</SelectItem>
+                <SelectItem value="2F" data-testid="option-floor-2F">2階</SelectItem>
+                <SelectItem value="3F" data-testid="option-floor-3F">3階</SelectItem>
+                <SelectItem value="4F" data-testid="option-floor-4F">4階</SelectItem>
+                <SelectItem value="5F" data-testid="option-floor-5F">5階</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {/* 利用者一覧テーブル（極限にコンパクト） */}
