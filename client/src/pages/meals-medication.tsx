@@ -59,7 +59,7 @@ export default function MealsMedicationPage() {
     window.history.replaceState({}, '', `?${params.toString()}`);
   }, [selectedDate, selectedMealTime, selectedFloor]);
 
-  const { data: mealsMedicationData = [] } = useQuery({
+  const { data: mealsMedicationResponse } = useQuery({
     queryKey: ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -67,12 +67,18 @@ export default function MealsMedicationPage() {
         mealTime: selectedMealTime,
         floor: selectedFloor,
       });
-      return apiRequest(`/api/meals-medication?${params}`) as Promise<MealsMedicationWithResident[]>;
+      const response = await apiRequest(`/api/meals-medication?${params}`);
+      return response.json();
     }
-  }) as { data: MealsMedicationWithResident[] };
+  });
+
+  const mealsMedicationData: MealsMedicationWithResident[] = Array.isArray(mealsMedicationResponse) ? mealsMedicationResponse : [];
 
   const createMutation = useMutation({
-    mutationFn: (data: InsertMealsMedication) => apiRequest('/api/meals-medication', 'POST', data),
+    mutationFn: async (data: InsertMealsMedication) => {
+      const response = await apiRequest('/api/meals-medication', 'POST', data);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
       toast({
@@ -90,8 +96,10 @@ export default function MealsMedicationPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: InsertMealsMedication }) => 
-      apiRequest(`/api/meals-medication/${id}`, 'PUT', data),
+    mutationFn: async ({ id, data }: { id: string; data: InsertMealsMedication }) => {
+      const response = await apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
       toast({
@@ -127,7 +135,7 @@ export default function MealsMedicationPage() {
 
     const recordData: InsertMealsMedication = {
       residentId,
-      recordDate: format(selectedDate, 'yyyy-MM-dd'),
+      recordDate: selectedDate,
       mealTime: selectedMealTime,
       mainAmount: field === 'mainAmount' ? value : existingRecord?.mainAmount || '',
       sideAmount: field === 'sideAmount' ? value : existingRecord?.sideAmount || '',
@@ -152,7 +160,7 @@ export default function MealsMedicationPage() {
 
     const recordData: InsertMealsMedication = {
       residentId,
-      recordDate: format(selectedDate, 'yyyy-MM-dd'),
+      recordDate: selectedDate,
       mealTime: selectedMealTime,
       mainAmount: existingRecord?.mainAmount || '',
       sideAmount: existingRecord?.sideAmount || '',
@@ -361,7 +369,10 @@ export default function MealsMedicationPage() {
                 {existingRecord && (
                   <div className="text-xs text-muted-foreground flex items-center mt-2">
                     <ClockIcon className="h-3 w-3 mr-1" />
-                    {format(new Date(existingRecord.updatedAt || existingRecord.createdAt), 'HH:mm')}
+                    {existingRecord.updatedAt || existingRecord.createdAt ? 
+                      format(new Date(existingRecord.updatedAt || existingRecord.createdAt), 'HH:mm') : 
+                      '記録なし'
+                    }
                   </div>
                 )}
               </CardContent>
