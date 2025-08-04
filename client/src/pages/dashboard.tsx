@@ -137,7 +137,7 @@ export default function Dashboard() {
     },
     {
       icon: Sparkles,
-      title: "清拭リネン",
+      title: "清掃リネン",
       description: "清拭・リネン交換",
       color: "blue",
       path: "/hygiene"

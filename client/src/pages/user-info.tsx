@@ -26,10 +26,7 @@ const residentSchema = z.object({
   admissionDate: z.string().optional(),
   retirementDate: z.string().optional(),
   dateOfBirth: z.string().optional(),
-  age: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (!val) return undefined;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
+  age: z.string().optional(),
   postalCode: z.string().optional(),
   address: z.string().optional(),
   attendingPhysician: z.string().optional(),
@@ -1631,7 +1628,7 @@ export default function UserInfo() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
               <p className="text-slate-600">利用者情報を読み込み中...</p>
             </div>
-          ) : residents.length === 0 ? (
+          ) : (residents as any[]).length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
                 <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
@@ -1640,77 +1637,66 @@ export default function UserInfo() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {residents.map((resident: any) => {
+            <div className="space-y-2">
+              {(residents as any[]).map((resident: any) => {
                 const age = calculateAge(resident.dateOfBirth);
                 const genderLabel = genderOptions.find(g => g.value === resident.gender)?.label;
                 
                 return (
-                  <Card key={resident.id} className="record-card">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg">{resident.name}</CardTitle>
-                          {resident.nameKana && (
-                            <p className="text-sm text-slate-500">{resident.nameKana}</p>
-                          )}
-                          <div className="flex items-center gap-2">
-                            {age && (
-                              <Badge variant="secondary" className="text-xs">
-                                {age}歳
-                              </Badge>
-                            )}
-                            {genderLabel && (
-                              <Badge variant="outline" className="text-xs">
-                                {genderLabel}
-                              </Badge>
+                  <Card key={resident.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-4">
+                        {/* 情報アイコン */}
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                            <Users className="w-5 h-5 text-slate-600" />
+                          </div>
+                        </div>
+                        
+                        {/* 部屋番号 */}
+                        <div className="flex-shrink-0 text-center min-w-[80px]">
+                          <div className="bg-slate-50 rounded-lg px-3 py-2 border">
+                            <div className="text-lg font-bold text-slate-700">
+                              {resident.roomNumber || "未設定"}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* 名前 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="bg-slate-50 rounded-lg px-4 py-3 border">
+                            <div className="font-semibold text-lg text-slate-800 truncate">
+                              {resident.name}
+                            </div>
+                            {resident.nameKana && (
+                              <div className="text-sm text-slate-500 truncate">
+                                {resident.nameKana}
+                              </div>
                             )}
                           </div>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleEditClick(resident)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
+                        
+                        {/* 要介護度 */}
+                        <div className="flex-shrink-0 text-center min-w-[100px]">
+                          <div className="bg-slate-50 rounded-lg px-3 py-2 border">
+                            <div className="text-sm font-medium text-slate-700">
+                              {resident.careLevel || "未設定"}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* 編集ボタン */}
+                        <div className="flex-shrink-0">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleEditClick(resident)}
+                            className="h-10 w-10 p-0 hover:bg-slate-100"
+                          >
+                            <Edit className="w-5 h-5 text-slate-600" />
+                          </Button>
+                        </div>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {resident.roomNumber && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="w-4 h-4 text-slate-500" />
-                          <span>
-                            {resident.floor && `${resident.floor} `}
-                            {resident.roomNumber}号室
-                          </span>
-                        </div>
-                      )}
-                      
-                      {resident.admissionDate && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="w-4 h-4 text-slate-500" />
-                          <span>
-                            入所: {format(new Date(resident.admissionDate), "yyyy年MM月dd日", { locale: ja })}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {resident.emergencyContact && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Phone className="w-4 h-4 text-slate-500" />
-                          <span className="truncate">{resident.emergencyContact}</span>
-                        </div>
-                      )}
-                      
-                      {(resident.allergies || resident.medicalHistory) && (
-                        <div className="flex items-start gap-2 text-sm">
-                          <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-red-600 text-xs">
-                            医療情報あり
-                          </span>
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 );
