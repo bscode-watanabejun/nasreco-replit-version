@@ -437,13 +437,13 @@ export default function MealsMedicationPage() {
                   </div>
                   
                   {/* その他 */}
-                  <div className="w-40 flex-shrink-0">
-                    <div className="text-center text-xs mb-1">その他</div>
+                  <div className="flex-1">
+                    <div className="text-left text-xs mb-1">その他</div>
                     <Select
                       value={getMealCategoryValue(existingRecord, 'supplement')}
                       onValueChange={(value) => handleSaveRecord(resident.id, 'supplement', value)}
                     >
-                      <SelectTrigger className="h-6 text-xs">
+                      <SelectTrigger className="h-6 text-xs w-full">
                         <SelectValue placeholder="" />
                       </SelectTrigger>
                       <SelectContent className="min-w-[200px]">
