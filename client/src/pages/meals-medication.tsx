@@ -338,7 +338,7 @@ export default function MealsMedicationPage() {
       </div>
 
       {/* 利用者カード一覧 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredResidents.map((resident: any) => {
           const existingRecord = mealsMedicationData.find(
             (record: MealsMedicationWithResident) => 
@@ -347,32 +347,26 @@ export default function MealsMedicationPage() {
 
           return (
             <Card key={resident.id} className="relative">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <UserIcon className="h-5 w-5" />
-                  <div>
-                    <div className="font-semibold">{resident.roomNumber} {resident.name}</div>
-                    <div className="text-sm text-muted-foreground font-normal">
-                      {resident.floor}F
-                    </div>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* 食事カテゴリ（主/副/水分/その他） */}
-                <div className="grid grid-cols-2 gap-3">
+              <CardContent className="p-3 space-y-2">
+                {/* コンパクトヘッダー（居住者情報） */}
+                <div className="flex items-center gap-2 mb-2">
+                  <UserIcon className="h-4 w-4" />
+                  <div className="font-semibold text-sm">{resident.roomNumber} {resident.name}</div>
+                  <div className="text-xs text-muted-foreground">{resident.floor}F</div>
+                </div>
+
+                {/* 食事カテゴリ（4列で横並び） */}
+                <div className="grid grid-cols-4 gap-2">
                   {mealCategories.map((category) => (
                     <div key={category.key} className="space-y-1">
-                      <Label className="text-sm font-medium">{category.label}</Label>
+                      <Label className="text-xs font-medium">{category.label}</Label>
                       <Select
                         value={getMealCategoryValue(existingRecord, category.key)}
                         onValueChange={(value) => {
-                          // 選択時は即座に保存せず、状態を更新するだけ
-                          // onBlurの代わりにSelect閉鎖時に保存
                           handleSaveRecord(resident.id, category.key, value);
                         }}
                       >
-                        <SelectTrigger className="h-8" data-testid={`select-${category.key}-${resident.id}`}>
+                        <SelectTrigger className="h-7 text-xs" data-testid={`select-${category.key}-${resident.id}`}>
                           <SelectValue placeholder="空欄" />
                         </SelectTrigger>
                         <SelectContent>
@@ -387,55 +381,56 @@ export default function MealsMedicationPage() {
                   ))}
                 </div>
 
-                {/* 記入者スタンプ */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">記入者</Label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSaveRecord(resident.id, 'staffStamp', (user as any)?.firstName || 'スタッフ')}
-                      data-testid={`button-staff-stamp-${resident.id}`}
-                    >
-                      スタンプ
-                    </Button>
-                    {(() => {
-                      const staffInfo = getStaffInfo(existingRecord);
-                      return staffInfo.name && (
-                        <span className="text-sm text-muted-foreground">
-                          {staffInfo.name} ({staffInfo.time})
-                        </span>
-                      );
-                    })()}
+                {/* 記入者スタンプと記録を横並びに */}
+                <div className="grid grid-cols-5 gap-2">
+                  {/* 記入者スタンプ */}
+                  <div className="col-span-2 space-y-1">
+                    <Label className="text-xs font-medium">記入者</Label>
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleSaveRecord(resident.id, 'staffStamp', (user as any)?.firstName || 'スタッフ')}
+                        data-testid={`button-staff-stamp-${resident.id}`}
+                      >
+                        スタンプ
+                      </Button>
+                      {(() => {
+                        const staffInfo = getStaffInfo(existingRecord);
+                        return staffInfo.name && (
+                          <span className="text-xs text-muted-foreground">
+                            {staffInfo.name}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
-                </div>
 
-                {/* 記録（フリー入力） */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">記録</Label>
-                  <Textarea
-                    value={getFreeText(existingRecord, resident.id)}
-                    onChange={(e) => {
-                      // ローカル状態を更新（表示用）
-                      setLocalNotes(prev => ({
-                        ...prev,
-                        [resident.id]: e.target.value
-                      }));
-                    }}
-                    onBlur={(e) => {
-                      // フォーカスアウト時に保存
-                      handleSaveRecord(resident.id, 'notes', e.target.value);
-                      // ローカル状態をクリア
-                      setLocalNotes(prev => {
-                        const newState = { ...prev };
-                        delete newState[resident.id];
-                        return newState;
-                      });
-                    }}
-                    placeholder="記録を入力..."
-                    className="min-h-[60px]"
-                    data-testid={`textarea-notes-${resident.id}`}
-                  />
+                  {/* 記録（フリー入力） */}
+                  <div className="col-span-3 space-y-1">
+                    <Label className="text-xs font-medium">記録</Label>
+                    <Textarea
+                      value={getFreeText(existingRecord, resident.id)}
+                      onChange={(e) => {
+                        setLocalNotes(prev => ({
+                          ...prev,
+                          [resident.id]: e.target.value
+                        }));
+                      }}
+                      onBlur={(e) => {
+                        handleSaveRecord(resident.id, 'notes', e.target.value);
+                        setLocalNotes(prev => {
+                          const newState = { ...prev };
+                          delete newState[resident.id];
+                          return newState;
+                        });
+                      }}
+                      placeholder="記録を入力..."
+                      className="min-h-[40px] text-xs"
+                      data-testid={`textarea-notes-${resident.id}`}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
