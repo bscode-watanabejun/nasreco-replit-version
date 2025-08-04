@@ -264,81 +264,80 @@ export default function MealsMedicationPage() {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLocation('/')}
-            className="p-2"
-            data-testid="button-back"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-bold">食事/服薬記録</h1>
-        </div>
-        
-        {/* フィルター */}
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* 日付選択 */}
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "justify-start text-left font-normal",
-                  !selectedDate && "text-muted-foreground"
-                )}
-                data-testid="button-date-picker"
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, "yyyy年MM月dd日", { locale: ja }) : "日付を選択"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => {
-                  if (date) {
-                    setSelectedDate(date);
-                    setIsCalendarOpen(false);
-                  }
-                }}
-                initialFocus
-                locale={ja}
-              />
-            </PopoverContent>
-          </Popover>
+      {/* ヘッダー */}
+      <div className="flex items-center gap-2 mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setLocation('/')}
+          className="p-2"
+          data-testid="button-back"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+        </Button>
+        <h1 className="text-2xl font-bold">食事/服薬記録</h1>
+      </div>
 
-          {/* 食事時間選択 */}
-          <Select value={selectedMealTime} onValueChange={setSelectedMealTime}>
-            <SelectTrigger className="w-[120px]" data-testid="select-meal-time">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {mealTimes.map((time) => (
-                <SelectItem key={time} value={time}>
-                  {time}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* フィルター（横一列） */}
+      <div className="flex items-center gap-3 mb-4">
+        {/* 日付選択 */}
+        <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "justify-start text-left font-normal",
+                !selectedDate && "text-muted-foreground"
+              )}
+              data-testid="button-date-picker"
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {selectedDate ? format(selectedDate, "yyyy年MM月dd日", { locale: ja }) : "日付を選択"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                if (date) {
+                  setSelectedDate(date);
+                  setIsCalendarOpen(false);
+                }
+              }}
+              initialFocus
+              locale={ja}
+            />
+          </PopoverContent>
+        </Popover>
 
-          {/* フロア選択 */}
-          <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-            <SelectTrigger className="w-[100px]" data-testid="select-floor">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {floors.map((floor) => (
-                <SelectItem key={floor} value={floor}>
-                  {floor === "all" ? "全て" : floor}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* 食事時間選択 */}
+        <Select value={selectedMealTime} onValueChange={setSelectedMealTime}>
+          <SelectTrigger className="w-[100px]" data-testid="select-meal-time">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {mealTimes.map((time) => (
+              <SelectItem key={time} value={time}>
+                {time}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* フロア選択 */}
+        <Select value={selectedFloor} onValueChange={setSelectedFloor}>
+          <SelectTrigger className="w-[80px]" data-testid="select-floor">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {floors.map((floor) => (
+              <SelectItem key={floor} value={floor}>
+                {floor === "all" ? "全て" : floor}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 利用者一覧テーブル（極限にコンパクト） */}
@@ -487,39 +486,6 @@ export default function MealsMedicationPage() {
                       data-testid={`textarea-notes-${resident.id}`}
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* 2行目：利用者名 + 記録欄 */}
-              <div className="flex items-center gap-2 px-2 pb-2">
-                {/* 利用者名 */}
-                <div className="w-12 text-center flex-shrink-0">
-                  <div className="text-xs font-medium">{resident.name}</div>
-                </div>
-                
-                {/* 記録欄 */}
-                <div className="flex-1">
-                  <div className="text-left text-xs mb-1 text-gray-500">記録</div>
-                  <Textarea
-                    value={getFreeText(existingRecord, resident.id)}
-                    onChange={(e) => {
-                      setLocalNotes(prev => ({
-                        ...prev,
-                        [resident.id]: e.target.value
-                      }));
-                    }}
-                    onBlur={(e) => {
-                      handleSaveRecord(resident.id, 'notes', e.target.value);
-                      setLocalNotes(prev => {
-                        const newState = { ...prev };
-                        delete newState[resident.id];
-                        return newState;
-                      });
-                    }}
-                    className="h-6 text-xs resize-none w-full"
-                    placeholder="記録を入力..."
-                    data-testid={`textarea-notes-${resident.id}`}
-                  />
                 </div>
               </div>
             </div>
