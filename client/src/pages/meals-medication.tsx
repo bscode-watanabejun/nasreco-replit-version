@@ -359,10 +359,10 @@ export default function MealsMedicationPage() {
                   <div className="text-xs text-muted-foreground">{resident.floor}F</div>
                 </div>
 
-                {/* 食事カテゴリ（主/副は小さく、その他は大きく） */}
-                <div className="grid grid-cols-6 gap-2">
+                {/* 食事カテゴリ（主/副/水分は小さく、その他は大きく） */}
+                <div className="grid grid-cols-8 gap-2">
                   {mealCategories.map((category) => (
-                    <div key={category.key} className={`space-y-1 ${category.key === 'supplement' ? 'col-span-2' : 'col-span-1'}`}>
+                    <div key={category.key} className={`space-y-1 ${category.key === 'supplement' ? 'col-span-3' : 'col-span-1'}`}>
                       <Label className="text-xs font-medium">{category.label}</Label>
                       <Select
                         value={getMealCategoryValue(existingRecord, category.key)}
@@ -386,9 +386,9 @@ export default function MealsMedicationPage() {
                 </div>
 
                 {/* 記入者表示と記録を横並びに */}
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-6 gap-2">
                   {/* 記入者表示 */}
-                  <div className="col-span-2 space-y-1">
+                  <div className="col-span-1 space-y-1">
                     <Label className="text-xs font-medium">記入者</Label>
                     <div className="h-7 flex items-center px-2 bg-gray-50 rounded border text-xs">
                       {(() => {
@@ -399,7 +399,7 @@ export default function MealsMedicationPage() {
                   </div>
 
                   {/* 記録（フリー入力） */}
-                  <div className="col-span-3 space-y-1">
+                  <div className="col-span-5 space-y-1">
                     <Label className="text-xs font-medium">記録</Label>
                     <Textarea
                       value={getFreeText(existingRecord, resident.id)}
