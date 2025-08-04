@@ -80,10 +80,6 @@ export default function MealsMedicationPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
-      toast({
-        title: "成功",
-        description: "記録が作成されました。",
-      });
     },
     onError: () => {
       toast({
@@ -100,10 +96,6 @@ export default function MealsMedicationPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
-      toast({
-        title: "成功",
-        description: "記録が更新されました。",
-      });
     },
     onError: () => {
       toast({
