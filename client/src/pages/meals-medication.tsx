@@ -12,12 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { MealsMedication, InsertMealsMedication } from "@shared/schema";
+import type { MealsAndMedication, InsertMealsAndMedication } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
 
-interface MealsMedicationWithResident extends MealsMedication {
+interface MealsMedicationWithResident extends MealsAndMedication {
   residentName: string;
   roomNumber: string;
   floor: string;
@@ -40,7 +40,7 @@ export default function MealsMedicationPage() {
     const dateParam = params.get('date');
     const mealTimeParam = params.get('mealTime');
     const floorParam = params.get('floor');
-    
+
     if (dateParam) {
       setSelectedDate(new Date(dateParam));
     }
@@ -77,36 +77,42 @@ export default function MealsMedicationPage() {
   const mealsMedicationData: MealsMedicationWithResident[] = Array.isArray(mealsMedicationResponse) ? mealsMedicationResponse : [];
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertMealsMedication) => {
-      const response = await apiRequest('/api/meals-medication', 'POST', data);
-      return response.json();
+    mutationFn: async (data: InsertMealsAndMedication) => {
+      return apiRequest('/api/meals-medication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
       toast({
-        title: "記録が保存されました",
-        description: "食事/服薬記録が正常に作成されました。",
+        title: "成功",
+        description: "記録が作成されました。",
       });
     },
     onError: () => {
       toast({
         title: "エラー",
-        description: "記録の保存に失敗しました。",
+        description: "記録の作成に失敗しました。",
         variant: "destructive",
       });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: InsertMealsMedication }) => {
-      const response = await apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
-      return response.json();
+    mutationFn: async ({ id, data }: { id: string; data: InsertMealsAndMedication }) => {
+      return apiRequest(`/api/meals-medication/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
       toast({
-        title: "記録が更新されました",
-        description: "食事/服薬記録が正常に更新されました。",
+        title: "成功",
+        description: "記録が更新されました。",
       });
     },
     onError: () => {
@@ -124,52 +130,24 @@ export default function MealsMedicationPage() {
 
   const mealTimes = ["朝", "10時", "昼", "15時", "夕"];
   const floors = ["all", "1F", "2F", "3F"];
-  const mainAmountOptions = ["none", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
-  const sideAmountOptions = ["none", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
-  const waterIntakeOptions = ["none", "300", "250", "200", "150", "100", "50", "0"];
-  const supplementOptions = ["none", "ラコール", "エンシュア", "メイバランス", "カロリーメイト", "プロテイン"];
+  const intakeOptions = ["none", "full", "partial", "minimal", "none"];
 
   const handleSaveRecord = (residentId: string, field: string, value: string, notes?: string) => {
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
-        record.residentId === residentId && record.mealTime === selectedMealTime
+        record.residentId === residentId && record.mealType === selectedMealTime
     );
 
-    const recordData: InsertMealsMedication = {
+    const recordData: InsertMealsAndMedication = {
       residentId,
       recordDate: selectedDate,
-      mealTime: selectedMealTime,
-      mainAmount: field === 'mainAmount' ? value : existingRecord?.mainAmount || '',
-      sideAmount: field === 'sideAmount' ? value : existingRecord?.sideAmount || '',
-      waterIntake: field === 'waterIntake' ? value : existingRecord?.waterIntake || '',
-      supplement: field === 'supplement' ? value : existingRecord?.supplement || '',
+      type: 'meal',
+      mealType: selectedMealTime,
+      mealIntake: field === 'mealIntake' ? value : existingRecord?.mealIntake || '',
+      medicationName: field === 'medicationName' ? value : existingRecord?.medicationName || '',
+      dosage: field === 'dosage' ? value : existingRecord?.dosage || '',
       notes: field === 'notes' ? value : existingRecord?.notes || '',
-      staffName: (user as any)?.firstName || 'スタッフ',
-    };
-
-    if (existingRecord) {
-      updateMutation.mutate({ id: existingRecord.id, data: recordData });
-    } else {
-      createMutation.mutate(recordData);
-    }
-  };
-
-  const handleStaffStamp = (residentId: string) => {
-    const existingRecord = mealsMedicationData.find(
-      (record: MealsMedicationWithResident) => 
-        record.residentId === residentId && record.mealTime === selectedMealTime
-    );
-
-    const recordData: InsertMealsMedication = {
-      residentId,
-      recordDate: selectedDate,
-      mealTime: selectedMealTime,
-      mainAmount: existingRecord?.mainAmount || '',
-      sideAmount: existingRecord?.sideAmount || '',
-      waterIntake: existingRecord?.waterIntake || '',
-      supplement: existingRecord?.supplement || '',
-      notes: existingRecord?.notes || '',
-      staffName: (user as any)?.firstName || 'スタッフ',
+      administeredTime: field === 'administeredTime' ? new Date() : existingRecord?.administeredTime,
     };
 
     if (existingRecord) {
@@ -214,7 +192,7 @@ export default function MealsMedicationPage() {
                 data-testid="button-date-picker"
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, "MM/dd", { locale: ja }) : "日付を選択"}
+                {selectedDate ? format(selectedDate, "yyyy年MM月dd日", { locale: ja }) : "日付を選択"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -227,139 +205,81 @@ export default function MealsMedicationPage() {
                     setIsCalendarOpen(false);
                   }
                 }}
+                initialFocus
                 locale={ja}
-                data-testid="calendar-date-picker"
               />
             </PopoverContent>
           </Popover>
 
           {/* 食事時間選択 */}
           <Select value={selectedMealTime} onValueChange={setSelectedMealTime}>
-            <SelectTrigger className="w-20" data-testid="select-meal-time">
+            <SelectTrigger className="w-[120px]" data-testid="select-meal-time">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {mealTimes.map((time) => (
-                <SelectItem key={time} value={time}>{time}</SelectItem>
+                <SelectItem key={time} value={time}>
+                  {time}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           {/* フロア選択 */}
           <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-            <SelectTrigger className="w-20" data-testid="select-floor">
+            <SelectTrigger className="w-[100px]" data-testid="select-floor">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全体</SelectItem>
-              {floors.slice(1).map((floor) => (
-                <SelectItem key={floor} value={floor}>{floor}</SelectItem>
+              {floors.map((floor) => (
+                <SelectItem key={floor} value={floor}>
+                  {floor === "all" ? "全て" : floor}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* 利用者カード */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* 利用者カード一覧 */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredResidents.map((resident: any) => {
           const existingRecord = mealsMedicationData.find(
             (record: MealsMedicationWithResident) => 
-              record.residentId === resident.id && record.mealTime === selectedMealTime
+              record.residentId === resident.id && record.mealType === selectedMealTime
           );
 
           return (
-            <Card key={resident.id} className="w-full" data-testid={`card-resident-${resident.id}`}>
+            <Card key={resident.id} className="relative">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center justify-between">
-                  <span>{resident.roomNumber} {resident.name}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStaffStamp(resident.id)}
-                    className="ml-2"
-                    data-testid={`button-staff-stamp-${resident.id}`}
-                  >
-                    <UserIcon className="h-4 w-4 mr-1" />
-                    {existingRecord?.staffName || 'スタンプ'}
-                  </Button>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <UserIcon className="h-5 w-5" />
+                  <div>
+                    <div className="font-semibold">{resident.roomNumber} {resident.name}</div>
+                    <div className="text-sm text-muted-foreground font-normal">
+                      {resident.floor}F
+                    </div>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* 主食摂取量 */}
+                {/* 食事摂取量 */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">主</Label>
-                  <Select 
-                    value={existingRecord?.mainAmount || 'none'} 
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'mainAmount', value === 'none' ? '' : value)}
+                  <Label className="text-sm font-medium">食事摂取量</Label>
+                  <Select
+                    value={existingRecord?.mealIntake || "none"}
+                    onValueChange={(value) => handleSaveRecord(resident.id, 'mealIntake', value)}
                   >
-                    <SelectTrigger data-testid={`select-main-amount-${resident.id}`}>
-                      <SelectValue placeholder="選択" />
+                    <SelectTrigger data-testid={`select-meal-intake-${resident.id}`}>
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {mainAmountOptions.map((option) => (
+                      {intakeOptions.map((option) => (
                         <SelectItem key={option} value={option}>
-                          {option === "none" ? "選択" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 副食摂取量 */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">副</Label>
-                  <Select 
-                    value={existingRecord?.sideAmount || 'none'} 
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'sideAmount', value === 'none' ? '' : value)}
-                  >
-                    <SelectTrigger data-testid={`select-side-amount-${resident.id}`}>
-                      <SelectValue placeholder="選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sideAmountOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option === "none" ? "選択" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 水分摂取量 */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">水分</Label>
-                  <Select 
-                    value={existingRecord?.waterIntake || 'none'} 
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'waterIntake', value === 'none' ? '' : value)}
-                  >
-                    <SelectTrigger data-testid={`select-water-intake-${resident.id}`}>
-                      <SelectValue placeholder="選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {waterIntakeOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option === "none" ? "選択" : option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 栄養補助食品 */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">その他</Label>
-                  <Select 
-                    value={existingRecord?.supplement || 'none'} 
-                    onValueChange={(value) => handleSaveRecord(resident.id, 'supplement', value === 'none' ? '' : value)}
-                  >
-                    <SelectTrigger data-testid={`select-supplement-${resident.id}`}>
-                      <SelectValue placeholder="選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {supplementOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option === "none" ? "選択" : option}
+                          {option === "none" ? "選択" : 
+                           option === "full" ? "完食" :
+                           option === "partial" ? "半分" :
+                           option === "minimal" ? "少量" : "摂取なし"}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -382,8 +302,8 @@ export default function MealsMedicationPage() {
                 {existingRecord && (
                   <div className="text-xs text-muted-foreground flex items-center mt-2">
                     <ClockIcon className="h-3 w-3 mr-1" />
-                    {existingRecord.updatedAt || existingRecord.createdAt ? 
-                      format(new Date(existingRecord.updatedAt || existingRecord.createdAt), 'HH:mm') : 
+                    {existingRecord.administeredTime ? 
+                      format(new Date(existingRecord.administeredTime), 'HH:mm') : 
                       '記録なし'
                     }
                   </div>

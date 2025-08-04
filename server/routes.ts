@@ -7,7 +7,7 @@ import {
   insertCareRecordSchema,
   insertNursingRecordSchema,
   insertVitalSignsSchema,
-  insertMealsMedicationSchema,
+  insertMealsAndMedicationSchema,
   insertBathingRecordSchema,
   insertExcretionRecordSchema,
   insertWeightRecordSchema,
@@ -189,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
-      const records = await storage.getMealsMedication(
+      const records = await storage.getMealsAndMedication(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
@@ -203,11 +203,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsMedicationSchema.parse({
+      const validatedData = insertMealsAndMedicationSchema.parse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        staffId: req.user.claims.sub,
+        type: 'meal' // Set default type as meal
       });
-      const record = await storage.createMealsMedication(validatedData);
+      const record = await storage.createMealsAndMedication(validatedData);
       res.status(201).json(record);
     } catch (error) {
       console.error("Error creating meals/medication record:", error);
@@ -349,7 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
       const { recordDate, mealTime, floor } = req.query;
-      const records = await storage.getMealsMedication(
+      const records = await storage.getMealsAndMedication(
         recordDate as string, 
         mealTime as string, 
         floor as string
@@ -361,27 +362,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
-    try {
-      const validatedData = insertMealsMedicationSchema.parse({
-        ...req.body,
-        createdBy: req.user.claims.sub,
-      });
-      const record = await storage.createMealsMedication(validatedData);
-      res.status(201).json(record);
-    } catch (error) {
-      console.error("Error creating meals medication:", error);
-      res.status(400).json({ message: "Invalid meals medication data" });
-    }
-  });
-
   app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsMedicationSchema.parse({
+      const validatedData = insertMealsAndMedicationSchema.parse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        staffId: req.user.claims.sub,
+        type: 'meal'
       });
-      const record = await storage.updateMealsMedication(req.params.id, validatedData);
+      const record = await storage.updateMealsAndMedication(req.params.id, validatedData);
       res.json(record);
     } catch (error) {
       console.error("Error updating meals medication:", error);
