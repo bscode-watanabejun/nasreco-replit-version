@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon, UserIcon, ClockIcon } from "lucide-react";
+import { ArrowLeftIcon, CalendarIcon, UserIcon, ClockIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -185,7 +185,18 @@ export default function MealsMedicationPage() {
   return (
     <div className="space-y-4 p-4">
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <h1 className="text-2xl font-bold">食事/服薬記録</h1>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.history.back()}
+            className="p-2"
+            data-testid="button-back"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">食事/服薬記録</h1>
+        </div>
         
         {/* フィルター */}
         <div className="flex flex-wrap gap-2 items-center">
