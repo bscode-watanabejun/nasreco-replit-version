@@ -245,14 +245,13 @@ export default function MedicationList() {
       const newRecord: InsertMedicationRecord = {
         residentId,
         recordDate: new Date(selectedDate),
-        timing: selectedTiming,
-        type: "服薬",
-        confirmer1: "",
-        confirmer2: "",
-        notes: "",
-        result: "",
-        createdBy: (user as any).claims?.sub || "unknown",
-        [field]: value
+        timing: field === 'timing' ? value : selectedTiming,
+        type: field === 'type' ? value : "服薬",
+        confirmer1: field === 'confirmer1' ? value : "",
+        confirmer2: field === 'confirmer2' ? value : "",
+        notes: field === 'notes' ? value : "",
+        result: field === 'result' ? value : "",
+        createdBy: (user as any).claims?.sub || "unknown"
       };
       console.log('Creating new record:', newRecord);
       createMutation.mutate(newRecord);
@@ -279,8 +278,11 @@ export default function MedicationList() {
 
   // 削除
   const handleDelete = (recordId: string) => {
-    // 一時的なIDの場合は削除処理をスキップ
+    console.log('Deleting record:', recordId);
+    // 一時的なIDの場合はデータを再読み込みして削除
     if (recordId.startsWith('temp-')) {
+      console.log('Removing temp record from display');
+      queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
       return;
     }
     deleteMutation.mutate(recordId);
@@ -542,9 +544,12 @@ export default function MedicationList() {
                       <Button
                         variant="ghost"
                         className="h-6 w-full text-xs p-0 text-red-600 hover:bg-transparent"
-                        onClick={() => handleDelete(record.id)}
+                        onClick={() => {
+                          console.log('Delete button clicked for record:', record.id);
+                          handleDelete(record.id);
+                        }}
                         data-testid={`button-delete-${record.id}`}
-                        disabled={record.id.startsWith('temp-')}
+                        disabled={deleteMutation.isPending}
                       >
                         <Trash2 className="w-2 h-2" />
                       </Button>
