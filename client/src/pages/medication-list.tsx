@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, parse } from "date-fns";
-import { ja } from "date-fns/locale";
+import { format } from "date-fns";
 import { 
   Calendar,
   ChevronLeft,
@@ -15,7 +14,6 @@ import {
   Building as BuildingIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
@@ -170,19 +168,52 @@ export default function MedicationList() {
 
   // 新規記録作成ミューテーション
   const createMutation = useMutation({
-    mutationFn: (data: InsertMedicationRecord) => 
-      apiRequest("/api/medication-records", "POST", data),
-    onSuccess: () => {
+    mutationFn: (data: InsertMedicationRecord) => {
+      console.log('Creating medication record:', data);
+      return apiRequest("/api/medication-records", "POST", data);
+    },
+    onSuccess: (_, variables) => {
+      console.log('Create successful for:', variables);
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+      });
+      queryClient.refetchQueries({ 
+        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+      });
+    },
+    onError: (error, variables) => {
+      console.error('Create failed:', error, variables);
     }
   });
 
   // 記録更新ミューテーション
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<InsertMedicationRecord> }) =>
-      apiRequest(`/api/medication-records/${id}`, "PUT", data),
-    onSuccess: () => {
+    mutationFn: ({ id, data }: { id: string; data: Partial<InsertMedicationRecord> }) => {
+      console.log('Updating medication record:', id, data);
+      return apiRequest(`/api/medication-records/${id}`, "PUT", data);
+    },
+    onSuccess: (_, variables) => {
+      console.log('Update successful for:', variables);
+      // より包括的にクエリを無効化
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
+      // 現在のフィルタ条件のクエリも無効化
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+      });
+      // 他の可能なフィルタ組み合わせも無効化
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/medication-records", selectedDate] 
+      });
+      // 少し遅延してから強制リフェッチ（データベースの更新を待つ）
+      setTimeout(() => {
+        queryClient.refetchQueries({ 
+          queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+        });
+      }, 100);
+    },
+    onError: (error, variables) => {
+      console.error('Update failed:', error, variables);
     }
   });
 
@@ -192,9 +223,18 @@ export default function MedicationList() {
       console.log('Sending DELETE request for record:', id);
       return apiRequest(`/api/medication-records/${id}`, "DELETE");
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       console.log('Delete successful for record:', variables);
+      // 現在のクエリを無効化して再取得
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
+      // 特定のクエリも無効化
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+      });
+      // 強制的にリフェッチ
+      queryClient.refetchQueries({ 
+        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+      });
     },
     onError: (error, variables) => {
       console.error('Delete failed for record:', variables, error);
@@ -248,15 +288,19 @@ export default function MedicationList() {
     // 一時的なIDの場合は新規作成
     if (recordId.startsWith('temp-')) {
       const residentId = recordId.replace('temp-', '');
+      
+      // 現在の表示レコードから既存の値を取得
+      const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
+      
       const newRecord: InsertMedicationRecord = {
-        residentId,
+        residentId: field === 'residentId' ? value : (currentRecord?.residentId || residentId),
         recordDate: new Date(selectedDate),
-        timing: field === 'timing' ? value : selectedTiming,
-        type: field === 'type' ? value : "服薬",
-        confirmer1: field === 'confirmer1' ? value : "",
-        confirmer2: field === 'confirmer2' ? value : "",
-        notes: field === 'notes' ? value : "",
-        result: field === 'result' ? value : "",
+        timing: field === 'timing' ? value : (currentRecord?.timing || selectedTiming),
+        type: field === 'type' ? value : (currentRecord?.type || "服薬"),
+        confirmer1: field === 'confirmer1' ? value : (currentRecord?.confirmer1 || ""),
+        confirmer2: field === 'confirmer2' ? value : (currentRecord?.confirmer2 || ""),
+        notes: field === 'notes' ? value : (currentRecord?.notes || ""),
+        result: field === 'result' ? value : (currentRecord?.result || ""),
         createdBy: (user as any).claims?.sub || "unknown"
       };
       console.log('Creating new record:', newRecord);
@@ -285,23 +329,26 @@ export default function MedicationList() {
   // 削除
   const handleDelete = (recordId: string) => {
     console.log('Deleting record:', recordId);
-    // 一時的なIDの場合はデータを再読み込みして削除
+    
+    // 一時的なIDの場合は削除確認なしで即座に削除
     if (recordId.startsWith('temp-')) {
       console.log('Removing temp record from display');
+      // 複数のクエリを無効化して確実に更新
+      queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
+      queryClient.refetchQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
       return;
     }
-    deleteMutation.mutate(recordId);
-  };
-
-  const formatDisplayDate = (dateString: string) => {
-    try {
-      const date = parse(dateString, "yyyy-MM-dd", new Date());
-      return format(date, "M月d日", { locale: ja });
-    } catch {
-      return dateString;
+    
+    // 実際のレコードの場合は削除確認を表示
+    if (window.confirm('この記録を削除しますか？')) {
+      console.log('User confirmed deletion, proceeding with delete');
+      deleteMutation.mutate(recordId);
+    } else {
+      console.log('User cancelled deletion');
     }
   };
+
 
   return (
     <div className="space-y-4 p-4">
@@ -372,15 +419,13 @@ export default function MedicationList() {
         </div>
       </div>
 
-      {/* 記録一覧 */}
-      <div className="px-4 py-4 space-y-3">
+      {/* 利用者一覧（服薬記録用） */}
+      <div className="space-y-4">
         {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="text-center py-8">
-              <p className="text-red-600 text-lg mb-2">エラーが発生しました</p>
-              <p className="text-sm text-red-500">{error.message}</p>
-            </CardContent>
-          </Card>
+          <div className="bg-red-50 border-red-200 p-4 text-center rounded-lg">
+            <p className="text-red-600 text-lg mb-2">エラーが発生しました</p>
+            <p className="text-sm text-red-500">{error.message}</p>
+          </div>
         )}
         
         {isLoading ? (
@@ -389,14 +434,10 @@ export default function MedicationList() {
             <p className="text-slate-600">服薬記録を読み込み中...</p>
           </div>
         ) : !error && displayMedicationRecords.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <p className="text-slate-600 text-lg mb-2">服薬記録がありません</p>
-              <p className="text-sm text-slate-500 mb-4">「+」ボタンから記録を追加してください</p>
-            </CardContent>
-          </Card>
+          <div className="text-center py-8 text-muted-foreground">
+            該当する利用者がいません
+          </div>
         ) : !error ? (
-          // 表示用のレコードを利用（本日を含む過去日の場合は全利用者分）
           displayMedicationRecords
             .sort((a: MedicationRecordWithResident, b: MedicationRecordWithResident) => {
               const roomA = parseInt(a.roomNumber || "0");
@@ -404,162 +445,178 @@ export default function MedicationList() {
               return roomA - roomB;
             })
             .map((record: MedicationRecordWithResident) => (
-            <Card key={record.id} className="bg-white">
-              <CardContent className="p-3">
-                <div className="space-y-2">
-                  {/* 1行目: 部屋番号、利用者名、タイミング、確認者1、確認者2 */}
-                  <div className="grid gap-1 sm:gap-2" style={{gridTemplateColumns: "50px minmax(80px, 1fr) 60px 60px 60px"}}>
-                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
-                      <div className="text-sm font-bold text-slate-800">
-                        {record.roomNumber || "106"}
-                      </div>
-                    </div>
-                    <div className="bg-gray-100 rounded px-1 py-1 text-center">
-                      <Select
-                        value={record.residentId}
-                        onValueChange={(value) => {
-                          console.log('Resident changed for record', record.id, 'to:', value);
-                          handleFieldUpdate(record.id, "residentId", value);
-                        }}
-                      >
-                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0 w-full">
-                          <SelectValue>
-                            <span className="truncate">{record.residentName || "御子柴 啓"}</span>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {residents?.map((resident) => (
-                            <SelectItem key={resident.id} value={resident.id}>
-                              {resident.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="bg-gray-100 rounded px-1 py-1 text-center">
-                      <Select
-                        value={record.timing}
-                        onValueChange={(value) => {
-                          console.log('Timing changed for record', record.id, 'to:', value);
-                          handleFieldUpdate(record.id, "timing", value);
-                        }}
-                      >
-                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0 w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {timingOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="bg-gray-100 rounded px-1 py-1 text-center">
-                      <Button
-                        variant="ghost"
-                        className="h-6 text-xs p-0 text-gray-500 hover:bg-transparent w-full truncate"
-                        onClick={() => handleConfirmerClick(record.id, "confirmer1")}
-                        data-testid={`button-confirmer1-${record.id}`}
-                      >
-                        <span className="truncate text-xs">{record.confirmer1 || "確認1"}</span>
-                      </Button>
-                    </div>
-                    <div className="bg-gray-100 rounded px-1 py-1 text-center">
-                      <Button
-                        variant="ghost"
-                        className="h-6 text-xs p-0 text-gray-500 hover:bg-transparent w-full truncate"
-                        onClick={() => handleConfirmerClick(record.id, "confirmer2")}
-                        data-testid={`button-confirmer2-${record.id}`}
-                      >
-                        <span className="truncate text-xs">{record.confirmer2 || "確認2"}</span>
-                      </Button>
+            <Card key={record.id} className="bg-white shadow-sm">
+              <CardContent className="p-4 space-y-4">
+                {/* 1行目：居室番号と利用者名 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">居室番号</label>
+                    <div className="p-2 border border-gray-300 rounded-md bg-gray-50 text-center font-bold text-lg">
+                      {record.roomNumber}
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">利用者名</label>
+                    <Select
+                      value={record.residentId}
+                      onValueChange={(value) => {
+                        console.log('Resident changed for record', record.id, 'to:', value);
+                        handleFieldUpdate(record.id, "residentId", value);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue>
+                          <span>
+                            {residents?.find(r => r.id === record.residentId)?.name || record.residentName}
+                          </span>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {residents?.map((resident) => (
+                          <SelectItem key={resident.id} value={resident.id}>
+                            {resident.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-                  {/* 2行目: 記録、種類、結果、削除 */}
-                  <div className="grid gap-1 sm:gap-2" style={{gridTemplateColumns: "1fr 60px 60px 40px"}}>
-                    <div className="bg-gray-100 rounded px-2 py-1">
-                      <Textarea
-                        placeholder="記録"
-                        value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
-                        onChange={(e) => {
-                          // ローカル状態で管理
-                          setLocalNotes(prev => ({
-                            ...prev,
-                            [record.id]: e.target.value
-                          }));
-                        }}
-                        onBlur={(e) => {
-                          handleFieldUpdate(record.id, "notes", e.target.value);
-                          // ローカル状態をクリア
-                          setLocalNotes(prev => {
-                            const newState = { ...prev };
-                            delete newState[record.id];
-                            return newState;
-                          });
-                        }}
-                        className="h-6 text-xs resize-none border-0 bg-transparent p-0"
-                        rows={1}
-                        data-testid={`textarea-notes-${record.id}`}
-                      />
-                    </div>
-                    <div className="bg-gray-100 rounded px-1 py-1 text-center">
-                      <Select
-                        value={record.type}
-                        onValueChange={(value) => {
-                          console.log('Type changed for record', record.id, 'to:', value);
-                          handleFieldUpdate(record.id, "type", value);
-                        }}
-                      >
-                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0 w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {typeOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="bg-gray-100 rounded px-1 py-1 text-center">
-                      <Select
-                        value={record.result || "空欄"}
-                        onValueChange={(value) => {
-                          console.log('Result changed for record', record.id, 'to:', value);
-                          const actualValue = value === "空欄" ? "" : value;
-                          handleFieldUpdate(record.id, "result", actualValue);
-                        }}
-                      >
-                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0 w-full">
-                          <SelectValue placeholder="結果" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {resultOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="bg-red-100 rounded px-1 py-1 text-center">
-                      <Button
-                        variant="ghost"
-                        className="h-6 w-full text-xs p-0 text-red-600 hover:bg-transparent"
-                        onClick={() => {
-                          console.log('Delete button clicked for record:', record.id);
-                          handleDelete(record.id);
-                        }}
-                        data-testid={`button-delete-${record.id}`}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="w-2 h-2" />
-                      </Button>
-                    </div>
+                {/* 2行目：服薬タイミングと種類 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">服薬タイミング</label>
+                    <Select
+                      value={record.timing}
+                      onValueChange={(value) => {
+                        console.log('Timing changed for record', record.id, 'to:', value);
+                        handleFieldUpdate(record.id, "timing", value);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {timingOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">種類</label>
+                    <Select
+                      value={record.type}
+                      onValueChange={(value) => {
+                        console.log('Type changed for record', record.id, 'to:', value);
+                        handleFieldUpdate(record.id, "type", value);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {typeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* 3行目：確認者1と確認者2 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">確認者1</label>
+                    <Button
+                      variant="outline"
+                      className="h-10 w-full text-sm text-gray-500 hover:bg-gray-100 justify-start"
+                      onClick={() => handleConfirmerClick(record.id, "confirmer1")}
+                      data-testid={`button-confirmer1-${record.id}`}
+                    >
+                      {record.confirmer1 || "タップして記入"}
+                    </Button>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">確認者2</label>
+                    <Button
+                      variant="outline"
+                      className="h-10 w-full text-sm text-gray-500 hover:bg-gray-100 justify-start"
+                      onClick={() => handleConfirmerClick(record.id, "confirmer2")}
+                      data-testid={`button-confirmer2-${record.id}`}
+                    >
+                      {record.confirmer2 || "タップして記入"}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 4行目：記録欄 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">記録</label>
+                  <Textarea
+                    value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
+                    onChange={(e) => {
+                      setLocalNotes(prev => ({
+                        ...prev,
+                        [record.id]: e.target.value
+                      }));
+                    }}
+                    onBlur={(e) => {
+                      handleFieldUpdate(record.id, "notes", e.target.value);
+                      setLocalNotes(prev => {
+                        const newState = { ...prev };
+                        delete newState[record.id];
+                        return newState;
+                      });
+                    }}
+                    className="h-16 text-sm resize-none w-full"
+                    placeholder="記録を入力..."
+                    data-testid={`textarea-notes-${record.id}`}
+                  />
+                </div>
+
+                {/* 5行目：結果と削除 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">結果</label>
+                    <Select
+                      value={record.result || "空欄"}
+                      onValueChange={(value) => {
+                        console.log('Result changed for record', record.id, 'to:', value);
+                        const actualValue = value === "空欄" ? "" : value;
+                        handleFieldUpdate(record.id, "result", actualValue);
+                      }}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="結果" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {resultOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      variant="outline"
+                      className="h-10 w-full text-red-600 hover:bg-red-50 border-red-200"
+                      onClick={() => {
+                        console.log('Delete button clicked for record:', record.id);
+                        handleDelete(record.id);
+                      }}
+                      data-testid={`button-delete-${record.id}`}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      削除
+                    </Button>
                   </div>
                 </div>
               </CardContent>
