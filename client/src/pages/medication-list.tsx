@@ -45,7 +45,7 @@ const typeOptions = [
 ];
 
 const resultOptions = [
-  { value: "", label: "空欄" },
+  { value: "空欄", label: "空欄" },
   { value: "○", label: "○" },
   { value: "−", label: "−" },
   { value: "拒否", label: "拒否" },
@@ -73,8 +73,24 @@ export default function MedicationList() {
   });
 
   // 服薬記録データ取得
-  const { data: medicationRecords = [], isLoading } = useQuery<MedicationRecordWithResident[]>({
-    queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor]
+  const { data: medicationRecords = [], isLoading, error } = useQuery<MedicationRecordWithResident[]>({
+    queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        recordDate: selectedDate,
+        timing: selectedTiming,
+        floor: selectedFloor
+      });
+      const response = await fetch(`/api/medication-records?${params}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Medication records fetched:', data);
+      return data;
+    }
   });
 
   // 新規記録作成ミューテーション
@@ -119,7 +135,7 @@ export default function MedicationList() {
       confirmer1: "",
       confirmer2: "",
       notes: "",
-      result: "",
+      result: "空欄",
       createdBy: (user as any).claims?.sub || "unknown"
     } as InsertMedicationRecord);
   };
@@ -221,20 +237,29 @@ export default function MedicationList() {
 
       {/* 記録一覧 */}
       <div className="px-4 py-4 space-y-3">
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="text-center py-8">
+              <p className="text-red-600 text-lg mb-2">エラーが発生しました</p>
+              <p className="text-sm text-red-500">{error.message}</p>
+            </CardContent>
+          </Card>
+        )}
+        
         {isLoading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
             <p className="text-slate-600">服薬記録を読み込み中...</p>
           </div>
-        ) : (medicationRecords as MedicationRecordWithResident[]).length === 0 ? (
+        ) : !error && medicationRecords.length === 0 ? (
           <Card>
             <CardContent className="text-center py-8">
               <p className="text-slate-600 text-lg mb-2">服薬記録がありません</p>
               <p className="text-sm text-slate-500 mb-4">「+」ボタンから記録を追加してください</p>
             </CardContent>
           </Card>
-        ) : (
-          (medicationRecords as MedicationRecordWithResident[]).map((record: MedicationRecordWithResident) => (
+        ) : !error ? (
+          medicationRecords.map((record: MedicationRecordWithResident) => (
             <Card key={record.id} className="bg-white">
               <CardContent className="p-4">
                 <div className="space-y-3">
@@ -329,8 +354,8 @@ export default function MedicationList() {
                       </SelectContent>
                     </Select>
                     <Select
-                      value={record.result || ""}
-                      onValueChange={(value) => handleFieldUpdate(record.id, "result", value)}
+                      value={record.result || "空欄"}
+                      onValueChange={(value) => handleFieldUpdate(record.id, "result", value === "空欄" ? "" : value)}
                     >
                       <SelectTrigger className="h-8 text-sm">
                         <SelectValue placeholder="結果" />
@@ -357,7 +382,7 @@ export default function MedicationList() {
               </CardContent>
             </Card>
           ))
-        )}
+        ) : null}
       </div>
 
       {/* フッター */}
