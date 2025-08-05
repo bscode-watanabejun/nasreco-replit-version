@@ -391,6 +391,30 @@ export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
   createdAt: true,
 });
 
+// Medication Records table - 服薬記録
+export const medicationRecords = pgTable("medication_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  residentId: varchar("resident_id").notNull(),
+  recordDate: date("record_date").notNull(), // 記録日
+  timing: varchar("timing").notNull(), // 服薬タイミング: "起床後", "朝前", "朝後", "昼前", "昼後", "夕前", "夕後", "眠前", "頓服"
+  confirmer1: varchar("confirmer1"), // 確認者1
+  confirmer2: varchar("confirmer2"), // 確認者2
+  notes: text("notes"), // 記録(フリー入力)
+  type: varchar("type").notNull(), // "服薬", "点眼"
+  result: varchar("result"), // "○", "−", "拒否", "外出", 空欄
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertMedicationRecordSchema = createInsertSchema(medicationRecords, {
+  recordDate: z.string().transform((str) => new Date(str)),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -416,3 +440,5 @@ export type MealsMedication = typeof mealsMedication.$inferSelect;
 export type InsertMealsMedication = z.infer<typeof insertMealsMedicationSchema>;
 export type RoundRecord = typeof roundRecords.$inferSelect;
 export type InsertRoundRecord = z.infer<typeof insertRoundRecordSchema>;
+export type MedicationRecord = typeof medicationRecords.$inferSelect;
+export type InsertMedicationRecord = z.infer<typeof insertMedicationRecordSchema>;

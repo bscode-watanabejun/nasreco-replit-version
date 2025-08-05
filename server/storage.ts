@@ -11,6 +11,7 @@ import {
   weightRecords,
   communications,
   roundRecords,
+  medicationRecords,
   type User,
   type UpsertUser,
   type Resident,
@@ -35,6 +36,8 @@ import {
   type InsertCommunication,
   type RoundRecord,
   type InsertRoundRecord,
+  type MedicationRecord,
+  type InsertMedicationRecord,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
@@ -94,6 +97,12 @@ export interface IStorage {
   getRoundRecords(recordDate: Date): Promise<RoundRecord[]>;
   createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord>;
   deleteRoundRecord(id: string): Promise<void>;
+
+  // Medication record operations
+  getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<MedicationRecord[]>;
+  createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
+  updateMedicationRecord(id: string, record: InsertMedicationRecord): Promise<MedicationRecord>;
+  deleteMedicationRecord(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -440,6 +449,52 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRoundRecord(id: string): Promise<void> {
     await db.delete(roundRecords).where(eq(roundRecords.id, id));
+  }
+
+  // Medication record operations
+  async getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<MedicationRecord[]> {
+    let query = db.select({
+      ...medicationRecords,
+      residentName: residents.name,
+      roomNumber: residents.roomNumber,
+      floor: residents.floor,
+    }).from(medicationRecords)
+      .leftJoin(residents, eq(medicationRecords.residentId, residents.id));
+
+    const conditions = [];
+    conditions.push(eq(medicationRecords.recordDate, recordDate));
+    
+    if (timing && timing !== 'all') {
+      conditions.push(eq(medicationRecords.timing, timing));
+    }
+
+    if (floor && floor !== 'all') {
+      conditions.push(eq(residents.floor, floor));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    return await query.orderBy(residents.roomNumber);
+  }
+
+  async createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
+    const [newRecord] = await db.insert(medicationRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async updateMedicationRecord(id: string, record: InsertMedicationRecord): Promise<MedicationRecord> {
+    const [updatedRecord] = await db
+      .update(medicationRecords)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(medicationRecords.id, id))
+      .returning();
+    return updatedRecord;
+  }
+
+  async deleteMedicationRecord(id: string): Promise<void> {
+    await db.delete(medicationRecords).where(eq(medicationRecords.id, id));
   }
 }
 

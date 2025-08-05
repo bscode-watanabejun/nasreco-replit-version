@@ -13,6 +13,7 @@ import {
   insertWeightRecordSchema,
   insertCommunicationSchema,
   insertRoundRecordSchema,
+  insertMedicationRecordSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -428,6 +429,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting round record:", error);
       res.status(500).json({ message: "Failed to delete round record" });
+    }
+  });
+
+  // Medication Records routes
+  app.get('/api/medication-records', isAuthenticated, async (req, res) => {
+    try {
+      const { recordDate, timing, floor } = req.query;
+      const records = await storage.getMedicationRecords(
+        recordDate as string || new Date().toISOString().split('T')[0],
+        timing as string || 'all',
+        floor as string || 'all'
+      );
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching medication records:", error);
+      res.status(500).json({ message: "Failed to fetch medication records" });
+    }
+  });
+
+  app.post('/api/medication-records', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertMedicationRecordSchema.parse({
+        ...req.body,
+        createdBy: req.user.claims.sub,
+      });
+      const record = await storage.createMedicationRecord(validatedData);
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating medication record:", error);
+      res.status(400).json({ message: "Invalid medication record data" });
+    }
+  });
+
+  app.put('/api/medication-records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertMedicationRecordSchema.parse({
+        ...req.body,
+        createdBy: req.user.claims.sub,
+      });
+      const record = await storage.updateMedicationRecord(req.params.id, validatedData);
+      res.json(record);
+    } catch (error) {
+      console.error("Error updating medication record:", error);
+      res.status(400).json({ message: "Invalid medication record data" });
+    }
+  });
+
+  app.delete('/api/medication-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteMedicationRecord(req.params.id);
+      res.json({ message: "Medication record deleted" });
+    } catch (error) {
+      console.error("Error deleting medication record:", error);
+      res.status(500).json({ message: "Failed to delete medication record" });
     }
   });
 

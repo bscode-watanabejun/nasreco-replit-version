@@ -270,7 +270,7 @@ export default function MealsMedicationPage() {
         >
           <ArrowLeftIcon className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-bold">食事/服薬記録</h1>
+        <h1 className="text-2xl font-bold">食事一覧</h1>
       </div>
 
       {/* 日付とフロア選択 */}
