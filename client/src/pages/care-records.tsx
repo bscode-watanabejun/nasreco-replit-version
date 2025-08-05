@@ -303,7 +303,11 @@ export default function CareRecords() {
   // 階数のオプションを生成（利用者データから）
   const floorOptions = [
     { value: "all", label: "全階" },
-    ...Array.from(new Set((residents as any[]).map(r => r.floor).filter(Boolean)))
+    ...Array.from(new Set((residents as any[]).map(r => {
+      // "1F", "2F" などのF文字を除去して数値のみ取得
+      const floor = r.floor?.toString().replace('F', '');
+      return floor ? parseInt(floor) : null;
+    }).filter(Boolean)))
       .sort((a, b) => a - b)
       .map(floor => ({ value: floor.toString(), label: `${floor}階` }))
   ];
@@ -311,8 +315,12 @@ export default function CareRecords() {
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // 階数フィルター
-    if (selectedFloor !== "all" && resident.floor?.toString() !== selectedFloor) {
-      return false;
+    if (selectedFloor !== "all") {
+      // 利用者のfloor値も正規化（"1F" → "1"）
+      const residentFloor = resident.floor?.toString().replace('F', '');
+      if (residentFloor !== selectedFloor) {
+        return false;
+      }
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）

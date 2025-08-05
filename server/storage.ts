@@ -244,6 +244,22 @@ export class DatabaseStorage implements IStorage {
     return newVitals;
   }
 
+  async updateVitalSigns(id: string, data: Partial<InsertVitalSigns>): Promise<VitalSigns> {
+    const [record] = await db
+      .update(vitalSigns)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(vitalSigns.id, id))
+      .returning();
+    return record;
+  }
+
+  async deleteVitalSigns(id: string): Promise<void> {
+    await db.delete(vitalSigns).where(eq(vitalSigns.id, id));
+  }
+
   // Meals and medication operations
   async getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]> {
     let query = db.select().from(mealsAndMedication);

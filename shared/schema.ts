@@ -171,16 +171,22 @@ export const nursingRecords = pgTable("nursing_records", {
 export const vitalSigns = pgTable("vital_signs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
+  timing: varchar("timing"), // 午前, 午後, 臨時, 前日
+  hour: integer("hour"), // 時間 (0-23)
+  minute: integer("minute"), // 分 (0, 15, 30, 45)
+  staffName: varchar("staff_name"), // 記入者名
   temperature: decimal("temperature", { precision: 4, scale: 1 }),
   bloodPressureSystolic: integer("blood_pressure_systolic"),
   bloodPressureDiastolic: integer("blood_pressure_diastolic"),
   pulseRate: integer("pulse_rate"),
   respirationRate: integer("respiration_rate"),
   oxygenSaturation: decimal("oxygen_saturation", { precision: 5, scale: 2 }),
+  bloodSugar: decimal("blood_sugar", { precision: 6, scale: 1 }), // 血糖値
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Meals and medication

@@ -186,6 +186,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/vital-signs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertVitalSignsSchema.partial().parse(req.body);
+      const vitals = await storage.updateVitalSigns(id, validatedData);
+      res.json(vitals);
+    } catch (error) {
+      console.error("Error updating vital signs:", error);
+      res.status(400).json({ message: "Invalid vital signs data" });
+    }
+  });
+
+  app.delete('/api/vital-signs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteVitalSigns(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting vital signs:", error);
+      res.status(500).json({ message: "Failed to delete vital signs" });
+    }
+  });
+
   // Meals and medication routes
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
