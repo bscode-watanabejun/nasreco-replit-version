@@ -188,10 +188,16 @@ export default function MedicationList() {
 
   // 記録削除ミューテーション
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => 
-      apiRequest(`/api/medication-records/${id}`, "DELETE"),
-    onSuccess: () => {
+    mutationFn: (id: string) => {
+      console.log('Sending DELETE request for record:', id);
+      return apiRequest(`/api/medication-records/${id}`, "DELETE");
+    },
+    onSuccess: (data, variables) => {
+      console.log('Delete successful for record:', variables);
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
+    },
+    onError: (error, variables) => {
+      console.error('Delete failed for record:', variables, error);
     }
   });
 
