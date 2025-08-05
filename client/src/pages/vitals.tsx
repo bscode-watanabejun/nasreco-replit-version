@@ -118,7 +118,7 @@ export default function Vitals() {
   // 新規記録作成用ミューテーション
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      await apiRequest("POST", "/api/vital-signs", {
+      await apiRequest("/api/vital-signs", "POST", {
         ...data,
         recordDate: new Date(data.recordDate || new Date()),
       });
@@ -160,7 +160,7 @@ export default function Vitals() {
           newRecordData[field] = value ? parseInt(value) : null;
         }
         
-        await apiRequest("POST", "/api/vital-signs", newRecordData);
+        await apiRequest("/api/vital-signs", "POST", newRecordData);
       } else {
         // 既存レコードの更新
         const updateData: any = { [field]: value };
@@ -171,7 +171,7 @@ export default function Vitals() {
         } else if (['hour', 'minute'].includes(field)) {
           updateData[field] = value ? parseInt(value) : null;
         }
-        await apiRequest("PATCH", `/api/vital-signs/${id}`, updateData);
+        await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
       }
     },
     onSuccess: () => {
