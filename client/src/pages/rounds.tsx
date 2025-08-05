@@ -247,10 +247,9 @@ export default function Rounds() {
                   </tr>
                 </thead>
                 <tbody>
-                  {residents.map(resident => (
-                    <React.Fragment key={resident.id}>
-                      {/* 巡回行 */}
-                      <tr className="border-b border-gray-200 hover:bg-gray-50">
+                  {residents.map(resident => [
+                      /* 巡回行 */
+                      <tr key={`${resident.id}-patrol`} className="border-b border-gray-200 hover:bg-gray-50">
                         <td className="sticky left-0 bg-white border-r border-gray-200 p-1 z-20">
                           <div className="text-[11px] font-medium">{resident.roomNumber}</div>
                           <div className="text-[10px] text-gray-600 leading-tight">{resident.name?.split(' ')[0]} {resident.name?.split(' ')[1]}</div>
@@ -274,10 +273,10 @@ export default function Rounds() {
                             </td>
                           );
                         })}
-                      </tr>
+                      </tr>,
                       
-                      {/* 体位交換行 */}
-                      <tr className="border-b-2 border-gray-300 hover:bg-gray-50">
+                      /* 体位交換行 */
+                      <tr key={`${resident.id}-position`} className="border-b-2 border-gray-300 hover:bg-gray-50">
                         <td className="sticky left-0 bg-white border-r border-gray-200 p-1 z-20"></td>
                         <td className="sticky left-[80px] bg-green-50 border-r border-gray-200 p-1 z-10">
                           <div className="text-[10px] text-green-700 font-medium">体交</div>
@@ -314,8 +313,7 @@ export default function Rounds() {
                           );
                         })}
                       </tr>
-                    </React.Fragment>
-                  ))}
+                    ])}
                 </tbody>
               </table>
             </div>
