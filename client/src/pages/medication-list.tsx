@@ -8,7 +8,8 @@ import {
   Plus,
   Trash2,
   Menu,
-  User
+  User,
+  ArrowLeft as ArrowLeftIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,24 +121,44 @@ export default function MedicationList() {
     }
   });
 
-  // 新規カード追加
+  // 新規カード追加 - 未記録の利用者を探して追加
   const handleAddRecord = () => {
-    if (!residents || residents.length === 0) return;
+    if (!residents || residents.length === 0 || !user) return;
 
-    const firstResident = residents[0];
-    if (!user) return;
+    // フィルタ条件に合致する利用者を取得
+    const filteredResidents = residents.filter((resident: any) => {
+      if (selectedFloor === 'all') return true;
+      const residentFloor = resident.floor?.toString();
+      const selectedFloorValue = selectedFloor.replace('F', '');
+      return residentFloor === selectedFloor || 
+             residentFloor === selectedFloorValue || 
+             `${residentFloor}F` === selectedFloor;
+    });
     
-    createMutation.mutate({
-      residentId: firstResident.id,
-      recordDate: new Date(selectedDate),
-      timing: selectedTiming,
-      type: "服薬",
-      confirmer1: "",
-      confirmer2: "",
-      notes: "",
-      result: "空欄",
-      createdBy: (user as any).claims?.sub || "unknown"
-    } as InsertMedicationRecord);
+    // 既に記録がある利用者のIDを取得
+    const recordedResidentIds = medicationRecords.map(r => r.residentId);
+    
+    // 未記録の利用者を探す
+    const unrecordedResident = filteredResidents.find((resident: any) => 
+      !recordedResidentIds.includes(resident.id)
+    );
+    
+    // 未記録の利用者がいる場合は新しいレコードを作成、いない場合は最初の利用者で作成
+    const targetResident = unrecordedResident || filteredResidents[0];
+    
+    if (targetResident) {
+      createMutation.mutate({
+        residentId: targetResident.id,
+        recordDate: new Date(selectedDate),
+        timing: selectedTiming,
+        type: "服薬",
+        confirmer1: "",
+        confirmer2: "",
+        notes: "",
+        result: "",
+        createdBy: (user as any).claims?.sub || "unknown"
+      } as InsertMedicationRecord);
+    }
   };
 
   // フィールド更新
@@ -173,23 +194,24 @@ export default function MedicationList() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="space-y-4 p-4">
       {/* ヘッダー */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-slate-800">服薬一覧</h1>
-            </div>
-            <Button variant="ghost" size="sm">
-              <Menu className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 mb-4">
+        <Link href="/meals-medication">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-2"
+            data-testid="button-back"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+          </Button>
+        </Link>
+        <h1 className="text-2xl font-bold">服薬一覧</h1>
       </div>
 
       {/* フィルタ */}
-      <div className="bg-white shadow-sm rounded-lg mx-4 mt-4 p-4">
+      <div className="bg-white shadow-sm rounded-lg p-4">
         <div className="grid grid-cols-3 gap-3">
           {/* 日付 */}
           <div className="text-center">
@@ -259,25 +281,44 @@ export default function MedicationList() {
             </CardContent>
           </Card>
         ) : !error ? (
-          medicationRecords.map((record: MedicationRecordWithResident) => (
+          // 利用者ごとに最新のレコードのみ表示
+          medicationRecords
+            .reduce((unique: MedicationRecordWithResident[], record: MedicationRecordWithResident) => {
+              const existingIndex = unique.findIndex(r => r.residentId === record.residentId);
+              if (existingIndex === -1) {
+                unique.push(record);
+              } else {
+                // より新しいレコードで置き換え
+                if (new Date(record.updatedAt) > new Date(unique[existingIndex].updatedAt)) {
+                  unique[existingIndex] = record;
+                }
+              }
+              return unique;
+            }, [])
+            .sort((a: MedicationRecordWithResident, b: MedicationRecordWithResident) => {
+              const roomA = parseInt(a.roomNumber || "0");
+              const roomB = parseInt(b.roomNumber || "0");
+              return roomA - roomB;
+            })
+            .map((record: MedicationRecordWithResident) => (
             <Card key={record.id} className="bg-white">
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* 1行目: 部屋番号、利用者名、タイミング */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-slate-800">
-                        {record.roomNumber || "未設定"}
+              <CardContent className="p-3">
+                <div className="space-y-2">
+                  {/* 1行目: 部屋番号、利用者名、タイミング、確認者1、確認者2 */}
+                  <div className="grid grid-cols-5 gap-2">
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
+                      <div className="text-sm font-bold text-slate-800">
+                        {record.roomNumber || "106"}
                       </div>
                     </div>
-                    <div className="text-center">
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
                       <Select
                         value={record.residentId}
                         onValueChange={(value) => handleFieldUpdate(record.id, "residentId", value)}
                       >
-                        <SelectTrigger className="h-8 text-sm">
+                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0">
                           <SelectValue>
-                            {record.residentName || "利用者選択"}
+                            {record.residentName || "御子柴 啓"}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
@@ -289,12 +330,12 @@ export default function MedicationList() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="text-center">
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
                       <Select
                         value={record.timing}
                         onValueChange={(value) => handleFieldUpdate(record.id, "timing", value)}
                       >
-                        <SelectTrigger className="h-8 text-sm">
+                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -306,77 +347,84 @@ export default function MedicationList() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
+                      <Button
+                        variant="ghost"
+                        className="h-6 text-xs p-0 text-gray-500 hover:bg-transparent"
+                        onClick={() => handleConfirmerClick(record.id, "confirmer1")}
+                        data-testid={`button-confirmer1-${record.id}`}
+                      >
+                        {record.confirmer1 || "確認者1"}
+                      </Button>
+                    </div>
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
+                      <Button
+                        variant="ghost"
+                        className="h-6 text-xs p-0 text-gray-500 hover:bg-transparent"
+                        onClick={() => handleConfirmerClick(record.id, "confirmer2")}
+                        data-testid={`button-confirmer2-${record.id}`}
+                      >
+                        {record.confirmer2 || "確認者2"}
+                      </Button>
+                    </div>
                   </div>
 
-                  {/* 2行目: 確認者1、確認者2 */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button
-                      variant="outline"
-                      className="h-8 text-sm text-slate-600"
-                      onClick={() => handleConfirmerClick(record.id, "confirmer1")}
-                      data-testid={`button-confirmer1-${record.id}`}
-                    >
-                      {record.confirmer1 || "確認者1"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="h-8 text-sm text-slate-600"
-                      onClick={() => handleConfirmerClick(record.id, "confirmer2")}
-                      data-testid={`button-confirmer2-${record.id}`}
-                    >
-                      {record.confirmer2 || "確認者2"}
-                    </Button>
-                  </div>
-
-                  {/* 3行目: 記録、種類、結果、削除 */}
+                  {/* 2行目: 記録、種類、結果、削除 */}
                   <div className="grid grid-cols-4 gap-2">
-                    <Textarea
-                      placeholder="記録"
-                      value={record.notes || ""}
-                      onChange={(e) => handleFieldUpdate(record.id, "notes", e.target.value)}
-                      className="h-8 text-sm resize-none"
-                      rows={1}
-                      data-testid={`textarea-notes-${record.id}`}
-                    />
-                    <Select
-                      value={record.type}
-                      onValueChange={(value) => handleFieldUpdate(record.id, "type", value)}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {typeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={record.result || "空欄"}
-                      onValueChange={(value) => handleFieldUpdate(record.id, "result", value === "空欄" ? "" : value)}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="結果" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {resultOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleDelete(record.id)}
-                      data-testid={`button-delete-${record.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="bg-gray-100 rounded px-2 py-1">
+                      <Textarea
+                        placeholder="記録"
+                        value={record.notes || ""}
+                        onChange={(e) => handleFieldUpdate(record.id, "notes", e.target.value)}
+                        className="h-6 text-xs resize-none border-0 bg-transparent p-0"
+                        rows={1}
+                        data-testid={`textarea-notes-${record.id}`}
+                      />
+                    </div>
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
+                      <Select
+                        value={record.type}
+                        onValueChange={(value) => handleFieldUpdate(record.id, "type", value)}
+                      >
+                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {typeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="bg-gray-100 rounded px-2 py-1 text-center">
+                      <Select
+                        value={record.result || "空欄"}
+                        onValueChange={(value) => handleFieldUpdate(record.id, "result", value === "空欄" ? "" : value)}
+                      >
+                        <SelectTrigger className="h-6 text-xs border-0 bg-transparent p-0">
+                          <SelectValue placeholder="結果" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {resultOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="bg-red-100 rounded px-2 py-1 text-center">
+                      <Button
+                        variant="ghost"
+                        className="h-6 text-xs p-0 text-red-600 hover:bg-transparent"
+                        onClick={() => handleDelete(record.id)}
+                        data-testid={`button-delete-${record.id}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
