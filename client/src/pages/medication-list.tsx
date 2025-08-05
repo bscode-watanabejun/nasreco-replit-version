@@ -34,13 +34,6 @@ const timingOptions = [
   { value: "頓服", label: "頓服" }
 ];
 
-const floorOptions = [
-  { value: "all", label: "全階" },
-  { value: "1F", label: "1階" },
-  { value: "2F", label: "2階" },
-  { value: "3F", label: "3階" },
-  { value: "4F", label: "4階" }
-];
 
 const typeOptions = [
   { value: "服薬", label: "服薬" },
@@ -78,6 +71,36 @@ export default function MedicationList() {
     queryKey: ["/api/residents"]
   });
 
+  // 利用者フィルタリング関数（階数と服薬時間帯を考慮）
+  const filterResidentsByConditions = (residents: any[], floor: string, timing: string) => {
+    return residents.filter((resident: any) => {
+      // 階数フィルタ
+      if (floor !== 'all') {
+        const residentFloor = resident.floor?.toString();
+        const selectedFloorValue = floor.replace('F', '');
+        const floorMatch = residentFloor === floor || 
+                          residentFloor === selectedFloorValue || 
+                          `${residentFloor}F` === floor;
+        if (!floorMatch) return false;
+      }
+      
+      // 服薬時間帯フィルタ（利用者の服薬時間帯に指定されたタイミングが含まれているかチェック）
+      if (resident.medicationTimes && Array.isArray(resident.medicationTimes)) {
+        return resident.medicationTimes.includes(timing);
+      } else if (resident.medicationTimes && typeof resident.medicationTimes === 'string') {
+        // 文字列の場合はカンマ区切りと仮定
+        const times = resident.medicationTimes.split(',').map((t: string) => t.trim());
+        return times.includes(timing);
+      } else if (resident.medicationTime) {
+        // 単一フィールドの場合
+        return resident.medicationTime === timing;
+      }
+      
+      // 服薬時間帯の情報がない場合は表示する（既存の動作を維持）
+      return true;
+    });
+  };
+
   // 服薬記録データ取得
   const { data: medicationRecords = [], isLoading, error } = useQuery<MedicationRecordWithResident[]>({
     queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
@@ -114,15 +137,8 @@ export default function MedicationList() {
       return medicationRecords;
     }
 
-    // フィルタ条件に合致する利用者を取得
-    const filteredResidents = residents.filter((resident: any) => {
-      if (selectedFloor === 'all') return true;
-      const residentFloor = resident.floor?.toString();
-      const selectedFloorValue = selectedFloor.replace('F', '');
-      return residentFloor === selectedFloor || 
-             residentFloor === selectedFloorValue || 
-             `${residentFloor}F` === selectedFloor;
-    });
+    // フィルタ条件に合致する利用者を取得（共通関数を使用）
+    const filteredResidents = filterResidentsByConditions(residents, selectedFloor, selectedTiming);
 
     // 既存の記録がある利用者のIDを取得
     const existingRecordsByResident = medicationRecords.reduce((acc, record) => {
@@ -160,61 +176,154 @@ export default function MedicationList() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           createdBy: ""
-        } as MedicationRecordWithResident;
+        } as any as MedicationRecordWithResident;
       }
     });
 
     return allRecords;
   })();
 
-  // 新規記録作成ミューテーション
+  // 新規記録作成ミューテーション（楽観的更新）
   const createMutation = useMutation({
     mutationFn: (data: InsertMedicationRecord) => {
       console.log('Creating medication record:', data);
       return apiRequest("/api/medication-records", "POST", data);
     },
-    onSuccess: (_, variables) => {
-      console.log('Create successful for:', variables);
-      queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
+    onMutate: async (data) => {
+      // 楽観的更新: APIレスポンスを待たずにUIを更新
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      
+      // 現在のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey });
+      
+      // 現在のデータを取得
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      // 楽観的にデータを更新（一時的なIDのレコードを実際のレコードに置き換え）
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        
+        // 利用者情報を取得
+        const resident = residents?.find(r => r.id === data.residentId);
+        
+        // 新しいレコードを作成（一時的なIDから実際のレコードへ）
+        const newRecord = {
+          id: `temp-new-${Date.now()}`, // 実際のIDは後でサーバーから取得
+          residentId: data.residentId,
+          residentName: resident?.name || '',
+          roomNumber: resident?.roomNumber || '',
+          floor: resident?.floor || '',
+          recordDate: data.recordDate,
+          timing: data.timing,
+          type: data.type,
+          confirmer1: data.confirmer1,
+          confirmer2: data.confirmer2,
+          notes: data.notes,
+          result: data.result,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: data.createdBy
+        };
+        
+        // 一時的なIDのレコードがある場合は置き換え、なければ追加
+        const tempId = `temp-${data.residentId}`;
+        const tempIndex = old.findIndex((record: any) => record.id === tempId);
+        
+        if (tempIndex >= 0) {
+          // 一時的なレコードを置き換え
+          const newData = [...old];
+          newData[tempIndex] = newRecord;
+          return newData;
+        } else {
+          // 新しいレコードを追加
+          return [...old, newRecord];
+        }
       });
-      queryClient.refetchQueries({ 
-        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
-      });
+      
+      return { previousData };
     },
-    onError: (error, variables) => {
-      console.error('Create failed:', error, variables);
+    onError: (err, variables, context) => {
+      console.error('Create failed:', err, variables);
+      // エラー時は元のデータに戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
+          context.previousData
+        );
+      }
+    },
+    onSuccess: (response: any, variables) => {
+      console.log('Create successful for:', variables);
+      // 作成成功後、一時的なIDを実際のIDに更新
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id.startsWith('temp-new-')) {
+            return { ...record, id: response.id || record.id };
+          }
+          return record;
+        });
+      });
+      
+      // 他の条件での検索時に最新データが取得されるよう、ベースクエリのみ無効化
+      queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
     }
   });
 
-  // 記録更新ミューテーション
+  // 記録更新ミューテーション（楽観的更新）
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<InsertMedicationRecord> }) => {
       console.log('Updating medication record:', id, data);
       return apiRequest(`/api/medication-records/${id}`, "PUT", data);
     },
+    onMutate: async ({ id, data }) => {
+      // 楽観的更新: APIレスポンスを待たずにUIを更新
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      
+      // 現在のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey });
+      
+      // 現在のデータを取得
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      // 楽観的にデータを更新
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id === id) {
+            const updatedRecord = { ...record, ...data };
+            // 利用者が変更された場合、利用者名と部屋番号も更新
+            if (data.residentId && residents) {
+              const resident = residents.find(r => r.id === data.residentId);
+              if (resident) {
+                updatedRecord.residentName = resident.name;
+                updatedRecord.roomNumber = resident.roomNumber;
+                updatedRecord.floor = resident.floor;
+              }
+            }
+            return updatedRecord;
+          }
+          return record;
+        });
+      });
+      
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      console.error('Update failed:', err, variables);
+      // エラー時は元のデータに戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(
+          ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
+          context.previousData
+        );
+      }
+    },
     onSuccess: (_, variables) => {
       console.log('Update successful for:', variables);
-      // より包括的にクエリを無効化
+      // 他の条件での検索時に最新データが取得されるよう、ベースクエリのみ無効化
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
-      // 現在のフィルタ条件のクエリも無効化
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
-      });
-      // 他の可能なフィルタ組み合わせも無効化
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/medication-records", selectedDate] 
-      });
-      // 少し遅延してから強制リフェッチ（データベースの更新を待つ）
-      setTimeout(() => {
-        queryClient.refetchQueries({ 
-          queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
-        });
-      }, 100);
-    },
-    onError: (error, variables) => {
-      console.error('Update failed:', error, variables);
     }
   });
 
@@ -226,13 +335,11 @@ export default function MedicationList() {
     },
     onSuccess: (_, variables) => {
       console.log('Delete successful for record:', variables);
-      // 現在のクエリを無効化して再取得
+      // 削除時は現在の表示条件で再取得（削除されたレコードを画面から除去するため）
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
-      // 特定のクエリも無効化
       queryClient.invalidateQueries({ 
         queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
       });
-      // 強制的にリフェッチ
       queryClient.refetchQueries({ 
         queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
       });
@@ -246,15 +353,8 @@ export default function MedicationList() {
   const handleAddRecord = () => {
     if (!residents || residents.length === 0 || !user) return;
 
-    // フィルタ条件に合致する利用者を取得
-    const filteredResidents = residents.filter((resident: any) => {
-      if (selectedFloor === 'all') return true;
-      const residentFloor = resident.floor?.toString();
-      const selectedFloorValue = selectedFloor.replace('F', '');
-      return residentFloor === selectedFloor || 
-             residentFloor === selectedFloorValue || 
-             `${residentFloor}F` === selectedFloor;
-    });
+    // フィルタ条件に合致する利用者を取得（共通関数を使用）
+    const filteredResidents = filterResidentsByConditions(residents, selectedFloor, selectedTiming);
     
     // 既に記録がある利用者のIDを取得
     const recordedResidentIds = medicationRecords.map(r => r.residentId);
@@ -282,9 +382,68 @@ export default function MedicationList() {
     }
   };
 
+  // 特定の利用者の既存データを取得する関数
+  const fetchExistingDataForResident = async (residentId: string) => {
+    try {
+      const params = new URLSearchParams({
+        recordDate: selectedDate,
+        timing: selectedTiming,
+        floor: 'all', // 利用者変更時は階数フィルタを無視
+        residentId: residentId
+      });
+      const response = await fetch(`/api/medication-records?${params}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.length > 0 ? data[0] : null; // 最初のレコードを返す
+      }
+    } catch (error) {
+      console.error('Failed to fetch existing data for resident:', error);
+    }
+    return null;
+  };
+
   // フィールド更新
-  const handleFieldUpdate = (recordId: string, field: keyof InsertMedicationRecord, value: any) => {
+  const handleFieldUpdate = async (recordId: string, field: keyof InsertMedicationRecord, value: any) => {
     console.log(`Updating field ${field} for record ${recordId} with value:`, value);
+    
+    // 利用者変更時の特別処理
+    if (field === 'residentId') {
+      // 既存データを取得
+      const existingData = await fetchExistingDataForResident(value);
+      console.log('Existing data for resident:', existingData);
+      
+      if (existingData) {
+        // 既存データがある場合は楽観的更新で置き換え
+        const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old) return old;
+          return old.map((record: any) => {
+            if (record.id === recordId) {
+              // 既存データで置き換え（利用者情報も更新）
+              const resident = residents?.find(r => r.id === value);
+              return {
+                ...existingData,
+                residentName: resident?.name || existingData.residentName,
+                roomNumber: resident?.roomNumber || existingData.roomNumber,
+                floor: resident?.floor || existingData.floor
+              };
+            }
+            return record;
+          });
+        });
+        
+        // 既存レコードの場合は更新、一時的なレコードの場合は新規作成は不要
+        if (!recordId.startsWith('temp-')) {
+          updateMutation.mutate({
+            id: recordId,
+            data: { residentId: value }
+          });
+        }
+        return;
+      }
+    }
     
     // 一時的なIDの場合は新規作成
     if (recordId.startsWith('temp-')) {
@@ -334,7 +493,7 @@ export default function MedicationList() {
     // 一時的なIDの場合は削除確認なしで即座に削除
     if (recordId.startsWith('temp-')) {
       console.log('Removing temp record from display');
-      // 複数のクエリを無効化して確実に更新
+      // 一時的なレコードの削除時は現在の表示条件で再取得
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
       queryClient.refetchQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });

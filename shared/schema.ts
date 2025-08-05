@@ -256,6 +256,10 @@ export const insertResidentSchema = createInsertSchema(residents, {
   dateOfBirth: z.string().optional().transform((str) => str ? str : undefined),
   admissionDate: z.string().optional().transform((str) => str ? str : undefined),
   retirementDate: z.string().optional().transform((str) => str ? str : undefined),
+  age: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
 }).omit({
   id: true,
   createdAt: true,

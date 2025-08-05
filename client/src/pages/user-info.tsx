@@ -326,7 +326,7 @@ export default function UserInfo() {
         notes: data.notes || undefined,
       };
       
-      await apiRequest("POST", "/api/residents", residentData);
+      await apiRequest("/api/residents", "POST", residentData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/residents"] });
@@ -372,7 +372,7 @@ export default function UserInfo() {
         notes: data.notes || undefined,
       };
       
-      await apiRequest("PUT", `/api/residents/${data.id}`, residentData);
+      await apiRequest(`/api/residents/${data.id}`, "PUT", residentData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/residents"] });
@@ -752,11 +752,15 @@ export default function UserInfo() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
+                                <SelectItem value="自立">自立</SelectItem>
+                                <SelectItem value="要支援1">要支援1</SelectItem>
+                                <SelectItem value="要支援2">要支援2</SelectItem>
                                 <SelectItem value="要介護1">要介護1</SelectItem>
                                 <SelectItem value="要介護2">要介護2</SelectItem>
                                 <SelectItem value="要介護3">要介護3</SelectItem>
                                 <SelectItem value="要介護4">要介護4</SelectItem>
                                 <SelectItem value="要介護5">要介護5</SelectItem>
+                                <SelectItem value="申請中">申請中</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
@@ -1899,9 +1903,24 @@ export default function UserInfo() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>介護度</FormLabel>
-                          <FormControl>
-                            <Input placeholder="要介護2" {...field} />
-                          </FormControl>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="介護度を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="自立">自立</SelectItem>
+                              <SelectItem value="要支援1">要支援1</SelectItem>
+                              <SelectItem value="要支援2">要支援2</SelectItem>
+                              <SelectItem value="要介護1">要介護1</SelectItem>
+                              <SelectItem value="要介護2">要介護2</SelectItem>
+                              <SelectItem value="要介護3">要介護3</SelectItem>
+                              <SelectItem value="要介護4">要介護4</SelectItem>
+                              <SelectItem value="要介護5">要介護5</SelectItem>
+                              <SelectItem value="申請中">申請中</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
