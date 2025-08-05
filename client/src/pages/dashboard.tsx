@@ -39,7 +39,7 @@ export default function Dashboard() {
   
   // 日付とフロア選択のstate
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [selectedFloor, setSelectedFloor] = useState("全階");
+  const [selectedFloor, setSelectedFloor] = useState("all");
 
   // 階数変更時にlocalStorageに保存
   useEffect(() => {
@@ -242,7 +242,7 @@ export default function Dashboard() {
                   <SelectValue placeholder="フロア選択" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="全階">全階</SelectItem>
+                  <SelectItem value="all">全階</SelectItem>
                   <SelectItem value="1">1階</SelectItem>
                   <SelectItem value="2">2階</SelectItem>
                   <SelectItem value="3">3階</SelectItem>
