@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import Header from "@/components/layout/header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2 } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -137,6 +137,7 @@ function InlineEditableField({
 
 export default function CareRecords() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any>(null);
   const [view, setView] = useState<'list' | 'detail'>('list');
@@ -646,34 +647,43 @@ export default function CareRecords() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">介護記録</h1>
-            <p className="text-slate-600">利用者を選択して記録を確認・作成</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2">
+      <div className="max-w-full mx-auto">
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocation("/")}
+              className="h-8 w-8 p-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-xl font-bold text-gray-800">介護記録</h1>
           </div>
         </div>
 
         {/* Filter Controls */}
-        <div className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white rounded-lg border border-slate-200">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">日付（入所・退所による絞り込み）</label>
-              <Input
+        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+            {/* 日付選択 */}
+            <div className="flex items-center space-x-1">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full"
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">階数</label>
+            
+            {/* フロア選択 */}
+            <div className="flex items-center space-x-1">
+              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
+                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
+                  <SelectValue placeholder="フロア選択" />
                 </SelectTrigger>
                 <SelectContent>
                   {floorOptions.map((option) => (
@@ -750,8 +760,7 @@ export default function CareRecords() {
           )}
         </div>
 
-
-      </main>
+      </div>
     </div>
   );
 }

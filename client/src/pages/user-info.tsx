@@ -4,19 +4,16 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Header from "@/components/layout/header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Users, Edit, Calendar, MapPin, Phone, AlertCircle } from "lucide-react";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
+import { Plus, Users, Edit } from "lucide-react";
 
 const residentSchema = z.object({
   roomNumber: z.string().optional(),
@@ -113,10 +110,6 @@ export default function UserInfo() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   
-  // URLパラメータから日付とフロアの初期値を取得
-  const urlParams = new URLSearchParams(window.location.search);
-  const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
-  const selectedFloor = urlParams.get('floor') || "all";
   const [editOpen, setEditOpen] = useState(false);
   const [editingResident, setEditingResident] = useState<any>(null);
 
@@ -1642,59 +1635,49 @@ export default function UserInfo() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {(residents as any[]).map((resident: any) => {
-                const age = calculateAge(resident.dateOfBirth);
-                const genderLabel = genderOptions.find(g => g.value === resident.gender)?.label;
-                
+              {(residents as any[])
+                .sort((a: any, b: any) => {
+                  // 部屋番号の若い順でソート
+                  const roomA = parseInt(a.roomNumber) || 999999;
+                  const roomB = parseInt(b.roomNumber) || 999999;
+                  return roomA - roomB;
+                })
+                .map((resident: any) => {
                 return (
-                  <Card key={resident.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        {/* 情報アイコン */}
-                        <div className="flex-shrink-0">
-                          <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
-                            <Users className="w-4 h-4 text-slate-600" />
-                          </div>
-                        </div>
-                        
-                        {/* 部屋番号 */}
-                        <div className="flex-shrink-0 text-center">
-                          <div className="bg-slate-50 rounded-lg px-4 py-2 border min-w-[60px]">
-                            <div className="text-base font-bold text-slate-700">
+                  <Card 
+                    key={resident.id} 
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div className="text-center min-w-[60px]">
+                            <div className="text-lg font-bold text-blue-600">
                               {resident.roomNumber || "未設定"}
                             </div>
+                            <div className="text-xs text-slate-500">号室</div>
                           </div>
-                        </div>
-                        
-                        {/* 名前 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="bg-slate-50 rounded-lg px-4 py-2 border">
-                            <div className="font-semibold text-base text-slate-800 truncate">
-                              {resident.name || resident.residentName || "名前未設定"}
-                            </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-base truncate">{resident.name || resident.residentName || "名前未設定"}</div>
                           </div>
-                        </div>
-                        
-                        {/* 要介護度 */}
-                        <div className="flex-shrink-0 text-center">
-                          <div className="bg-slate-50 rounded-lg px-3 py-2 border min-w-[80px]">
+                          <div className="text-center min-w-[80px]">
                             <div className="text-sm font-medium text-slate-700">
                               {resident.careLevel || "未設定"}
                             </div>
+                            <div className="text-xs text-slate-500">介護度</div>
                           </div>
                         </div>
-                        
-                        {/* 編集ボタン */}
-                        <div className="flex-shrink-0">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditClick(resident)}
-                            className="h-8 w-8 p-0 hover:bg-slate-100"
-                          >
-                            <Edit className="w-4 h-4 text-slate-600" />
-                          </Button>
-                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 w-8 p-0 flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditClick(resident);
+                          }}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
