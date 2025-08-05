@@ -312,9 +312,14 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
     if (val === null || val === undefined || val === '') return undefined;
     return typeof val === 'string' ? val : val.toString();
   }),
+  bloodSugar: z.union([z.string(), z.number()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return typeof val === 'string' ? val : val.toString();
+  }),
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedication, {
