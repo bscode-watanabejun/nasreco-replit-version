@@ -141,14 +141,38 @@ export default function Vitals() {
 
   // 記録更新用ミューテーション
   const updateMutation = useMutation({
-    mutationFn: async ({ id, field, value }: { id: string; field: string; value: string }) => {
-      const updateData: any = { [field]: value };
-      if (field === 'recordDate') {
-        updateData[field] = new Date(value);
-      } else if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'respirationRate', 'oxygenSaturation'].includes(field)) {
-        updateData[field] = value ? parseFloat(value) : null;
+    mutationFn: async ({ id, field, value, residentId }: { id: string; field: string; value: string; residentId?: string }) => {
+      // 一時的なレコード（IDがtempで始まる）の場合は新規作成
+      if (id.startsWith('temp-')) {
+        const newRecordData: any = {
+          residentId: residentId || id.split('-')[1], // temp-{residentId}-{date}-{timing}から抽出
+          recordDate: new Date(selectedDate),
+          timing: selectedTiming,
+          [field]: value,
+        };
+        
+        // データ型を適切に変換
+        if (field === 'recordDate') {
+          newRecordData[field] = new Date(value);
+        } else if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'respirationRate', 'oxygenSaturation', 'bloodSugar'].includes(field)) {
+          newRecordData[field] = value ? parseFloat(value) : null;
+        } else if (['hour', 'minute'].includes(field)) {
+          newRecordData[field] = value ? parseInt(value) : null;
+        }
+        
+        await apiRequest("POST", "/api/vital-signs", newRecordData);
+      } else {
+        // 既存レコードの更新
+        const updateData: any = { [field]: value };
+        if (field === 'recordDate') {
+          updateData[field] = new Date(value);
+        } else if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'respirationRate', 'oxygenSaturation', 'bloodSugar'].includes(field)) {
+          updateData[field] = value ? parseFloat(value) : null;
+        } else if (['hour', 'minute'].includes(field)) {
+          updateData[field] = value ? parseInt(value) : null;
+        }
+        await apiRequest("PATCH", `/api/vital-signs/${id}`, updateData);
       }
-      await apiRequest("PATCH", `/api/vital-signs/${id}`, updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
@@ -266,37 +290,82 @@ export default function Vitals() {
   };
 
   // 記入者スタンプ機能
-  const handleStaffStamp = (vitalId: string) => {
+  const handleStaffStamp = (vitalId: string, residentId?: string) => {
     const now = new Date();
     const hour = now.getHours().toString();
     const minute = Math.floor(now.getMinutes() / 15) * 15; // 15分単位に丸める
     const staffName = (currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明";
     
-    updateMutation.mutate({ id: vitalId, field: 'hour', value: hour });
-    updateMutation.mutate({ id: vitalId, field: 'minute', value: minute.toString() });
-    updateMutation.mutate({ id: vitalId, field: 'staffName', value: staffName });
+    updateMutation.mutate({ id: vitalId, field: 'hour', value: hour, residentId });
+    updateMutation.mutate({ id: vitalId, field: 'minute', value: minute.toString(), residentId });
+    updateMutation.mutate({ id: vitalId, field: 'staffName', value: staffName, residentId });
   };
-
-  // フィルタリング済みの記録を取得
-  const filteredVitalSigns = (vitalSigns as any[]).filter((vital: any) => {
-    const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
-    if (vitalDate !== selectedDate) return false;
-    
-    if (vital.timing !== selectedTiming) return false;
-    
-    if (selectedFloor !== "全階") {
-      const resident = residents.find((r: any) => r.id === vital.residentId);
-      if (!resident || resident.floor?.toString() !== selectedFloor) return false;
-    }
-    
-    return true;
-  });
 
   // 階数でフィルタリングした利用者リスト
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     if (selectedFloor === "全階") return true;
     return resident.floor?.toString() === selectedFloor;
   });
+
+  // フィルタリング済みの記録を取得し、存在しない場合は空のレコードを作成
+  const getFilteredVitalSigns = () => {
+    const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
+      const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
+      if (vitalDate !== selectedDate) return false;
+      
+      if (vital.timing !== selectedTiming) return false;
+      
+      if (selectedFloor !== "全階") {
+        const resident = residents.find((r: any) => r.id === vital.residentId);
+        if (!resident || resident.floor?.toString() !== selectedFloor) return false;
+      }
+      
+      return true;
+    });
+
+    // 当日以前の日付の場合、すべての利用者のカードを表示
+    const selectedDateObj = new Date(selectedDate);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // 今日の終わりまでを含む
+
+    if (selectedDateObj <= today) {
+      // 各利用者に対してレコードが存在するかチェック、なければ空のレコードを作成
+      const vitalsWithEmpty = [...existingVitals];
+      
+      filteredResidents.forEach((resident: any) => {
+        const hasRecord = existingVitals.some((vital: any) => vital.residentId === resident.id);
+        if (!hasRecord) {
+          // 空のレコードを作成
+          vitalsWithEmpty.push({
+            id: `temp-${resident.id}-${selectedDate}-${selectedTiming}`,
+            residentId: resident.id,
+            recordDate: selectedDate,
+            timing: selectedTiming,
+            hour: null,
+            minute: null,
+            staffName: null,
+            temperature: null,
+            bloodPressureSystolic: null,
+            bloodPressureDiastolic: null,
+            pulseRate: null,
+            respirationRate: null,
+            oxygenSaturation: null,
+            bloodSugar: null,
+            notes: null,
+            createdAt: null,
+            updatedAt: null,
+            isTemporary: true // 一時的なレコードフラグ
+          });
+        }
+      });
+      
+      return vitalsWithEmpty;
+    }
+    
+    return existingVitals;
+  };
+
+  const filteredVitalSigns = getFilteredVitalSigns();
 
   return (
     <div className="min-h-screen bg-blue-100">
@@ -394,7 +463,7 @@ export default function Vitals() {
                           if (!hasAnyData) {
                             const newResident = residents.find((r: any) => r.name === value);
                             if (newResident) {
-                              updateMutation.mutate({ id: vital.id, field: 'residentId', value: newResident.id });
+                              updateMutation.mutate({ id: vital.id, field: 'residentId', value: newResident.id, residentId: vital.residentId });
                             }
                           }
                         }}
@@ -412,7 +481,7 @@ export default function Vitals() {
                     <div className="flex items-center gap-1">
                       <InlineEditableField
                         value={vital.hour?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'hour', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'hour', value, residentId: vital.residentId })}
                         type="select"
                         options={hourOptions}
                         placeholder="時"
@@ -420,7 +489,7 @@ export default function Vitals() {
                       <span>:</span>
                       <InlineEditableField
                         value={vital.minute?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'minute', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'minute', value, residentId: vital.residentId })}
                         type="select"
                         options={minuteOptions}
                         placeholder="分"
@@ -430,7 +499,7 @@ export default function Vitals() {
                     <div>
                       <InlineEditableField
                         value={vital.staffName || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'staffName', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'staffName', value, residentId: vital.residentId })}
                         placeholder="記入者"
                       />
                     </div>
@@ -439,7 +508,7 @@ export default function Vitals() {
                       <Button
                         size="sm"
                         className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => handleStaffStamp(vital.id)}
+                        onClick={() => handleStaffStamp(vital.id, vital.residentId)}
                         data-testid={`button-stamp-${vital.id}`}
                       >
                         <User className="w-4 h-4" />
@@ -453,7 +522,7 @@ export default function Vitals() {
                       <div className="text-sm font-medium text-blue-600 mb-2">KT</div>
                       <InlineEditableField
                         value={vital.temperature?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value, residentId: vital.residentId })}
                         type="select"
                         options={temperatureOptions}
                         placeholder="体温"
@@ -465,7 +534,7 @@ export default function Vitals() {
                       <div className="flex items-center gap-1">
                         <InlineEditableField
                           value={vital.bloodPressureSystolic?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureSystolic', value })}
+                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureSystolic', value, residentId: vital.residentId })}
                           type="select"
                           options={systolicBPOptions}
                           placeholder="上"
@@ -473,7 +542,7 @@ export default function Vitals() {
                         <span>/</span>
                         <InlineEditableField
                           value={vital.bloodPressureDiastolic?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureDiastolic', value })}
+                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureDiastolic', value, residentId: vital.residentId })}
                           type="select"
                           options={diastolicBPOptions}
                           placeholder="下"
@@ -485,7 +554,7 @@ export default function Vitals() {
                       <div className="text-sm font-medium text-blue-600 mb-2">P</div>
                       <InlineEditableField
                         value={vital.pulseRate?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'pulseRate', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'pulseRate', value, residentId: vital.residentId })}
                         type="select"
                         options={pulseOptions}
                         placeholder="脈拍"
@@ -497,7 +566,7 @@ export default function Vitals() {
                       <div className="flex items-center gap-1">
                         <InlineEditableField
                           value={vital.oxygenSaturation?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'oxygenSaturation', value })}
+                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'oxygenSaturation', value, residentId: vital.residentId })}
                           type="select"
                           options={spo2Options}
                           placeholder="SPO2"
@@ -513,7 +582,7 @@ export default function Vitals() {
                       <div className="text-sm font-medium mb-2">BS</div>
                       <InlineEditableField
                         value={vital.bloodSugar?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodSugar', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodSugar', value, residentId: vital.residentId })}
                         type="number"
                         placeholder="血糖値"
                       />
@@ -523,7 +592,7 @@ export default function Vitals() {
                       <div className="text-sm font-medium mb-2">RR</div>
                       <InlineEditableField
                         value={vital.respirationRate?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'respirationRate', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'respirationRate', value, residentId: vital.residentId })}
                         type="select"
                         options={respirationOptions}
                         placeholder="呼吸数"
@@ -534,7 +603,7 @@ export default function Vitals() {
                       <div className="text-sm font-medium mb-2">記録</div>
                       <InlineEditableField
                         value={vital.notes || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'notes', value })}
+                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'notes', value, residentId: vital.residentId })}
                         placeholder="記録内容"
                       />
                     </div>
