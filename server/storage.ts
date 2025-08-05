@@ -101,7 +101,7 @@ export interface IStorage {
   // Medication record operations
   getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<MedicationRecord[]>;
   createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
-  updateMedicationRecord(id: string, record: InsertMedicationRecord): Promise<MedicationRecord>;
+  updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord>;
   deleteMedicationRecord(id: string): Promise<void>;
 }
 
@@ -484,7 +484,7 @@ export class DatabaseStorage implements IStorage {
     return newRecord;
   }
 
-  async updateMedicationRecord(id: string, record: InsertMedicationRecord): Promise<MedicationRecord> {
+  async updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord> {
     const [updatedRecord] = await db
       .update(medicationRecords)
       .set({ ...record, updatedAt: new Date() })

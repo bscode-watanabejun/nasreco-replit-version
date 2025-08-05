@@ -464,15 +464,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/medication-records/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMedicationRecordSchema.parse({
-        ...req.body,
-        createdBy: req.user.claims.sub,
-      });
+      // 部分更新用のスキーマ - 必須フィールドをオプションにする
+      const partialMedicationRecordSchema = insertMedicationRecordSchema.partial();
+      const validatedData = partialMedicationRecordSchema.parse(req.body);
       const record = await storage.updateMedicationRecord(req.params.id, validatedData);
       res.json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating medication record:", error);
-      res.status(400).json({ message: "Invalid medication record data" });
+      res.status(400).json({ message: "Invalid medication record data", error: error.message });
     }
   });
 
