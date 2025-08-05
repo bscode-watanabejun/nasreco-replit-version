@@ -80,11 +80,7 @@ export default function MedicationList() {
   // 新規記録作成ミューテーション
   const createMutation = useMutation({
     mutationFn: (data: InsertMedicationRecord) => 
-      apiRequest("/api/medication-records", { 
-        method: "POST", 
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      }),
+      apiRequest("/api/medication-records", "POST", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
     }
@@ -93,11 +89,7 @@ export default function MedicationList() {
   // 記録更新ミューテーション
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<InsertMedicationRecord> }) =>
-      apiRequest(`/api/medication-records/${id}`, { 
-        method: "PUT", 
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
-      }),
+      apiRequest(`/api/medication-records/${id}`, "PUT", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
     }
@@ -106,7 +98,7 @@ export default function MedicationList() {
   // 記録削除ミューテーション
   const deleteMutation = useMutation({
     mutationFn: (id: string) => 
-      apiRequest(`/api/medication-records/${id}`, { method: "DELETE" }),
+      apiRequest(`/api/medication-records/${id}`, "DELETE"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
     }
@@ -117,6 +109,8 @@ export default function MedicationList() {
     if (!residents || residents.length === 0) return;
 
     const firstResident = residents[0];
+    if (!user) return;
+    
     createMutation.mutate({
       residentId: firstResident.id,
       recordDate: new Date(selectedDate),
@@ -125,7 +119,8 @@ export default function MedicationList() {
       confirmer1: "",
       confirmer2: "",
       notes: "",
-      result: ""
+      result: "",
+      createdBy: (user as any).claims?.sub || "unknown"
     } as InsertMedicationRecord);
   };
 
