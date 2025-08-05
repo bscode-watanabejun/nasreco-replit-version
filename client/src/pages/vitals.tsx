@@ -102,9 +102,15 @@ export default function Vitals() {
   const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
   const [selectedTiming, setSelectedTiming] = useState(urlParams.get('timing') || "午前");
   const [selectedFloor, setSelectedFloor] = useState(() => {
-    // URLパラメータから階数を取得、なければトップ画面の選択階数を取得
+    // URLパラメータから階数を取得
     const floorParam = urlParams.get('floor');
-    if (floorParam) return floorParam;
+    if (floorParam) {
+      // ダッシュボードから来た'all'を'全階'に変換
+      if (floorParam === 'all') {
+        return "全階";
+      }
+      return floorParam;
+    }
     
     // localStorageからトップ画面の選択階数を取得
     const savedFloor = localStorage.getItem('selectedFloor');
