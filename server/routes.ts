@@ -83,6 +83,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/residents/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteResident(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting resident:", error);
+      res.status(500).json({ message: "Failed to delete resident" });
+    }
+  });
+
   // Care records routes
   app.get('/api/care-records', isAuthenticated, async (req, res) => {
     try {

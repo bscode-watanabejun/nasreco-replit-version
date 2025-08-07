@@ -10,9 +10,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Users, Edit, ArrowLeft } from "lucide-react";
+import { Plus, Users, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
@@ -40,6 +41,8 @@ export default function UserInfoManagement() {
   
   const [editOpen, setEditOpen] = useState(false);
   const [editingResident, setEditingResident] = useState<Resident | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingResident, setDeletingResident] = useState<Resident | null>(null);
 
   const { data: residents = [], isLoading } = useQuery<Resident[]>({
     queryKey: ["/api/residents"],
@@ -186,6 +189,23 @@ export default function UserInfoManagement() {
     },
   });
 
+  const deleteResidentMutation = useMutation({
+    mutationFn: (id: string) => apiRequest(`/api/residents/${id}`, "DELETE"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/residents"] });
+      toast({ description: "利用者情報を削除しました" });
+      setDeleteOpen(false);
+      setDeletingResident(null);
+    },
+    onError: () => {
+      toast({
+        title: "エラー",
+        description: "利用者情報の削除に失敗しました",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: InsertResident) => {
     createResidentMutation.mutate(data);
   };
@@ -193,6 +213,17 @@ export default function UserInfoManagement() {
   const onEditSubmit = (data: InsertResident) => {
     if (editingResident) {
       updateResidentMutation.mutate({ id: editingResident.id, data });
+    }
+  };
+
+  const openDeleteDialog = (resident: Resident) => {
+    setDeletingResident(resident);
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (deletingResident) {
+      deleteResidentMutation.mutate(deletingResident.id);
     }
   };
 
@@ -1558,47 +1589,56 @@ export default function UserInfoManagement() {
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-4 mb-2">
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                        {resident.roomNumber && (
-                          <span className="text-sm text-gray-500 mr-2">{resident.roomNumber}号室</span>
-                        )}
-                        {resident.name}
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        {resident.gender} • {resident.age}歳
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-sm">
                       <div>
-                        <span className="font-medium">フロア:</span> {resident.floor || "未設定"}
+                        <span className="font-medium text-gray-700 dark:text-gray-300">入居日:</span>
+                        <div className="text-gray-900 dark:text-gray-100">
+                          {resident.admissionDate 
+                            ? new Date(resident.admissionDate).toLocaleDateString("ja-JP")
+                            : "未設定"
+                          }
+                        </div>
                       </div>
                       <div>
-                        <span className="font-medium">要介護度:</span> {resident.careLevel || "未設定"}
+                        <span className="font-medium text-gray-700 dark:text-gray-300">階:</span>
+                        <div className="text-gray-900 dark:text-gray-100">{resident.floor || "未設定"}</div>
                       </div>
                       <div>
-                        <span className="font-medium">主治医:</span> {resident.attendingPhysician || "未設定"}
+                        <span className="font-medium text-gray-700 dark:text-gray-300">ご利用者名:</span>
+                        <div className="text-gray-900 dark:text-gray-100 font-medium">{resident.name}</div>
                       </div>
                       <div>
-                        <span className="font-medium">入居日:</span>{" "}
-                        {resident.admissionDate 
-                          ? new Date(resident.admissionDate).toLocaleDateString("ja-JP")
-                          : "未設定"
-                        }
+                        <span className="font-medium text-gray-700 dark:text-gray-300">介護度:</span>
+                        <div className="text-gray-900 dark:text-gray-100">{resident.careLevel || "未設定"}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">居室番号:</span>
+                        <div className="text-gray-900 dark:text-gray-100">{resident.roomNumber || "未設定"}</div>
                       </div>
                     </div>
                   </div>
                   
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(resident)}
-                    className="ml-4"
-                    data-testid={`button-edit-${resident.id}`}
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    編集
-                  </Button>
+                  <div className="flex flex-col ml-4 space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDialog(resident)}
+                      data-testid={`button-edit-${resident.id}`}
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      編集
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openDeleteDialog(resident)}
+                      className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                      data-testid={`button-delete-${resident.id}`}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      削除
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -2630,6 +2670,32 @@ export default function UserInfoManagement() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ご利用者の削除</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingResident?.name}さんの情報を削除してもよろしいですか？
+              この操作は取り消すことができません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleteResidentMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              data-testid="button-confirm-delete"
+            >
+              {deleteResidentMutation.isPending ? "削除中..." : "削除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

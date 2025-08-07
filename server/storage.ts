@@ -55,6 +55,7 @@ export interface IStorage {
   getResident(id: string): Promise<Resident | undefined>;
   createResident(resident: InsertResident): Promise<Resident>;
   updateResident(id: string, updates: Partial<InsertResident>): Promise<Resident>;
+  deleteResident(id: string): Promise<void>;
 
   // Care record operations
   getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<CareRecord[]>;
@@ -157,6 +158,12 @@ export class DatabaseStorage implements IStorage {
       .where(eq(residents.id, id))
       .returning();
     return updatedResident;
+  }
+
+  async deleteResident(id: string): Promise<void> {
+    await db.update(residents)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(residents.id, id));
   }
 
   // Care record operations
