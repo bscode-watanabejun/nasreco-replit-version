@@ -1584,24 +1584,21 @@ export default function UserInfoManagement() {
 
         {/* Residents List */}
         <div className="grid gap-4">
-          {residents.map((resident: Resident) => (
+          {[...residents]
+            .sort((a, b) => {
+              const roomA = parseInt(a.roomNumber || '999999');
+              const roomB = parseInt(b.roomNumber || '999999');
+              return roomA - roomB;
+            })
+            .map((resident: Resident) => (
             <Card key={resident.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4 text-sm">
                       <div>
-                        <span className="font-medium text-gray-700 dark:text-gray-300">入居日:</span>
-                        <div className="text-gray-900 dark:text-gray-100">
-                          {resident.admissionDate 
-                            ? new Date(resident.admissionDate).toLocaleDateString("ja-JP")
-                            : "未設定"
-                          }
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium text-gray-700 dark:text-gray-300">階:</span>
-                        <div className="text-gray-900 dark:text-gray-100">{resident.floor || "未設定"}</div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">居室番号:</span>
+                        <div className="text-gray-900 dark:text-gray-100 font-medium">{resident.roomNumber || "未設定"}</div>
                       </div>
                       <div>
                         <span className="font-medium text-gray-700 dark:text-gray-300">ご利用者名:</span>
@@ -1612,8 +1609,29 @@ export default function UserInfoManagement() {
                         <div className="text-gray-900 dark:text-gray-100">{resident.careLevel || "未設定"}</div>
                       </div>
                       <div>
-                        <span className="font-medium text-gray-700 dark:text-gray-300">居室番号:</span>
-                        <div className="text-gray-900 dark:text-gray-100">{resident.roomNumber || "未設定"}</div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">階:</span>
+                        <div className="text-gray-900 dark:text-gray-100">{resident.floor || "未設定"}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">入居日:</span>
+                        <div className="text-gray-900 dark:text-gray-100">
+                          {resident.admissionDate 
+                            ? new Date(resident.admissionDate).toLocaleDateString("ja-JP")
+                            : "未設定"
+                          }
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">入院:</span>
+                        <div className="text-gray-900 dark:text-gray-100">
+                          {resident.isHospitalized ? "入院中" : "-"}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">備考:</span>
+                        <div className="text-gray-900 dark:text-gray-100 truncate">
+                          {resident.notes || "-"}
+                        </div>
                       </div>
                     </div>
                   </div>
