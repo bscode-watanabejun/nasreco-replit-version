@@ -14,6 +14,7 @@ import {
   insertCommunicationSchema,
   insertRoundRecordSchema,
   insertMedicationRecordSchema,
+  insertFacilitySettingsSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -505,6 +506,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting medication record:", error);
       res.status(500).json({ message: "Failed to delete medication record" });
+    }
+  });
+
+  // Facility settings routes
+  app.get('/api/facility-settings', isAuthenticated, async (req, res) => {
+    try {
+      const settings = await storage.getFacilitySettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching facility settings:", error);
+      res.status(500).json({ message: "Failed to fetch facility settings" });
+    }
+  });
+
+  app.post('/api/facility-settings', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertFacilitySettingsSchema.parse(req.body);
+      const settings = await storage.createFacilitySettings(validatedData);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error creating facility settings:", error);
+      res.status(500).json({ message: "Failed to create facility settings" });
+    }
+  });
+
+  app.put('/api/facility-settings/:id', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertFacilitySettingsSchema.parse(req.body);
+      const settings = await storage.updateFacilitySettings(req.params.id, validatedData);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating facility settings:", error);
+      res.status(500).json({ message: "Failed to update facility settings" });
     }
   });
 

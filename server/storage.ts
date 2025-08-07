@@ -12,6 +12,7 @@ import {
   communications,
   roundRecords,
   medicationRecords,
+  facilitySettings,
   type User,
   type UpsertUser,
   type Resident,
@@ -38,6 +39,8 @@ import {
   type InsertRoundRecord,
   type MedicationRecord,
   type InsertMedicationRecord,
+  type FacilitySettings,
+  type InsertFacilitySettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
@@ -103,6 +106,11 @@ export interface IStorage {
   createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
   updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord>;
   deleteMedicationRecord(id: string): Promise<void>;
+
+  // Facility settings operations
+  getFacilitySettings(): Promise<FacilitySettings | undefined>;
+  createFacilitySettings(settings: InsertFacilitySettings): Promise<FacilitySettings>;
+  updateFacilitySettings(id: string, settings: InsertFacilitySettings): Promise<FacilitySettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -511,6 +519,28 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMedicationRecord(id: string): Promise<void> {
     await db.delete(medicationRecords).where(eq(medicationRecords.id, id));
+  }
+
+  // Facility settings operations
+  async getFacilitySettings(): Promise<FacilitySettings | undefined> {
+    const [settings] = await db.select().from(facilitySettings).limit(1);
+    return settings;
+  }
+
+  async createFacilitySettings(settings: InsertFacilitySettings): Promise<FacilitySettings> {
+    const [created] = await db.insert(facilitySettings).values(settings).returning();
+    return created;
+  }
+
+  async updateFacilitySettings(id: string, settings: InsertFacilitySettings): Promise<FacilitySettings> {
+    const [updated] = await db.update(facilitySettings)
+      .set({
+        ...settings,
+        updatedAt: new Date(),
+      })
+      .where(eq(facilitySettings.id, id))
+      .returning();
+    return updated;
   }
 }
 

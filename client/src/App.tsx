@@ -14,6 +14,7 @@ import MedicationList from "@/pages/medication-list";
 import UserInfo from "@/pages/user-info";
 import Rounds from "@/pages/rounds";
 import ManagementMenu from "@/pages/management-menu";
+import FacilitySettings from "@/pages/facility-settings";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -34,6 +35,7 @@ function Router() {
           <Route path="/user-info" component={UserInfo} />
           <Route path="/rounds" component={Rounds} />
           <Route path="/management-menu" component={ManagementMenu} />
+          <Route path="/facility-settings" component={FacilitySettings} />
         </>
       )}
       <Route component={NotFound} />

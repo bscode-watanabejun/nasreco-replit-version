@@ -457,3 +457,39 @@ export type RoundRecord = typeof roundRecords.$inferSelect;
 export type InsertRoundRecord = z.infer<typeof insertRoundRecordSchema>;
 export type MedicationRecord = typeof medicationRecords.$inferSelect;
 export type InsertMedicationRecord = z.infer<typeof insertMedicationRecordSchema>;
+
+// Facility Settings table
+export const facilitySettings = pgTable("facility_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  careType: varchar("care_type"), // 介護施設種別: 訪問介護, デイケア, デイサービス
+  facilityName: varchar("facility_name"), // 施設名
+  facilityAddress: varchar("facility_address"), // 施設住所
+  dayShiftFrom: varchar("day_shift_from"), // 日勤時間帯開始 (HH:MM format)
+  dayShiftTo: varchar("day_shift_to"), // 日勤時間帯終了 (HH:MM format)
+  weightBaseline: decimal("weight_baseline", { precision: 5, scale: 2 }), // 体重基準値
+  excretionBaseline: integer("excretion_baseline"), // 排泄基準値 (1-5)
+  vitalSetting: varchar("vital_setting"), // バイタル設定: 前日, 午前/午後
+  diarySettings: varchar("diary_settings"), // 施設日誌設定: フロア, 全体
+  detailSettings: varchar("detail_settings"), // 施設詳細設定: シンプル, アドバンス
+  surveyUrl: text("survey_url"), // アンケートURL
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Facility Settings insert schema
+export const insertFacilitySettingsSchema = createInsertSchema(facilitySettings, {
+  careType: z.enum(["訪問介護", "デイケア", "デイサービス"]).optional(),
+  facilityName: z.string().min(1, "施設名を入力してください").optional(),
+  facilityAddress: z.string().optional(),
+  dayShiftFrom: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "正しい時刻形式で入力してください (HH:MM)").optional(),
+  dayShiftTo: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, "正しい時刻形式で入力してください (HH:MM)").optional(),
+  weightBaseline: z.coerce.number().min(0.1, "体重基準値は0.1以上で入力してください").optional(),
+  excretionBaseline: z.coerce.number().int().min(1).max(5, "排泄基準値は1から5の間で選択してください").optional(),
+  vitalSetting: z.enum(["前日", "午前/午後"]).optional(),
+  diarySettings: z.enum(["フロア", "全体"]).optional(),
+  detailSettings: z.enum(["シンプル", "アドバンス"]).optional(),
+  surveyUrl: z.string().url("正しいURL形式で入力してください").optional().or(z.literal("")),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type FacilitySettings = typeof facilitySettings.$inferSelect;
+export type InsertFacilitySettings = z.infer<typeof insertFacilitySettingsSchema>;
