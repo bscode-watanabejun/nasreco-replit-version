@@ -161,7 +161,6 @@ export class DatabaseStorage implements IStorage {
 
   // Care record operations
   async getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<CareRecord[]> {
-    let query = db.select().from(careRecords);
     const conditions = [];
 
     if (residentId) {
@@ -174,11 +173,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(careRecords.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(careRecords.recordDate));
+    return await db.select()
+      .from(careRecords)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(careRecords.recordDate));
   }
 
   async createCareRecord(record: InsertCareRecord): Promise<CareRecord> {
@@ -189,10 +187,7 @@ export class DatabaseStorage implements IStorage {
   async updateCareRecord(id: string, data: Partial<InsertCareRecord>): Promise<CareRecord> {
     const [record] = await db
       .update(careRecords)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
+      .set(data)
       .where(eq(careRecords.id, id))
       .returning();
     return record;
@@ -200,7 +195,6 @@ export class DatabaseStorage implements IStorage {
 
   // Nursing record operations
   async getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<NursingRecord[]> {
-    let query = db.select().from(nursingRecords);
     const conditions = [];
 
     if (residentId) {
@@ -213,11 +207,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(nursingRecords.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(nursingRecords.recordDate));
+    return await db.select()
+      .from(nursingRecords)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(nursingRecords.recordDate));
   }
 
   async createNursingRecord(record: InsertNursingRecord): Promise<NursingRecord> {
@@ -227,7 +220,6 @@ export class DatabaseStorage implements IStorage {
 
   // Vital signs operations
   async getVitalSigns(residentId?: string, startDate?: Date, endDate?: Date): Promise<VitalSigns[]> {
-    let query = db.select().from(vitalSigns);
     const conditions = [];
 
     if (residentId) {
@@ -240,11 +232,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(vitalSigns.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(vitalSigns.recordDate));
+    return await db.select()
+      .from(vitalSigns)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(vitalSigns.recordDate));
   }
 
   async createVitalSigns(vitals: InsertVitalSigns): Promise<VitalSigns> {
@@ -255,10 +246,7 @@ export class DatabaseStorage implements IStorage {
   async updateVitalSigns(id: string, data: Partial<InsertVitalSigns>): Promise<VitalSigns> {
     const [record] = await db
       .update(vitalSigns)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
+      .set(data)
       .where(eq(vitalSigns.id, id))
       .returning();
     return record;
@@ -270,7 +258,6 @@ export class DatabaseStorage implements IStorage {
 
   // Meals and medication operations
   async getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]> {
-    let query = db.select().from(mealsAndMedication);
     const conditions = [];
 
     if (residentId) {
@@ -283,11 +270,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(mealsAndMedication.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(mealsAndMedication.recordDate));
+    return await db.select()
+      .from(mealsAndMedication)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(mealsAndMedication.recordDate));
   }
 
   async createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication> {
@@ -298,10 +284,7 @@ export class DatabaseStorage implements IStorage {
   async updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication> {
     const [updatedRecord] = await db
       .update(mealsAndMedication)
-      .set({
-        ...record,
-        updatedAt: new Date(),
-      })
+      .set(record)
       .where(eq(mealsAndMedication.id, id))
       .returning();
     return updatedRecord;
@@ -309,7 +292,6 @@ export class DatabaseStorage implements IStorage {
 
   // Bathing record operations
   async getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]> {
-    let query = db.select().from(bathingRecords);
     const conditions = [];
 
     if (residentId) {
@@ -322,11 +304,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(bathingRecords.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(bathingRecords.recordDate));
+    return await db.select()
+      .from(bathingRecords)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(bathingRecords.recordDate));
   }
 
   async createBathingRecord(record: InsertBathingRecord): Promise<BathingRecord> {
@@ -336,7 +317,6 @@ export class DatabaseStorage implements IStorage {
 
   // Excretion record operations
   async getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<ExcretionRecord[]> {
-    let query = db.select().from(excretionRecords);
     const conditions = [];
 
     if (residentId) {
@@ -349,11 +329,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(excretionRecords.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(excretionRecords.recordDate));
+    return await db.select()
+      .from(excretionRecords)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(excretionRecords.recordDate));
   }
 
   async createExcretionRecord(record: InsertExcretionRecord): Promise<ExcretionRecord> {
@@ -363,7 +342,6 @@ export class DatabaseStorage implements IStorage {
 
   // Weight record operations
   async getWeightRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<WeightRecord[]> {
-    let query = db.select().from(weightRecords);
     const conditions = [];
 
     if (residentId) {
@@ -376,11 +354,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(weightRecords.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(weightRecords.recordDate));
+    return await db.select()
+      .from(weightRecords)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(weightRecords.recordDate));
   }
 
   async createWeightRecord(record: InsertWeightRecord): Promise<WeightRecord> {
@@ -390,7 +367,6 @@ export class DatabaseStorage implements IStorage {
 
   // Communication operations
   async getCommunications(residentId?: string, startDate?: Date, endDate?: Date): Promise<Communication[]> {
-    let query = db.select().from(communications);
     const conditions = [];
 
     if (residentId) {
@@ -403,11 +379,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(communications.recordDate, endDate));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(desc(communications.recordDate));
+    return await db.select()
+      .from(communications)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(communications.recordDate));
   }
 
   async createCommunication(communication: InsertCommunication): Promise<Communication> {
@@ -420,17 +395,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Meals Medication operations (新仕様)
-  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]> {
-    let query = db.select({
-      ...mealsMedication,
-      residentName: residents.name,
-      roomNumber: residents.roomNumber,
-      floor: residents.floor,
-    }).from(mealsMedication)
-      .leftJoin(residents, eq(mealsMedication.residentId, residents.id));
-
-    const conditions = [];
-    conditions.push(eq(mealsMedication.recordDate, recordDate));
+  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<any[]> {
+    const conditions = [eq(mealsMedication.recordDate, recordDate)];
     
     if (mealTime && mealTime !== 'all') {
       conditions.push(eq(mealsMedication.mealTime, mealTime));
@@ -440,22 +406,29 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(residents.floor, floor));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(residents.roomNumber);
+    return await db.select()
+      .from(mealsMedication)
+      .leftJoin(residents, eq(mealsMedication.residentId, residents.id))
+      .where(and(...conditions));
   }
 
   async createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication> {
-    const [newRecord] = await db.insert(mealsMedication).values(record).returning();
+    const recordToInsert = {
+      ...record,
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+    };
+    const [newRecord] = await db.insert(mealsMedication).values([recordToInsert]).returning();
     return newRecord;
   }
 
   async updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication> {
+    const recordToUpdate = {
+      ...record,
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+    };
     const [updatedRecord] = await db
       .update(mealsMedication)
-      .set({ ...record, updatedAt: new Date() })
+      .set(recordToUpdate)
       .where(eq(mealsMedication.id, id))
       .returning();
     return updatedRecord;
@@ -463,11 +436,16 @@ export class DatabaseStorage implements IStorage {
 
   // Round record operations
   async getRoundRecords(recordDate: Date): Promise<RoundRecord[]> {
-    return await db.select().from(roundRecords).where(eq(roundRecords.recordDate, recordDate)).orderBy(roundRecords.hour);
+    const formattedDate = recordDate.toISOString().split('T')[0];
+    return await db.select().from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
   }
 
   async createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord> {
-    const [newRecord] = await db.insert(roundRecords).values(record).returning();
+    const recordToInsert = {
+      ...record,
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+    };
+    const [newRecord] = await db.insert(roundRecords).values([recordToInsert]).returning();
     return newRecord;
   }
 
@@ -476,17 +454,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Medication record operations
-  async getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<MedicationRecord[]> {
-    let query = db.select({
-      ...medicationRecords,
-      residentName: residents.name,
-      roomNumber: residents.roomNumber,
-      floor: residents.floor,
-    }).from(medicationRecords)
-      .leftJoin(residents, eq(medicationRecords.residentId, residents.id));
-
-    const conditions = [];
-    conditions.push(eq(medicationRecords.recordDate, recordDate));
+  async getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<any[]> {
+    const conditions = [eq(medicationRecords.recordDate, recordDate)];
     
     if (timing && timing !== 'all') {
       conditions.push(eq(medicationRecords.timing, timing));
@@ -496,22 +465,29 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(residents.floor, floor));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions));
-    }
-
-    return await query.orderBy(residents.roomNumber);
+    return await db.select()
+      .from(medicationRecords)
+      .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
+      .where(and(...conditions));
   }
 
   async createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
-    const [newRecord] = await db.insert(medicationRecords).values(record).returning();
+    const recordToInsert = {
+      ...record,
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+    };
+    const [newRecord] = await db.insert(medicationRecords).values([recordToInsert]).returning();
     return newRecord;
   }
 
   async updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord> {
+    const recordToUpdate = {
+      ...record,
+      recordDate: record.recordDate && typeof record.recordDate !== 'string' ? record.recordDate.toISOString().split('T')[0] : record.recordDate,
+    };
     const [updatedRecord] = await db
       .update(medicationRecords)
-      .set({ ...record, updatedAt: new Date() })
+      .set(recordToUpdate)
       .where(eq(medicationRecords.id, id))
       .returning();
     return updatedRecord;
@@ -528,16 +504,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createFacilitySettings(settings: InsertFacilitySettings): Promise<FacilitySettings> {
-    const [created] = await db.insert(facilitySettings).values(settings).returning();
+    const settingsToInsert = {
+      ...settings,
+      weightBaseline: settings.weightBaseline?.toString(),
+      excretionBaseline: settings.excretionBaseline,
+    };
+    const [created] = await db.insert(facilitySettings).values([settingsToInsert]).returning();
     return created;
   }
 
   async updateFacilitySettings(id: string, settings: InsertFacilitySettings): Promise<FacilitySettings> {
+    const settingsToUpdate = {
+      ...settings,
+      weightBaseline: settings.weightBaseline?.toString(),
+      excretionBaseline: settings.excretionBaseline,
+    };
     const [updated] = await db.update(facilitySettings)
-      .set({
-        ...settings,
-        updatedAt: new Date(),
-      })
+      .set(settingsToUpdate)
       .where(eq(facilitySettings.id, id))
       .returning();
     return updated;
