@@ -12,6 +12,8 @@ import Vitals from "@/pages/vitals";
 import MealsMedication from "@/pages/meals-medication";
 import MedicationList from "@/pages/medication-list";
 import UserInfo from "@/pages/user-info";
+import UserInfoView from "@/pages/user-info-view";
+import UserInfoManagement from "@/pages/user-info-management";
 import Rounds from "@/pages/rounds";
 import ManagementMenu from "@/pages/management-menu";
 import FacilitySettings from "@/pages/facility-settings";
@@ -32,7 +34,8 @@ function Router() {
           <Route path="/vitals" component={Vitals} />
           <Route path="/meals-medication" component={MealsMedication} />
           <Route path="/medication-list" component={MedicationList} />
-          <Route path="/user-info" component={UserInfo} />
+          <Route path="/user-info" component={UserInfoView} />
+          <Route path="/user-info-management" component={UserInfoManagement} />
           <Route path="/rounds" component={Rounds} />
           <Route path="/management-menu" component={ManagementMenu} />
           <Route path="/facility-settings" component={FacilitySettings} />

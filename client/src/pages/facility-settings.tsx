@@ -257,17 +257,25 @@ export default function FacilitySettings() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>体重基準値</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          placeholder="2.0"
-                          {...field}
-                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                          value={field.value || ""}
-                          data-testid="input-weight-baseline"
-                        />
-                      </FormControl>
+                      <Select onValueChange={(value) => field.onChange(Number(value))} value={field.value?.toString() || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-weight-baseline">
+                            <SelectValue placeholder="基準値を選択してください" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="1">1</SelectItem>
+                          <SelectItem value="2">2</SelectItem>
+                          <SelectItem value="3">3</SelectItem>
+                          <SelectItem value="4">4</SelectItem>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="6">6</SelectItem>
+                          <SelectItem value="7">7</SelectItem>
+                          <SelectItem value="8">8</SelectItem>
+                          <SelectItem value="9">9</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormDescription>
                         体重基準値上下kgの体重変化があった場合、体重一覧の表示が赤くなります。
                       </FormDescription>

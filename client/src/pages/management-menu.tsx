@@ -23,8 +23,7 @@ export default function ManagementMenu() {
       title: "ご利用者管理",
       description: "入居者様の基本情報を管理する画面です。入居者様の個人情報、サービス内容の登録や変更が行えます。",
       onClick: () => {
-        // TODO: Implement user management
-        console.log("ご利用者管理");
+        navigate("/user-info-management");
       }
     },
     {
