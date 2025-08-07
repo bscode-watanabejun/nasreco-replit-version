@@ -211,7 +211,7 @@ export default function Dashboard() {
       description: "システム管理・設定",
       color: "pink",
       span: 2,
-      path: "/management"
+      path: "/management-menu"
     }
   ];
 

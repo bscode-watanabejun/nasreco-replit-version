@@ -13,6 +13,7 @@ import MealsMedication from "@/pages/meals-medication";
 import MedicationList from "@/pages/medication-list";
 import UserInfo from "@/pages/user-info";
 import Rounds from "@/pages/rounds";
+import ManagementMenu from "@/pages/management-menu";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/medication-list" component={MedicationList} />
           <Route path="/user-info" component={UserInfo} />
           <Route path="/rounds" component={Rounds} />
+          <Route path="/management-menu" component={ManagementMenu} />
         </>
       )}
       <Route component={NotFound} />
