@@ -54,8 +54,10 @@ export const residents = pgTable("residents", {
   address: text("address"), // 住所
   attendingPhysician: varchar("attending_physician"), // 主治医
   careLevel: varchar("care_level"), // 介護度
+  careLevelRatio: varchar("care_level_ratio"), // 割合
   insuranceNumber: varchar("insurance_number"), // 被保険者番号
-  careAuthorizationPeriod: varchar("care_authorization_period"), // 介護認定期間
+  careAuthorizationPeriodStart: date("care_authorization_period_start"), // 介護認定期間From
+  careAuthorizationPeriodEnd: date("care_authorization_period_end"), // 介護認定期間To
   isAdmitted: boolean("is_admitted").default(false), // 入院
   
   // 緊急連絡先1
@@ -262,6 +264,8 @@ export const insertResidentSchema = createInsertSchema(residents, {
   dateOfBirth: z.string().optional().transform((str) => str ? str : undefined),
   admissionDate: z.string().optional().transform((str) => str ? str : undefined),
   retirementDate: z.string().optional().transform((str) => str ? str : undefined),
+  careAuthorizationPeriodStart: z.string().optional().transform((str) => str ? str : undefined),
+  careAuthorizationPeriodEnd: z.string().optional().transform((str) => str ? str : undefined),
   age: z.union([z.string(), z.number()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return undefined;
     return typeof val === 'number' ? val : parseInt(val, 10);

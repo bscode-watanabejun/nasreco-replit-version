@@ -204,6 +204,8 @@ export default function UserInfoManagement() {
       dateOfBirth: resident.dateOfBirth ? new Date(resident.dateOfBirth).toISOString().split('T')[0] : "",
       admissionDate: resident.admissionDate ? new Date(resident.admissionDate).toISOString().split('T')[0] : "",
       retirementDate: resident.retirementDate ? new Date(resident.retirementDate).toISOString().split('T')[0] : "",
+      careAuthorizationPeriodStart: resident.careAuthorizationPeriodStart ? new Date(resident.careAuthorizationPeriodStart).toISOString().split('T')[0] : "",
+      careAuthorizationPeriodEnd: resident.careAuthorizationPeriodEnd ? new Date(resident.careAuthorizationPeriodEnd).toISOString().split('T')[0] : "",
       age: resident.age ?? undefined,
       roomNumber: resident.roomNumber ?? "",
       notes: resident.notes ?? "",
@@ -464,6 +466,28 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
+                          name="careLevelRatio"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>割合</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value || ""}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-care-level-ratio">
+                                    <SelectValue placeholder="割合を選択" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="1">1</SelectItem>
+                                  <SelectItem value="2">2</SelectItem>
+                                  <SelectItem value="3">3</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
                           name="insuranceNumber"
                           render={({ field }) => (
                             <FormItem>
@@ -477,12 +501,25 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="careAuthorizationPeriod"
+                          name="careAuthorizationPeriodStart"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>介護認定期間</FormLabel>
+                              <FormLabel>介護認定期間 From</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="2023/12/01 ～ 2024/12/31" data-testid="input-care-period" />
+                                <Input type="date" {...field} data-testid="input-care-period-start" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="careAuthorizationPeriodEnd"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>介護認定期間 To</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} data-testid="input-care-period-end" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -509,17 +546,17 @@ export default function UserInfoManagement() {
                     </CardContent>
                   </Card>
 
-                  {/* Emergency Contact 1 */}
+                  {/* Emergency Contact */}
                   <Card>
                     <CardContent className="p-4 space-y-4">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100">緊急連絡先1</h3>
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">緊急連絡先</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
                           name="emergencyContact1Name"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>氏名</FormLabel>
+                              <FormLabel>氏名1</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="テスト" data-testid="input-emergency1-name" />
                               </FormControl>
@@ -532,7 +569,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact1Relationship"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>続柄</FormLabel>
+                              <FormLabel>続柄1</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="息子" data-testid="input-emergency1-relationship" />
                               </FormControl>
@@ -545,7 +582,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact1Phone1"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>電話1</FormLabel>
+                              <FormLabel>電話1-1</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="080-5555-5555" data-testid="input-emergency1-phone1" />
                               </FormControl>
@@ -558,7 +595,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact1Phone2"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>電話2</FormLabel>
+                              <FormLabel>電話1-2</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="080-5555-5555" data-testid="input-emergency1-phone2" />
                               </FormControl>
@@ -571,7 +608,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact1Address"
                           render={({ field }) => (
                             <FormItem className="md:col-span-2">
-                              <FormLabel>住所</FormLabel>
+                              <FormLabel>住所1</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="埼玉県テスト市テスト区1-1-1" data-testid="input-emergency1-address" />
                               </FormControl>
@@ -579,21 +616,12 @@ export default function UserInfoManagement() {
                             </FormItem>
                           )}
                         />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Emergency Contact 2 */}
-                  <Card>
-                    <CardContent className="p-4 space-y-4">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100">緊急連絡先2</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
                           control={form.control}
                           name="emergencyContact2Name"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>氏名</FormLabel>
+                              <FormLabel>氏名2</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="テスト" data-testid="input-emergency2-name" />
                               </FormControl>
@@ -606,7 +634,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact2Relationship"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>続柄</FormLabel>
+                              <FormLabel>続柄2</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="長男" data-testid="input-emergency2-relationship" />
                               </FormControl>
@@ -619,7 +647,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact2Phone1"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>電話1</FormLabel>
+                              <FormLabel>電話2-1</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="080-5555-5555" data-testid="input-emergency2-phone1" />
                               </FormControl>
@@ -632,7 +660,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact2Phone2"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>電話2</FormLabel>
+                              <FormLabel>電話2-2</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="080-5555-5555" data-testid="input-emergency2-phone2" />
                               </FormControl>
@@ -645,7 +673,7 @@ export default function UserInfoManagement() {
                           name="emergencyContact2Address"
                           render={({ field }) => (
                             <FormItem className="md:col-span-2">
-                              <FormLabel>住所</FormLabel>
+                              <FormLabel>住所2</FormLabel>
                               <FormControl>
                                 <Input {...field} value={field.value || ""} placeholder="埼玉県テスト市テスト区1-1-1" data-testid="input-emergency2-address" />
                               </FormControl>
@@ -657,7 +685,6 @@ export default function UserInfoManagement() {
                     </CardContent>
                   </Card>
 
-                  {/* Medication Schedule */}
                   <Card>
                     <CardContent className="p-4 space-y-4">
                       <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯</h3>
@@ -758,6 +785,173 @@ export default function UserInfoManagement() {
                             </FormItem>
                           )}
                         />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Medication Schedule Weekly */}
+                  <Card>
+                    <CardContent className="p-4 space-y-4">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯　週次</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeMonday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-monday"
+                                />
+                              </FormControl>
+                              <FormLabel>月曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeTuesday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-tuesday"
+                                />
+                              </FormControl>
+                              <FormLabel>火曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeWednesday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-wednesday"
+                                />
+                              </FormControl>
+                              <FormLabel>水曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeThursday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-thursday"
+                                />
+                              </FormControl>
+                              <FormLabel>木曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeFriday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-friday"
+                                />
+                              </FormControl>
+                              <FormLabel>金曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeSaturday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-saturday"
+                                />
+                              </FormControl>
+                              <FormLabel>土曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="medicationTimeSunday"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                  data-testid="checkbox-medication-time-sunday"
+                                />
+                              </FormControl>
+                              <FormLabel>日曜日</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Meal Information */}
+                  <Card>
+                    <CardContent className="p-4 space-y-4">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯　月次</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <FormLabel className="text-sm font-medium">食事</FormLabel>
+                          <div className="flex space-x-4">
+                            <FormField
+                              control={form.control}
+                              name="mealLunch"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value || false}
+                                      onCheckedChange={field.onChange}
+                                      data-testid="checkbox-meal-lunch"
+                                    />
+                                  </FormControl>
+                                  <FormLabel>経管</FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="mealDinner"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value || false}
+                                      onCheckedChange={field.onChange}
+                                      data-testid="checkbox-meal-dinner"
+                                    />
+                                  </FormControl>
+                                  <FormLabel>経口</FormLabel>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -988,21 +1182,21 @@ export default function UserInfoManagement() {
                     </CardContent>
                   </Card>
 
-                  {/* Medication Schedule Weekly */}
+                  {/* Bathing/Linen Schedule */}
                   <Card>
                     <CardContent className="p-4 space-y-4">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯　週次</h3>
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">清掃リネン交換日</h3>
                       <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
                         <FormField
                           control={form.control}
-                          name="medicationTimeMonday"
+                          name="bathingMonday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-monday"
+                                  data-testid="checkbox-bathing-monday"
                                 />
                               </FormControl>
                               <FormLabel>月曜日</FormLabel>
@@ -1011,14 +1205,14 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="medicationTimeTuesday"
+                          name="bathingTuesday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-tuesday"
+                                  data-testid="checkbox-bathing-tuesday"
                                 />
                               </FormControl>
                               <FormLabel>火曜日</FormLabel>
@@ -1027,14 +1221,14 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="medicationTimeWednesday"
+                          name="bathingWednesday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-wednesday"
+                                  data-testid="checkbox-bathing-wednesday"
                                 />
                               </FormControl>
                               <FormLabel>水曜日</FormLabel>
@@ -1043,14 +1237,14 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="medicationTimeThursday"
+                          name="bathingThursday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-thursday"
+                                  data-testid="checkbox-bathing-thursday"
                                 />
                               </FormControl>
                               <FormLabel>木曜日</FormLabel>
@@ -1059,14 +1253,14 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="medicationTimeFriday"
+                          name="bathingFriday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-friday"
+                                  data-testid="checkbox-bathing-friday"
                                 />
                               </FormControl>
                               <FormLabel>金曜日</FormLabel>
@@ -1075,14 +1269,14 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="medicationTimeSaturday"
+                          name="bathingSaturday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-saturday"
+                                  data-testid="checkbox-bathing-saturday"
                                 />
                               </FormControl>
                               <FormLabel>土曜日</FormLabel>
@@ -1091,14 +1285,14 @@ export default function UserInfoManagement() {
                         />
                         <FormField
                           control={form.control}
-                          name="medicationTimeSunday"
+                          name="bathingSunday"
                           render={({ field }) => (
                             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                               <FormControl>
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-medication-time-sunday"
+                                  data-testid="checkbox-bathing-sunday"
                                 />
                               </FormControl>
                               <FormLabel>日曜日</FormLabel>
@@ -1230,128 +1424,7 @@ export default function UserInfoManagement() {
                     </CardContent>
                   </Card>
 
-                  {/* Bathing/Linen Schedule */}
-                  <Card>
-                    <CardContent className="p-4 space-y-4">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100">清拭・リネン交換日</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="bathingMonday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-monday"
-                                />
-                              </FormControl>
-                              <FormLabel>月曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="bathingTuesday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-tuesday"
-                                />
-                              </FormControl>
-                              <FormLabel>火曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="bathingWednesday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-wednesday"
-                                />
-                              </FormControl>
-                              <FormLabel>水曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="bathingThursday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-thursday"
-                                />
-                              </FormControl>
-                              <FormLabel>木曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="bathingFriday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-friday"
-                                />
-                              </FormControl>
-                              <FormLabel>金曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="bathingSaturday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-saturday"
-                                />
-                              </FormControl>
-                              <FormLabel>土曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="bathingSunday"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                  data-testid="checkbox-bathing-sunday"
-                                />
-                              </FormControl>
-                              <FormLabel>日曜日</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Excretion Information */}
+                  {/* 排泄 */}
                   <Card>
                     <CardContent className="p-4 space-y-4">
                       <h3 className="font-medium text-gray-900 dark:text-gray-100">排泄</h3>
@@ -1365,7 +1438,6 @@ export default function UserInfoManagement() {
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-excretion-standing"
                                 />
                               </FormControl>
                               <FormLabel>自立便</FormLabel>
@@ -1381,7 +1453,6 @@ export default function UserInfoManagement() {
                                 <Checkbox
                                   checked={field.value || false}
                                   onCheckedChange={field.onChange}
-                                  data-testid="checkbox-excretion-assisted"
                                 />
                               </FormControl>
                               <FormLabel>介助便</FormLabel>
@@ -1395,7 +1466,7 @@ export default function UserInfoManagement() {
                             <FormItem>
                               <FormLabel>おむつサイズ</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="おむつサイズ" data-testid="input-diaper-size" />
+                                <Input {...field} value={field.value || ""} placeholder="おむつサイズ" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -1408,7 +1479,7 @@ export default function UserInfoManagement() {
                             <FormItem>
                               <FormLabel>おむつコース</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="おむつコース" data-testid="input-diaper-type" />
+                                <Input {...field} value={field.value || ""} placeholder="おむつコース" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -1421,58 +1492,12 @@ export default function UserInfoManagement() {
                             <FormItem>
                               <FormLabel>排泄時間</FormLabel>
                               <FormControl>
-                                <Input {...field} value={field.value || ""} placeholder="リタンが取りでん" data-testid="input-excretion-time" />
+                                <Input {...field} value={field.value || ""} placeholder="排泄時間の詳細" />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Meal Information */}
-                  <Card>
-                    <CardContent className="p-4 space-y-4">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯　月次</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <FormLabel className="text-sm font-medium">食事</FormLabel>
-                          <div className="flex space-x-4">
-                            <FormField
-                              control={form.control}
-                              name="mealLunch"
-                              render={({ field }) => (
-                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value || false}
-                                      onCheckedChange={field.onChange}
-                                      data-testid="checkbox-meal-lunch"
-                                    />
-                                  </FormControl>
-                                  <FormLabel>経管</FormLabel>
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="mealDinner"
-                              render={({ field }) => (
-                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value || false}
-                                      onCheckedChange={field.onChange}
-                                      data-testid="checkbox-meal-dinner"
-                                    />
-                                  </FormControl>
-                                  <FormLabel>経口</FormLabel>
-                                </FormItem>
-                              )}
-                            />
-                          </div>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1795,6 +1820,28 @@ export default function UserInfoManagement() {
                     />
                     <FormField
                       control={editForm.control}
+                      name="careLevelRatio"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>割合</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="割合を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="1">1</SelectItem>
+                              <SelectItem value="2">2</SelectItem>
+                              <SelectItem value="3">3</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
                       name="insuranceNumber"
                       render={({ field }) => (
                         <FormItem>
@@ -1808,12 +1855,25 @@ export default function UserInfoManagement() {
                     />
                     <FormField
                       control={editForm.control}
-                      name="careAuthorizationPeriod"
+                      name="careAuthorizationPeriodStart"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>介護認定期間</FormLabel>
+                          <FormLabel>介護認定期間 From</FormLabel>
                           <FormControl>
-                            <Input {...field} value={field.value || ""} placeholder="2023/12/01 ～ 2024/12/31" />
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="careAuthorizationPeriodEnd"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>介護認定期間 To</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -1839,17 +1899,17 @@ export default function UserInfoManagement() {
                 </CardContent>
               </Card>
 
-              {/* Emergency Contact 1 */}
+              {/* Emergency Contact */}
               <Card>
                 <CardContent className="p-4 space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">緊急連絡先1</h3>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">緊急連絡先</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={editForm.control}
                       name="emergencyContact1Name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>氏名</FormLabel>
+                          <FormLabel>氏名1</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="テスト" />
                           </FormControl>
@@ -1862,7 +1922,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact1Relationship"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>続柄</FormLabel>
+                          <FormLabel>続柄1</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="息子" />
                           </FormControl>
@@ -1875,7 +1935,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact1Phone1"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>電話1</FormLabel>
+                          <FormLabel>電話1-1</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="080-5555-5555" />
                           </FormControl>
@@ -1888,7 +1948,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact1Phone2"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>電話2</FormLabel>
+                          <FormLabel>電話1-2</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="080-5555-5555" />
                           </FormControl>
@@ -1901,7 +1961,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact1Address"
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
-                          <FormLabel>住所</FormLabel>
+                          <FormLabel>住所1</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="埼玉県テスト市テスト区1-1-1" />
                           </FormControl>
@@ -1909,21 +1969,12 @@ export default function UserInfoManagement() {
                         </FormItem>
                       )}
                     />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Emergency Contact 2 */}
-              <Card>
-                <CardContent className="p-4 space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">緊急連絡先2</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={editForm.control}
                       name="emergencyContact2Name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>氏名</FormLabel>
+                          <FormLabel>氏名2</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="テスト" />
                           </FormControl>
@@ -1936,7 +1987,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact2Relationship"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>続柄</FormLabel>
+                          <FormLabel>続柄2</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="長男" />
                           </FormControl>
@@ -1949,7 +2000,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact2Phone1"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>電話1</FormLabel>
+                          <FormLabel>電話2-1</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="080-5555-5555" />
                           </FormControl>
@@ -1962,7 +2013,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact2Phone2"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>電話2</FormLabel>
+                          <FormLabel>電話2-2</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="080-5555-5555" />
                           </FormControl>
@@ -1975,7 +2026,7 @@ export default function UserInfoManagement() {
                       name="emergencyContact2Address"
                       render={({ field }) => (
                         <FormItem className="md:col-span-2">
-                          <FormLabel>住所</FormLabel>
+                          <FormLabel>住所2</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value || ""} placeholder="埼玉県テスト市テスト区1-1-1" />
                           </FormControl>
@@ -2070,105 +2121,6 @@ export default function UserInfoManagement() {
                     <FormField
                       control={editForm.control}
                       name="medicationOther"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>夕前</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Eye Drops Schedule */}
-              <Card>
-                <CardContent className="p-4 space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">点眼時間帯</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <FormField
-                      control={editForm.control}
-                      name="eyeDropsMorning"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>朝後</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="eyeDropsEvening"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>夕後</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="eyeDropsMorningBefore"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>朝前</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="eyeDropsEveningBefore"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>夕前</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="eyeDropsBedtime"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>昼後</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="eyeDropsOther"
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                           <FormControl>
@@ -2299,6 +2251,149 @@ export default function UserInfoManagement() {
                 </CardContent>
               </Card>
 
+              {/* Meal Information */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯　月次</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <FormLabel className="text-sm font-medium">食事</FormLabel>
+                      <div className="flex space-x-4">
+                        <FormField
+                          control={editForm.control}
+                          name="mealLunch"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel>経管</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={editForm.control}
+                          name="mealDinner"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value || false}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                              <FormLabel>経口</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Eye Drops Schedule */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">点眼時間帯</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="eyeDropsMorning"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>朝後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="eyeDropsEvening"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>夕後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="eyeDropsMorningBefore"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>朝前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="eyeDropsEveningBefore"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>夕前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="eyeDropsBedtime"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>昼後</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="eyeDropsOther"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>夕前</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Eye Drops Schedule Weekly */}
               <Card>
                 <CardContent className="p-4 space-y-4">
@@ -2413,234 +2508,6 @@ export default function UserInfoManagement() {
                 </CardContent>
               </Card>
 
-              {/* Bath Schedule */}
-              <Card>
-                <CardContent className="p-4 space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">入浴日</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
-                    <FormField
-                      control={editForm.control}
-                      name="bathMonday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>月曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathTuesday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>火曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathWednesday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>水曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathThursday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>木曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathFriday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>金曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathSaturday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>土曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathSunday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>日曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Bathing/Linen Schedule */}
-              <Card>
-                <CardContent className="p-4 space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">清拭・リネン交換日</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
-                    <FormField
-                      control={editForm.control}
-                      name="bathingMonday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>月曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathingTuesday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>火曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathingWednesday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>水曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathingThursday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>木曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathingFriday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>金曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathingSaturday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>土曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="bathingSunday"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value || false}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel>日曜日</FormLabel>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Excretion Information */}
               <Card>
                 <CardContent className="p-4 space-y-4">
@@ -2715,50 +2582,6 @@ export default function UserInfoManagement() {
                         </FormItem>
                       )}
                     />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Meal Information */}
-              <Card>
-                <CardContent className="p-4 space-y-4">
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">服薬時間帯　月次</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <FormLabel className="text-sm font-medium">食事</FormLabel>
-                      <div className="flex space-x-4">
-                        <FormField
-                          control={editForm.control}
-                          name="mealLunch"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <FormLabel>経管</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={editForm.control}
-                          name="mealDinner"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                              <FormControl>
-                                <Checkbox
-                                  checked={field.value || false}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                              <FormLabel>経口</FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
