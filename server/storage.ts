@@ -161,9 +161,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteResident(id: string): Promise<void> {
-    await db.update(residents)
+    console.log(`Attempting to delete resident with id: ${id}`);
+    const result = await db.update(residents)
       .set({ isActive: false, updatedAt: new Date() })
-      .where(eq(residents.id, id));
+      .where(eq(residents.id, id))
+      .returning({ id: residents.id, isActive: residents.isActive });
+    console.log(`Delete result:`, result);
   }
 
   // Care record operations
