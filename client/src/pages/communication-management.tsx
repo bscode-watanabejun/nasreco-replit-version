@@ -121,49 +121,55 @@ export default function CommunicationManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-pink-50 p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setLocation('/management-menu')}
-            className="text-gray-600 hover:text-gray-800"
-            data-testid="button-back"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            戻る
-          </Button>
-          <h1 className="text-2xl font-bold text-gray-800" data-testid="text-page-title">
-            連絡事項管理
-          </h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-pink-500 shadow-sm border-b border-pink-600">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setLocation('/management-menu')}
+                className="p-2 text-white hover:bg-pink-600"
+                data-testid="button-back"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <h1 className="text-xl font-semibold text-white" data-testid="text-page-title">
+                連絡事項管理
+              </h1>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
           {/* Left Panel - Form */}
-          <div className="lg:col-span-2">
-            <Card className="bg-white shadow-sm border-pink-200">
-              <CardHeader className="bg-pink-100 border-b border-pink-200">
+          <div className="xl:col-span-2">
+            <Card className="bg-white shadow-sm">
+              <CardHeader>
                 <CardTitle className="text-lg text-gray-800">新規連絡事項登録</CardTitle>
               </CardHeader>
-              <CardContent className="p-6 space-y-4">
+              <CardContent className="p-4 sm:p-6 space-y-4">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     {/* Facility Name */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           施設名
                         </label>
-                        <div className="p-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-600" data-testid="text-facility-name">
+                        <div className="p-3 bg-gray-100 border-2 border-gray-300 rounded-md text-sm text-gray-500 font-medium" data-testid="text-facility-name">
                           {facilitySettings?.facilityName || "施設名未設定"}
                         </div>
                       </div>
                     </div>
 
                     {/* Date Range */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="startDate"
@@ -201,7 +207,7 @@ export default function CommunicationManagement() {
                     </div>
 
                     {/* Target Floor and Job Role */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="targetFloor"
@@ -289,9 +295,9 @@ export default function CommunicationManagement() {
           </div>
 
           {/* Right Panel - Read Status */}
-          <div className="lg:col-span-1">
-            <Card className="bg-white shadow-sm border-pink-200">
-              <CardHeader className="bg-pink-100 border-b border-pink-200">
+          <div className="xl:col-span-1">
+            <Card className="bg-white shadow-sm">
+              <CardHeader>
                 <CardTitle className="text-lg text-gray-800">既読情報</CardTitle>
               </CardHeader>
               <CardContent className="p-4">
@@ -330,8 +336,8 @@ export default function CommunicationManagement() {
         </div>
 
         {/* Notices Table */}
-        <Card className="bg-white shadow-sm border-pink-200">
-          <CardHeader className="bg-pink-100 border-b border-pink-200">
+        <Card className="bg-white shadow-sm">
+          <CardHeader>
             <CardTitle className="text-lg text-gray-800">登録済み連絡事項</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -344,112 +350,117 @@ export default function CommunicationManagement() {
                 登録された連絡事項はありません
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="w-[120px]">閲覧期間</TableHead>
-                    <TableHead className="flex-1">連絡事項内容</TableHead>
-                    <TableHead className="w-[80px]">所属階</TableHead>
-                    <TableHead className="w-[80px]">職種</TableHead>
-                    <TableHead className="w-[60px]">詳細</TableHead>
-                    <TableHead className="w-[60px]">削除</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {notices.map((notice) => (
-                    <TableRow
-                      key={notice.id}
-                      className={`cursor-pointer hover:bg-gray-50 ${
-                        selectedNotice?.id === notice.id ? 'bg-blue-50' : ''
-                      }`}
-                      onClick={() => setSelectedNotice(notice)}
-                      data-testid={`notice-row-${notice.id}`}
-                    >
-                      <TableCell className="text-sm">
-                        {formatDateRange(notice.startDate, notice.endDate)}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {truncateContent(notice.content)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {notice.targetFloor}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {notice.targetJobRole}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowFullContent(notice);
-                              }}
-                              data-testid={`button-info-${notice.id}`}
-                            >
-                              <Info className="w-4 h-4 text-blue-500" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>連絡事項内容</DialogTitle>
-                              <DialogDescription>
-                                {formatDateRange(notice.startDate, notice.endDate)} | {notice.targetFloor} | {notice.targetJobRole}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="mt-4 p-4 bg-gray-50 rounded max-h-96 overflow-y-auto">
-                              <p className="text-sm text-gray-800 whitespace-pre-wrap" data-testid="text-full-content">
-                                {notice.content}
-                              </p>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </TableCell>
-                      <TableCell>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`button-delete-${notice.id}`}
-                            >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>連絡事項を削除しますか？</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                この操作は取り消せません。選択した連絡事項が完全に削除されます。
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel data-testid="button-cancel-delete">キャンセル</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteNotice(notice.id)}
-                                className="bg-red-500 hover:bg-red-600"
-                                data-testid="button-confirm-delete"
-                              >
-                                削除
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="whitespace-nowrap px-2 sm:px-4">閲覧期間</TableHead>
+                      <TableHead className="whitespace-nowrap px-2 sm:px-4">連絡事項内容</TableHead>
+                      <TableHead className="whitespace-nowrap px-2 sm:px-4">所属階</TableHead>
+                      <TableHead className="whitespace-nowrap px-2 sm:px-4">職種</TableHead>
+                      <TableHead className="whitespace-nowrap px-2 sm:px-4 w-16">詳細</TableHead>
+                      <TableHead className="whitespace-nowrap px-2 sm:px-4 w-16">削除</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {notices.map((notice) => (
+                      <TableRow
+                        key={notice.id}
+                        className={`cursor-pointer hover:bg-gray-50 ${
+                          selectedNotice?.id === notice.id ? 'bg-blue-50' : ''
+                        }`}
+                        onClick={() => setSelectedNotice(notice)}
+                        data-testid={`notice-row-${notice.id}`}
+                      >
+                        <TableCell className="text-xs sm:text-sm px-2 sm:px-4 whitespace-nowrap">
+                          {formatDateRange(notice.startDate, notice.endDate)}
+                        </TableCell>
+                        <TableCell className="text-xs sm:text-sm px-2 sm:px-4 max-w-[200px] sm:max-w-none truncate">
+                          {truncateContent(notice.content, 20)}
+                        </TableCell>
+                        <TableCell className="px-2 sm:px-4">
+                          <Badge variant="outline" className="text-xs whitespace-nowrap">
+                            {notice.targetFloor}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-2 sm:px-4">
+                          <Badge variant="outline" className="text-xs whitespace-nowrap">
+                            {notice.targetJobRole}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-1 sm:px-4">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowFullContent(notice);
+                                }}
+                                data-testid={`button-info-${notice.id}`}
+                                className="p-1"
+                              >
+                                <Info className="w-4 h-4 text-blue-500" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl mx-4">
+                              <DialogHeader>
+                                <DialogTitle>連絡事項内容</DialogTitle>
+                                <DialogDescription>
+                                  {formatDateRange(notice.startDate, notice.endDate)} | {notice.targetFloor} | {notice.targetJobRole}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="mt-4 p-4 bg-gray-50 rounded max-h-96 overflow-y-auto">
+                                <p className="text-sm text-gray-800 whitespace-pre-wrap" data-testid="text-full-content">
+                                  {notice.content}
+                                </p>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </TableCell>
+                        <TableCell className="px-1 sm:px-4">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`button-delete-${notice.id}`}
+                                className="p-1"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="mx-4">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>連絡事項を削除しますか？</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  この操作は取り消せません。選択した連絡事項が完全に削除されます。
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel data-testid="button-cancel-delete">キャンセル</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteNotice(notice.id)}
+                                  className="bg-red-500 hover:bg-red-600"
+                                  data-testid="button-confirm-delete"
+                                >
+                                  削除
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
