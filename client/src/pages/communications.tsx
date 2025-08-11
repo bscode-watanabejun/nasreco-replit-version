@@ -98,12 +98,9 @@ export default function Communications() {
             statusMap[result.noticeId] = result.statuses;
           });
           setReadStatuses(statusMap);
+          setIsDialogOpen(false);
         });
       }
-      toast({
-        title: "既読にしました",
-        description: "連絡事項を既読にしました。",
-      });
     },
     onError: () => {
       toast({
@@ -155,13 +152,57 @@ export default function Communications() {
     }
   };
 
+  // Mark notice as unread mutation
+  const markAsUnreadMutation = useMutation({
+    mutationFn: async (noticeId: string) => {
+      const response = await fetch(`/api/staff-notices/${noticeId}/mark-unread`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to mark as unread');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      // Refresh read statuses after marking as unread and close dialog
+      if (notices.length > 0 && user && (user as any)?.id) {
+        Promise.all(
+          notices.map(async (notice) => {
+            try {
+              const response = await fetch(`/api/staff-notices/${notice.id}/read-status`);
+              const data = await response.json();
+              return { noticeId: notice.id, statuses: data };
+            } catch (error) {
+              return { noticeId: notice.id, statuses: [] };
+            }
+          })
+        ).then((results) => {
+          const statusMap: {[key: string]: any[]} = {};
+          results.forEach(result => {
+            statusMap[result.noticeId] = result.statuses;
+          });
+          setReadStatuses(statusMap);
+        });
+      }
+      // Close dialog without showing message
+      setIsDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "エラー",
+        description: "未読マークに失敗しました。",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleMarkAsUnread = () => {
-    // For now, we don't implement unmark functionality as it's not in the original requirements
-    toast({
-      title: "機能未実装",
-      description: "未読にする機能は現在未実装です。",
-      variant: "destructive",
-    });
+    if (selectedNotice) {
+      markAsUnreadMutation.mutate(selectedNotice.id);
+    }
   };
 
   return (
@@ -233,7 +274,7 @@ export default function Communications() {
       </div>
 
       {/* Notice List */}
-      <div className="p-3 space-y-0">
+      <div className="p-2 space-y-0">
         {isLoadingNotices ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -251,29 +292,37 @@ export default function Communications() {
               return (
                 <div
                   key={notice.id}
-                  className={`${index > 0 ? 'border-t' : ''} p-3 hover:bg-gray-50 cursor-pointer`}
-                  onClick={() => handleNoticeClick(notice)}
+                  className={`${index > 0 ? 'border-t' : ''} px-2 py-1`}
                   data-testid={`notice-item-${notice.id}`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {/* Start Date */}
-                    <div className="flex-shrink-0 text-xs sm:text-sm text-gray-600 w-12">
+                    <div className="flex-shrink-0 text-xs text-gray-600 w-10">
                       {format(new Date(notice.startDate), "d日", { locale: ja })}
                     </div>
                     
                     {/* Floor */}
-                    <div className="flex-shrink-0 text-xs sm:text-sm text-gray-600 w-12 text-center">
+                    <div className="flex-shrink-0 text-xs text-gray-600 w-8 text-center">
                       {notice.targetFloor}
                     </div>
                     
                     {/* Content */}
-                    <div className={`flex-1 text-sm ${isUnread ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
+                    <div className={`flex-1 text-xs leading-tight truncate ${isUnread ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
                       {notice.content}
                     </div>
                     
                     {/* Info Icon */}
                     <div className="flex-shrink-0">
-                      <Info className="w-5 h-5 text-gray-400" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNoticeClick(notice);
+                        }}
+                        className="p-1 hover:bg-gray-100 rounded"
+                        aria-label="詳細を表示"
+                      >
+                        <Info className="w-4 h-4 text-blue-500" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -288,6 +337,9 @@ export default function Communications() {
         <DialogContent className="max-w-md mx-auto" data-testid="dialog-notice-detail">
           <DialogHeader>
             <DialogTitle>連絡事項詳細</DialogTitle>
+            <DialogDescription>
+              連絡事項の詳細を確認し、既読・未読の設定ができます。
+            </DialogDescription>
           </DialogHeader>
           
           {selectedNotice && (
@@ -299,14 +351,16 @@ export default function Communications() {
                 </p>
               </div>
               
-              <div>
-                <h4 className="font-medium text-sm text-gray-600 mb-1">対象階</h4>
-                <p className="text-sm">{selectedNotice.targetFloor}</p>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-sm text-gray-600 mb-1">対象職種</h4>
-                <p className="text-sm">{selectedNotice.targetJobRole}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600 mb-1">対象階</h4>
+                  <p className="text-sm">{selectedNotice.targetFloor}</p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600 mb-1">対象職種</h4>
+                  <p className="text-sm">{selectedNotice.targetJobRole}</p>
+                </div>
               </div>
               
               <div>
@@ -318,29 +372,36 @@ export default function Communications() {
             </div>
           )}
           
-          <DialogFooter className="flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={() => setIsDialogOpen(false)}
-              data-testid="button-close"
-            >
-              閉じる
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleMarkAsUnread}
-              data-testid="button-mark-unread"
-            >
-              未読にする
-            </Button>
+          <div className="flex gap-1 pt-4">
             <Button
               onClick={handleMarkAsRead}
               disabled={markAsReadMutation.isPending}
               data-testid="button-mark-read"
+              size="sm"
+              className="flex-1 text-xs px-2"
             >
-              既読にする
+              既読
             </Button>
-          </DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleMarkAsUnread}
+              disabled={markAsUnreadMutation.isPending}
+              data-testid="button-mark-unread"
+              size="sm"
+              className="flex-1 text-xs px-2"
+            >
+              未読
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsDialogOpen(false)}
+              data-testid="button-close"
+              size="sm"
+              className="flex-1 text-xs px-2"
+            >
+              閉じる
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -125,6 +125,7 @@ export interface IStorage {
   deleteStaffNotice(id: string): Promise<void>;
   getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]>;
   markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus>;
+  markStaffNoticeAsUnread(noticeId: string, staffId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -592,6 +593,16 @@ export class DatabaseStorage implements IStorage {
       .values([{ noticeId, staffId }])
       .returning();
     return created;
+  }
+
+  async markStaffNoticeAsUnread(noticeId: string, staffId: string): Promise<void> {
+    await db.delete(staffNoticeReadStatus)
+      .where(
+        and(
+          eq(staffNoticeReadStatus.noticeId, noticeId),
+          eq(staffNoticeReadStatus.staffId, staffId)
+        )
+      );
   }
 }
 

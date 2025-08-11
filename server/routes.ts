@@ -612,6 +612,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/staff-notices/:id/mark-unread', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.markStaffNoticeAsUnread(req.params.id, req.user.claims.sub);
+      res.status(200).json({ message: "Marked as unread" });
+    } catch (error) {
+      console.error("Error marking staff notice as unread:", error);
+      res.status(400).json({ message: "Failed to mark as unread" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
