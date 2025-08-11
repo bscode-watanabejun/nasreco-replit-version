@@ -116,6 +116,12 @@ export default function CommunicationManagement() {
     return `${start} ~ ${end}`;
   };
 
+  const formatDateRangeWithYear = (startDate: string, endDate: string) => {
+    const start = format(new Date(startDate), 'yyyy/MM/dd', { locale: ja });
+    const end = format(new Date(endDate), 'yyyy/MM/dd', { locale: ja });
+    return `${start} ~ ${end}`;
+  };
+
   const truncateContent = (content: string, maxLength: number = 30) => {
     return content.length > maxLength ? `${content.substring(0, maxLength)}...` : content;
   };
@@ -123,7 +129,7 @@ export default function CommunicationManagement() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-pink-500 shadow-sm border-b border-pink-600">
+      <div className="bg-pink-100 shadow-sm border-b border-pink-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -131,12 +137,12 @@ export default function CommunicationManagement() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setLocation('/management-menu')}
-                className="p-2 text-white hover:bg-pink-600"
+                className="p-2 text-pink-800 hover:bg-pink-200"
                 data-testid="button-back"
               >
                 <ArrowLeft className="w-4 h-4" />
               </Button>
-              <h1 className="text-xl font-semibold text-white" data-testid="text-page-title">
+              <h1 className="text-xl font-semibold text-pink-800" data-testid="text-page-title">
                 連絡事項管理
               </h1>
             </div>
@@ -145,15 +151,13 @@ export default function CommunicationManagement() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
-          {/* Left Panel - Form */}
-          <div className="xl:col-span-2">
-            <Card className="bg-white shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg text-gray-800">新規連絡事項登録</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="space-y-6">
+          {/* New Notice Registration Section */}
+          <Card className="bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-800">新規連絡事項登録</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 space-y-4">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     {/* Facility Name */}
@@ -169,18 +173,19 @@ export default function CommunicationManagement() {
                     </div>
 
                     {/* Date Range */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="startDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>閲覧期間（開始）</FormLabel>
+                            <FormLabel className="text-xs sm:text-sm">閲覧期間（開始）</FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 {...field}
                                 data-testid="input-start-date"
+                                className="text-xs sm:text-sm px-2 py-1 sm:px-3 sm:py-2 h-8 sm:h-10"
                               />
                             </FormControl>
                             <FormMessage />
@@ -192,12 +197,13 @@ export default function CommunicationManagement() {
                         name="endDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>閲覧期間（終了）</FormLabel>
+                            <FormLabel className="text-xs sm:text-sm">閲覧期間（終了）</FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 {...field}
                                 data-testid="input-end-date"
+                                className="text-xs sm:text-sm px-2 py-1 sm:px-3 sm:py-2 h-8 sm:h-10"
                               />
                             </FormControl>
                             <FormMessage />
@@ -207,16 +213,16 @@ export default function CommunicationManagement() {
                     </div>
 
                     {/* Target Floor and Job Role */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-4">
                       <FormField
                         control={form.control}
                         name="targetFloor"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>閲覧所属階</FormLabel>
+                            <FormLabel className="text-xs sm:text-sm">閲覧所属階</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                               <FormControl>
-                                <SelectTrigger data-testid="select-target-floor">
+                                <SelectTrigger data-testid="select-target-floor" className="text-xs sm:text-sm px-2 py-1 sm:px-3 sm:py-2 h-8 sm:h-10">
                                   <SelectValue />
                                 </SelectTrigger>
                               </FormControl>
@@ -237,10 +243,10 @@ export default function CommunicationManagement() {
                         name="targetJobRole"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>閲覧職種</FormLabel>
+                            <FormLabel className="text-xs sm:text-sm">閲覧職種</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                               <FormControl>
-                                <SelectTrigger data-testid="select-target-job-role">
+                                <SelectTrigger data-testid="select-target-job-role" className="text-xs sm:text-sm px-2 py-1 sm:px-3 sm:py-2 h-8 sm:h-10">
                                   <SelectValue />
                                 </SelectTrigger>
                               </FormControl>
@@ -290,52 +296,10 @@ export default function CommunicationManagement() {
                     </div>
                   </form>
                 </Form>
-              </CardContent>
-            </Card>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Right Panel - Read Status */}
-          <div className="xl:col-span-1">
-            <Card className="bg-white shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg text-gray-800">既読情報</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4">
-                {selectedNotice ? (
-                  <div className="space-y-3">
-                    <div className="text-sm text-gray-600 mb-4" data-testid="text-selected-notice">
-                      選択中: {truncateContent(selectedNotice.content, 20)}
-                    </div>
-                    {readStatus.length > 0 ? (
-                      <div className="space-y-2">
-                        {readStatus.map((status) => (
-                          <div key={status.id} className="p-2 bg-gray-50 rounded text-sm" data-testid={`read-status-${status.id}`}>
-                            <div className="font-medium text-gray-800">
-                              {status.staffName} {status.staffLastName}
-                            </div>
-                            <div className="text-gray-600 text-xs">
-                              {status.readAt && format(new Date(status.readAt), 'MM/dd HH:mm', { locale: ja })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-gray-500 text-sm text-center py-4" data-testid="text-no-read-status">
-                        まだ誰も閲覧していません
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-sm text-center py-8" data-testid="text-select-notice">
-                    連絡事項を選択してください
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Notices Table */}
+          {/* Notices Table */}
         <Card className="bg-white shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg text-gray-800">登録済み連絡事項</CardTitle>
@@ -354,12 +318,12 @@ export default function CommunicationManagement() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50">
-                      <TableHead className="whitespace-nowrap px-2 sm:px-4">閲覧期間</TableHead>
-                      <TableHead className="whitespace-nowrap px-2 sm:px-4">連絡事項内容</TableHead>
-                      <TableHead className="whitespace-nowrap px-2 sm:px-4">所属階</TableHead>
-                      <TableHead className="whitespace-nowrap px-2 sm:px-4">職種</TableHead>
-                      <TableHead className="whitespace-nowrap px-2 sm:px-4 w-16">詳細</TableHead>
-                      <TableHead className="whitespace-nowrap px-2 sm:px-4 w-16">削除</TableHead>
+                      <TableHead className="whitespace-nowrap px-1 sm:px-2 py-1 text-xs sm:text-sm font-medium w-20">閲覧期間</TableHead>
+                      <TableHead className="whitespace-nowrap px-1 sm:px-2 py-1 text-xs sm:text-sm font-medium">連絡事項内容</TableHead>
+                      <TableHead className="whitespace-nowrap px-1 sm:px-2 py-1 text-xs sm:text-sm font-medium w-14">所属階</TableHead>
+                      <TableHead className="whitespace-nowrap px-1 sm:px-2 py-1 text-xs sm:text-sm font-medium w-14">職種</TableHead>
+                      <TableHead className="whitespace-nowrap px-1 sm:px-2 py-1 text-xs sm:text-sm font-medium w-10">詳細</TableHead>
+                      <TableHead className="whitespace-nowrap px-1 sm:px-2 py-1 text-xs sm:text-sm font-medium w-10">削除</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -372,23 +336,23 @@ export default function CommunicationManagement() {
                         onClick={() => setSelectedNotice(notice)}
                         data-testid={`notice-row-${notice.id}`}
                       >
-                        <TableCell className="text-xs sm:text-sm px-2 sm:px-4 whitespace-nowrap">
+                        <TableCell className="text-xs px-1 sm:px-2 py-1 whitespace-nowrap w-20">
                           {formatDateRange(notice.startDate, notice.endDate)}
                         </TableCell>
-                        <TableCell className="text-xs sm:text-sm px-2 sm:px-4 max-w-[200px] sm:max-w-none truncate">
-                          {truncateContent(notice.content, 20)}
+                        <TableCell className="text-xs px-1 sm:px-2 py-1 truncate">
+                          {truncateContent(notice.content, 50)}
                         </TableCell>
-                        <TableCell className="px-2 sm:px-4">
-                          <Badge variant="outline" className="text-xs whitespace-nowrap">
+                        <TableCell className="px-1 sm:px-2 py-1 w-14">
+                          <Badge variant="outline" className="text-xs whitespace-nowrap py-0 px-1 h-5">
                             {notice.targetFloor}
                           </Badge>
                         </TableCell>
-                        <TableCell className="px-2 sm:px-4">
-                          <Badge variant="outline" className="text-xs whitespace-nowrap">
+                        <TableCell className="px-1 sm:px-2 py-1 w-14">
+                          <Badge variant="outline" className="text-xs whitespace-nowrap py-0 px-1 h-5">
                             {notice.targetJobRole}
                           </Badge>
                         </TableCell>
-                        <TableCell className="px-1 sm:px-4">
+                        <TableCell className="px-1 py-1">
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button
@@ -399,16 +363,16 @@ export default function CommunicationManagement() {
                                   setShowFullContent(notice);
                                 }}
                                 data-testid={`button-info-${notice.id}`}
-                                className="p-1"
+                                className="p-0.5 h-6 w-6"
                               >
-                                <Info className="w-4 h-4 text-blue-500" />
+                                <Info className="w-3 h-3 text-blue-500" />
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl mx-4">
                               <DialogHeader>
                                 <DialogTitle>連絡事項内容</DialogTitle>
                                 <DialogDescription>
-                                  {formatDateRange(notice.startDate, notice.endDate)} | {notice.targetFloor} | {notice.targetJobRole}
+                                  {formatDateRangeWithYear(notice.startDate, notice.endDate)} | {notice.targetFloor} | {notice.targetJobRole}
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="mt-4 p-4 bg-gray-50 rounded max-h-96 overflow-y-auto">
@@ -419,7 +383,7 @@ export default function CommunicationManagement() {
                             </DialogContent>
                           </Dialog>
                         </TableCell>
-                        <TableCell className="px-1 sm:px-4">
+                        <TableCell className="px-1 py-1">
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
@@ -427,9 +391,9 @@ export default function CommunicationManagement() {
                                 size="sm"
                                 onClick={(e) => e.stopPropagation()}
                                 data-testid={`button-delete-${notice.id}`}
-                                className="p-1"
+                                className="p-0.5 h-6 w-6"
                               >
-                                <Trash2 className="w-4 h-4 text-red-500" />
+                                <Trash2 className="w-3 h-3 text-red-500" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent className="mx-4">
@@ -460,6 +424,45 @@ export default function CommunicationManagement() {
             )}
           </CardContent>
         </Card>
+
+          {/* Read Status Section */}
+          <Card className="bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg text-gray-800">既読情報</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              {selectedNotice ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600 mb-4" data-testid="text-selected-notice">
+                    選択中: {truncateContent(selectedNotice.content, 20)}
+                  </div>
+                  {readStatus.length > 0 ? (
+                    <div className="space-y-2">
+                      {readStatus.map((status) => (
+                        <div key={status.id} className="p-2 bg-gray-50 rounded text-sm" data-testid={`read-status-${status.id}`}>
+                          <div className="font-medium text-gray-800">
+                            {status.staffName} {status.staffLastName}
+                          </div>
+                          <div className="text-gray-600 text-xs">
+                            {status.readAt && format(new Date(status.readAt), 'MM/dd HH:mm', { locale: ja })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-gray-500 text-sm text-center py-4" data-testid="text-no-read-status">
+                      まだ誰も閲覧していません
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-500 text-sm text-center py-8" data-testid="text-select-notice">
+                  連絡事項を選択してください
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
