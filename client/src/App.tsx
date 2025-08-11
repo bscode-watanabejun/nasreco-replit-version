@@ -18,15 +18,27 @@ import Rounds from "@/pages/rounds";
 import ManagementMenu from "@/pages/management-menu";
 import FacilitySettings from "@/pages/facility-settings";
 import CommunicationManagement from "@/pages/communication-management";
+import Communications from "@/pages/communications";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+      {!isAuthenticated ? (
+        <Route path="*" component={Landing} />
       ) : (
         <>
           <Route path="/" component={Dashboard} />
@@ -41,9 +53,10 @@ function Router() {
           <Route path="/management-menu" component={ManagementMenu} />
           <Route path="/facility-settings" component={FacilitySettings} />
           <Route path="/communication-management" component={CommunicationManagement} />
+          <Route path="/communications" component={Communications} />
+          <Route component={NotFound} />
         </>
       )}
-      <Route component={NotFound} />
     </Switch>
   );
 }
