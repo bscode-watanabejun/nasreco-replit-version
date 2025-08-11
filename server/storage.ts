@@ -13,6 +13,8 @@ import {
   roundRecords,
   medicationRecords,
   facilitySettings,
+  staffNotices,
+  staffNoticeReadStatus,
   type User,
   type UpsertUser,
   type Resident,
@@ -41,6 +43,10 @@ import {
   type InsertMedicationRecord,
   type FacilitySettings,
   type InsertFacilitySettings,
+  type StaffNotice,
+  type InsertStaffNotice,
+  type StaffNoticeReadStatus,
+  type InsertStaffNoticeReadStatus,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
@@ -112,6 +118,13 @@ export interface IStorage {
   getFacilitySettings(): Promise<FacilitySettings | undefined>;
   createFacilitySettings(settings: InsertFacilitySettings): Promise<FacilitySettings>;
   updateFacilitySettings(id: string, settings: InsertFacilitySettings): Promise<FacilitySettings>;
+
+  // Staff notice operations
+  getStaffNotices(facilityId?: string): Promise<StaffNotice[]>;
+  createStaffNotice(notice: InsertStaffNotice): Promise<StaffNotice>;
+  deleteStaffNotice(id: string): Promise<void>;
+  getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]>;
+  markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -534,6 +547,51 @@ export class DatabaseStorage implements IStorage {
       .where(eq(facilitySettings.id, id))
       .returning();
     return updated;
+  }
+
+  // Staff notice operations
+  async getStaffNotices(facilityId?: string): Promise<StaffNotice[]> {
+    const conditions = [eq(staffNotices.isActive, true)];
+    if (facilityId) {
+      conditions.push(eq(staffNotices.facilityId, facilityId));
+    }
+    return await db.select().from(staffNotices)
+      .where(and(...conditions))
+      .orderBy(desc(staffNotices.createdAt));
+  }
+
+  async createStaffNotice(notice: InsertStaffNotice): Promise<StaffNotice> {
+    const [created] = await db.insert(staffNotices).values([notice]).returning();
+    return created;
+  }
+
+  async deleteStaffNotice(id: string): Promise<void> {
+    await db.update(staffNotices)
+      .set({ isActive: false })
+      .where(eq(staffNotices.id, id));
+  }
+
+  async getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]> {
+    return await db.select({
+      id: staffNoticeReadStatus.id,
+      noticeId: staffNoticeReadStatus.noticeId,
+      staffId: staffNoticeReadStatus.staffId,
+      readAt: staffNoticeReadStatus.readAt,
+      createdAt: staffNoticeReadStatus.createdAt,
+      staffName: users.firstName,
+      staffLastName: users.lastName,
+    })
+    .from(staffNoticeReadStatus)
+    .leftJoin(users, eq(staffNoticeReadStatus.staffId, users.id))
+    .where(eq(staffNoticeReadStatus.noticeId, noticeId))
+    .orderBy(desc(staffNoticeReadStatus.readAt));
+  }
+
+  async markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus> {
+    const [created] = await db.insert(staffNoticeReadStatus)
+      .values([{ noticeId, staffId }])
+      .returning();
+    return created;
   }
 }
 

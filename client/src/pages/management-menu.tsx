@@ -13,8 +13,7 @@ export default function ManagementMenu() {
       title: "連絡事項管理",
       description: "職員への連絡事項を管理する画面です。職員への連絡事項の作成、確認、編集が行えます。",
       onClick: () => {
-        // TODO: Implement contact management
-        console.log("連絡事項管理");
+        navigate("/communication-management");
       }
     },
     {

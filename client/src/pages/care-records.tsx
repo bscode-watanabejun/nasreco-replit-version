@@ -339,6 +339,10 @@ export default function CareRecords() {
     }
     
     return true;
+  }).sort((a, b) => {
+    const roomA = parseInt(a.roomNumber || '999999');
+    const roomB = parseInt(b.roomNumber || '999999');
+    return roomA - roomB;
   });
 
   const { data: vitals = [] } = useQuery({
@@ -707,7 +711,6 @@ export default function CareRecords() {
 
         {/* Residents Selection Grid */}
         <div className="mb-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">利用者一覧</h2>
           {filteredResidents.length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
@@ -717,7 +720,7 @@ export default function CareRecords() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {filteredResidents.map((resident: any) => (
                 <Card 
                   key={resident.id} 
@@ -728,29 +731,27 @@ export default function CareRecords() {
                     form.setValue('residentId', resident.id);
                   }}
                 >
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 min-w-0 flex-1">
-                        <div className="text-center min-w-[60px]">
-                          <div className="text-lg font-bold text-blue-600">
+                  <CardContent className="p-1.5 sm:p-2">
+                    <div className="flex items-center justify-between gap-2 sm:gap-4">
+                      <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                        <div className="text-center min-w-[40px] sm:min-w-[50px]">
+                          <div className="text-sm sm:text-lg font-bold text-blue-600">
                             {resident.roomNumber || "未設定"}
                           </div>
-                          <div className="text-xs text-slate-500">号室</div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-base truncate">{resident.name}</div>
+                          <div className="font-semibold text-sm sm:text-base truncate">{resident.name}</div>
                         </div>
-                        <div className="text-center min-w-[80px]">
-                          <div className="text-sm font-medium text-slate-700">
+                        <div className="text-center min-w-[60px] sm:min-w-[80px]">
+                          <div className="text-xs sm:text-sm font-medium text-slate-700">
                             {resident.careLevel || "未設定"}
                           </div>
-                          <div className="text-xs text-slate-500">介護度</div>
                         </div>
                       </div>
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="h-8 w-8 p-0 flex-shrink-0"
+                        className="flex items-center gap-1 px-2 sm:px-3 text-xs sm:text-sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedResident(resident);
@@ -758,7 +759,8 @@ export default function CareRecords() {
                           form.setValue('residentId', resident.id);
                         }}
                       >
-                        <FileText className="w-4 h-4" />
+                        <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">記録</span>
                       </Button>
                     </div>
                   </CardContent>

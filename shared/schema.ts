@@ -259,6 +259,31 @@ export const communications = pgTable("communications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Staff notices/announcements (連絡事項管理)
+export const staffNotices = pgTable("staff_notices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  facilityId: varchar("facility_id").notNull(), // 施設ID
+  createdBy: varchar("created_by").notNull().references(() => users.id), // 作成者（管理者）
+  title: varchar("title"), // タイトル (optional)
+  content: text("content").notNull(), // 連絡事項内容
+  startDate: date("start_date").notNull(), // 閲覧期間From
+  endDate: date("end_date").notNull(), // 閲覧期間To
+  targetFloor: varchar("target_floor").notNull(), // 閲覧所属階 (全階,1階,2階,3階,4階)
+  targetJobRole: varchar("target_job_role").notNull(), // 閲覧職種 (全体,介護,施設看護,訪問看護)
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Staff notice read status (既読情報)
+export const staffNoticeReadStatus = pgTable("staff_notice_read_status", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  noticeId: varchar("notice_id").notNull().references(() => staffNotices.id, { onDelete: 'cascade' }),
+  staffId: varchar("staff_id").notNull().references(() => users.id),
+  readAt: timestamp("read_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertResidentSchema = createInsertSchema(residents, {
   dateOfBirth: z.string().optional().transform((str) => str ? str : undefined),
@@ -365,6 +390,22 @@ export const insertCommunicationSchema = createInsertSchema(communications, {
   createdAt: true,
 });
 
+export const insertStaffNoticeSchema = createInsertSchema(staffNotices, {
+  startDate: z.string().transform((str) => str),
+  endDate: z.string().transform((str) => str),
+  targetFloor: z.enum(["全階", "1階", "2階", "3階", "4階"]),
+  targetJobRole: z.enum(["全体", "介護", "施設看護", "訪問看護"]),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertStaffNoticeReadStatusSchema = createInsertSchema(staffNoticeReadStatus, {}).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Meals Medication Records table - 食事/服薬記録（新仕様）
 export const mealsMedication = pgTable("meals_medication", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -455,6 +496,10 @@ export type WeightRecord = typeof weightRecords.$inferSelect;
 export type InsertWeightRecord = z.infer<typeof insertWeightRecordSchema>;
 export type Communication = typeof communications.$inferSelect;
 export type InsertCommunication = z.infer<typeof insertCommunicationSchema>;
+export type StaffNotice = typeof staffNotices.$inferSelect;
+export type InsertStaffNotice = z.infer<typeof insertStaffNoticeSchema>;
+export type StaffNoticeReadStatus = typeof staffNoticeReadStatus.$inferSelect;
+export type InsertStaffNoticeReadStatus = z.infer<typeof insertStaffNoticeReadStatusSchema>;
 export type MealsMedication = typeof mealsMedication.$inferSelect;
 export type InsertMealsMedication = z.infer<typeof insertMealsMedicationSchema>;
 export type RoundRecord = typeof roundRecords.$inferSelect;

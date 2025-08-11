@@ -15,6 +15,8 @@ import {
   insertRoundRecordSchema,
   insertMedicationRecordSchema,
   insertFacilitySettingsSchema,
+  insertStaffNoticeSchema,
+  insertStaffNoticeReadStatusSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -550,6 +552,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating facility settings:", error);
       res.status(500).json({ message: "Failed to update facility settings" });
+    }
+  });
+
+  // Staff notice routes (連絡事項管理)
+  app.get('/api/staff-notices', isAuthenticated, async (req, res) => {
+    try {
+      const { facilityId } = req.query;
+      const notices = await storage.getStaffNotices(facilityId as string);
+      res.json(notices);
+    } catch (error) {
+      console.error("Error fetching staff notices:", error);
+      res.status(500).json({ message: "Failed to fetch staff notices" });
+    }
+  });
+
+  app.post('/api/staff-notices', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertStaffNoticeSchema.parse({
+        ...req.body,
+        createdBy: req.user.claims.sub,
+      });
+      const notice = await storage.createStaffNotice(validatedData);
+      res.status(201).json(notice);
+    } catch (error) {
+      console.error("Error creating staff notice:", error);
+      res.status(400).json({ message: "Invalid staff notice data" });
+    }
+  });
+
+  app.delete('/api/staff-notices/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteStaffNotice(req.params.id);
+      res.json({ message: "Staff notice deleted" });
+    } catch (error) {
+      console.error("Error deleting staff notice:", error);
+      res.status(500).json({ message: "Failed to delete staff notice" });
+    }
+  });
+
+  // Staff notice read status routes
+  app.get('/api/staff-notices/:id/read-status', isAuthenticated, async (req, res) => {
+    try {
+      const readStatus = await storage.getStaffNoticeReadStatus(req.params.id);
+      res.json(readStatus);
+    } catch (error) {
+      console.error("Error fetching staff notice read status:", error);
+      res.status(500).json({ message: "Failed to fetch read status" });
+    }
+  });
+
+  app.post('/api/staff-notices/:id/mark-read', isAuthenticated, async (req: any, res) => {
+    try {
+      const readStatus = await storage.markStaffNoticeAsRead(req.params.id, req.user.claims.sub);
+      res.status(201).json(readStatus);
+    } catch (error) {
+      console.error("Error marking staff notice as read:", error);
+      res.status(400).json({ message: "Failed to mark as read" });
     }
   });
 
