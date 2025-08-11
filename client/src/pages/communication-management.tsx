@@ -460,7 +460,6 @@ export default function CommunicationManagement() {
             )}
           </CardContent>
         </Card>
-        </div>
       </div>
     </div>
   );
