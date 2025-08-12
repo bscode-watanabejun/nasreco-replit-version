@@ -71,7 +71,7 @@ const residentSchema = z.object({
   bathFriday: z.boolean().optional(),
   bathSaturday: z.boolean().optional(),
   
-  // 清拭・リネン交換日
+  // 清掃・リネン交換日
   bathingSunday: z.boolean().optional(),
   bathingMonday: z.boolean().optional(),
   bathingTuesday: z.boolean().optional(),
@@ -171,7 +171,7 @@ export default function UserInfo() {
       bathFriday: false,
       bathSaturday: false,
       
-      // 清拭・リネン交換日
+      // 清掃・リネン交換日
       bathingSunday: false,
       bathingMonday: false,
       bathingTuesday: false,
@@ -259,7 +259,7 @@ export default function UserInfo() {
       bathFriday: false,
       bathSaturday: false,
       
-      // 清拭・リネン交換日
+      // 清掃・リネン交換日
       bathingSunday: false,
       bathingMonday: false,
       bathingTuesday: false,
@@ -453,7 +453,7 @@ export default function UserInfo() {
       bathFriday: resident.bathFriday || false,
       bathSaturday: resident.bathSaturday || false,
       
-      // 清拭・リネン交換日
+      // 清掃・リネン交換日
       bathingSunday: resident.bathingSunday || false,
       bathingMonday: resident.bathingMonday || false,
       bathingTuesday: resident.bathingTuesday || false,
@@ -1309,9 +1309,9 @@ export default function UserInfo() {
                     </div>
                   </div>
 
-                  {/* 清拭・リネン交換日セクション */}
+                  {/* 清掃・リネン交換日セクション */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-slate-900 border-b pb-2">清拭・リネン交換日</h3>
+                    <h3 className="text-lg font-medium text-slate-900 border-b pb-2">清掃・リネン交換日</h3>
                     <div className="grid grid-cols-3 md:grid-cols-7 gap-4">
                       <FormField
                         control={form.control}
@@ -2497,9 +2497,9 @@ export default function UserInfo() {
                   </div>
                 </div>
 
-                {/* 清拭・リネン交換日セクション */}
+                {/* 清掃・リネン交換日セクション */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">清拭・リネン交換日</h3>
+                  <h3 className="text-lg font-semibold text-slate-700 border-b pb-2">清掃・リネン交換日</h3>
                   <div className="grid grid-cols-3 md:grid-cols-7 gap-4">
                     <FormField
                       control={form.control}

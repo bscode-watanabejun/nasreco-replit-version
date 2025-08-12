@@ -555,7 +555,10 @@ export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
   staffId: varchar("staff_id").notNull(), // 記録者のスタッフID
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // ユニーク制約を追加: 同じ利用者・同じ日付のレコードは1つのみ
+  uniqueResidentDate: index("unique_resident_date").on(table.residentId, table.recordDate),
+}));
 
 // Cleaning Linen Records insert schema
 export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenRecords, {

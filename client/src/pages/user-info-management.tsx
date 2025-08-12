@@ -240,6 +240,24 @@ export default function UserInfoManagement() {
       age: resident.age ?? undefined,
       roomNumber: resident.roomNumber ?? "",
       notes: resident.notes ?? "",
+      
+      // 入浴日
+      bathSunday: resident.bathSunday || false,
+      bathMonday: resident.bathMonday || false,
+      bathTuesday: resident.bathTuesday || false,
+      bathWednesday: resident.bathWednesday || false,
+      bathThursday: resident.bathThursday || false,
+      bathFriday: resident.bathFriday || false,
+      bathSaturday: resident.bathSaturday || false,
+      
+      // 清掃・リネン交換日
+      bathingSunday: resident.bathingSunday || false,
+      bathingMonday: resident.bathingMonday || false,
+      bathingTuesday: resident.bathingTuesday || false,
+      bathingWednesday: resident.bathingWednesday || false,
+      bathingThursday: resident.bathingThursday || false,
+      bathingFriday: resident.bathingFriday || false,
+      bathingSaturday: resident.bathingSaturday || false,
     };
     editForm.reset(formData);
     setEditOpen(true);
@@ -1216,7 +1234,7 @@ export default function UserInfoManagement() {
                   {/* Bathing/Linen Schedule */}
                   <Card>
                     <CardContent className="p-4 space-y-4">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100">清掃リネン交換日</h3>
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">清掃・リネン交換日</h3>
                       <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
                         <FormField
                           control={form.control}
@@ -2550,6 +2568,234 @@ export default function UserInfoManagement() {
                     <FormField
                       control={editForm.control}
                       name="medicationWeekSunday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>日曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Bathing/Linen Schedule */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">清掃・リネン交換日</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="bathingMonday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>月曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathingTuesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>火曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathingWednesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>水曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathingThursday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>木曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathingFriday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>金曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathingSaturday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>土曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathingSunday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>日曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Bath Schedule */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">入浴日</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="bathMonday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>月曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathTuesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>火曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathWednesday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>水曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathThursday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>木曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathFriday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>金曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathSaturday"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value || false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel>土曜日</FormLabel>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="bathSunday"
                       render={({ field }) => (
                         <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                           <FormControl>

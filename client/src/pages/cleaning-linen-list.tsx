@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { format, addDays, startOfWeek, getDay } from "date-fns";
@@ -31,7 +32,7 @@ interface Resident {
 
 export default function CleaningLinenList() {
   const [selectedWeek, setSelectedWeek] = useState(() => {
-    return startOfWeek(new Date(), { weekStartsOn: 1 }); // 月曜日始まり
+    return startOfWeek(new Date(), { weekStartsOn: 1 });
   });
   const [selectedFloor, setSelectedFloor] = useState("全体");
 
@@ -88,7 +89,7 @@ export default function CleaningLinenList() {
 
   const handleCellClick = (residentId: string, date: Date, type: 'cleaning' | 'linen') => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    const dayOfWeek = getDay(date) === 0 ? 6 : getDay(date) - 1; // 月曜日=0, 日曜日=6
+    const dayOfWeek = getDay(date) === 0 ? 6 : getDay(date) - 1;
     const existingRecord = getRecordForDate(residentId, date);
     
     let newValue = "";
@@ -207,9 +208,9 @@ export default function CleaningLinenList() {
             </thead>
             <tbody>
               {filteredResidents.map((resident) => (
-                <>
+                <React.Fragment key={resident.id}>
                   {/* 清掃行 */}
-                  <tr key={`cleaning-${resident.id}`} className="border-b border-gray-200">
+                  <tr className="border-b border-gray-200">
                     <td 
                       className="p-1 text-center border border-gray-300 text-xs font-medium"
                       rowSpan={3}
@@ -248,7 +249,7 @@ export default function CleaningLinenList() {
                   </tr>
                   
                   {/* リネン行 */}
-                  <tr key={`linen-${resident.id}`} className="border-b border-gray-200">
+                  <tr className="border-b border-gray-200">
                     <td 
                       className="p-1 text-center border border-gray-300 text-xs bg-green-50"
                       data-testid={`type-linen-${resident.id}`}
@@ -273,7 +274,7 @@ export default function CleaningLinenList() {
                   </tr>
                   
                   {/* 記録行 */}
-                  <tr key={`record-${resident.id}`} className="border-b border-gray-200">
+                  <tr className="border-b border-gray-200">
                     <td 
                       className="p-1 text-center border border-gray-300 text-xs bg-yellow-50"
                       data-testid={`type-record-${resident.id}`}
@@ -310,7 +311,7 @@ export default function CleaningLinenList() {
                       );
                     })}
                   </tr>
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>

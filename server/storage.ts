@@ -619,6 +619,9 @@ export class DatabaseStorage implements IStorage {
     const weekEndDate = new Date(weekStartDate);
     weekEndDate.setDate(weekStartDate.getDate() + 6);
 
+    const startDateStr = weekStartDate.toISOString().split('T')[0];
+    const endDateStr = weekEndDate.toISOString().split('T')[0];
+
     let query = db.select({
       id: cleaningLinenRecords.id,
       residentId: cleaningLinenRecords.residentId,
@@ -640,48 +643,112 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
     .where(
       and(
-        gte(cleaningLinenRecords.recordDate, weekStartDate),
-        lte(cleaningLinenRecords.recordDate, weekEndDate)
+        gte(cleaningLinenRecords.recordDate, startDateStr),
+        lte(cleaningLinenRecords.recordDate, endDateStr)
       )
     );
 
     if (floor && floor !== "全体") {
-      query = query.where(eq(residents.floor, floor));
+      // フィルターを重複しないよう、新しいクエリを作る
+      query = db.select({
+        id: cleaningLinenRecords.id,
+        residentId: cleaningLinenRecords.residentId,
+        recordDate: cleaningLinenRecords.recordDate,
+        dayOfWeek: cleaningLinenRecords.dayOfWeek,
+        cleaningValue: cleaningLinenRecords.cleaningValue,
+        linenValue: cleaningLinenRecords.linenValue,
+        recordNote: cleaningLinenRecords.recordNote,
+        staffId: cleaningLinenRecords.staffId,
+        createdAt: cleaningLinenRecords.createdAt,
+        updatedAt: cleaningLinenRecords.updatedAt,
+        residentName: residents.name,
+        residentFloor: residents.floor,
+        residentRoom: residents.roomNumber,
+        staffName: users.firstName,
+      })
+      .from(cleaningLinenRecords)
+      .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
+      .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
+      .where(
+        and(
+          gte(cleaningLinenRecords.recordDate, startDateStr),
+          lte(cleaningLinenRecords.recordDate, endDateStr),
+          eq(residents.floor, floor)
+        )
+      );
     }
 
     return await query.orderBy(cleaningLinenRecords.recordDate, residents.roomNumber);
   }
 
   async createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
+    const recordWithStringDate: any = {
+      ...record,
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0]
+    };
+    
     const [created] = await db.insert(cleaningLinenRecords)
-      .values(record)
+      .values(recordWithStringDate)
       .returning();
     return created;
   }
 
   async updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord> {
+    const updateData: any = {
+      ...record,
+      updatedAt: new Date()
+    };
+    
+    if (record.recordDate) {
+      updateData.recordDate = record.recordDate.toISOString().split('T')[0];
+    }
+    
     const [updated] = await db.update(cleaningLinenRecords)
-      .set({ ...record, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(cleaningLinenRecords.id, id))
       .returning();
     return updated;
   }
 
   async upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
-    const [upserted] = await db.insert(cleaningLinenRecords)
-      .values(record)
-      .onConflictDoUpdate({
-        target: [cleaningLinenRecords.residentId, cleaningLinenRecords.recordDate],
-        set: {
+    const recordDateStr = record.recordDate.toISOString().split('T')[0];
+    
+    // まず既存レコードを検索
+    const existing = await db.select()
+      .from(cleaningLinenRecords)
+      .where(
+        and(
+          eq(cleaningLinenRecords.residentId, record.residentId),
+          eq(cleaningLinenRecords.recordDate, recordDateStr)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      // 既存レコードを更新
+      const [updated] = await db.update(cleaningLinenRecords)
+        .set({
           cleaningValue: record.cleaningValue,
           linenValue: record.linenValue,
           recordNote: record.recordNote,
           staffId: record.staffId,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return upserted;
+        })
+        .where(eq(cleaningLinenRecords.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      // 新規レコードを作成
+      const recordWithStringDate = {
+        ...record,
+        recordDate: recordDateStr
+      };
+      
+      const [created] = await db.insert(cleaningLinenRecords)
+        .values(recordWithStringDate)
+        .returning();
+      return created;
+    }
   }
 }
 
