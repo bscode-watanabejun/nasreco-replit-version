@@ -52,7 +52,7 @@ import {
   type InsertCleaningLinenRecord,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, or } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -621,6 +621,13 @@ export class DatabaseStorage implements IStorage {
 
     const startDateStr = weekStartDate.toISOString().split('T')[0];
     const endDateStr = weekEndDate.toISOString().split('T')[0];
+    
+    console.log('Fetching cleaning linen records:', { 
+      weekStartDate: weekStartDate.toISOString(),
+      floor, 
+      startDateStr, 
+      endDateStr 
+    });
 
     let query = db.select({
       id: cleaningLinenRecords.id,
@@ -648,7 +655,14 @@ export class DatabaseStorage implements IStorage {
       )
     );
 
-    if (floor && floor !== "全体") {
+    if (floor && floor !== "全階") {
+      // フロア名の変換（"1階" -> "1F" など）
+      let floorToMatch = floor;
+      if (floor.includes('階')) {
+        const floorNumber = floor.replace('階', '');
+        floorToMatch = `${floorNumber}F`;
+      }
+      
       // フィルターを重複しないよう、新しいクエリを作る
       query = db.select({
         id: cleaningLinenRecords.id,
@@ -673,12 +687,21 @@ export class DatabaseStorage implements IStorage {
         and(
           gte(cleaningLinenRecords.recordDate, startDateStr),
           lte(cleaningLinenRecords.recordDate, endDateStr),
-          eq(residents.floor, floor)
+          or(
+            eq(residents.floor, floorToMatch),
+            eq(residents.floor, floor), // 元の値でもマッチ
+            eq(residents.floor, floor.replace('階', '')) // 数字のみでもマッチ
+          )
         )
       );
     }
 
-    return await query.orderBy(cleaningLinenRecords.recordDate, residents.roomNumber);
+    const result = await query.orderBy(cleaningLinenRecords.recordDate, residents.roomNumber);
+    console.log('Query result count:', result.length);
+    if (result.length > 0) {
+      console.log('Sample record:', result[0]);
+    }
+    return result;
   }
 
   async createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
