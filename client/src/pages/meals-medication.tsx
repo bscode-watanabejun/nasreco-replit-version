@@ -258,7 +258,7 @@ export default function MealsMedicationPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-orange-50">
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="flex items-center gap-2 mb-4">

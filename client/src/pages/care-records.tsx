@@ -387,8 +387,8 @@ export default function CareRecords() {
     const categoryLabel = categoryOptions.find(opt => opt.value === selectedRecordForDetail.category)?.label || selectedRecordForDetail.category;
     
     return (
-      <div className="min-h-screen bg-blue-100">
-        <div className="bg-blue-200 p-4">
+      <div className="min-h-screen bg-slate-50">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
           <div className="text-center mb-3">
             <h1 className="text-xl font-bold text-slate-800">介護記録詳細</h1>
           </div>
@@ -474,10 +474,10 @@ export default function CareRecords() {
         </main>
 
         {/* 戻るボタン */}
-        <div className="fixed bottom-0 left-0 right-0 bg-blue-200 p-4 flex justify-start">
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex justify-start">
           <Button 
             variant="ghost" 
-            className="bg-blue-300 hover:bg-blue-400"
+            className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setShowRecordDetail(false)}
           >
             <ArrowLeft className="w-4 h-4" />
@@ -489,8 +489,8 @@ export default function CareRecords() {
 
   if (view === 'detail' && selectedResident) {
     return (
-      <div className="min-h-screen bg-blue-100">
-        <div className="bg-blue-200 p-4">
+      <div className="min-h-screen bg-orange-50">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
           <div className="text-center mb-3">
             <h1 className="text-xl font-bold text-slate-800">介護記録</h1>
           </div>
@@ -613,17 +613,17 @@ export default function CareRecords() {
             )}
         </main>
 
-        <div className="fixed bottom-0 left-0 right-0 bg-blue-200 p-4 flex justify-between">
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex justify-between">
           <Button 
             variant="ghost" 
-            className="bg-blue-300 hover:bg-blue-400"
+            className="bg-blue-600 hover:bg-blue-700"
             onClick={() => setView('list')}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Button 
             variant="ghost" 
-            className="bg-blue-300 hover:bg-blue-400"
+            className="bg-blue-600 hover:bg-blue-700"
             onClick={() => {
               const now = new Date();
               const newRecord = {
@@ -659,7 +659,7 @@ export default function CareRecords() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2">
+    <div className="min-h-screen bg-orange-50 p-2">
       <div className="max-w-full mx-auto">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-4">

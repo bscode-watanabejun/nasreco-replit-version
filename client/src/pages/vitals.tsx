@@ -429,7 +429,7 @@ export default function Vitals() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-orange-50">
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="flex items-center justify-between">
@@ -682,7 +682,7 @@ export default function Vitals() {
       </main>
 
       {/* フッター */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-center">
         <Button 
           className="bg-blue-600 hover:bg-blue-700 text-white"
           onClick={addNewRecord}

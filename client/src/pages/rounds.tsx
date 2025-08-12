@@ -165,7 +165,7 @@ export default function Rounds() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2">
+      <div className="min-h-screen bg-orange-50 p-2">
         <div className="flex justify-center items-center h-64">
           <div className="text-lg">読み込み中...</div>
         </div>
@@ -174,7 +174,7 @@ export default function Rounds() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2">
+    <div className="min-h-screen bg-orange-50 p-2">
       <div className="max-w-full mx-auto">
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-4">

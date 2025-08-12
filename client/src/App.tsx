@@ -54,7 +54,7 @@ function Router() {
           <Route path="/facility-settings" component={FacilitySettings} />
           <Route path="/communication-management" component={CommunicationManagement} />
           <Route path="/communications" component={Communications} />
-          <Route component={NotFound} />
+          <Route path="*" component={NotFound} />
         </>
       )}
     </Switch>
