@@ -35,28 +35,26 @@ function Router() {
     );
   }
 
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
+
   return (
     <Switch>
-      {!isAuthenticated ? (
-        <Route path="*" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/care-records" component={CareRecords} />
-          <Route path="/nursing-records" component={NursingRecords} />
-          <Route path="/vitals" component={Vitals} />
-          <Route path="/meals-medication" component={MealsMedication} />
-          <Route path="/medication-list" component={MedicationList} />
-          <Route path="/user-info" component={UserInfoView} />
-          <Route path="/user-info-management" component={UserInfoManagement} />
-          <Route path="/rounds" component={Rounds} />
-          <Route path="/management-menu" component={ManagementMenu} />
-          <Route path="/facility-settings" component={FacilitySettings} />
-          <Route path="/communication-management" component={CommunicationManagement} />
-          <Route path="/communications" component={Communications} />
-          <Route path="*" component={NotFound} />
-        </>
-      )}
+      <Route path="/" component={Dashboard} />
+      <Route path="/care-records" component={CareRecords} />
+      <Route path="/nursing-records" component={NursingRecords} />
+      <Route path="/vitals" component={Vitals} />
+      <Route path="/meals-medication" component={MealsMedication} />
+      <Route path="/medication-list" component={MedicationList} />
+      <Route path="/user-info" component={UserInfoView} />
+      <Route path="/user-info-management" component={UserInfoManagement} />
+      <Route path="/rounds" component={Rounds} />
+      <Route path="/management-menu" component={ManagementMenu} />
+      <Route path="/facility-settings" component={FacilitySettings} />
+      <Route path="/communication-management" component={CommunicationManagement} />
+      <Route path="/communications" component={Communications} />
+      <Route component={NotFound} />
     </Switch>
   );
 }
