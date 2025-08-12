@@ -542,3 +542,31 @@ export const insertFacilitySettingsSchema = createInsertSchema(facilitySettings,
 
 export type FacilitySettings = typeof facilitySettings.$inferSelect;
 export type InsertFacilitySettings = z.infer<typeof insertFacilitySettingsSchema>;
+
+// Cleaning Linen Records table
+export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  residentId: varchar("resident_id").notNull(),
+  recordDate: date("record_date").notNull(), // 記録日
+  dayOfWeek: integer("day_of_week").notNull(), // 曜日 (0=日曜, 1=月曜, ..., 6=土曜)
+  cleaningValue: varchar("cleaning_value"), // 清掃の値 ("○", "2", "3", または空白)
+  linenValue: varchar("linen_value"), // リネンの値 ("○", "2", "3", または空白)
+  recordNote: text("record_note"), // 記録欄のメモ
+  staffId: varchar("staff_id").notNull(), // 記録者のスタッフID
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Cleaning Linen Records insert schema
+export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenRecords, {
+  residentId: z.string().min(1, "利用者IDは必須です"),
+  recordDate: z.string().transform((str) => new Date(str)),
+  dayOfWeek: z.coerce.number().int().min(0).max(6),
+  cleaningValue: z.enum(["○", "2", "3", ""]).optional(),
+  linenValue: z.enum(["○", "2", "3", ""]).optional(),
+  recordNote: z.string().optional(),
+  staffId: z.string().min(1, "スタッフIDは必須です"),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type CleaningLinenRecord = typeof cleaningLinenRecords.$inferSelect;
+export type InsertCleaningLinenRecord = z.infer<typeof insertCleaningLinenRecordSchema>;

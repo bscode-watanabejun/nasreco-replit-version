@@ -429,7 +429,7 @@ export default function Vitals() {
   });
 
   return (
-    <div className="min-h-screen bg-orange-50">
+    <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="flex items-center justify-between">

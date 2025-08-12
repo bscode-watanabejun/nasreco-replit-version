@@ -165,7 +165,7 @@ export default function Rounds() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-orange-50 p-2">
+      <div className="min-h-screen bg-slate-50 p-2">
         <div className="flex justify-center items-center h-64">
           <div className="text-lg">読み込み中...</div>
         </div>
@@ -174,22 +174,24 @@ export default function Rounds() {
   }
 
   return (
-    <div className="min-h-screen bg-orange-50 p-2">
-      <div className="max-w-full mx-auto">
-        {/* ヘッダー */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setLocation("/")}
-              className="h-8 w-8 p-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-xl font-bold text-gray-800">ラウンド一覧</h1>
-          </div>
+    <div className="min-h-screen bg-slate-50">
+      {/* ヘッダー */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation('/')}
+            className="p-2"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">ラウンド一覧</h1>
         </div>
+      </div>
+      
+      <div className="max-w-full mx-auto p-2">
 
         {/* 日付とフロア選択 */}
         <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">

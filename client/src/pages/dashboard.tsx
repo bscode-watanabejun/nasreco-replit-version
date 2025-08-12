@@ -145,7 +145,7 @@ export default function Dashboard() {
       title: "清掃リネン",
       description: "清拭・リネン交換",
       color: "blue",
-      path: "/hygiene"
+      path: "/cleaning-linen-list"
     },
     {
       icon: Waves,
@@ -230,7 +230,7 @@ export default function Dashboard() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="h-6 sm:h-8 px-1 py-0 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             
@@ -238,7 +238,7 @@ export default function Dashboard() {
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
+                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm py-0">
                   <SelectValue placeholder="フロア選択" />
                 </SelectTrigger>
                 <SelectContent>

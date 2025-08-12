@@ -17,6 +17,7 @@ import {
   insertFacilitySettingsSchema,
   insertStaffNoticeSchema,
   insertStaffNoticeReadStatusSchema,
+  insertCleaningLinenRecordSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -619,6 +620,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error marking staff notice as unread:", error);
       res.status(400).json({ message: "Failed to mark as unread" });
+    }
+  });
+
+  // Cleaning Linen routes (清掃リネン管理)
+  app.get('/api/cleaning-linen', isAuthenticated, async (req, res) => {
+    try {
+      const { weekStartDate, floor } = req.query;
+      const startDate = new Date(weekStartDate as string);
+      const records = await storage.getCleaningLinenRecords(startDate, floor as string);
+      res.json(records);
+    } catch (error) {
+      console.error("Error fetching cleaning linen records:", error);
+      res.status(500).json({ message: "Failed to fetch cleaning linen records" });
+    }
+  });
+
+  app.post('/api/cleaning-linen', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertCleaningLinenRecordSchema.parse({
+        ...req.body,
+        staffId: req.user.claims.sub,
+      });
+      const record = await storage.createCleaningLinenRecord(validatedData);
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating cleaning linen record:", error);
+      res.status(400).json({ message: "Invalid cleaning linen data" });
+    }
+  });
+
+  app.put('/api/cleaning-linen/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertCleaningLinenRecordSchema.partial().parse({
+        ...req.body,
+        staffId: req.user.claims.sub,
+      });
+      const record = await storage.updateCleaningLinenRecord(req.params.id, validatedData);
+      res.json(record);
+    } catch (error) {
+      console.error("Error updating cleaning linen record:", error);
+      res.status(400).json({ message: "Invalid cleaning linen data" });
+    }
+  });
+
+  app.post('/api/cleaning-linen/upsert', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertCleaningLinenRecordSchema.parse({
+        ...req.body,
+        staffId: req.user.claims.sub,
+      });
+      const record = await storage.upsertCleaningLinenRecord(validatedData);
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error upserting cleaning linen record:", error);
+      res.status(400).json({ message: "Invalid cleaning linen data" });
     }
   });
 

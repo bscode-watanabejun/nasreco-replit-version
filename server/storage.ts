@@ -15,6 +15,7 @@ import {
   facilitySettings,
   staffNotices,
   staffNoticeReadStatus,
+  cleaningLinenRecords,
   type User,
   type UpsertUser,
   type Resident,
@@ -47,6 +48,8 @@ import {
   type InsertStaffNotice,
   type StaffNoticeReadStatus,
   type InsertStaffNoticeReadStatus,
+  type CleaningLinenRecord,
+  type InsertCleaningLinenRecord,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
@@ -126,6 +129,12 @@ export interface IStorage {
   getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]>;
   markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus>;
   markStaffNoticeAsUnread(noticeId: string, staffId: string): Promise<void>;
+
+  // Cleaning Linen operations
+  getCleaningLinenRecords(weekStartDate: Date, floor?: string): Promise<CleaningLinenRecord[]>;
+  createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
+  updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord>;
+  upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -603,6 +612,76 @@ export class DatabaseStorage implements IStorage {
           eq(staffNoticeReadStatus.staffId, staffId)
         )
       );
+  }
+
+  // Cleaning Linen operations
+  async getCleaningLinenRecords(weekStartDate: Date, floor?: string): Promise<CleaningLinenRecord[]> {
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekStartDate.getDate() + 6);
+
+    let query = db.select({
+      id: cleaningLinenRecords.id,
+      residentId: cleaningLinenRecords.residentId,
+      recordDate: cleaningLinenRecords.recordDate,
+      dayOfWeek: cleaningLinenRecords.dayOfWeek,
+      cleaningValue: cleaningLinenRecords.cleaningValue,
+      linenValue: cleaningLinenRecords.linenValue,
+      recordNote: cleaningLinenRecords.recordNote,
+      staffId: cleaningLinenRecords.staffId,
+      createdAt: cleaningLinenRecords.createdAt,
+      updatedAt: cleaningLinenRecords.updatedAt,
+      residentName: residents.name,
+      residentFloor: residents.floor,
+      residentRoom: residents.roomNumber,
+      staffName: users.firstName,
+    })
+    .from(cleaningLinenRecords)
+    .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
+    .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
+    .where(
+      and(
+        gte(cleaningLinenRecords.recordDate, weekStartDate),
+        lte(cleaningLinenRecords.recordDate, weekEndDate)
+      )
+    );
+
+    if (floor && floor !== "全体") {
+      query = query.where(eq(residents.floor, floor));
+    }
+
+    return await query.orderBy(cleaningLinenRecords.recordDate, residents.roomNumber);
+  }
+
+  async createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
+    const [created] = await db.insert(cleaningLinenRecords)
+      .values(record)
+      .returning();
+    return created;
+  }
+
+  async updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord> {
+    const [updated] = await db.update(cleaningLinenRecords)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(cleaningLinenRecords.id, id))
+      .returning();
+    return updated;
+  }
+
+  async upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
+    const [upserted] = await db.insert(cleaningLinenRecords)
+      .values(record)
+      .onConflictDoUpdate({
+        target: [cleaningLinenRecords.residentId, cleaningLinenRecords.recordDate],
+        set: {
+          cleaningValue: record.cleaningValue,
+          linenValue: record.linenValue,
+          recordNote: record.recordNote,
+          staffId: record.staffId,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return upserted;
   }
 }
 
