@@ -367,8 +367,7 @@ export default function CleaningLinenList() {
                       );
                     })}
                   </tr>
-                ])
-              )}
+                ])}
             </tbody>
           </table>
         </div>
