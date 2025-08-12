@@ -4,7 +4,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { format, addDays, startOfWeek, getDay } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -31,10 +32,21 @@ interface Resident {
 }
 
 export default function CleaningLinenList() {
+  const [, setLocation] = useLocation();
+  
+  // URLパラメータから選択された日付を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const selectedDateFromUrl = urlParams.get('date');
+  
   const [selectedWeek, setSelectedWeek] = useState(() => {
-    return startOfWeek(new Date(), { weekStartsOn: 1 });
+    // URLに日付が指定されている場合はその週を表示
+    if (selectedDateFromUrl) {
+      const targetDate = new Date(selectedDateFromUrl);
+      return startOfWeek(targetDate, { weekStartsOn: 1 });
+    }
+    return startOfWeek(new Date(), { weekStartsOn: 1 }); // 月曜日始まり
   });
-  const [selectedFloor, setSelectedFloor] = useState("全体");
+  const [selectedFloor, setSelectedFloor] = useState("全階");
 
   const { data: residents = [] } = useQuery<Resident[]>({
     queryKey: ["/api/residents"],
@@ -72,14 +84,17 @@ export default function CleaningLinenList() {
   });
 
   const weekDays = ['月', '火', '水', '木', '金', '土', '日'];
-  const floors = useMemo(() => {
-    const floorSet = new Set(residents.map(r => r.floor).filter(Boolean));
-    return ['全体', ...Array.from(floorSet).sort()];
-  }, [residents]);
+  const floors = ["全階", "1階", "2階", "3階", "4階"];
 
   const filteredResidents = useMemo(() => {
-    if (selectedFloor === "全体") return residents;
-    return residents.filter(r => r.floor === selectedFloor);
+    if (selectedFloor === "全階") return residents;
+    // "1階" -> "1" or "1F" にマッチ
+    const floorNumber = selectedFloor.replace('階', '');
+    return residents.filter(r => 
+      r.floor === floorNumber || 
+      r.floor === `${floorNumber}F` || 
+      r.floor === selectedFloor
+    );
   }, [residents, selectedFloor]);
 
   const getRecordForDate = (residentId: string, date: Date) => {
@@ -113,14 +128,29 @@ export default function CleaningLinenList() {
     upsertRecordMutation.mutate(updateData);
   };
 
-  const isScheduledCleaningDay = (date: Date) => {
-    const dayOfWeek = getDay(date);
-    return dayOfWeek === 1 || dayOfWeek === 4; // 月曜日、木曜日
+  // 利用者の清掃・リネン交換日設定を確認する関数
+  const isResidentScheduledDay = (resident: any, date: Date, type: 'cleaning' | 'linen') => {
+    const dayOfWeek = getDay(date); // 0=日曜日, 1=月曜日, ...
+    
+    if (type === 'cleaning' || type === 'linen') {
+      // 清掃・リネン交換日の設定を確認（どちらも同じ設定を使用）
+      switch (dayOfWeek) {
+        case 0: return resident.bathingSunday;
+        case 1: return resident.bathingMonday;
+        case 2: return resident.bathingTuesday;
+        case 3: return resident.bathingWednesday;
+        case 4: return resident.bathingThursday;
+        case 5: return resident.bathingFriday;
+        case 6: return resident.bathingSaturday;
+        default: return false;
+      }
+    }
+    return false;
   };
 
-  const getCellStyle = (date: Date, type: 'cleaning' | 'linen') => {
-    const isScheduled = isScheduledCleaningDay(date);
-    if (type === 'cleaning' && isScheduled) {
+  const getCellStyle = (resident: any, date: Date, type: 'cleaning' | 'linen') => {
+    const isScheduled = isResidentScheduledDay(resident, date, type);
+    if ((type === 'cleaning' || type === 'linen') && isScheduled) {
       return "bg-pink-100 hover:bg-pink-200";
     }
     return "hover:bg-gray-100";
@@ -134,30 +164,21 @@ export default function CleaningLinenList() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-blue-600 text-white p-2 shadow-md">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation("/")}
+            className="h-8 w-8 p-0 text-white hover:bg-blue-700"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <h1 className="text-lg font-semibold" data-testid="title-cleaning-linen-list">清掃リネン一覧</h1>
-          <div className="flex items-center gap-2">
-            <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-              <SelectTrigger 
-                className="w-20 h-8 bg-white text-gray-900 text-sm border-gray-300" 
-                data-testid="select-floor"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {floors.map(floor => (
-                  <SelectItem key={floor} value={floor} data-testid={`floor-option-${floor}`}>
-                    {floor}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </header>
 
       <div className="p-2">
-        {/* 週選択 */}
+        {/* 週選択と階数選択 */}
         <div className="flex items-center justify-between mb-3 bg-white rounded-lg p-2 shadow-sm">
           <Button 
             variant="outline" 
@@ -167,8 +188,8 @@ export default function CleaningLinenList() {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="font-medium text-sm" data-testid="text-week-range">
-            {format(selectedWeek, 'M/d', { locale: ja })} - {format(addDays(selectedWeek, 6), 'M/d', { locale: ja })}
+          <span className="font-medium text-xs flex-1 text-center" data-testid="text-week-range">
+            {format(selectedWeek, 'M/d', { locale: ja })}-{format(addDays(selectedWeek, 6), 'M/d', { locale: ja })}
           </span>
           <Button 
             variant="outline" 
@@ -178,6 +199,21 @@ export default function CleaningLinenList() {
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
+          <Select value={selectedFloor} onValueChange={setSelectedFloor}>
+            <SelectTrigger 
+              className="w-20 h-8 bg-white text-gray-900 text-xs border-gray-300 ml-2" 
+              data-testid="select-floor"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {floors.map(floor => (
+                <SelectItem key={floor} value={floor} data-testid={`floor-option-${floor}`}>
+                  {floor}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* テーブル */}
@@ -185,16 +221,15 @@ export default function CleaningLinenList() {
           <table className="w-full text-xs">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-1 text-center border border-gray-300 w-16" data-testid="header-room">部屋</th>
-                <th className="p-1 text-center border border-gray-300 w-20" data-testid="header-name">氏名</th>
-                <th className="p-1 text-center border border-gray-300 w-12" data-testid="header-type">種別</th>
+                <th className="p-1 text-center border border-gray-300 w-14" data-testid="header-room">部屋/氏名</th>
+                <th className="p-1 text-center border border-gray-300 w-10" data-testid="header-type">種別</th>
                 {weekDays.map((day, index) => {
                   const date = addDays(selectedWeek, index);
-                  const isScheduled = isScheduledCleaningDay(date);
+                  const isSelectedDate = selectedDateFromUrl && format(date, 'yyyy-MM-dd') === selectedDateFromUrl;
                   return (
                     <th 
                       key={day} 
-                      className={`p-1 text-center border border-gray-300 w-12 ${isScheduled ? 'bg-pink-100' : ''}`}
+                      className={`p-0.5 text-center border border-gray-300 w-10 ${isSelectedDate ? 'bg-yellow-100' : ''}`}
                       data-testid={`header-day-${day}`}
                     >
                       <div>{day}</div>
@@ -207,26 +242,26 @@ export default function CleaningLinenList() {
               </tr>
             </thead>
             <tbody>
-              {filteredResidents.map((resident) => (
+              {filteredResidents
+                .sort((a, b) => {
+                  const roomA = parseInt(a.roomNumber || '999999');
+                  const roomB = parseInt(b.roomNumber || '999999');
+                  return roomA - roomB;
+                })
+                .map((resident) => (
                 <React.Fragment key={resident.id}>
                   {/* 清掃行 */}
                   <tr className="border-b border-gray-200">
                     <td 
-                      className="p-1 text-center border border-gray-300 text-xs font-medium"
+                      className="p-1 text-center border border-gray-300 text-xs font-medium leading-tight"
                       rowSpan={3}
                       data-testid={`room-${resident.id}`}
                     >
-                      {resident.roomNumber}
+                      <div className="font-bold">{resident.roomNumber}</div>
+                      <div className="text-gray-600 text-xs mt-0.5">{resident.name}</div>
                     </td>
                     <td 
-                      className="p-1 text-center border border-gray-300 text-xs"
-                      rowSpan={3}
-                      data-testid={`name-${resident.id}`}
-                    >
-                      {resident.name}
-                    </td>
-                    <td 
-                      className="p-1 text-center border border-gray-300 text-xs bg-blue-50"
+                      className="p-0.5 text-center border border-gray-300 text-xs bg-blue-50"
                       data-testid={`type-cleaning-${resident.id}`}
                     >
                       清掃
@@ -238,7 +273,7 @@ export default function CleaningLinenList() {
                       return (
                         <td
                           key={`cleaning-${resident.id}-${index}`}
-                          className={`p-1 text-center border border-gray-300 cursor-pointer ${getCellStyle(date, 'cleaning')}`}
+                          className={`p-0.5 text-center border border-gray-300 cursor-pointer text-xs ${getCellStyle(resident, date, 'cleaning')}`}
                           onClick={() => handleCellClick(resident.id, date, 'cleaning')}
                           data-testid={`cell-cleaning-${resident.id}-${index}`}
                         >
@@ -251,7 +286,7 @@ export default function CleaningLinenList() {
                   {/* リネン行 */}
                   <tr className="border-b border-gray-200">
                     <td 
-                      className="p-1 text-center border border-gray-300 text-xs bg-green-50"
+                      className="p-0.5 text-center border border-gray-300 text-xs bg-green-50"
                       data-testid={`type-linen-${resident.id}`}
                     >
                       リネン
@@ -263,7 +298,7 @@ export default function CleaningLinenList() {
                       return (
                         <td
                           key={`linen-${resident.id}-${index}`}
-                          className={`p-1 text-center border border-gray-300 cursor-pointer ${getCellStyle(date, 'linen')}`}
+                          className={`p-0.5 text-center border border-gray-300 cursor-pointer text-xs ${getCellStyle(resident, date, 'linen')}`}
                           onClick={() => handleCellClick(resident.id, date, 'linen')}
                           data-testid={`cell-linen-${resident.id}-${index}`}
                         >
@@ -276,7 +311,7 @@ export default function CleaningLinenList() {
                   {/* 記録行 */}
                   <tr className="border-b border-gray-200">
                     <td 
-                      className="p-1 text-center border border-gray-300 text-xs bg-yellow-50"
+                      className="p-0.5 text-center border border-gray-300 text-xs bg-yellow-50"
                       data-testid={`type-record-${resident.id}`}
                     >
                       記録
@@ -288,7 +323,7 @@ export default function CleaningLinenList() {
                       return (
                         <td
                           key={`record-${resident.id}-${index}`}
-                          className="p-1 text-center border border-gray-300 cursor-pointer hover:bg-gray-100 text-xs"
+                          className="p-0.5 text-center border border-gray-300 cursor-pointer hover:bg-gray-100 text-xs"
                           onClick={() => {
                             const newNote = prompt("記録を入力してください", note);
                             if (newNote !== null) {
@@ -324,7 +359,7 @@ export default function CleaningLinenList() {
             <span>○: 実施</span>
             <span>2: 2番目</span>
             <span>3: 3番目</span>
-            <span className="text-pink-600">ピンク背景: 清掃予定日 (月・木)</span>
+            <span className="text-pink-600">ピンク背景: 清掃・リネン交換予定日</span>
           </div>
         </div>
       </div>
