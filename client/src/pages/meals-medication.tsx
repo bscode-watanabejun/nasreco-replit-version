@@ -258,20 +258,24 @@ export default function MealsMedicationPage() {
   });
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* ヘッダー */}
-      <div className="flex items-center gap-2 mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setLocation('/')}
-          className="p-2"
-          data-testid="button-back"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-        </Button>
-        <h1 className="text-2xl font-bold">食事一覧</h1>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLocation('/')}
+            className="p-2"
+            data-testid="button-back"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">食事一覧</h1>
+        </div>
       </div>
+
+      <div className="space-y-4 p-4">
 
       {/* 日付とフロア選択 */}
       <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
@@ -500,6 +504,7 @@ export default function MealsMedicationPage() {
         >
           服薬一覧へ
         </Button>
+      </div>
       </div>
     </div>
   );

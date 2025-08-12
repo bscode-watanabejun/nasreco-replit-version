@@ -208,7 +208,7 @@ export default function Communications() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-blue-600 text-white p-3 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-slate-800 text-white p-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
