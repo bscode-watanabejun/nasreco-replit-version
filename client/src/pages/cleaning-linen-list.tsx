@@ -79,7 +79,14 @@ export default function CleaningLinenList() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cleaning-linen"] });
+      // 現在表示中のクエリキーと一致するように無効化
+      queryClient.invalidateQueries({ 
+        queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
+      });
+      // より広範囲の無効化も追加
+      queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === "/api/cleaning-linen"
+      });
     },
   });
 
@@ -103,17 +110,23 @@ export default function CleaningLinenList() {
   };
 
   const handleCellClick = (residentId: string, date: Date, type: 'cleaning' | 'linen') => {
+    console.log('Cell clicked:', { residentId, date, type });
+    
     const dateStr = format(date, 'yyyy-MM-dd');
     const dayOfWeek = getDay(date) === 0 ? 6 : getDay(date) - 1;
     const existingRecord = getRecordForDate(residentId, date);
+    
+    console.log('Existing record:', existingRecord);
     
     let newValue = "";
     if (type === 'cleaning') {
       const currentValue = existingRecord?.cleaningValue || "";
       newValue = currentValue === "" ? "○" : currentValue === "○" ? "2" : currentValue === "2" ? "3" : "";
+      console.log('Cleaning value change:', currentValue, '->', newValue);
     } else {
       const currentValue = existingRecord?.linenValue || "";
       newValue = currentValue === "" ? "○" : currentValue === "○" ? "2" : currentValue === "2" ? "3" : "";
+      console.log('Linen value change:', currentValue, '->', newValue);
     }
 
     const updateData = {
@@ -125,7 +138,16 @@ export default function CleaningLinenList() {
       recordNote: existingRecord?.recordNote || "",
     };
 
-    upsertRecordMutation.mutate(updateData);
+    console.log('Update data:', updateData);
+    
+    upsertRecordMutation.mutate(updateData, {
+      onSuccess: (data) => {
+        console.log('Mutation successful:', data);
+      },
+      onError: (error) => {
+        console.error('Mutation error:', error);
+      }
+    });
   };
 
   // 利用者の清掃・リネン交換日設定を確認する関数
@@ -248,10 +270,9 @@ export default function CleaningLinenList() {
                   const roomB = parseInt(b.roomNumber || '999999');
                   return roomA - roomB;
                 })
-                .map((resident) => (
-                <React.Fragment key={resident.id}>
-                  {/* 清掃行 */}
-                  <tr className="border-b border-gray-200">
+                .flatMap((resident) => [
+                  /* 清掃行 */
+                  <tr key={`cleaning-${resident.id}`} className="border-b border-gray-200">
                     <td 
                       className="p-1 text-center border border-gray-300 text-xs font-medium leading-tight"
                       rowSpan={3}
@@ -281,10 +302,10 @@ export default function CleaningLinenList() {
                         </td>
                       );
                     })}
-                  </tr>
+                  </tr>,
                   
-                  {/* リネン行 */}
-                  <tr className="border-b border-gray-200">
+                  /* リネン行 */
+                  <tr key={`linen-${resident.id}`} className="border-b border-gray-200">
                     <td 
                       className="p-0.5 text-center border border-gray-300 text-xs bg-green-50"
                       data-testid={`type-linen-${resident.id}`}
@@ -306,10 +327,10 @@ export default function CleaningLinenList() {
                         </td>
                       );
                     })}
-                  </tr>
+                  </tr>,
                   
-                  {/* 記録行 */}
-                  <tr className="border-b border-gray-200">
+                  /* 記録行 */
+                  <tr key={`record-${resident.id}`} className="border-b border-gray-200">
                     <td 
                       className="p-0.5 text-center border border-gray-300 text-xs bg-yellow-50"
                       data-testid={`type-record-${resident.id}`}
@@ -346,8 +367,8 @@ export default function CleaningLinenList() {
                       );
                     })}
                   </tr>
-                </React.Fragment>
-              ))}
+                ])
+              )}
             </tbody>
           </table>
         </div>
