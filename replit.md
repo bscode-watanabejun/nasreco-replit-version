@@ -12,6 +12,16 @@ NASRECO is a comprehensive healthcare management system designed for nursing and
 - Added proper user information display with gender translation and record creator identification
 - Optimized record sorting and new record creation workflow
 
+### Cleaning Linen Management System (January 12, 2025)
+- **COMPLETED**: Full implementation of weekly cleaning/linen tracking system
+- Created comprehensive database schema (`cleaningLinenRecords` table) with proper constraints
+- Implemented interactive click functionality for value toggling (○→2→3→空白)
+- Added pink highlighting for scheduled cleaning days (Monday/Thursday)  
+- Built responsive mobile-optimized UI with 3-row display per resident (cleaning, linen, record)
+- Successfully tested click-to-toggle functionality and database persistence
+- Confirmed weekly navigation, floor-based filtering, and record note editing
+- **Status**: Fully functional and tested - ready for production use
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
