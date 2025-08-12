@@ -105,16 +105,22 @@ export default function CleaningLinenList() {
   }, [residents, selectedFloor]);
 
   const getRecordForDate = (residentId: string, date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
+    // 日付を正規化してタイムゾーンの問題を回避
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    const dateStr = format(localDate, 'yyyy-MM-dd');
     return cleaningLinenRecords.find(r => r.residentId === residentId && r.recordDate === dateStr);
   };
 
   const handleCellClick = (residentId: string, date: Date, type: 'cleaning' | 'linen') => {
     console.log('Cell clicked:', { residentId, date, type });
     
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const dayOfWeek = getDay(date) === 0 ? 6 : getDay(date) - 1;
-    const existingRecord = getRecordForDate(residentId, date);
+    // 日付を正規化してタイムゾーンの問題を回避
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    const dateStr = format(localDate, 'yyyy-MM-dd');
+    const dayOfWeek = getDay(localDate) === 0 ? 6 : getDay(localDate) - 1;
+    const existingRecord = getRecordForDate(residentId, localDate);
+    
+    console.log('Normalized date info:', { originalDate: date, localDate, dateStr, dayOfWeek });
     
     console.log('Existing record:', existingRecord);
     
@@ -291,6 +297,7 @@ export default function CleaningLinenList() {
                       const date = addDays(selectedWeek, index);
                       const record = getRecordForDate(resident.id, date);
                       const value = record?.cleaningValue || "";
+                      console.log(`Cell render - Resident: ${resident.name}, Date: ${format(date, 'yyyy-MM-dd')}, Record:`, record, 'Value:', value);
                       return (
                         <td
                           key={`cleaning-${resident.id}-${index}`}
