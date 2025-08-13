@@ -354,12 +354,19 @@ export default function Vitals() {
         ) {
           if (value && value.trim() !== "") {
             const numValue = parseFloat(value);
-            newRecordData[field] = !isNaN(numValue) ? numValue : null;
-          } else {
-            newRecordData[field] = null;
+            if (!isNaN(numValue)) {
+              newRecordData[field] = numValue;
+            }
           }
+          // 空の値の場合はフィールドを送信しない（削除）
         } else if (["hour", "minute"].includes(field)) {
-          newRecordData[field] = value ? parseInt(value) : null;
+          if (value && value.trim() !== "") {
+            const intValue = parseInt(value);
+            if (!isNaN(intValue)) {
+              newRecordData[field] = intValue;
+            }
+          }
+          // 空の値の場合はフィールドを送信しない（削除）
         }
 
         await apiRequest("/api/vital-signs", "POST", newRecordData);
@@ -381,12 +388,21 @@ export default function Vitals() {
         ) {
           if (value && value.trim() !== "") {
             const numValue = parseFloat(value);
-            updateData[field] = !isNaN(numValue) ? numValue : null;
+            if (!isNaN(numValue)) {
+              updateData[field] = numValue;
+            }
           } else {
             updateData[field] = null;
           }
         } else if (["hour", "minute"].includes(field)) {
-          updateData[field] = value ? parseInt(value) : null;
+          if (value && value.trim() !== "") {
+            const intValue = parseInt(value);
+            if (!isNaN(intValue)) {
+              updateData[field] = intValue;
+            }
+          } else {
+            updateData[field] = null;
+          }
         }
 
         await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);

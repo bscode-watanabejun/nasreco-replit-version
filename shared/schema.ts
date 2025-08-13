@@ -320,33 +320,33 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
-  temperature: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
-    return typeof val === 'string' ? val : val.toString();
+  temperature: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
   }),
-  bloodPressureSystolic: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
+  bloodPressureSystolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val : parseInt(val, 10);
   }),
-  bloodPressureDiastolic: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
+  bloodPressureDiastolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val : parseInt(val, 10);
   }),
-  pulseRate: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
+  pulseRate: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val : parseInt(val, 10);
   }),
-  respirationRate: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
+  respirationRate: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val : parseInt(val, 10);
   }),
-  oxygenSaturation: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
-    return typeof val === 'string' ? val : val.toString();
+  oxygenSaturation: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
   }),
-  bloodSugar: z.union([z.string(), z.number()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return undefined;
-    return typeof val === 'string' ? val : val.toString();
+  bloodSugar: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
   }),
 }).omit({
   id: true,
