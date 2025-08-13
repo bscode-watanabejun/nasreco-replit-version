@@ -344,6 +344,10 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'string' ? parseFloat(val) : val;
   }),
+  bloodSugar: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return val;
+  }),
 }).omit({
   id: true,
   createdAt: true,
