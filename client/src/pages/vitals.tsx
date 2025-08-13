@@ -237,6 +237,7 @@ export default function Vitals() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  const [localBloodSugar, setLocalBloodSugar] = useState<Record<string, string>>({});
 
   // 共通スタイル定数
   const inputBaseClass =
@@ -349,7 +350,6 @@ export default function Vitals() {
             "pulseRate",
             "respirationRate",
             "oxygenSaturation",
-            "bloodSugar",
           ].includes(field)
         ) {
           if (value && value.trim() !== "") {
@@ -367,6 +367,9 @@ export default function Vitals() {
             }
           }
           // 空の値の場合はフィールドを送信しない（削除）
+        } else {
+          // その他のフィールド（bloodSugar, notes, staffName等）はそのまま設定
+          newRecordData[field] = value;
         }
 
         await apiRequest("/api/vital-signs", "POST", newRecordData);
@@ -383,7 +386,6 @@ export default function Vitals() {
             "pulseRate",
             "respirationRate",
             "oxygenSaturation",
-            "bloodSugar",
           ].includes(field)
         ) {
           if (value && value.trim() !== "") {
@@ -404,6 +406,7 @@ export default function Vitals() {
             updateData[field] = null;
           }
         }
+        // その他のフィールド（bloodSugar, notes, staffName等）は最初の { [field]: value } でそのまま設定される
 
         await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
       }
@@ -971,15 +974,47 @@ export default function Vitals() {
                       </span>
                       <input
                         type="text"
-                        value={vital.bloodSugar?.toString() || ""}
-                        onChange={(e) =>
-                          updateMutation.mutate({
-                            id: vital.id,
-                            field: "bloodSugar",
-                            value: e.target.value,
-                            residentId: vital.residentId,
-                          })
+                        value={
+                          localBloodSugar[vital.id] !== undefined
+                            ? localBloodSugar[vital.id]
+                            : vital.bloodSugar?.toString() || ""
                         }
+                        onChange={(e) => {
+                          setLocalBloodSugar((prev) => ({
+                            ...prev,
+                            [vital.id]: e.target.value,
+                          }));
+                        }}
+                        onBlur={(e) => {
+                          const newValue = e.target.value;
+                          if (newValue !== (vital.bloodSugar?.toString() || "")) {
+                            updateMutation.mutate({
+                              id: vital.id,
+                              field: "bloodSugar",
+                              value: newValue,
+                              residentId: vital.residentId,
+                            });
+                          }
+                          // ローカル状態をクリア
+                          setLocalBloodSugar((prev) => {
+                            const updated = { ...prev };
+                            delete updated[vital.id];
+                            return updated;
+                          });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          } else if (e.key === "Escape") {
+                            setLocalBloodSugar((prev) => {
+                              const updated = { ...prev };
+                              delete updated[vital.id];
+                              return updated;
+                            });
+                            e.currentTarget.blur();
+                          }
+                        }}
                         placeholder="--"
                         className={`w-12 ${inputBaseClass}`}
                       />

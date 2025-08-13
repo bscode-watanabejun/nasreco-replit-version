@@ -185,7 +185,7 @@ export const vitalSigns = pgTable("vital_signs", {
   pulseRate: integer("pulse_rate"),
   respirationRate: integer("respiration_rate"),
   oxygenSaturation: decimal("oxygen_saturation", { precision: 5, scale: 2 }),
-  bloodSugar: decimal("blood_sugar", { precision: 6, scale: 1 }), // 血糖値
+  bloodSugar: varchar("blood_sugar"), // 血糖値（フリー入力対応）
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -341,10 +341,6 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
     return typeof val === 'number' ? val : parseInt(val, 10);
   }),
   oxygenSaturation: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'string' ? parseFloat(val) : val;
-  }),
-  bloodSugar: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'string' ? parseFloat(val) : val;
   }),
