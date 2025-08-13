@@ -1,31 +1,59 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, Building, User, Trash2, ArrowLeft } from "lucide-react";
+import {
+  Plus,
+  Calendar,
+  Building,
+  User,
+  Trash2,
+  ArrowLeft,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
 // インライン編集用のコンポーネント
-function InlineEditableField({ 
-  value, 
-  onSave, 
-  type = "text", 
-  placeholder = "", 
+function InlineEditableField({
+  value,
+  onSave,
+  type = "text",
+  placeholder = "",
   options = [],
-  disabled = false
+  disabled = false,
 }: {
   value: string;
   onSave: (newValue: string) => void;
   type?: "text" | "select" | "number";
   placeholder?: string;
-  options?: { value: string; label: string; }[];
+  options?: { value: string; label: string }[];
   disabled?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -43,9 +71,9 @@ function InlineEditableField({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSave();
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setCurrentValue(value);
       setIsEditing(false);
     }
@@ -53,8 +81,8 @@ function InlineEditableField({
 
   if (disabled || !isEditing) {
     return (
-      <div 
-        className={`cursor-pointer hover:bg-slate-50 p-2 rounded border-2 border-transparent hover:border-slate-200 transition-colors ${disabled ? 'cursor-not-allowed bg-slate-100' : ''}`}
+      <div
+        className={`cursor-pointer hover:bg-slate-50 p-2 rounded border-2 border-transparent hover:border-slate-200 transition-colors ${disabled ? "cursor-not-allowed bg-slate-100" : ""}`}
         onClick={() => !disabled && setIsEditing(true)}
       >
         {value || <span className="text-slate-400">{placeholder}</span>}
@@ -64,7 +92,11 @@ function InlineEditableField({
 
   if (type === "select") {
     return (
-      <Select value={currentValue} onValueChange={setCurrentValue} onOpenChange={(open) => !open && handleBlur()}>
+      <Select
+        value={currentValue}
+        onValueChange={setCurrentValue}
+        onOpenChange={(open) => !open && handleBlur()}
+      >
         <SelectTrigger className="h-auto min-h-[2.5rem]">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -93,37 +125,152 @@ function InlineEditableField({
   );
 }
 
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = (selectedValue: string) => {
+    setInputValue(selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+
+    // 特定の遅延後にフォーカス移動を実行
+    setTimeout(() => {
+      if (inputRef.current) {
+        const allInputs = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            el !== inputRef.current &&
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentElement = inputRef.current;
+        const allElements = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentIndex = allElements.indexOf(currentElement);
+        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+          allElements[currentIndex + 1].focus();
+        }
+      }
+    }, 200);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    onSave(inputValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      onSave(inputValue);
+      setOpen(false);
+    } else if (e.key === "Escape") {
+      setInputValue(value);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.preventDefault()}
+          placeholder={placeholder}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function Vitals() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+
   // 共通スタイル定数
-  const inputBaseClass = "h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
-  const selectTriggerClass = "h-8 min-h-8 max-h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 leading-none py-0";
-  
+  const inputBaseClass =
+    "h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const selectTriggerClass =
+    "h-8 min-h-8 max-h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 leading-none py-0";
+
   // URLパラメータから日付と時間帯、フロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
-  const [selectedTiming, setSelectedTiming] = useState(urlParams.get('timing') || "午前");
+  const [selectedDate, setSelectedDate] = useState(
+    urlParams.get("date") || format(new Date(), "yyyy-MM-dd"),
+  );
+  const [selectedTiming, setSelectedTiming] = useState(
+    urlParams.get("timing") || "午前",
+  );
   const [selectedFloor, setSelectedFloor] = useState(() => {
     // URLパラメータから階数を取得
-    const floorParam = urlParams.get('floor');
+    const floorParam = urlParams.get("floor");
     if (floorParam) {
       // ダッシュボードから来た'all'を'全階'に変換
-      if (floorParam === 'all') {
+      if (floorParam === "all") {
         return "全階";
       }
       return floorParam;
     }
-    
+
     // localStorageからトップ画面の選択階数を取得
-    const savedFloor = localStorage.getItem('selectedFloor');
+    const savedFloor = localStorage.getItem("selectedFloor");
     if (savedFloor) {
-      if (savedFloor === 'all') {
+      if (savedFloor === "all") {
         return "全階";
       } else {
         // "1F" -> "1" の変換を行う
-        const cleanFloor = savedFloor.replace('F', '');
+        const cleanFloor = savedFloor.replace("F", "");
         return cleanFloor;
       }
     }
@@ -164,57 +311,95 @@ export default function Vitals() {
 
   // 記録更新用ミューテーション
   const updateMutation = useMutation({
-    mutationFn: async ({ id, field, value, residentId }: { id: string; field: string; value: string; residentId?: string }) => {
+    mutationFn: async ({
+      id,
+      field,
+      value,
+      residentId,
+    }: {
+      id: string;
+      field: string;
+      value: string;
+      residentId?: string;
+    }) => {
       // 一時的なレコード（IDがtempで始まる）の場合は新規作成
-      if (id.startsWith('temp-')) {
+      if (id.startsWith("temp-")) {
+        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{date}-{timing}から抽出
+        
+        // residentIdの検証
+        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
+          throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
+        }
+
         const newRecordData: any = {
-          residentId: residentId || id.split('-')[1], // temp-{residentId}-{date}-{timing}から抽出
+          residentId: residentIdFromTemp,
           recordDate: new Date(selectedDate),
           timing: selectedTiming,
           [field]: value,
         };
-        
+
         // データ型を適切に変換
-        if (field === 'recordDate') {
+        if (field === "recordDate") {
           newRecordData[field] = new Date(value);
-        } else if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'respirationRate', 'oxygenSaturation', 'bloodSugar'].includes(field)) {
-          if (value && value.trim() !== '') {
+        } else if (
+          [
+            "temperature",
+            "bloodPressureSystolic",
+            "bloodPressureDiastolic",
+            "pulseRate",
+            "respirationRate",
+            "oxygenSaturation",
+            "bloodSugar",
+          ].includes(field)
+        ) {
+          if (value && value.trim() !== "") {
             const numValue = parseFloat(value);
             newRecordData[field] = !isNaN(numValue) ? numValue : null;
           } else {
             newRecordData[field] = null;
           }
-        } else if (['hour', 'minute'].includes(field)) {
+        } else if (["hour", "minute"].includes(field)) {
           newRecordData[field] = value ? parseInt(value) : null;
         }
-        
+
         await apiRequest("/api/vital-signs", "POST", newRecordData);
       } else {
         // 既存レコードの更新
         const updateData: any = { [field]: value };
-        if (field === 'recordDate') {
+        if (field === "recordDate") {
           updateData[field] = new Date(value);
-        } else if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'respirationRate', 'oxygenSaturation', 'bloodSugar'].includes(field)) {
-          if (value && value.trim() !== '') {
+        } else if (
+          [
+            "temperature",
+            "bloodPressureSystolic",
+            "bloodPressureDiastolic",
+            "pulseRate",
+            "respirationRate",
+            "oxygenSaturation",
+            "bloodSugar",
+          ].includes(field)
+        ) {
+          if (value && value.trim() !== "") {
             const numValue = parseFloat(value);
             updateData[field] = !isNaN(numValue) ? numValue : null;
           } else {
             updateData[field] = null;
           }
-        } else if (['hour', 'minute'].includes(field)) {
+        } else if (["hour", "minute"].includes(field)) {
           updateData[field] = value ? parseInt(value) : null;
         }
-        
+
         await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Update error:', error);
       toast({
         title: "エラー",
-        description: "バイタルサインの更新に失敗しました",
+        description: error.message || "バイタルサインの更新に失敗しました",
         variant: "destructive",
       });
     },
@@ -232,10 +417,11 @@ export default function Vitals() {
         description: "記録を削除しました",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Delete error:', error);
       toast({
         title: "エラー",
-        description: "記録の削除に失敗しました",
+        description: error.message || "記録の削除に失敗しました",
         variant: "destructive",
       });
     },
@@ -257,8 +443,16 @@ export default function Vitals() {
     { value: "5", label: "5階" },
   ];
 
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: `${i}時` }));
-  const minuteOptions = Array.from({ length: 60 }, (_, i) => ({ value: i.toString(), label: `${i}分` }));
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: i.toString(),
+    label: i.toString().padStart(2, "0"),
+  }));
+  const minuteOptions = [
+    { value: "0", label: "00" },
+    { value: "15", label: "15" },
+    { value: "30", label: "30" },
+    { value: "45", label: "45" },
+  ];
 
   // バイタルサインの選択肢
   const temperatureOptions = Array.from({ length: 50 }, (_, i) => {
@@ -294,16 +488,68 @@ export default function Vitals() {
   // スタッフ印機能
   const handleStaffStamp = async (vitalId: string, residentId?: string) => {
     const user = currentUser as any;
-    const staffName = user?.firstName && user?.lastName 
-      ? `${user.lastName} ${user.firstName}`
-      : user?.email || "スタッフ";
+    const staffName =
+      user?.firstName && user?.lastName
+        ? `${user.lastName} ${user.firstName}`
+        : user?.email || "スタッフ";
+
+    // 現在のバイタル記録を取得
+    const vital = filteredVitalSigns.find((v: any) => v.id === vitalId);
+    if (!vital) return;
+
+    const currentHour = vital.hour?.toString() || "";
+    const currentMinute = vital.minute?.toString() || "";
+    const currentStaffName = vital.staffName || "";
     
-    await updateMutation.mutate({ 
-      id: vitalId, 
-      field: 'staffName', 
-      value: staffName,
-      residentId 
-    });
+    // 現在時刻を取得
+    const now = new Date();
+    const currentHourStr = now.getHours().toString();
+    const currentMinuteStr = Math.floor(now.getMinutes() / 15) * 15 === now.getMinutes() 
+      ? now.getMinutes().toString() 
+      : (Math.floor(now.getMinutes() / 15) * 15).toString();
+
+    let updateData: any = {};
+
+    // 時分、承認者名の両方が空白の場合
+    if (!currentHour && !currentMinute && !currentStaffName) {
+      updateData = {
+        hour: currentHourStr,
+        minute: currentMinuteStr,
+        staffName: staffName
+      };
+    }
+    // 時分が空白で承認者名が入っている場合
+    else if (!currentHour && !currentMinute && currentStaffName) {
+      updateData = {
+        staffName: ""
+      };
+    }
+    // 時分が入っていて、承認者名が空白の場合
+    else if ((currentHour || currentMinute) && !currentStaffName) {
+      updateData = {
+        hour: currentHourStr,
+        minute: currentMinuteStr,
+        staffName: staffName
+      };
+    }
+    // 時分と承認者名の両方が入っている場合
+    else if ((currentHour || currentMinute) && currentStaffName) {
+      updateData = {
+        hour: "",
+        minute: "",
+        staffName: ""
+      };
+    }
+
+    // 複数フィールドを同時に更新
+    for (const [field, value] of Object.entries(updateData)) {
+      updateMutation.mutate({
+        id: vitalId,
+        field,
+        value: value as string,
+        residentId,
+      });
+    }
   };
 
   // 新規記録追加
@@ -333,7 +579,7 @@ export default function Vitals() {
   const getFilteredVitalSigns = () => {
     const filteredResidents = (residents as any[]).filter((resident: any) => {
       if (selectedFloor === "全階") return true;
-      
+
       const residentFloor = resident.floor;
       return residentFloor === selectedFloor;
     });
@@ -341,13 +587,15 @@ export default function Vitals() {
     const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
       const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
       if (vitalDate !== selectedDate) return false;
-      
+
       if (vital.timing !== selectedTiming) return false;
-      
+
       // フロアフィルタリング
-      const resident = filteredResidents.find((r: any) => r.id === vital.residentId);
+      const resident = filteredResidents.find(
+        (r: any) => r.id === vital.residentId,
+      );
       if (!resident) return false;
-      
+
       return true;
     });
 
@@ -358,9 +606,11 @@ export default function Vitals() {
 
     if (selectedDateObj <= today) {
       const vitalsWithEmpty = [...existingVitals];
-      
+
       filteredResidents.forEach((resident: any) => {
-        const hasRecord = existingVitals.some((vital: any) => vital.residentId === resident.id);
+        const hasRecord = existingVitals.some(
+          (vital: any) => vital.residentId === resident.id,
+        );
         if (!hasRecord) {
           vitalsWithEmpty.push({
             id: `temp-${resident.id}-${selectedDate}-${selectedTiming}`,
@@ -380,33 +630,44 @@ export default function Vitals() {
             notes: null,
             createdAt: null,
             updatedAt: null,
-            isTemporary: true
+            isTemporary: true,
           });
         }
       });
-      
-      const uniqueVitals = vitalsWithEmpty.reduce((acc: any[], current: any) => {
-        const existing = acc.find(item => item.residentId === current.residentId);
-        if (!existing) {
-          acc.push(current);
-        } else {
-          if (existing.isTemporary && !current.isTemporary) {
-            const index = acc.findIndex(item => item.residentId === current.residentId);
-            acc[index] = current;
+
+      const uniqueVitals = vitalsWithEmpty.reduce(
+        (acc: any[], current: any) => {
+          const existing = acc.find(
+            (item) => item.residentId === current.residentId,
+          );
+          if (!existing) {
+            acc.push(current);
+          } else {
+            if (existing.isTemporary && !current.isTemporary) {
+              const index = acc.findIndex(
+                (item) => item.residentId === current.residentId,
+              );
+              acc[index] = current;
+            }
           }
-        }
-        return acc;
-      }, []);
-      
+          return acc;
+        },
+        [],
+      );
+
       return uniqueVitals;
     }
-    
+
     return existingVitals;
   };
 
   const filteredVitalSigns = getFilteredVitalSigns().sort((a: any, b: any) => {
-    const residentA = (residents as any[]).find((r: any) => r.id === a.residentId);
-    const residentB = (residents as any[]).find((r: any) => r.id === b.residentId);
+    const residentA = (residents as any[]).find(
+      (r: any) => r.id === a.residentId,
+    );
+    const residentB = (residents as any[]).find(
+      (r: any) => r.id === b.residentId,
+    );
     const roomA = parseInt(residentA?.roomNumber || "0");
     const roomB = parseInt(residentB?.roomNumber || "0");
     return roomA - roomB;
@@ -444,7 +705,7 @@ export default function Vitals() {
               className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
             />
           </div>
-          
+
           {/* 時間選択 */}
           <div className="flex items-center space-x-1">
             <Select value={selectedTiming} onValueChange={setSelectedTiming}>
@@ -460,7 +721,7 @@ export default function Vitals() {
               </SelectContent>
             </Select>
           </div>
-          
+
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -488,8 +749,10 @@ export default function Vitals() {
           </div>
         ) : (
           filteredVitalSigns.map((vital: any) => {
-            const resident = (residents as any[]).find((r: any) => r.id === vital.residentId);
-            
+            const resident = (residents as any[]).find(
+              (r: any) => r.id === vital.residentId,
+            );
+
             return (
               <Card key={vital.id} className="bg-white shadow-sm">
                 <CardContent className="p-3">
@@ -499,208 +762,312 @@ export default function Vitals() {
                       <div className="text-lg font-bold text-blue-600 min-w-[50px]">
                         {resident?.roomNumber || "未設定"}
                       </div>
-                      <div className="font-medium text-base">
+                      <div className="font-medium text-sm">
                         {resident?.name || "未設定"}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="bg-slate-100 px-2 py-1 rounded text-xs">{selectedTiming}</span>
-                      <div className="flex items-center gap-1">
-                        <InlineEditableField
+                    <div className="flex items-center gap-1 text-sm">
+                      <span className="bg-slate-100 px-1 py-1 rounded text-xs">
+                        {selectedTiming}
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        <InputWithDropdown
                           value={vital.hour?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'hour', value, residentId: vital.residentId })}
-                          type="select"
                           options={hourOptions}
-                          placeholder="時"
+                          onSave={(value) =>
+                            updateMutation.mutate({
+                              id: vital.id,
+                              field: "hour",
+                              value,
+                              residentId: vital.residentId,
+                            })
+                          }
+                          placeholder="--"
+                          className={`w-8 ${inputBaseClass}`}
                         />
-                        <span>:</span>
-                        <InlineEditableField
+                        <span className="text-xs">:</span>
+                        <InputWithDropdown
                           value={vital.minute?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'minute', value, residentId: vital.residentId })}
-                          type="select"
                           options={minuteOptions}
-                          placeholder="分"
+                          onSave={(value) =>
+                            updateMutation.mutate({
+                              id: vital.id,
+                              field: "minute",
+                              value,
+                              residentId: vital.residentId,
+                            })
+                          }
+                          placeholder="--"
+                          className={`w-8 ${inputBaseClass}`}
                         />
                       </div>
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white h-6 w-6 p-0"
-                        onClick={() => handleStaffStamp(vital.id, vital.residentId)}
+                      <input
+                        type="text"
+                        value={vital.staffName || ""}
+                        onChange={(e) =>
+                          updateMutation.mutate({
+                            id: vital.id,
+                            field: "staffName",
+                            value: e.target.value,
+                            residentId: vital.residentId,
+                          })
+                        }
+                        placeholder="記入者"
+                        className={`w-12 ${inputBaseClass} px-1`}
+                      />
+                      <button
+                        className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
+                        style={{
+                          height: "32px",
+                          width: "32px",
+                          minHeight: "32px",
+                          minWidth: "32px",
+                          maxHeight: "32px",
+                          maxWidth: "32px",
+                        }}
+                        onClick={() =>
+                          handleStaffStamp(vital.id, vital.residentId)
+                        }
                         data-testid={`button-stamp-${vital.id}`}
                       >
                         <User className="w-3 h-3" />
-                      </Button>
+                      </button>
                     </div>
                   </div>
-                  
+
                   {/* メインバイタル */}
-                  <div className="grid grid-cols-4 gap-2 mb-3">
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-blue-600 mb-1">体温</div>
-                      <Select 
-                        value={vital.temperature?.toString() || ""} 
-                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value, residentId: vital.residentId })}
-                      >
-                        <SelectTrigger className={`w-full ${selectTriggerClass}`}>
-                          <SelectValue placeholder="--" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {temperatureOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-blue-600 mb-1">血圧</div>
-                      <div className="flex items-center justify-center gap-0.5 text-sm">
-                        <Select 
-                          value={vital.bloodPressureSystolic?.toString() || ""} 
-                          onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureSystolic', value, residentId: vital.residentId })}
-                        >
-                          <SelectTrigger className={`w-8 ${selectTriggerClass} px-0.5`}>
-                            <SelectValue placeholder="--" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {systolicBPOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <span className="text-xs">/</span>
-                        <Select 
-                          value={vital.bloodPressureDiastolic?.toString() || ""} 
-                          onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureDiastolic', value, residentId: vital.residentId })}
-                        >
-                          <SelectTrigger className={`w-8 ${selectTriggerClass} px-0.5`}>
-                            <SelectValue placeholder="--" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {diastolicBPOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-blue-600 mb-1">脈拍</div>
-                      <Select 
-                        value={vital.pulseRate?.toString() || ""} 
-                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'pulseRate', value, residentId: vital.residentId })}
-                      >
-                        <SelectTrigger className={`w-full ${selectTriggerClass}`}>
-                          <SelectValue placeholder="--" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pulseOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="text-center">
-                      <div className="text-xs font-medium text-blue-600 mb-1">SpO2</div>
-                      <Select 
-                        value={vital.oxygenSaturation?.toString() || ""} 
-                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'oxygenSaturation', value, residentId: vital.residentId })}
-                      >
-                        <SelectTrigger className={`w-full ${selectTriggerClass}`}>
-                          <SelectValue placeholder="--" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {spo2Options.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  {/* サブバイタルと記録 */}
-                  <div className="flex gap-2 mb-3 items-center">
-                    <div className="text-center">
-                      <div className="text-xs font-medium mb-1">血糖</div>
-                      <input
-                        type="text"
-                        value={vital.bloodSugar?.toString() || ""}
-                        onChange={(e) => updateMutation.mutate({ id: vital.id, field: 'bloodSugar', value: e.target.value, residentId: vital.residentId })}
+                  <div className="flex gap-1 mb-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        体温
+                      </span>
+                      <InputWithDropdown
+                        value={
+                          vital.temperature
+                            ? parseFloat(vital.temperature.toString()).toFixed(
+                                1,
+                              )
+                            : ""
+                        }
+                        options={temperatureOptions}
+                        onSave={(value) =>
+                          updateMutation.mutate({
+                            id: vital.id,
+                            field: "temperature",
+                            value,
+                            residentId: vital.residentId,
+                          })
+                        }
                         placeholder="--"
                         className={`w-12 ${inputBaseClass}`}
                       />
                     </div>
-                    
-                    <div className="text-center">
-                      <div className="text-xs font-medium mb-1">呼吸</div>
-                      <Select 
-                        value={vital.respirationRate?.toString() || ""} 
-                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'respirationRate', value, residentId: vital.residentId })}
-                      >
-                        <SelectTrigger className={`w-12 ${selectTriggerClass}`}>
-                          <SelectValue placeholder="--" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {respirationOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        血圧
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        <InputWithDropdown
+                          value={vital.bloodPressureSystolic?.toString() || ""}
+                          options={systolicBPOptions}
+                          onSave={(value) =>
+                            updateMutation.mutate({
+                              id: vital.id,
+                              field: "bloodPressureSystolic",
+                              value,
+                              residentId: vital.residentId,
+                            })
+                          }
+                          placeholder="--"
+                          className={`w-10 ${inputBaseClass}`}
+                        />
+                        <span className="text-xs">/</span>
+                        <InputWithDropdown
+                          value={vital.bloodPressureDiastolic?.toString() || ""}
+                          options={diastolicBPOptions}
+                          onSave={(value) =>
+                            updateMutation.mutate({
+                              id: vital.id,
+                              field: "bloodPressureDiastolic",
+                              value,
+                              residentId: vital.residentId,
+                            })
+                          }
+                          placeholder="--"
+                          className={`w-10 ${inputBaseClass}`}
+                        />
+                      </div>
                     </div>
-                    
-                    <div className="flex-1">
-                      <div className="text-xs font-medium mb-1">記録</div>
-                      <input
-                        type="text"
-                        value={vital.notes || ""}
-                        onChange={(e) => updateMutation.mutate({ id: vital.id, field: 'notes', value: e.target.value, residentId: vital.residentId })}
-                        placeholder="記録内容"
-                        className={`w-full ${inputBaseClass} px-2`}
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        脈拍
+                      </span>
+                      <InputWithDropdown
+                        value={vital.pulseRate?.toString() || ""}
+                        options={pulseOptions}
+                        onSave={(value) =>
+                          updateMutation.mutate({
+                            id: vital.id,
+                            field: "pulseRate",
+                            value,
+                            residentId: vital.residentId,
+                          })
+                        }
+                        placeholder="--"
+                        className={`w-12 ${inputBaseClass}`}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        SpO2
+                      </span>
+                      <InputWithDropdown
+                        value={
+                          vital.oxygenSaturation
+                            ? Math.round(
+                                parseFloat(vital.oxygenSaturation.toString()),
+                              ).toString()
+                            : ""
+                        }
+                        options={spo2Options}
+                        onSave={(value) =>
+                          updateMutation.mutate({
+                            id: vital.id,
+                            field: "oxygenSaturation",
+                            value,
+                            residentId: vital.residentId,
+                          })
+                        }
+                        placeholder="--"
+                        className={`w-12 ${inputBaseClass}`}
                       />
                     </div>
                   </div>
-                  
-                  <div className="flex justify-end">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="bg-red-500 hover:bg-red-600 h-6 w-6 p-0"
-                          data-testid={`button-delete-${vital.id}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            この記録を削除してもよろしいですか？この操作は取り消せません。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteMutation.mutate(vital.id)}>
-                            削除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+
+                  {/* サブバイタルと記録 */}
+                  <div className="flex gap-1 mb-3 items-center">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        血糖
+                      </span>
+                      <input
+                        type="text"
+                        value={vital.bloodSugar?.toString() || ""}
+                        onChange={(e) =>
+                          updateMutation.mutate({
+                            id: vital.id,
+                            field: "bloodSugar",
+                            value: e.target.value,
+                            residentId: vital.residentId,
+                          })
+                        }
+                        placeholder="--"
+                        className={`w-12 ${inputBaseClass}`}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        呼吸
+                      </span>
+                      <InputWithDropdown
+                        value={vital.respirationRate?.toString() || ""}
+                        options={respirationOptions}
+                        onSave={(value) =>
+                          updateMutation.mutate({
+                            id: vital.id,
+                            field: "respirationRate",
+                            value,
+                            residentId: vital.residentId,
+                          })
+                        }
+                        placeholder="--"
+                        className={`w-8 ${inputBaseClass}`}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1 flex-1">
+                      <span className="text-xs font-medium text-blue-600">
+                        記録
+                      </span>
+                      <textarea
+                        value={
+                          localNotes[vital.id] !== undefined
+                            ? localNotes[vital.id]
+                            : vital.notes || ""
+                        }
+                        onChange={(e) => {
+                          setLocalNotes((prev) => ({
+                            ...prev,
+                            [vital.id]: e.target.value,
+                          }));
+                        }}
+                        onBlur={(e) => {
+                          const newValue = e.target.value;
+                          if (newValue !== (vital.notes || "")) {
+                            updateMutation.mutate({
+                              id: vital.id,
+                              field: "notes",
+                              value: newValue,
+                              residentId: vital.residentId,
+                            });
+                          }
+                          // ローカル状態をクリア
+                          setLocalNotes((prev) => {
+                            const updated = { ...prev };
+                            delete updated[vital.id];
+                            return updated;
+                          });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        placeholder="記録内容"
+                        className={`w-24 ${inputBaseClass} px-2 resize-none`}
+                        rows={1}
+                        style={{ minHeight: "32px", maxHeight: "64px" }}
+                      />
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            className="bg-red-500 hover:bg-red-600 text-white ml-1 rounded text-xs flex items-center justify-center"
+                            style={{
+                              height: "32px",
+                              width: "32px",
+                              minHeight: "32px",
+                              minWidth: "32px",
+                              maxHeight: "32px",
+                              maxWidth: "32px",
+                            }}
+                            data-testid={`button-delete-${vital.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              この記録を削除してもよろしいですか？この操作は取り消せません。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation.mutate(vital.id)}
+                            >
+                              削除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -711,7 +1078,7 @@ export default function Vitals() {
 
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-center">
-        <Button 
+        <Button
           className="bg-blue-600 hover:bg-blue-700 text-white"
           onClick={addNewRecord}
           data-testid="button-add-record"

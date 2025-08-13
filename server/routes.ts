@@ -195,9 +195,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const vitals = await storage.createVitalSigns(validatedData);
       res.status(201).json(vitals);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating vital signs:", error);
-      res.status(400).json({ message: "Invalid vital signs data" });
+      console.error("Request body:", req.body);
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+        res.status(400).json({ 
+          message: "Invalid vital signs data", 
+          errors: error.errors 
+        });
+      } else {
+        res.status(400).json({ message: "Invalid vital signs data" });
+      }
     }
   });
 
@@ -207,9 +216,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertVitalSignsSchema.partial().parse(req.body);
       const vitals = await storage.updateVitalSigns(id, validatedData);
       res.json(vitals);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating vital signs:", error);
-      res.status(400).json({ message: "Invalid vital signs data" });
+      console.error("Request body:", req.body);
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+        res.status(400).json({ 
+          message: "Invalid vital signs data", 
+          errors: error.errors 
+        });
+      } else {
+        res.status(400).json({ message: "Invalid vital signs data" });
+      }
     }
   });
 

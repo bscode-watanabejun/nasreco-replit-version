@@ -316,7 +316,10 @@ export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
 });
 
 export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
-  recordDate: z.string().transform((str) => new Date(str)),
+  recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
   temperature: z.union([z.string(), z.number()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return undefined;
     return typeof val === 'string' ? val : val.toString();
