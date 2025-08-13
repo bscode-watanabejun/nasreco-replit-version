@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface CleaningLinenRecord {
   id: string;
@@ -47,6 +48,16 @@ export default function CleaningLinenList() {
     return startOfWeek(new Date(), { weekStartsOn: 1 }); // 月曜日始まり
   });
   const [selectedFloor, setSelectedFloor] = useState("全階");
+  
+  // ポップアップ用の状態
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<{
+    residentId: string;
+    date: Date;
+    currentNote: string;
+  } | null>(null);
+  const [tempNote, setTempNote] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: residents = [] } = useQuery<Resident[]>({
     queryKey: ["/api/residents"],
@@ -78,12 +89,73 @@ export default function CleaningLinenList() {
       if (!response.ok) throw new Error('Failed to save record');
       return response.json();
     },
-    onSuccess: () => {
-      // 現在表示中のクエリキーと一致するように無効化
+    onMutate: async (newRecord) => {
+      // 楽観的更新の実装
+      const queryKey = ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor];
+      
+      // 進行中のクエリをキャンセル（競合を避けるため）
+      await queryClient.cancelQueries({ queryKey });
+      
+      // 現在のデータを取得（ロールバック用に保存）
+      const previousData = queryClient.getQueryData<CleaningLinenRecord[]>(queryKey);
+      
+      // 楽観的更新を実行
+      queryClient.setQueryData<CleaningLinenRecord[]>(queryKey, (oldData) => {
+        if (!oldData) return oldData;
+        
+        // 既存のレコードを探す
+        const existingRecordIndex = oldData.findIndex(
+          record => record.residentId === newRecord.residentId && record.recordDate === newRecord.recordDate
+        );
+        
+        if (existingRecordIndex >= 0) {
+          // 既存レコードを更新
+          const updatedData = [...oldData];
+          updatedData[existingRecordIndex] = {
+            ...updatedData[existingRecordIndex],
+            cleaningValue: newRecord.cleaningValue !== undefined ? newRecord.cleaningValue : updatedData[existingRecordIndex].cleaningValue,
+            linenValue: newRecord.linenValue !== undefined ? newRecord.linenValue : updatedData[existingRecordIndex].linenValue,
+            recordNote: newRecord.recordNote !== undefined ? newRecord.recordNote : updatedData[existingRecordIndex].recordNote,
+          };
+          return updatedData;
+        } else {
+          // 新しいレコードを追加
+          const resident = residents.find(r => r.id === newRecord.residentId);
+          if (!resident) return oldData;
+          
+          const newRecordEntry: CleaningLinenRecord = {
+            id: `temp-${Date.now()}`, // 一時ID
+            residentId: newRecord.residentId,
+            recordDate: newRecord.recordDate,
+            dayOfWeek: newRecord.dayOfWeek,
+            cleaningValue: newRecord.cleaningValue || "",
+            linenValue: newRecord.linenValue || "",
+            recordNote: newRecord.recordNote || "",
+            staffId: "", // サーバーから返される
+            residentName: resident.name,
+            residentFloor: resident.floor,
+            residentRoom: resident.roomNumber,
+            staffName: "", // サーバーから返される
+          };
+          
+          return [...oldData, newRecordEntry];
+        }
+      });
+      
+      // ロールバック用にpreviousDataを返す
+      return { previousData, queryKey };
+    },
+    onError: (err, newRecord, context) => {
+      // エラー時にロールバック
+      if (context?.previousData) {
+        queryClient.setQueryData(context.queryKey, context.previousData);
+      }
+    },
+    onSettled: () => {
+      // 成功・失敗に関わらず、サーバーの最新データで同期
       queryClient.invalidateQueries({ 
         queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
       });
-      // より広範囲の無効化も追加
       queryClient.invalidateQueries({ 
         predicate: (query) => query.queryKey[0] === "/api/cleaning-linen"
       });
@@ -189,6 +261,42 @@ export default function CleaningLinenList() {
     setSelectedWeek(newWeek);
   };
 
+  // 記録ポップアップの開閉処理
+  const handleRecordClick = (residentId: string, date: Date, currentNote: string) => {
+    setEditingRecord({ residentId, date, currentNote });
+    setTempNote(currentNote);
+    setPopoverOpen(true);
+    // フォーカスを設定するためにsetTimeoutを使用
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
+  };
+
+  const handleNoteBlur = () => {
+    if (!editingRecord) return;
+    
+    // 値が変更された場合のみ保存
+    if (tempNote !== editingRecord.currentNote) {
+      const dateStr = format(editingRecord.date, 'yyyy-MM-dd');
+      const dayOfWeek = getDay(editingRecord.date) === 0 ? 6 : getDay(editingRecord.date) - 1;
+      const existingRecord = getRecordForDate(editingRecord.residentId, editingRecord.date);
+      
+      upsertRecordMutation.mutate({
+        residentId: editingRecord.residentId,
+        recordDate: dateStr,
+        dayOfWeek,
+        cleaningValue: existingRecord?.cleaningValue || "",
+        linenValue: existingRecord?.linenValue || "",
+        recordNote: tempNote,
+      });
+    }
+    
+    setPopoverOpen(false);
+    setEditingRecord(null);
+    setTempNote("");
+  };
+
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-blue-600 text-white p-2 shadow-md">
@@ -246,18 +354,18 @@ export default function CleaningLinenList() {
 
         {/* テーブル */}
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs border-separate border-spacing-0">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-1 text-center border border-gray-300 w-14" data-testid="header-room">部屋/氏名</th>
-                <th className="p-1 text-center border border-gray-300 w-10" data-testid="header-type">種別</th>
+                <th className="p-0.5 text-center border border-gray-300 rounded-tl-lg w-20" colspan={2} data-testid="header-room-type"></th>
                 {weekDays.map((day, index) => {
                   const date = addDays(selectedWeek, index);
                   const isSelectedDate = selectedDateFromUrl && format(date, 'yyyy-MM-dd') === selectedDateFromUrl;
+                  const isLastColumn = index === weekDays.length - 1;
                   return (
                     <th 
                       key={day} 
-                      className={`p-0.5 text-center border border-gray-300 w-10 ${isSelectedDate ? 'bg-yellow-100' : ''}`}
+                      className={`p-0.5 text-center border border-gray-300 w-12 ${isSelectedDate ? 'bg-yellow-100' : ''} ${isLastColumn ? 'rounded-tr-lg' : ''}`}
                       data-testid={`header-day-${day}`}
                     >
                       <div>{day}</div>
@@ -276,11 +384,11 @@ export default function CleaningLinenList() {
                   const roomB = parseInt(b.roomNumber || '999999');
                   return roomA - roomB;
                 })
-                .flatMap((resident) => [
+                .flatMap((resident, residentIndex, sortedResidents) => [
                   /* 清掃行 */
                   <tr key={`cleaning-${resident.id}`} className="border-b border-gray-200">
                     <td 
-                      className="p-1 text-center border border-gray-300 text-xs font-medium leading-tight"
+                      className={`p-0.5 text-center border border-gray-300 text-xs font-medium leading-tight w-16 ${residentIndex === sortedResidents.length - 1 ? 'rounded-bl-lg' : ''}`}
                       rowSpan={3}
                       data-testid={`room-${resident.id}`}
                     >
@@ -288,7 +396,7 @@ export default function CleaningLinenList() {
                       <div className="text-gray-600 text-xs mt-0.5">{resident.name}</div>
                     </td>
                     <td 
-                      className="p-0.5 text-center border border-gray-300 text-xs bg-blue-50"
+                      className="p-0.5 text-center border border-gray-300 text-xs bg-blue-50 w-4"
                       data-testid={`type-cleaning-${resident.id}`}
                     >
                       清掃
@@ -314,7 +422,7 @@ export default function CleaningLinenList() {
                   /* リネン行 */
                   <tr key={`linen-${resident.id}`} className="border-b border-gray-200">
                     <td 
-                      className="p-0.5 text-center border border-gray-300 text-xs bg-green-50"
+                      className="p-0.5 text-center border border-gray-300 text-xs bg-green-50 w-4"
                       data-testid={`type-linen-${resident.id}`}
                     >
                       リネン
@@ -339,7 +447,7 @@ export default function CleaningLinenList() {
                   /* 記録行 */
                   <tr key={`record-${resident.id}`} className="border-b border-gray-200">
                     <td 
-                      className="p-0.5 text-center border border-gray-300 text-xs bg-yellow-50"
+                      className="p-0.5 text-center border border-gray-300 text-xs bg-yellow-50 w-4"
                       data-testid={`type-record-${resident.id}`}
                     >
                       記録
@@ -348,29 +456,52 @@ export default function CleaningLinenList() {
                       const date = addDays(selectedWeek, index);
                       const record = getRecordForDate(resident.id, date);
                       const note = record?.recordNote || "";
+                      const isLastColumn = index === weekDays.length - 1;
+                      const isLastRow = residentIndex === sortedResidents.length - 1;
                       return (
-                        <td
+                        <Popover
                           key={`record-${resident.id}-${index}`}
-                          className="p-0.5 text-center border border-gray-300 cursor-pointer hover:bg-gray-100 text-xs"
-                          onClick={() => {
-                            const newNote = prompt("記録を入力してください", note);
-                            if (newNote !== null) {
-                              const dateStr = format(date, 'yyyy-MM-dd');
-                              const dayOfWeek = getDay(date) === 0 ? 6 : getDay(date) - 1;
-                              upsertRecordMutation.mutate({
-                                residentId: resident.id,
-                                recordDate: dateStr,
-                                dayOfWeek,
-                                cleaningValue: record?.cleaningValue || "",
-                                linenValue: record?.linenValue || "",
-                                recordNote: newNote,
-                              });
+                          open={popoverOpen && editingRecord?.residentId === resident.id && 
+                                format(editingRecord?.date || new Date(), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')}
+                          onOpenChange={(open) => {
+                            if (!open) {
+                              handleNoteBlur();
                             }
                           }}
-                          data-testid={`cell-record-${resident.id}-${index}`}
                         >
-                          {note.length > 4 ? note.substring(0, 4) + "..." : note}
-                        </td>
+                          <PopoverTrigger asChild>
+                            <td
+                              className={`p-0.5 text-center border border-gray-300 cursor-pointer hover:bg-gray-100 text-xs ${isLastRow && isLastColumn ? 'rounded-br-lg' : ''}`}
+                              onClick={() => handleRecordClick(resident.id, date, note)}
+                              data-testid={`cell-record-${resident.id}-${index}`}
+                            >
+                              {note.length > 4 ? note.substring(0, 4) + "..." : note}
+                            </td>
+                          </PopoverTrigger>
+                          <PopoverContent 
+                            className="w-72 p-3"
+                            align="center"
+                            side="top"
+                          >
+                            <div className="space-y-2">
+                              <div className="text-sm font-medium">
+                                {resident.roomNumber} {resident.name} - {format(date, 'M/d', { locale: ja })}の記録
+                              </div>
+                              <textarea
+                                ref={textareaRef}
+                                value={tempNote}
+                                onChange={(e) => setTempNote(e.target.value)}
+                                onBlur={handleNoteBlur}
+                                placeholder="記録を入力してください"
+                                className="w-full h-20 text-sm border border-gray-300 rounded px-2 py-1 resize-none"
+                                style={{ minHeight: '80px' }}
+                              />
+                              <div className="text-xs text-gray-500">
+フィールド外をタップで保存
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       );
                     })}
                   </tr>

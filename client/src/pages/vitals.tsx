@@ -97,6 +97,10 @@ export default function Vitals() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   
+  // 共通スタイル定数
+  const inputBaseClass = "h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const selectTriggerClass = "h-8 min-h-8 max-h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 leading-none py-0";
+  
   // URLパラメータから日付と時間帯、フロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
@@ -275,6 +279,11 @@ export default function Vitals() {
   const respirationOptions = Array.from({ length: 16 }, (_, i) => {
     const rr = (10 + i).toString();
     return { value: rr, label: rr };
+  });
+
+  const bloodSugarOptions = Array.from({ length: 41 }, (_, i) => {
+    const bs = (60 + i * 5).toString();
+    return { value: bs, label: bs };
   });
 
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({
@@ -553,126 +562,173 @@ export default function Vitals() {
                   </div>
                   
                   {/* メインバイタル */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                  <div className="grid grid-cols-4 gap-2 mb-3">
                     <div className="text-center">
                       <div className="text-xs font-medium text-blue-600 mb-1">体温</div>
-                      <InlineEditableField
-                        value={vital.temperature?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value, residentId: vital.residentId })}
-                        type="select"
-                        options={temperatureOptions}
-                        placeholder="--"
-                      />
+                      <Select 
+                        value={vital.temperature?.toString() || ""} 
+                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value, residentId: vital.residentId }))
+                      >
+                        <SelectTrigger className={`w-full ${selectTriggerClass}`}>
+                          <SelectValue placeholder="--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {temperatureOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
                     <div className="text-center">
                       <div className="text-xs font-medium text-blue-600 mb-1">血圧</div>
-                      <div className="flex items-center justify-center gap-1 text-sm">
-                        <InlineEditableField
-                          value={vital.bloodPressureSystolic?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureSystolic', value, residentId: vital.residentId })}
-                          type="select"
-                          options={systolicBPOptions}
-                          placeholder="--"
-                        />
-                        <span>/</span>
-                        <InlineEditableField
-                          value={vital.bloodPressureDiastolic?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureDiastolic', value, residentId: vital.residentId })}
-                          type="select"
-                          options={diastolicBPOptions}
-                          placeholder="--"
-                        />
+                      <div className="flex items-center justify-center gap-0.5 text-sm">
+                        <Select 
+                          value={vital.bloodPressureSystolic?.toString() || ""} 
+                          onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureSystolic', value, residentId: vital.residentId })}
+                        >
+                          <SelectTrigger className={`w-8 ${selectTriggerClass} px-0.5`}>
+                            <SelectValue placeholder="--" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {systolicBPOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-xs">/</span>
+                        <Select 
+                          value={vital.bloodPressureDiastolic?.toString() || ""} 
+                          onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodPressureDiastolic', value, residentId: vital.residentId })}
+                        >
+                          <SelectTrigger className={`w-8 ${selectTriggerClass} px-0.5`}>
+                            <SelectValue placeholder="--" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {diastolicBPOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     
                     <div className="text-center">
                       <div className="text-xs font-medium text-blue-600 mb-1">脈拍</div>
-                      <InlineEditableField
-                        value={vital.pulseRate?.toString() || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'pulseRate', value, residentId: vital.residentId })}
-                        type="select"
-                        options={pulseOptions}
-                        placeholder="--"
-                      />
+                      <Select 
+                        value={vital.pulseRate?.toString() || ""} 
+                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'pulseRate', value, residentId: vital.residentId })}
+                      >
+                        <SelectTrigger className={`w-full ${selectTriggerClass}`}>
+                          <SelectValue placeholder="--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pulseOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
                     <div className="text-center">
                       <div className="text-xs font-medium text-blue-600 mb-1">SpO2</div>
-                      <div className="flex items-center justify-center gap-1">
-                        <InlineEditableField
-                          value={vital.oxygenSaturation?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'oxygenSaturation', value, residentId: vital.residentId })}
-                          type="select"
-                          options={spo2Options}
-                          placeholder="--"
-                        />
-                        {vital.oxygenSaturation && <span className="text-xs text-slate-600">%</span>}
-                      </div>
+                      <Select 
+                        value={vital.oxygenSaturation?.toString() || ""} 
+                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'oxygenSaturation', value, residentId: vital.residentId })}
+                      >
+                        <SelectTrigger className={`w-full ${selectTriggerClass}`}>
+                          <SelectValue placeholder="--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {spo2Options.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   
                   {/* サブバイタルと記録 */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="text-center min-w-[60px]">
-                        <div className="text-xs font-medium mb-1">血糖</div>
-                        <InlineEditableField
-                          value={vital.bloodSugar?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'bloodSugar', value, residentId: vital.residentId })}
-                          type="text"
-                          placeholder="--"
-                        />
-                      </div>
-                      <div className="text-center min-w-[60px]">
-                        <div className="text-xs font-medium mb-1">呼吸</div>
-                        <InlineEditableField
-                          value={vital.respirationRate?.toString() || ""}
-                          onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'respirationRate', value, residentId: vital.residentId })}
-                          type="select"
-                          options={respirationOptions}
-                          placeholder="--"
-                        />
-                      </div>
+                  <div className="flex gap-2 mb-3 items-center">
+                    <div className="text-center">
+                      <div className="text-xs font-medium mb-1">血糖</div>
+                      <input
+                        type="text"
+                        value={vital.bloodSugar?.toString() || ""}
+                        onChange={(e) => updateMutation.mutate({ id: vital.id, field: 'bloodSugar', value: e.target.value, residentId: vital.residentId })}
+                        placeholder="--"
+                        className={`w-12 ${inputBaseClass}`}
+                      />
+                    </div>
+                    
+                    <div className="text-center">
+                      <div className="text-xs font-medium mb-1">呼吸</div>
+                      <Select 
+                        value={vital.respirationRate?.toString() || ""} 
+                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'respirationRate', value, residentId: vital.residentId })}
+                      >
+                        <SelectTrigger className={`w-12 ${selectTriggerClass}`}>
+                          <SelectValue placeholder="--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {respirationOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
                     <div className="flex-1">
                       <div className="text-xs font-medium mb-1">記録</div>
-                      <InlineEditableField
+                      <input
+                        type="text"
                         value={vital.notes || ""}
-                        onSave={(value) => updateMutation.mutate({ id: vital.id, field: 'notes', value, residentId: vital.residentId })}
+                        onChange={(e) => updateMutation.mutate({ id: vital.id, field: 'notes', value: e.target.value, residentId: vital.residentId })}
                         placeholder="記録内容"
+                        className={`w-full ${inputBaseClass} px-2`}
                       />
                     </div>
-                    
-                    <div className="flex justify-end">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="bg-red-500 hover:bg-red-600 h-6 w-6 p-0"
-                            data-testid={`button-delete-${vital.id}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              この記録を削除してもよろしいですか？この操作は取り消せません。
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteMutation.mutate(vital.id)}>
-                              削除
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="bg-red-500 hover:bg-red-600 h-6 w-6 p-0"
+                          data-testid={`button-delete-${vital.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            この記録を削除してもよろしいですか？この操作は取り消せません。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => deleteMutation.mutate(vital.id)}>
+                            削除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>
