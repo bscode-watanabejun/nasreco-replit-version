@@ -152,11 +152,6 @@ export default function Vitals() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      // メッセージを非表示にするためコメントアウト
-      // toast({
-      //   title: "成功",
-      //   description: "バイタルサインを記録しました",
-      // });
     },
     onError: (error) => {
       toast({
@@ -209,21 +204,17 @@ export default function Vitals() {
         } else if (['hour', 'minute'].includes(field)) {
           updateData[field] = value ? parseInt(value) : null;
         }
+        
         await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      // メッセージを非表示にするためコメントアウト
-      // toast({
-      //   title: "保存完了",
-      //   description: "記録を更新しました",
-      // });
     },
     onError: (error) => {
       toast({
         title: "エラー",
-        description: "記録の更新に失敗しました",
+        description: "バイタルサインの更新に失敗しました",
         variant: "destructive",
       });
     },
@@ -232,12 +223,12 @@ export default function Vitals() {
   // 記録削除用ミューテーション
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/vital-signs/${id}`);
+      await apiRequest(`/api/vital-signs/${id}`, "DELETE");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
       toast({
-        title: "削除完了",
+        title: "成功",
         description: "記録を削除しました",
       });
     },
@@ -250,59 +241,11 @@ export default function Vitals() {
     },
   });
 
-  // オプションの定義
-  const temperatureOptions = Array.from({ length: 21 }, (_, i) => {
-    const temp = (36.0 + i * 0.1).toFixed(1);
-    return { value: temp, label: temp };
-  });
-
-  const systolicBPOptions = Array.from({ length: 51 }, (_, i) => {
-    const bp = (80 + i).toString();
-    return { value: bp, label: bp };
-  });
-
-  const diastolicBPOptions = Array.from({ length: 41 }, (_, i) => {
-    const bp = (50 + i).toString();
-    return { value: bp, label: bp };
-  });
-
-  const pulseOptions = Array.from({ length: 51 }, (_, i) => {
-    const pulse = (50 + i).toString();
-    return { value: pulse, label: pulse };
-  });
-
-  const spo2Options = Array.from({ length: 31 }, (_, i) => {
-    const spo2 = (70 + i).toString();
-    return { value: spo2, label: spo2 };
-  });
-
-  const respirationOptions = Array.from({ length: 16 }, (_, i) => {
-    const rr = (10 + i).toString();
-    return { value: rr, label: rr };
-  });
-
-  const bloodSugarOptions = Array.from({ length: 41 }, (_, i) => {
-    const bs = (60 + i * 5).toString();
-    return { value: bs, label: bs };
-  });
-
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
-    value: i.toString(),
-    label: i.toString().padStart(2, '0'),
-  }));
-
-  const minuteOptions = [
-    { value: "0", label: "00" },
-    { value: "15", label: "15" },
-    { value: "30", label: "30" },
-    { value: "45", label: "45" },
-  ];
-
+  // 選択肢の定義
   const timingOptions = [
     { value: "午前", label: "午前" },
     { value: "午後", label: "午後" },
-    { value: "臨時", label: "臨時" },
-    { value: "前日", label: "前日" },
+    { value: "夜間", label: "夜間" },
   ];
 
   const floorOptions = [
@@ -314,60 +257,96 @@ export default function Vitals() {
     { value: "5", label: "5階" },
   ];
 
-  // 新規記録作成
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: `${i}時` }));
+  const minuteOptions = Array.from({ length: 60 }, (_, i) => ({ value: i.toString(), label: `${i}分` }));
+
+  // バイタルサインの選択肢
+  const temperatureOptions = Array.from({ length: 50 }, (_, i) => {
+    const temp = (35.0 + i * 0.1).toFixed(1);
+    return { value: temp, label: temp };
+  });
+
+  const systolicBPOptions = Array.from({ length: 101 }, (_, i) => {
+    const bp = (80 + i).toString();
+    return { value: bp, label: bp };
+  });
+
+  const diastolicBPOptions = Array.from({ length: 81 }, (_, i) => {
+    const bp = (40 + i).toString();
+    return { value: bp, label: bp };
+  });
+
+  const pulseOptions = Array.from({ length: 101 }, (_, i) => {
+    const pulse = (40 + i).toString();
+    return { value: pulse, label: pulse };
+  });
+
+  const spo2Options = Array.from({ length: 31 }, (_, i) => {
+    const spo2 = (70 + i).toString();
+    return { value: spo2, label: spo2 };
+  });
+
+  const respirationOptions = Array.from({ length: 31 }, (_, i) => {
+    const rr = (10 + i).toString();
+    return { value: rr, label: rr };
+  });
+
+  // スタッフ印機能
+  const handleStaffStamp = async (vitalId: string, residentId?: string) => {
+    const user = currentUser as any;
+    const staffName = user?.firstName && user?.lastName 
+      ? `${user.lastName} ${user.firstName}`
+      : user?.email || "スタッフ";
+    
+    await updateMutation.mutate({ 
+      id: vitalId, 
+      field: 'staffName', 
+      value: staffName,
+      residentId 
+    });
+  };
+
+  // 新規記録追加
   const addNewRecord = () => {
+    const residentList = residents as any[];
+    if (!residentList || residentList.length === 0) {
+      toast({
+        title: "エラー",
+        description: "利用者情報が見つかりません",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 最初の利用者に対して新規レコードを作成
+    const firstResident = residentList[0];
     const newRecord = {
-      residentId: "",
-      recordDate: new Date(),
+      residentId: firstResident.id,
+      recordDate: new Date(selectedDate),
       timing: selectedTiming,
-      temperature: null,
-      bloodPressureSystolic: null,
-      bloodPressureDiastolic: null,
-      pulseRate: null,
-      respirationRate: null,
-      oxygenSaturation: null,
-      bloodSugar: null,
-      notes: "",
-      staffName: "",
     };
+
     createMutation.mutate(newRecord);
   };
 
-  // 記入者スタンプ機能
-  const handleStaffStamp = (vitalId: string, residentId?: string) => {
-    const now = new Date();
-    const hour = now.getHours().toString();
-    const minute = Math.floor(now.getMinutes() / 15) * 15; // 15分単位に丸める
-    const staffName = (currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明";
-    
-    updateMutation.mutate({ id: vitalId, field: 'hour', value: hour, residentId });
-    updateMutation.mutate({ id: vitalId, field: 'minute', value: minute.toString(), residentId });
-    updateMutation.mutate({ id: vitalId, field: 'staffName', value: staffName, residentId });
-  };
-
-  // 階数でフィルタリングした利用者リスト
-  const filteredResidents = (residents as any[]).filter((resident: any) => {
-    if (selectedFloor === "全階") return true;
-    // "1F", "2F" などのF文字を除去して数値のみで比較
-    const residentFloor = resident.floor?.toString().replace('F', '');
-    return residentFloor === selectedFloor;
-  });
-
-  // フィルタリング済みの記録を取得し、存在しない場合は空のレコードを作成
+  // フィルタリングロジック
   const getFilteredVitalSigns = () => {
+    const filteredResidents = (residents as any[]).filter((resident: any) => {
+      if (selectedFloor === "全階") return true;
+      
+      const residentFloor = resident.floor;
+      return residentFloor === selectedFloor;
+    });
+
     const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
       const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
       if (vitalDate !== selectedDate) return false;
       
       if (vital.timing !== selectedTiming) return false;
       
-      if (selectedFloor !== "全階") {
-        const resident = residents.find((r: any) => r.id === vital.residentId);
-        if (!resident) return false;
-        // "1F", "2F" などのF文字を除去して数値のみで比較
-        const residentFloor = resident.floor?.toString().replace('F', '');
-        if (residentFloor !== selectedFloor) return false;
-      }
+      // フロアフィルタリング
+      const resident = filteredResidents.find((r: any) => r.id === vital.residentId);
+      if (!resident) return false;
       
       return true;
     });
@@ -375,16 +354,14 @@ export default function Vitals() {
     // 当日以前の日付の場合、すべての利用者のカードを表示
     const selectedDateObj = new Date(selectedDate);
     const today = new Date();
-    today.setHours(23, 59, 59, 999); // 今日の終わりまでを含む
+    today.setHours(23, 59, 59, 999);
 
     if (selectedDateObj <= today) {
-      // 各利用者に対してレコードが存在するかチェック、なければ空のレコードを作成
       const vitalsWithEmpty = [...existingVitals];
       
       filteredResidents.forEach((resident: any) => {
         const hasRecord = existingVitals.some((vital: any) => vital.residentId === resident.id);
         if (!hasRecord) {
-          // 空のレコードを作成
           vitalsWithEmpty.push({
             id: `temp-${resident.id}-${selectedDate}-${selectedTiming}`,
             residentId: resident.id,
@@ -403,18 +380,16 @@ export default function Vitals() {
             notes: null,
             createdAt: null,
             updatedAt: null,
-            isTemporary: true // 一時的なレコードフラグ
+            isTemporary: true
           });
         }
       });
       
-      // 重複を防ぐため、residentIdでユニークにする
       const uniqueVitals = vitalsWithEmpty.reduce((acc: any[], current: any) => {
         const existing = acc.find(item => item.residentId === current.residentId);
         if (!existing) {
           acc.push(current);
         } else {
-          // 既存のレコードが一時的で、新しいレコードが実際のレコードの場合は置き換え
           if (existing.isTemporary && !current.isTemporary) {
             const index = acc.findIndex(item => item.residentId === current.residentId);
             acc[index] = current;
@@ -430,8 +405,8 @@ export default function Vitals() {
   };
 
   const filteredVitalSigns = getFilteredVitalSigns().sort((a: any, b: any) => {
-    const residentA = residents.find((r: any) => r.id === a.residentId);
-    const residentB = residents.find((r: any) => r.id === b.residentId);
+    const residentA = (residents as any[]).find((r: any) => r.id === a.residentId);
+    const residentB = (residents as any[]).find((r: any) => r.id === b.residentId);
     const roomA = parseInt(residentA?.roomNumber || "0");
     const roomB = parseInt(residentB?.roomNumber || "0");
     return roomA - roomB;
@@ -513,10 +488,7 @@ export default function Vitals() {
           </div>
         ) : (
           filteredVitalSigns.map((vital: any) => {
-            const resident = residents.find((r: any) => r.id === vital.residentId);
-            const hasAnyData = vital.temperature || vital.bloodPressureSystolic || vital.bloodPressureDiastolic || 
-                              vital.pulseRate || vital.respirationRate || vital.oxygenSaturation || 
-                              vital.bloodSugar || vital.notes || vital.staffName;
+            const resident = (residents as any[]).find((r: any) => r.id === vital.residentId);
             
             return (
               <Card key={vital.id} className="bg-white shadow-sm">
@@ -567,7 +539,7 @@ export default function Vitals() {
                       <div className="text-xs font-medium text-blue-600 mb-1">体温</div>
                       <Select 
                         value={vital.temperature?.toString() || ""} 
-                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value, residentId: vital.residentId }))
+                        onValueChange={(value) => updateMutation.mutate({ id: vital.id, field: 'temperature', value, residentId: vital.residentId })}
                       >
                         <SelectTrigger className={`w-full ${selectTriggerClass}`}>
                           <SelectValue placeholder="--" />
