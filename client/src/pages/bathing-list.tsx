@@ -855,7 +855,7 @@ export default function BathingList() {
         id: tempId,
         residentId: residentList[0]?.id || "", // 最初の利用者を選択
         recordDate: `${selectedDate}T00:00:00.000Z`,
-        timing: selectedTiming,
+        timing: "午前",
         hour: "",
         minute: "",
         staffName: "",

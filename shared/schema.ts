@@ -389,38 +389,20 @@ export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
-  hour: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
-  minute: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
-  temperature: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'string' ? parseFloat(val) : val;
-  }),
-  weight: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'string' ? parseFloat(val) : val;
-  }),
-  bloodPressureSystolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
-  bloodPressureDiastolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
-  pulseRate: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
-  oxygenSaturation: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'string' ? parseFloat(val) : val;
-  }),
+  residentId: z.string().min(1, "利用者IDは必須です"),
+  timing: z.string().optional(),
+  hour: z.string().optional(),
+  minute: z.string().optional(),
+  staffName: z.string().optional(),
+  bathType: z.string().optional(),
+  weight: z.string().optional(),
+  bloodPressureSystolic: z.string().optional(),
+  bloodPressureDiastolic: z.string().optional(),
+  pulseRate: z.string().optional(),
+  oxygenSaturation: z.string().optional(),
+  notes: z.string().optional(),
+  rejectionReason: z.string().optional(),
+  nursingCheck: z.boolean().optional(),
 }).omit({
   id: true,
   createdAt: true,
