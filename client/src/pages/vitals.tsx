@@ -564,7 +564,7 @@ export default function Vitals() {
         residentId: newResidentId
       });
     },
-    // 楽観的更新の実装
+    // 楽観的更新で即座にUIを更新
     onMutate: async ({ vitalId, newResidentId }) => {
       // 進行中のクエリをキャンセル
       await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
@@ -927,7 +927,7 @@ export default function Vitals() {
             );
 
             return (
-              <Card key={vital.id} className="bg-white shadow-sm">
+              <Card key={`${vital.id}-${vital.residentId}`} className="bg-white shadow-sm">
                 <CardContent className="p-3">
                   {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
                   <div className="flex items-center justify-between mb-3">
