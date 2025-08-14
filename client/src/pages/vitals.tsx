@@ -132,12 +132,14 @@ function InputWithDropdown({
   onSave,
   placeholder,
   className,
+  disabled = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -149,6 +151,7 @@ function InputWithDropdown({
   }, [value]);
 
   const handleSelect = (selectedValue: string) => {
+    if (disabled) return;
     setInputValue(selectedValue);
     onSave(selectedValue);
     setOpen(false);
@@ -183,14 +186,17 @@ function InputWithDropdown({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     setInputValue(e.target.value);
   };
 
   const handleInputBlur = () => {
+    if (disabled) return;
     onSave(inputValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
     if (e.key === "Enter") {
       onSave(inputValue);
       setOpen(false);
@@ -209,11 +215,12 @@ function InputWithDropdown({
           value={inputValue}
           onChange={handleInputChange}
           onBlur={handleInputBlur}
-          onFocus={() => setOpen(true)}
+          onFocus={() => !disabled && setOpen(true)}
           onKeyDown={handleKeyDown}
           onClick={(e) => e.preventDefault()}
           placeholder={placeholder}
-          className={className}
+          className={`${className} ${disabled ? 'cursor-not-allowed' : ''}`}
+          disabled={disabled}
         />
       </PopoverTrigger>
       <PopoverContent className="w-32 p-0.5" align="center">
@@ -257,44 +264,459 @@ function ResidentSelector({
   residents: any[];
   onResidentChange: (vitalId: string, residentId: string) => void;
 }) {
-  const currentResident = residents.find((r: any) => r.id === vital.residentId);
+  const [pendingResidentId, setPendingResidentId] = useState<string | null>(null);
+  
+  // pendingResidentIdがある場合はそれを使用、なければvital.residentIdを使用
+  const effectiveResidentId = pendingResidentId || vital.residentId;
+  const currentResident = residents.find((r: any) => r.id === effectiveResidentId);
   const isAllEmpty = isAllVitalFieldsEmpty(vital);
   
-  if (!isAllEmpty) {
-    // 通常の利用者名表示
-    return (
-      <div className="font-medium text-sm truncate max-w-[120px] sm:max-w-none">
-        {currentResident?.name || "未設定"}
-      </div>
-    );
-  }
-  
-  // 全項目未入力の場合はプルダウン選択
+  // 利用者選択肢（valueとlabelを名前で統一）
   const residentOptions = residents.map((r: any) => ({
-    value: r.id,
+    value: r.name,
     label: r.name,
   }));
 
+  const handleResidentChange = (residentId: string) => {
+    // 即座にUIを更新するためにローカル状態を設定
+    setPendingResidentId(residentId);
+    
+    // 実際の更新処理を呼び出し
+    onResidentChange(vital.id, residentId);
+  };
+
+  // vital.residentIdが変更されたらローカル状態をクリア
+  // ただし、pendingResidentIdが設定されている場合は、それが優先される
+  useEffect(() => {
+    if (pendingResidentId && vital.residentId === pendingResidentId) {
+      // サーバーからの更新でresidentIdが正しく反映されたらローカル状態をクリア
+      setPendingResidentId(null);
+    }
+  }, [vital.residentId, pendingResidentId]);
+
+  // 全項目未入力でない場合は変更不可
+  const disabled = !isAllEmpty;
+
   return (
-    <div className="font-medium text-sm truncate max-w-[120px] sm:max-w-none">
-      <Select
-        value={vital.residentId}
-        onValueChange={(residentId) => onResidentChange(vital.id, residentId)}
-      >
-        <SelectTrigger className="h-auto min-h-[1.5rem] border-0 bg-transparent p-0 text-sm font-medium hover:bg-slate-50 focus:ring-0">
-          <SelectValue placeholder="利用者選択">
-            {currentResident?.name || "利用者選択"}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {residentOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="font-medium text-sm truncate w-20 sm:w-24">
+      <InputWithDropdown
+        value={currentResident?.name || ""}
+        options={residentOptions}
+        onSave={(selectedName) => {
+          // 名前から利用者IDを取得
+          const selectedResident = residents.find((r: any) => r.name === selectedName);
+          if (selectedResident) {
+            handleResidentChange(selectedResident.id);
+          }
+        }}
+        placeholder="利用者選択"
+        className="h-auto min-h-[1.5rem] border-0 bg-transparent p-0 text-sm font-medium focus:ring-0 text-left w-full"
+        disabled={disabled}
+      />
     </div>
+  );
+}
+
+// バイタルカードコンポーネント
+function VitalCard({
+  vital,
+  residents,
+  selectedTiming,
+  inputBaseClass,
+  hourOptions,
+  minuteOptions,
+  temperatureOptions,
+  systolicBPOptions,
+  diastolicBPOptions,
+  pulseOptions,
+  spo2Options,
+  respirationOptions,
+  localNotes,
+  setLocalNotes,
+  localBloodSugar,
+  setLocalBloodSugar,
+  updateMutation,
+  handleStaffStamp,
+  deleteMutation,
+  changeResidentMutation,
+}: {
+  vital: any;
+  residents: any[];
+  selectedTiming: string;
+  inputBaseClass: string;
+  hourOptions: any[];
+  minuteOptions: any[];
+  temperatureOptions: any[];
+  systolicBPOptions: any[];
+  diastolicBPOptions: any[];
+  pulseOptions: any[];
+  spo2Options: any[];
+  respirationOptions: any[];
+  localNotes: Record<string, string>;
+  setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  localBloodSugar: Record<string, string>;
+  setLocalBloodSugar: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  updateMutation: any;
+  handleStaffStamp: (vitalId: string, residentId?: string) => void;
+  deleteMutation: any;
+  changeResidentMutation: any;
+}) {
+  const resident = residents.find((r: any) => r.id === vital.residentId);
+
+  return (
+    <Card key={`${vital.id}-${vital.residentId}`} className="bg-white shadow-sm">
+      <CardContent className="p-3">
+        {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1">
+            <div className="text-lg font-bold text-blue-600 min-w-[50px]">
+              {resident?.roomNumber || "未設定"}
+            </div>
+            <ResidentSelector
+              vital={vital}
+              residents={residents}
+              onResidentChange={(vitalId, residentId) => 
+                changeResidentMutation.mutate({ vitalId, newResidentId: residentId })
+              }
+            />
+          </div>
+          <div className="flex items-center gap-1 text-sm">
+            <span className="bg-slate-100 px-1 py-1 rounded text-xs">
+              {selectedTiming}
+            </span>
+            <div className="flex items-center gap-0.5">
+              <InputWithDropdown
+                value={vital.hour?.toString() || ""}
+                options={hourOptions}
+                onSave={(value) =>
+                  updateMutation.mutate({
+                    id: vital.id,
+                    field: "hour",
+                    value,
+                    residentId: vital.residentId,
+                  })
+                }
+                placeholder="--"
+                className={`w-8 ${inputBaseClass}`}
+              />
+              <span className="text-xs">:</span>
+              <InputWithDropdown
+                value={vital.minute?.toString() || ""}
+                options={minuteOptions}
+                onSave={(value) =>
+                  updateMutation.mutate({
+                    id: vital.id,
+                    field: "minute",
+                    value,
+                    residentId: vital.residentId,
+                  })
+                }
+                placeholder="--"
+                className={`w-8 ${inputBaseClass}`}
+              />
+            </div>
+            <input
+              type="text"
+              value={vital.staffName || ""}
+              onChange={(e) =>
+                updateMutation.mutate({
+                  id: vital.id,
+                  field: "staffName",
+                  value: e.target.value,
+                  residentId: vital.residentId,
+                })
+              }
+              placeholder="記入者"
+              className={`w-12 ${inputBaseClass} px-1`}
+            />
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
+              style={{
+                height: "32px",
+                width: "32px",
+                minHeight: "32px",
+                minWidth: "32px",
+                maxHeight: "32px",
+                maxWidth: "32px",
+              }}
+              onClick={() =>
+                handleStaffStamp(vital.id, vital.residentId)
+              }
+              data-testid={`button-stamp-${vital.id}`}
+            >
+              <User className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* メインバイタル */}
+        <div className="flex gap-1 mb-3">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">
+              体温
+            </span>
+            <InputWithDropdown
+              value={
+                vital.temperature
+                  ? parseFloat(vital.temperature.toString()).toFixed(
+                      1,
+                    )
+                  : ""
+              }
+              options={temperatureOptions}
+              onSave={(value) =>
+                updateMutation.mutate({
+                  id: vital.id,
+                  field: "temperature",
+                  value,
+                  residentId: vital.residentId,
+                })
+              }
+              placeholder="--"
+              className={`w-12 ${inputBaseClass}`}
+            />
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">
+              血圧
+            </span>
+            <div className="flex items-center gap-0.5">
+              <InputWithDropdown
+                value={vital.bloodPressureSystolic?.toString() || ""}
+                options={systolicBPOptions}
+                onSave={(value) =>
+                  updateMutation.mutate({
+                    id: vital.id,
+                    field: "bloodPressureSystolic",
+                    value,
+                    residentId: vital.residentId,
+                  })
+                }
+                placeholder="--"
+                className={`w-10 ${inputBaseClass}`}
+              />
+              <span className="text-xs">/</span>
+              <InputWithDropdown
+                value={vital.bloodPressureDiastolic?.toString() || ""}
+                options={diastolicBPOptions}
+                onSave={(value) =>
+                  updateMutation.mutate({
+                    id: vital.id,
+                    field: "bloodPressureDiastolic",
+                    value,
+                    residentId: vital.residentId,
+                  })
+                }
+                placeholder="--"
+                className={`w-10 ${inputBaseClass}`}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">
+              脈拍
+            </span>
+            <InputWithDropdown
+              value={vital.pulseRate?.toString() || ""}
+              options={pulseOptions}
+              onSave={(value) =>
+                updateMutation.mutate({
+                  id: vital.id,
+                  field: "pulseRate",
+                  value,
+                  residentId: vital.residentId,
+                })
+              }
+              placeholder="--"
+              className={`w-12 ${inputBaseClass}`}
+            />
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">
+              SpO2
+            </span>
+            <InputWithDropdown
+              value={
+                vital.oxygenSaturation
+                  ? Math.round(
+                      parseFloat(vital.oxygenSaturation.toString()),
+                    ).toString()
+                  : ""
+              }
+              options={spo2Options}
+              onSave={(value) =>
+                updateMutation.mutate({
+                  id: vital.id,
+                  field: "oxygenSaturation",
+                  value,
+                  residentId: vital.residentId,
+                })
+              }
+              placeholder="--"
+              className={`w-12 ${inputBaseClass}`}
+            />
+          </div>
+        </div>
+
+        {/* サブバイタルと記録 */}
+        <div className="flex gap-1 mb-3 items-center">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">
+              血糖
+            </span>
+            <input
+              type="text"
+              value={
+                localBloodSugar[vital.id] !== undefined
+                  ? localBloodSugar[vital.id]
+                  : vital.bloodSugar?.toString() || ""
+              }
+              onChange={(e) => {
+                setLocalBloodSugar((prev) => ({
+                  ...prev,
+                  [vital.id]: e.target.value,
+                }));
+              }}
+              onBlur={(e) => {
+                const newValue = e.target.value;
+                if (newValue !== (vital.bloodSugar?.toString() || "")) {
+                  updateMutation.mutate({
+                    id: vital.id,
+                    field: "bloodSugar",
+                    value: newValue,
+                    residentId: vital.residentId,
+                  });
+                }
+                // ローカル状態をクリア
+                setLocalBloodSugar((prev) => {
+                  const updated = { ...prev };
+                  delete updated[vital.id];
+                  return updated;
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setLocalBloodSugar((prev) => {
+                    const updated = { ...prev };
+                    delete updated[vital.id];
+                    return updated;
+                  });
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="--"
+              className={`w-12 ${inputBaseClass}`}
+            />
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">
+              呼吸
+            </span>
+            <InputWithDropdown
+              value={vital.respirationRate?.toString() || ""}
+              options={respirationOptions}
+              onSave={(value) =>
+                updateMutation.mutate({
+                  id: vital.id,
+                  field: "respirationRate",
+                  value,
+                  residentId: vital.residentId,
+                })
+              }
+              placeholder="--"
+              className={`w-8 ${inputBaseClass}`}
+            />
+          </div>
+
+          <div className="flex items-center gap-1 flex-1">
+            <span className="text-xs font-medium text-blue-600">
+              記録
+            </span>
+            <textarea
+              value={
+                localNotes[vital.id] !== undefined
+                  ? localNotes[vital.id]
+                  : vital.notes || ""
+              }
+              onChange={(e) => {
+                setLocalNotes((prev) => ({
+                  ...prev,
+                  [vital.id]: e.target.value,
+                }));
+              }}
+              onBlur={(e) => {
+                const newValue = e.target.value;
+                if (newValue !== (vital.notes || "")) {
+                  updateMutation.mutate({
+                    id: vital.id,
+                    field: "notes",
+                    value: newValue,
+                    residentId: vital.residentId,
+                  });
+                }
+                // ローカル状態をクリア
+                setLocalNotes((prev) => {
+                  const updated = { ...prev };
+                  delete updated[vital.id];
+                  return updated;
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="記録内容"
+              className={`w-24 ${inputBaseClass} px-2 resize-none`}
+              rows={1}
+              style={{ minHeight: "32px", maxHeight: "64px" }}
+            />
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  className="bg-red-500 hover:bg-red-600 text-white ml-1 rounded text-xs flex items-center justify-center"
+                  style={{
+                    height: "32px",
+                    width: "32px",
+                    minHeight: "32px",
+                    minWidth: "32px",
+                    maxHeight: "32px",
+                    maxWidth: "32px",
+                  }}
+                  data-testid={`button-delete-${vital.id}`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    この記録を削除してもよろしいですか？この操作は取り消せません。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteMutation.mutate(vital.id)}
+                  >
+                    削除
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -603,10 +1025,6 @@ export default function Vitals() {
     onSuccess: () => {
       // 成功時はサーバーから最新データを取得して確実に同期
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      toast({
-        title: "成功",
-        description: "利用者を変更しました",
-      });
     },
   });
 
@@ -921,367 +1339,31 @@ export default function Vitals() {
             <p>選択した条件の記録がありません</p>
           </div>
         ) : (
-          filteredVitalSigns.map((vital: any) => {
-            const resident = (residents as any[]).find(
-              (r: any) => r.id === vital.residentId,
-            );
-
-            return (
-              <Card key={`${vital.id}-${vital.residentId}`} className="bg-white shadow-sm">
-                <CardContent className="p-3">
-                  {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-1">
-                      <div className="text-lg font-bold text-blue-600 min-w-[50px]">
-                        {resident?.roomNumber || "未設定"}
-                      </div>
-                      <ResidentSelector
-                        vital={vital}
-                        residents={residents as any[]}
-                        onResidentChange={(vitalId, residentId) => 
-                          changeResidentMutation.mutate({ vitalId, newResidentId: residentId })
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center gap-1 text-sm">
-                      <span className="bg-slate-100 px-1 py-1 rounded text-xs">
-                        {selectedTiming}
-                      </span>
-                      <div className="flex items-center gap-0.5">
-                        <InputWithDropdown
-                          value={vital.hour?.toString() || ""}
-                          options={hourOptions}
-                          onSave={(value) =>
-                            updateMutation.mutate({
-                              id: vital.id,
-                              field: "hour",
-                              value,
-                              residentId: vital.residentId,
-                            })
-                          }
-                          placeholder="--"
-                          className={`w-8 ${inputBaseClass}`}
-                        />
-                        <span className="text-xs">:</span>
-                        <InputWithDropdown
-                          value={vital.minute?.toString() || ""}
-                          options={minuteOptions}
-                          onSave={(value) =>
-                            updateMutation.mutate({
-                              id: vital.id,
-                              field: "minute",
-                              value,
-                              residentId: vital.residentId,
-                            })
-                          }
-                          placeholder="--"
-                          className={`w-8 ${inputBaseClass}`}
-                        />
-                      </div>
-                      <input
-                        type="text"
-                        value={vital.staffName || ""}
-                        onChange={(e) =>
-                          updateMutation.mutate({
-                            id: vital.id,
-                            field: "staffName",
-                            value: e.target.value,
-                            residentId: vital.residentId,
-                          })
-                        }
-                        placeholder="記入者"
-                        className={`w-12 ${inputBaseClass} px-1`}
-                      />
-                      <button
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
-                        style={{
-                          height: "32px",
-                          width: "32px",
-                          minHeight: "32px",
-                          minWidth: "32px",
-                          maxHeight: "32px",
-                          maxWidth: "32px",
-                        }}
-                        onClick={() =>
-                          handleStaffStamp(vital.id, vital.residentId)
-                        }
-                        data-testid={`button-stamp-${vital.id}`}
-                      >
-                        <User className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* メインバイタル */}
-                  <div className="flex gap-1 mb-3">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        体温
-                      </span>
-                      <InputWithDropdown
-                        value={
-                          vital.temperature
-                            ? parseFloat(vital.temperature.toString()).toFixed(
-                                1,
-                              )
-                            : ""
-                        }
-                        options={temperatureOptions}
-                        onSave={(value) =>
-                          updateMutation.mutate({
-                            id: vital.id,
-                            field: "temperature",
-                            value,
-                            residentId: vital.residentId,
-                          })
-                        }
-                        placeholder="--"
-                        className={`w-12 ${inputBaseClass}`}
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        血圧
-                      </span>
-                      <div className="flex items-center gap-0.5">
-                        <InputWithDropdown
-                          value={vital.bloodPressureSystolic?.toString() || ""}
-                          options={systolicBPOptions}
-                          onSave={(value) =>
-                            updateMutation.mutate({
-                              id: vital.id,
-                              field: "bloodPressureSystolic",
-                              value,
-                              residentId: vital.residentId,
-                            })
-                          }
-                          placeholder="--"
-                          className={`w-10 ${inputBaseClass}`}
-                        />
-                        <span className="text-xs">/</span>
-                        <InputWithDropdown
-                          value={vital.bloodPressureDiastolic?.toString() || ""}
-                          options={diastolicBPOptions}
-                          onSave={(value) =>
-                            updateMutation.mutate({
-                              id: vital.id,
-                              field: "bloodPressureDiastolic",
-                              value,
-                              residentId: vital.residentId,
-                            })
-                          }
-                          placeholder="--"
-                          className={`w-10 ${inputBaseClass}`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        脈拍
-                      </span>
-                      <InputWithDropdown
-                        value={vital.pulseRate?.toString() || ""}
-                        options={pulseOptions}
-                        onSave={(value) =>
-                          updateMutation.mutate({
-                            id: vital.id,
-                            field: "pulseRate",
-                            value,
-                            residentId: vital.residentId,
-                          })
-                        }
-                        placeholder="--"
-                        className={`w-12 ${inputBaseClass}`}
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        SpO2
-                      </span>
-                      <InputWithDropdown
-                        value={
-                          vital.oxygenSaturation
-                            ? Math.round(
-                                parseFloat(vital.oxygenSaturation.toString()),
-                              ).toString()
-                            : ""
-                        }
-                        options={spo2Options}
-                        onSave={(value) =>
-                          updateMutation.mutate({
-                            id: vital.id,
-                            field: "oxygenSaturation",
-                            value,
-                            residentId: vital.residentId,
-                          })
-                        }
-                        placeholder="--"
-                        className={`w-12 ${inputBaseClass}`}
-                      />
-                    </div>
-                  </div>
-
-                  {/* サブバイタルと記録 */}
-                  <div className="flex gap-1 mb-3 items-center">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        血糖
-                      </span>
-                      <input
-                        type="text"
-                        value={
-                          localBloodSugar[vital.id] !== undefined
-                            ? localBloodSugar[vital.id]
-                            : vital.bloodSugar?.toString() || ""
-                        }
-                        onChange={(e) => {
-                          setLocalBloodSugar((prev) => ({
-                            ...prev,
-                            [vital.id]: e.target.value,
-                          }));
-                        }}
-                        onBlur={(e) => {
-                          const newValue = e.target.value;
-                          if (newValue !== (vital.bloodSugar?.toString() || "")) {
-                            updateMutation.mutate({
-                              id: vital.id,
-                              field: "bloodSugar",
-                              value: newValue,
-                              residentId: vital.residentId,
-                            });
-                          }
-                          // ローカル状態をクリア
-                          setLocalBloodSugar((prev) => {
-                            const updated = { ...prev };
-                            delete updated[vital.id];
-                            return updated;
-                          });
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.currentTarget.blur();
-                          } else if (e.key === "Escape") {
-                            setLocalBloodSugar((prev) => {
-                              const updated = { ...prev };
-                              delete updated[vital.id];
-                              return updated;
-                            });
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        placeholder="--"
-                        className={`w-12 ${inputBaseClass}`}
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        呼吸
-                      </span>
-                      <InputWithDropdown
-                        value={vital.respirationRate?.toString() || ""}
-                        options={respirationOptions}
-                        onSave={(value) =>
-                          updateMutation.mutate({
-                            id: vital.id,
-                            field: "respirationRate",
-                            value,
-                            residentId: vital.residentId,
-                          })
-                        }
-                        placeholder="--"
-                        className={`w-8 ${inputBaseClass}`}
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1 flex-1">
-                      <span className="text-xs font-medium text-blue-600">
-                        記録
-                      </span>
-                      <textarea
-                        value={
-                          localNotes[vital.id] !== undefined
-                            ? localNotes[vital.id]
-                            : vital.notes || ""
-                        }
-                        onChange={(e) => {
-                          setLocalNotes((prev) => ({
-                            ...prev,
-                            [vital.id]: e.target.value,
-                          }));
-                        }}
-                        onBlur={(e) => {
-                          const newValue = e.target.value;
-                          if (newValue !== (vital.notes || "")) {
-                            updateMutation.mutate({
-                              id: vital.id,
-                              field: "notes",
-                              value: newValue,
-                              residentId: vital.residentId,
-                            });
-                          }
-                          // ローカル状態をクリア
-                          setLocalNotes((prev) => {
-                            const updated = { ...prev };
-                            delete updated[vital.id];
-                            return updated;
-                          });
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        placeholder="記録内容"
-                        className={`w-24 ${inputBaseClass} px-2 resize-none`}
-                        rows={1}
-                        style={{ minHeight: "32px", maxHeight: "64px" }}
-                      />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <button
-                            className="bg-red-500 hover:bg-red-600 text-white ml-1 rounded text-xs flex items-center justify-center"
-                            style={{
-                              height: "32px",
-                              width: "32px",
-                              minHeight: "32px",
-                              minWidth: "32px",
-                              maxHeight: "32px",
-                              maxWidth: "32px",
-                            }}
-                            data-testid={`button-delete-${vital.id}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              この記録を削除してもよろしいですか？この操作は取り消せません。
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteMutation.mutate(vital.id)}
-                            >
-                              削除
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+          filteredVitalSigns.map((vital: any) => (
+            <VitalCard
+              key={`${vital.id}-${vital.residentId}`}
+              vital={vital}
+              residents={residents as any[]}
+              selectedTiming={selectedTiming}
+              inputBaseClass={inputBaseClass}
+              hourOptions={hourOptions}
+              minuteOptions={minuteOptions}
+              temperatureOptions={temperatureOptions}
+              systolicBPOptions={systolicBPOptions}
+              diastolicBPOptions={diastolicBPOptions}
+              pulseOptions={pulseOptions}
+              spo2Options={spo2Options}
+              respirationOptions={respirationOptions}
+              localNotes={localNotes}
+              setLocalNotes={setLocalNotes}
+              localBloodSugar={localBloodSugar}
+              setLocalBloodSugar={setLocalBloodSugar}
+              updateMutation={updateMutation}
+              handleStaffStamp={handleStaffStamp}
+              deleteMutation={deleteMutation}
+              changeResidentMutation={changeResidentMutation}
+            />
+          ))
         )}
       </main>
 
