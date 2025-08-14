@@ -1160,7 +1160,7 @@ export default function Vitals() {
     }
   };
 
-  // 新規記録追加
+  // 新規記録追加（空のカードを最下部に追加）
   const addNewRecord = () => {
     const residentList = residents as any[];
     if (!residentList || residentList.length === 0) {
@@ -1172,15 +1172,38 @@ export default function Vitals() {
       return;
     }
 
-    // 最初の利用者に対して新規レコードを作成
-    const firstResident = residentList[0];
-    const newRecord = {
-      residentId: firstResident.id,
-      recordDate: new Date(selectedDate),
-      timing: selectedTiming,
-    };
-
-    createMutation.mutate(newRecord);
+    // 一時的なIDを生成（タイムスタンプベース）
+    const tempId = `temp-new-${Date.now()}`;
+    
+    // 楽観的更新で空のカードを即座に追加
+    queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+      if (!old) return old;
+      
+      // 新しい空のレコードを作成
+      const newEmptyRecord = {
+        id: tempId,
+        residentId: "", // 空の状態に設定
+        recordDate: selectedDate,
+        timing: selectedTiming,
+        hour: null,
+        minute: null,
+        staffName: null,
+        temperature: null,
+        bloodPressureSystolic: null,
+        bloodPressureDiastolic: null,
+        pulseRate: null,
+        respirationRate: null,
+        oxygenSaturation: null,
+        bloodSugar: null,
+        notes: null,
+        createdAt: null,
+        updatedAt: null,
+        isTemporary: true,
+      };
+      
+      // 既存のレコードに新しい空のレコードを追加
+      return [...old, newEmptyRecord];
+    });
   };
 
   // フィルタリングロジック
@@ -1198,11 +1221,13 @@ export default function Vitals() {
 
       if (vital.timing !== selectedTiming) return false;
 
-      // フロアフィルタリング
-      const resident = filteredResidents.find(
-        (r: any) => r.id === vital.residentId,
-      );
-      if (!resident) return false;
+      // フロアフィルタリング（空のresidentIdの場合は通す）
+      if (vital.residentId !== "") {
+        const resident = filteredResidents.find(
+          (r: any) => r.id === vital.residentId,
+        );
+        if (!resident) return false;
+      }
 
       return true;
     });
@@ -1340,7 +1365,7 @@ export default function Vitals() {
       </div>
 
       {/* 記録一覧 */}
-      <main className="max-w-4xl mx-auto px-4 py-4 space-y-4">
+      <main className="max-w-4xl mx-auto px-4 py-4 pb-24 space-y-4">
         {filteredVitalSigns.length === 0 ? (
           <div className="text-center py-8 text-slate-600">
             <p>選択した条件の記録がありません</p>
@@ -1375,7 +1400,7 @@ export default function Vitals() {
       </main>
 
       {/* フッター */}
-      <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-end">
         <Button
           className="bg-blue-600 hover:bg-blue-700 text-white"
           onClick={addNewRecord}
