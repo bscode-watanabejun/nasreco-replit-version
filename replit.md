@@ -22,6 +22,18 @@ NASRECO is a comprehensive healthcare management system designed for nursing and
 - Confirmed weekly navigation, floor-based filtering, and record note editing
 - **Status**: Fully functional and tested - ready for production use
 
+### Bathing Management System (January 14, 2025)
+- **COMPLETED**: Full implementation of bathing record management system
+- Created comprehensive database schema (`bathingRecords` table) with all required fields
+- Implemented CRUD operations for bathing records (create, read, update, delete)
+- Added bathing button to dashboard with proper routing to `/bathing-list`
+- Built complete bathing list interface based on vitals list design
+- Implemented inline editing with dropdown selections for all data fields
+- Added date, floor, and timing filters for record management
+- Included special bathing-specific fields: bath type (入浴/シャワー浴/清拭/×), weight, vital signs
+- Fixed database schema type inconsistencies (converted numeric fields to varchar for consistency)
+- **Status**: Fully functional with proper error handling - ready for production use
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.

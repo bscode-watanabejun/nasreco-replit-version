@@ -593,13 +593,18 @@ export default function BathingList() {
   // 入浴記録データの取得
   const { data: bathingRecords, isLoading } = useQuery({
     queryKey: ["/api/bathing-records", selectedDate],
-    queryFn: () => {
+    queryFn: async () => {
       const startDate = new Date(selectedDate);
       const endDate = new Date(selectedDate);
       endDate.setHours(23, 59, 59, 999);
-      return fetch(
+      const response = await fetch(
         `/api/bathing-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
-      ).then((res) => res.json());
+      );
+      if (!response.ok) {
+        throw new Error('Failed to fetch bathing records');
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -717,7 +722,7 @@ export default function BathingList() {
   };
 
   // フィルタリング
-  const filteredBathingRecords = bathingRecords?.filter((record: any) => {
+  const filteredBathingRecords = (Array.isArray(bathingRecords) ? bathingRecords : [])?.filter((record: any) => {
     const resident = residents?.find((r: any) => r.id === record.residentId);
     
     if (selectedFloor !== "全階" && resident?.floor !== selectedFloor) {

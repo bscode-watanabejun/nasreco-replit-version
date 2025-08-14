@@ -219,13 +219,7 @@ export default function Dashboard() {
       color: "blue",
       path: "/cleaning-linen-list"
     },
-    {
-      icon: Waves,
-      title: "入浴",
-      description: "入浴記録",
-      color: "blue",
-      path: "/bathing"
-    },
+
     {
       icon: Scale,
       title: "体重",
