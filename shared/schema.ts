@@ -207,17 +207,27 @@ export const mealsAndMedication = pgTable("meals_and_medication", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Bathing records
+// Bathing records (入浴一覧用)
 export const bathingRecords = pgTable("bathing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
-  bathType: varchar("bath_type").notNull(), // shower, bath, bed_bath
-  assistance: varchar("assistance"), // independent, partial, full
-  skinCondition: text("skin_condition"),
-  notes: text("notes"),
+  timing: varchar("timing"), // 午前, 午後, 臨時, 前日
+  hour: varchar("hour"), // 時間 (0-23)
+  minute: varchar("minute"), // 分 (0, 15, 30, 45)
+  staffName: varchar("staff_name"), // 承認者
+  bathType: varchar("bath_type"), // 区分: 入浴, シャワー浴, 清拭, ×
+  weight: varchar("weight"), // 体重
+  bloodPressureSystolic: varchar("blood_pressure_systolic"),
+  bloodPressureDiastolic: varchar("blood_pressure_diastolic"),
+  pulseRate: varchar("pulse_rate"),
+  oxygenSaturation: varchar("oxygen_saturation"),
+  notes: text("notes"), // 記録
+  rejectionReason: text("rejection_reason"), // 差し戻し
+  nursingCheck: boolean("nursing_check").default(false), // 看護チェックボックス
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Excretion records
@@ -374,10 +384,42 @@ export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedicat
 });
 
 export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
-  recordDate: z.string().transform((str) => new Date(str)),
+  recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
+  hour: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  minute: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  weight: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
+  }),
+  bloodPressureSystolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  bloodPressureDiastolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  pulseRate: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  oxygenSaturation: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
+  }),
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, {

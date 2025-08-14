@@ -206,6 +206,13 @@ export default function Dashboard() {
       path: "/excretion"
     },
     {
+      icon: Waves,
+      title: "入浴",
+      description: "入浴記録",
+      color: "blue",
+      path: "/bathing-list"
+    },
+    {
       icon: Sparkles,
       title: "清掃リネン",
       description: "清拭・リネン交換",

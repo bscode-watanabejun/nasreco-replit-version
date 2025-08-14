@@ -20,6 +20,7 @@ import FacilitySettings from "@/pages/facility-settings";
 import CommunicationManagement from "@/pages/communication-management";
 import Communications from "@/pages/communications";
 import CleaningLinenList from "@/pages/cleaning-linen-list";
+import BathingList from "@/pages/bathing-list";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/communication-management" component={CommunicationManagement} />
       <Route path="/communications" component={Communications} />
       <Route path="/cleaning-linen-list" component={CleaningLinenList} />
+      <Route path="/bathing-list" component={BathingList} />
       <Route component={NotFound} />
     </Switch>
   );

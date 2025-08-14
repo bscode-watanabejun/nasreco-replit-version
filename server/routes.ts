@@ -297,9 +297,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createBathingRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating bathing record:", error);
-      res.status(400).json({ message: "Invalid bathing record data" });
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+        res.status(400).json({ 
+          message: "Invalid bathing record data", 
+          errors: error.errors 
+        });
+      } else {
+        res.status(400).json({ message: "Invalid bathing record data" });
+      }
+    }
+  });
+
+  app.patch('/api/bathing-records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertBathingRecordSchema.partial().parse(req.body);
+      const record = await storage.updateBathingRecord(id, validatedData);
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error updating bathing record:", error);
+      if (error.errors) {
+        console.error("Validation errors:", error.errors);
+        res.status(400).json({ 
+          message: "Invalid bathing record data", 
+          errors: error.errors 
+        });
+      } else {
+        res.status(400).json({ message: "Invalid bathing record data" });
+      }
+    }
+  });
+
+  app.delete('/api/bathing-records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteBathingRecord(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting bathing record:", error);
+      res.status(500).json({ message: "Failed to delete bathing record" });
     }
   });
 

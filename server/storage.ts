@@ -92,6 +92,8 @@ export interface IStorage {
   // Bathing record operations
   getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]>;
   createBathingRecord(record: InsertBathingRecord): Promise<BathingRecord>;
+  updateBathingRecord(id: string, record: Partial<InsertBathingRecord>): Promise<BathingRecord>;
+  deleteBathingRecord(id: string): Promise<void>;
 
   // Excretion record operations
   getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<ExcretionRecord[]>;
@@ -346,6 +348,19 @@ export class DatabaseStorage implements IStorage {
   async createBathingRecord(record: InsertBathingRecord): Promise<BathingRecord> {
     const [newRecord] = await db.insert(bathingRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateBathingRecord(id: string, record: Partial<InsertBathingRecord>): Promise<BathingRecord> {
+    const [updatedRecord] = await db
+      .update(bathingRecords)
+      .set(record)
+      .where(eq(bathingRecords.id, id))
+      .returning();
+    return updatedRecord;
+  }
+
+  async deleteBathingRecord(id: string): Promise<void> {
+    await db.delete(bathingRecords).where(eq(bathingRecords.id, id));
   }
 
   // Excretion record operations
