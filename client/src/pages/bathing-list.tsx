@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -47,12 +47,14 @@ function InputWithDropdown({
   onSave,
   placeholder = "",
   className = "",
+  disabled = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -83,27 +85,28 @@ function InputWithDropdown({
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
+    <Popover open={isOpen && !disabled} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <input
           ref={inputRef}
           type="text"
           value={localValue}
           onChange={(e) => setLocalValue(e.target.value)}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => !disabled && setIsOpen(true)}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={className}
+          disabled={disabled}
           data-testid={`input-dropdown-${placeholder.toLowerCase()}`}
         />
       </PopoverTrigger>
-      <PopoverContent className="w-40 p-0" align="start">
-        <div className="max-h-60 overflow-auto">
-          {options.map((option, index) => (
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {(options || []).map((option, index) => (
             <button
               key={index}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-slate-100 transition-colors border-0 bg-transparent"
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem] border-0 bg-transparent"
               onClick={() => {
                 setLocalValue(option.value);
                 onSave(option.value);
@@ -217,12 +220,11 @@ function ResidentSelector({
 function BathingCard({
   record,
   residents,
-  selectedTiming,
   inputBaseClass,
   hourOptions,
   minuteOptions,
   bathTypeOptions,
-  weightOptions,
+  temperatureOptions,
   systolicBPOptions,
   diastolicBPOptions,
   pulseOptions,
@@ -236,12 +238,11 @@ function BathingCard({
 }: {
   record: any;
   residents: any[];
-  selectedTiming: string;
   inputBaseClass: string;
   hourOptions: any[];
   minuteOptions: any[];
   bathTypeOptions: any[];
-  weightOptions: any[];
+  temperatureOptions: any[];
   systolicBPOptions: any[];
   diastolicBPOptions: any[];
   pulseOptions: any[];
@@ -258,95 +259,58 @@ function BathingCard({
   return (
     <Card className="bg-white shadow-sm">
       <CardContent className="p-3">
-        {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1">
-            <div className="text-lg font-bold text-blue-600 min-w-[50px]">
-              {resident?.roomNumber || "未設定"}
-            </div>
-            <ResidentSelector
-              record={record}
-              residents={residents}
-              onResidentChange={(recordId, residentId) => 
-                changeResidentMutation.mutate({ recordId, newResidentId: residentId })
-              }
-            />
+        {/* 上段：居室番号、利用者名、時間、区分、承認者、承認アイコン */}
+        <div className="flex items-center gap-1 mb-3">
+          {/* 居室番号 */}
+          <div className="text-lg font-bold text-blue-600 min-w-[50px]">
+            {resident?.roomNumber || "未設定"}
           </div>
-          <div className="flex items-center gap-1 text-sm">
-            <span className="bg-slate-100 px-1 py-1 rounded text-xs">
-              {selectedTiming}
-            </span>
-            <div className="flex items-center gap-0.5">
-              <InputWithDropdown
-                value={record.hour?.toString() || ""}
-                options={hourOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: record.id,
-                    field: "hour",
-                    value,
-                    residentId: record.residentId,
-                  })
-                }
-                placeholder="--"
-                className={`w-8 ${inputBaseClass}`}
-              />
-              <span className="text-xs">:</span>
-              <InputWithDropdown
-                value={record.minute?.toString() || ""}
-                options={minuteOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: record.id,
-                    field: "minute",
-                    value,
-                    residentId: record.residentId,
-                  })
-                }
-                placeholder="--"
-                className={`w-8 ${inputBaseClass}`}
-              />
-            </div>
-            <input
-              type="text"
-              value={record.staffName || ""}
-              onChange={(e) =>
+          
+          {/* 利用者名 */}
+          <ResidentSelector
+            record={record}
+            residents={residents}
+            onResidentChange={(recordId, residentId) => 
+              changeResidentMutation.mutate({ recordId, newResidentId: residentId })
+            }
+          />
+          
+          {/* 時間 */}
+          <div className="flex items-center gap-0.5">
+            <InputWithDropdown
+              value={record.hour?.toString() || ""}
+              options={hourOptions}
+              onSave={(value) =>
                 updateMutation.mutate({
                   id: record.id,
-                  field: "staffName",
-                  value: e.target.value,
+                  field: "hour",
+                  value,
                   residentId: record.residentId,
                 })
               }
-              placeholder="承認者"
-              className={`w-12 ${inputBaseClass} px-1`}
+              placeholder="--"
+              className={`w-8 ${inputBaseClass}`}
             />
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
-              style={{
-                height: "32px",
-                width: "32px",
-                minHeight: "32px",
-                minWidth: "32px",
-                maxHeight: "32px",
-                maxWidth: "32px",
-              }}
-              onClick={() =>
-                handleStaffStamp(record.id, record.residentId)
+            <span className="text-xs">:</span>
+            <InputWithDropdown
+              value={record.minute?.toString() || ""}
+              options={minuteOptions}
+              onSave={(value) =>
+                updateMutation.mutate({
+                  id: record.id,
+                  field: "minute",
+                  value,
+                  residentId: record.residentId,
+                })
               }
-              data-testid={`button-stamp-${record.id}`}
-            >
-              <User className="w-3 h-3" />
-            </button>
+              placeholder="--"
+              className={`w-8 ${inputBaseClass}`}
+            />
           </div>
-        </div>
-
-        {/* メイン入浴項目 */}
-        <div className="flex gap-1 mb-3">
+          
+          {/* 区分 */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              区分
-            </span>
+            <span className="text-xs font-medium text-blue-600">区分</span>
             <InputWithDropdown
               value={record.bathType || ""}
               options={bathTypeOptions}
@@ -362,22 +326,59 @@ function BathingCard({
               className={`w-16 ${inputBaseClass}`}
             />
           </div>
+          
+          {/* 承認者 */}
+          <input
+            type="text"
+            value={record.staffName || ""}
+            onChange={(e) =>
+              updateMutation.mutate({
+                id: record.id,
+                field: "staffName",
+                value: e.target.value,
+                residentId: record.residentId,
+              })
+            }
+            placeholder="承認者"
+            className={`w-12 ${inputBaseClass} px-1`}
+          />
+          
+          {/* 承認アイコン */}
+          <button
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
+            style={{
+              height: "32px",
+              width: "32px",
+              minHeight: "32px",
+              minWidth: "32px",
+              maxHeight: "32px",
+              maxWidth: "32px",
+            }}
+            onClick={() =>
+              handleStaffStamp(record.id, record.residentId)
+            }
+            data-testid={`button-stamp-${record.id}`}
+          >
+            <User className="w-3 h-3" />
+          </button>
+        </div>
 
+        {/* 中段：体温、血圧、脈拍、SpO2 */}
+        <div className="flex items-center gap-1 mb-3">
+          {/* 体温 */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              体重
-            </span>
+            <span className="text-xs font-medium text-blue-600">体温</span>
             <InputWithDropdown
               value={
-                record.weight
-                  ? parseFloat(record.weight.toString()).toFixed(1)
+                record.temperature
+                  ? parseFloat(record.temperature.toString()).toFixed(1)
                   : ""
               }
-              options={weightOptions}
+              options={temperatureOptions}
               onSave={(value) =>
                 updateMutation.mutate({
                   id: record.id,
-                  field: "weight",
+                  field: "temperature",
                   value,
                   residentId: record.residentId,
                 })
@@ -387,10 +388,9 @@ function BathingCard({
             />
           </div>
 
+          {/* 血圧 */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              血圧
-            </span>
+            <span className="text-xs font-medium text-blue-600">血圧</span>
             <div className="flex items-center gap-0.5">
               <InputWithDropdown
                 value={record.bloodPressureSystolic?.toString() || ""}
@@ -424,10 +424,9 @@ function BathingCard({
             </div>
           </div>
 
+          {/* 脈拍 */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              脈拍
-            </span>
+            <span className="text-xs font-medium text-blue-600">脈拍</span>
             <InputWithDropdown
               value={record.pulseRate?.toString() || ""}
               options={pulseOptions}
@@ -444,10 +443,9 @@ function BathingCard({
             />
           </div>
 
+          {/* SpO2 */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              SpO2
-            </span>
+            <span className="text-xs font-medium text-blue-600">SpO2</span>
             <InputWithDropdown
               value={record.oxygenSaturation?.toString() || ""}
               options={spo2Options}
@@ -463,11 +461,13 @@ function BathingCard({
               className={`w-8 ${inputBaseClass}`}
             />
           </div>
+        </div>
 
+        {/* 下段：記録、差し戻し、看護チェックボックス、削除アイコン */}
+        <div className="flex items-center gap-1">
+          {/* 記録 */}
           <div className="flex items-center gap-1 flex-1">
-            <span className="text-xs font-medium text-blue-600">
-              記録
-            </span>
+            <span className="text-xs font-medium text-blue-600">記録</span>
             <textarea
               value={
                 localNotes[record.id] !== undefined
@@ -510,10 +510,9 @@ function BathingCard({
             />
           </div>
 
+          {/* 差し戻し */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              差し戻し
-            </span>
+            <span className="text-xs font-medium text-blue-600">差し戻し</span>
             <input
               type="text"
               value={record.rejectionReason || ""}
@@ -523,10 +522,9 @@ function BathingCard({
             />
           </div>
 
+          {/* 看護チェックボックス */}
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              看護
-            </span>
+            <span className="text-xs font-medium text-blue-600">看護</span>
             <input
               type="checkbox"
               checked={record.nursingCheck || false}
@@ -535,6 +533,7 @@ function BathingCard({
             />
           </div>
 
+          {/* 削除アイコン */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button
@@ -578,11 +577,36 @@ function BathingCard({
 export default function BathingList() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // URLパラメータから日付と階数の初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState<string>(
-    format(new Date(), "yyyy-MM-dd"),
+    urlParams.get("date") || format(new Date(), "yyyy-MM-dd"),
   );
-  const [selectedFloor, setSelectedFloor] = useState<string>("全階");
-  const [selectedTiming, setSelectedTiming] = useState<string>("午前");
+  const [selectedFloor, setSelectedFloor] = useState(() => {
+    // URLパラメータから階数を取得
+    const floorParam = urlParams.get("floor");
+    if (floorParam) {
+      // ダッシュボードから来た'all'を'全階'に変換
+      if (floorParam === "all") {
+        return "全階";
+      }
+      return floorParam;
+    }
+
+    // localStorageからトップ画面の選択階数を取得
+    const savedFloor = localStorage.getItem("selectedFloor");
+    if (savedFloor) {
+      if (savedFloor === "all") {
+        return "全階";
+      } else {
+        // "1F" -> "1階" の変換を行う
+        const cleanFloor = savedFloor.replace("F", "階");
+        return cleanFloor;
+      }
+    }
+    return "全階";
+  });
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
 
   // 利用者データの取得
@@ -630,17 +654,94 @@ export default function BathingList() {
   // 入浴記録の更新
   const updateMutation = useMutation({
     mutationFn: async ({ id, field, value, residentId }: any) => {
-      const updateData = { [field]: value };
-      if (residentId) {
-        updateData.residentId = residentId;
+      if (id.startsWith("temp-")) {
+        // 新規作成の場合：全フィールドを含むデータを送信
+        const updateData: any = { [field]: value };
+        
+        // 一時的レコードの現在の状態を取得
+        const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
+        const currentRecord = currentData?.find((record: any) => record.id === id);
+        
+        if (currentRecord) {
+          // 既存の値をすべて含める（nullではない値のみ）
+          Object.keys(currentRecord).forEach(key => {
+            if (key !== 'id' && key !== 'isTemporary' && currentRecord[key] !== null && currentRecord[key] !== undefined) {
+              if (key !== field) { // 更新対象フィールド以外
+                updateData[key] = currentRecord[key];
+              }
+            }
+          });
+          
+          // 必須フィールドを設定
+          updateData.residentId = residentId || currentRecord.residentId || "";
+          updateData.recordDate = currentRecord.recordDate;
+          updateData.timing = currentRecord.timing || "午前";
+        }
+        
+        // 新規作成API呼び出し
+        await apiRequest("/api/bathing-records", "POST", updateData);
+      } else {
+        // 既存レコード更新の場合
+        const updateData = { [field]: value };
+        await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
       }
-      return apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
     },
-    onSuccess: () => {
+    // 楽観的更新の実装
+    onMutate: async ({ id, field, value, residentId }) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records", selectedDate] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousBathingRecords = queryClient.getQueryData(["/api/bathing-records", selectedDate]);
+      
+      // 楽観的に更新
+      queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+        if (!old) return old;
+        
+        if (id.startsWith("temp-")) {
+          // 新規作成の場合：一時的なレコードを更新
+          return old.map((record: any) => {
+            if (record.id === id) {
+              return { ...record, [field]: value };
+            }
+            return record;
+          });
+        } else {
+          // 既存レコード更新の場合
+          return old.map((record: any) => {
+            if (record.id === id) {
+              return { ...record, [field]: value };
+            }
+            return record;
+          });
+        }
+      });
+      
+      // ロールバック用のコンテキストを返す
+      return { previousBathingRecords };
+    },
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousBathingRecords) {
+        queryClient.setQueryData(["/api/bathing-records", selectedDate], context.previousBathingRecords);
+      }
+      
+      console.error('Update error:', error);
+      toast({
+        title: "エラー",
+        description: error.message || "入浴記録の更新に失敗しました。変更を元に戻しました。",
+        variant: "destructive",
+      });
+      
+      // エラー時のみサーバーから最新データを取得
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
-    onError: (error) => {
-      console.error("Update error:", error);
+    onSuccess: (data, variables) => {
+      // 新規作成の場合のみinvalidateを実行（一時的IDを実際のIDに置き換えるため）
+      if (variables.id.startsWith("temp-")) {
+        queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+      }
+      // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
     },
   });
 
@@ -665,21 +766,53 @@ export default function BathingList() {
 
   // 利用者変更
   const changeResidentMutation = useMutation({
-    mutationFn: ({ recordId, newResidentId }: { recordId: string; newResidentId: string }) =>
-      apiRequest(`/api/bathing-records/${recordId}`, "PATCH", { residentId: newResidentId }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      toast({
-        title: "利用者を変更しました",
-        description: "入浴記録の利用者が更新されました。",
+    mutationFn: async ({ recordId, newResidentId }: { recordId: string; newResidentId: string }) => {
+      await apiRequest(`/api/bathing-records/${recordId}`, "PATCH", {
+        residentId: newResidentId
       });
     },
-    onError: () => {
+    // 楽観的更新で即座にUIを更新
+    onMutate: async ({ recordId, newResidentId }) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records", selectedDate] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousBathingRecords = queryClient.getQueryData(["/api/bathing-records", selectedDate]);
+      
+      // 楽観的に更新（利用者変更）
+      queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+        if (!old) return old;
+        
+        return old.map((record: any) => {
+          if (record.id === recordId) {
+            return { ...record, residentId: newResidentId };
+          }
+          return record;
+        });
+      });
+      
+      // ロールバック用のコンテキストを返す
+      return { previousBathingRecords };
+    },
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousBathingRecords) {
+        queryClient.setQueryData(["/api/bathing-records", selectedDate], context.previousBathingRecords);
+      }
+      
+      console.error('Change resident error:', error);
       toast({
         title: "エラー",
-        description: "利用者の変更に失敗しました。",
+        description: error.message || "利用者の変更に失敗しました",
         variant: "destructive",
       });
+      
+      // エラー時もサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    },
+    onSuccess: () => {
+      // 成功時はサーバーから最新データを取得して確実に同期
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
   });
 
@@ -698,52 +831,178 @@ export default function BathingList() {
     });
   };
 
-  // 新しい入浴記録の追加
-  const handleAddRecord = () => {
-    const newRecord = {
-      residentId: "temp-new-" + Date.now(),
-      recordDate: new Date(selectedDate).toISOString(),
-      timing: selectedTiming,
-      hour: null,
-      minute: null,
-      staffName: "",
-      bathType: "",
-      weight: null,
-      bloodPressureSystolic: null,
-      bloodPressureDiastolic: null,
-      pulseRate: null,
-      oxygenSaturation: null,
-      notes: "",
-      rejectionReason: "",
-      nursingCheck: false,
-    };
+  // 新しい入浴記録の追加（空のカードを最下部に追加）
+  const addNewRecord = () => {
+    const residentList = residents as any[];
+    if (!residentList || residentList.length === 0) {
+      toast({
+        title: "エラー",
+        description: "利用者情報が見つかりません",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    createMutation.mutate(newRecord);
+    // 一時的なIDを生成（タイムスタンプベース）
+    const tempId = `temp-new-${Date.now()}`;
+    
+    // 楽観的更新で空のカードを即座に追加
+    queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+      if (!old) return old;
+      
+      // 新しい空のレコードを作成（文字列型で統一）
+      const newEmptyRecord = {
+        id: tempId,
+        residentId: residentList[0]?.id || "", // 最初の利用者を選択
+        recordDate: `${selectedDate}T00:00:00.000Z`,
+        timing: selectedTiming,
+        hour: "",
+        minute: "",
+        staffName: "",
+        bathType: "",
+        weight: "",
+        bloodPressureSystolic: "",
+        bloodPressureDiastolic: "",
+        pulseRate: "",
+        oxygenSaturation: "",
+        notes: "",
+        rejectionReason: "",
+        nursingCheck: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isTemporary: true,
+      };
+      
+      // 既存のレコードに新しい空のレコードを追加
+      return [...old, newEmptyRecord];
+    });
   };
 
-  // フィルタリング
-  const filteredBathingRecords = (Array.isArray(bathingRecords) ? bathingRecords : [])?.filter((record: any) => {
-    const resident = residents?.find((r: any) => r.id === record.residentId);
-    
-    if (selectedFloor !== "全階" && resident?.floor !== selectedFloor) {
-      return false;
+  // フィルタリングロジック
+  const getFilteredBathingRecords = () => {
+    if (!residents || !Array.isArray(residents)) {
+      return [];
     }
     
-    if (selectedTiming !== "全て" && record.timing !== selectedTiming) {
+    const filteredResidents = (residents as any[]).filter((resident: any) => {
+      if (selectedFloor === "全階") return true;
+      
+      const residentFloor = resident.floor;
+      if (!residentFloor) return false; // null/undefinedをフィルタアウト
+      
+      // 複数のフォーマットに対応した比較
+      const selectedFloorNumber = selectedFloor.replace("階", "");
+      
+      // "1階" 形式との比較
+      if (residentFloor === selectedFloor) return true;
+      
+      // "1" 形式との比較
+      if (residentFloor === selectedFloorNumber) return true;
+      
       return false;
+    });
+
+    const existingRecords = (Array.isArray(bathingRecords) ? bathingRecords : []).filter((record: any) => {
+      const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+      if (recordDate !== selectedDate) return false;
+
+      // フロアフィルタリング（空のresidentIdの場合は通す）
+      if (record.residentId !== "") {
+        const resident = filteredResidents.find(
+          (r: any) => r.id === record.residentId,
+        );
+        if (!resident) return false;
+      }
+
+      return true;
+    });
+
+    // 当日以前の日付の場合、すべての利用者のカードを表示
+    const selectedDateObj = new Date(selectedDate);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    if (selectedDateObj <= today) {
+      const recordsWithEmpty = [...existingRecords];
+
+      filteredResidents.forEach((resident: any) => {
+        const hasRecord = existingRecords.some(
+          (record: any) => record.residentId === resident.id,
+        );
+        if (!hasRecord) {
+          recordsWithEmpty.push({
+            id: `temp-${resident.id}-${selectedDate}`,
+            residentId: resident.id,
+            recordDate: selectedDate,
+            timing: "午前", // デフォルト値
+            hour: null,
+            minute: null,
+            staffName: null,
+            bathType: null,
+            temperature: null,
+            weight: null,
+            bloodPressureSystolic: null,
+            bloodPressureDiastolic: null,
+            pulseRate: null,
+            oxygenSaturation: null,
+            notes: null,
+            rejectionReason: null,
+            nursingCheck: false,
+            createdAt: null,
+            updatedAt: null,
+            isTemporary: true,
+          });
+        }
+      });
+
+      return recordsWithEmpty;
     }
-    
-    return true;
-  }) || [];
+
+    return existingRecords;
+  };
+
+  const filteredBathingRecords = useMemo(() => {
+    if (!residents || !Array.isArray(residents)) {
+      return [];
+    }
+    return getFilteredBathingRecords().sort((a: any, b: any) => {
+      const residentA = (residents as any[]).find(
+        (r: any) => r.id === a.residentId,
+      );
+      const residentB = (residents as any[]).find(
+        (r: any) => r.id === b.residentId,
+      );
+      const roomA = parseInt(residentA?.roomNumber || "0");
+      const roomB = parseInt(residentB?.roomNumber || "0");
+      return roomA - roomB;
+    });
+  }, [residents, bathingRecords, selectedDate, selectedFloor]);
 
   // 共通のスタイル
   const inputBaseClass = "text-center border rounded px-1 py-1 text-xs h-8 transition-colors focus:border-blue-500 focus:outline-none";
 
   // ドロップダウンオプション
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
-    value: i.toString(),
-    label: i.toString().padStart(2, "0"),
-  }));
+  const floorOptions = [
+    { value: "全階", label: "全階" },
+    { value: "1階", label: "1階" },
+    { value: "2階", label: "2階" },
+    { value: "3階", label: "3階" },
+    { value: "4階", label: "4階" },
+    { value: "5階", label: "5階" },
+  ];
+
+  const hourOptions = [
+    // 6時から23時まで
+    ...Array.from({ length: 18 }, (_, i) => ({
+      value: (6 + i).toString(),
+      label: (6 + i).toString().padStart(2, "0"),
+    })),
+    // 0時から5時まで
+    ...Array.from({ length: 6 }, (_, i) => ({
+      value: i.toString(),
+      label: i.toString().padStart(2, "0"),
+    }))
+  ];
 
   const minuteOptions = [0, 15, 30, 45].map((m) => ({
     value: m.toString(),
@@ -757,6 +1016,11 @@ export default function BathingList() {
     { value: "×", label: "×" },
     { value: "", label: "空白" },
   ];
+
+  const temperatureOptions = Array.from({ length: 50 }, (_, i) => {
+    const temp = (35.0 + i * 0.1).toFixed(1);
+    return { value: temp, label: temp };
+  });
 
   const weightOptions = Array.from({ length: 61 }, (_, i) => {
     const weight = 30 + i * 0.5;
@@ -796,65 +1060,46 @@ export default function BathingList() {
               variant="ghost"
               size="sm"
               onClick={() => setLocation("/")}
-              className="text-slate-600 hover:text-slate-800"
+              className="h-8 w-8 p-0"
               data-testid="button-back"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              戻る
+              <ArrowLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-xl font-bold text-slate-800">入浴一覧</h1>
           </div>
         </div>
 
         {/* フィルター */}
-        <div className="flex items-center gap-4 px-4 pb-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-600" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="border rounded px-3 py-1 text-sm focus:border-blue-500 focus:outline-none"
-              data-testid="input-date"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Building className="w-4 h-4 text-slate-600" />
-            <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-              <SelectTrigger className="w-24" data-testid="select-floor">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="全階">全階</SelectItem>
-                <SelectItem value="1階">1階</SelectItem>
-                <SelectItem value="2階">2階</SelectItem>
-                <SelectItem value="3階">3階</SelectItem>
-                <SelectItem value="4階">4階</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">時間帯:</span>
-            <Select value={selectedTiming} onValueChange={setSelectedTiming}>
-              <SelectTrigger className="w-20" data-testid="select-timing">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="全て">全て</SelectItem>
-                <SelectItem value="午前">午前</SelectItem>
-                <SelectItem value="午後">午後</SelectItem>
-                <SelectItem value="臨時">臨時</SelectItem>
-                <SelectItem value="前日">前日</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+            {/* 日付選択 */}
+            <div className="flex items-center space-x-1">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                data-testid="input-date"
+              />
+            </div>
+            {/* フロア選択 */}
+            <div className="flex items-center space-x-1">
+              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <InputWithDropdown
+                value={selectedFloor}
+                options={floorOptions}
+                onSave={(value) => setSelectedFloor(value)}
+                placeholder="フロア選択"
+                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
         </div>
       </div>
 
       {/* メインコンテンツ */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 pb-24">
         <div className="space-y-4">
           {isLoading ? (
             <div className="text-center py-8 text-slate-600">
@@ -870,12 +1115,11 @@ export default function BathingList() {
                 key={record.id}
                 record={record}
                 residents={residents as any[]}
-                selectedTiming={selectedTiming}
                 inputBaseClass={inputBaseClass}
                 hourOptions={hourOptions}
                 minuteOptions={minuteOptions}
                 bathTypeOptions={bathTypeOptions}
-                weightOptions={weightOptions}
+                temperatureOptions={temperatureOptions}
                 systolicBPOptions={systolicBPOptions}
                 diastolicBPOptions={diastolicBPOptions}
                 pulseOptions={pulseOptions}
@@ -892,14 +1136,14 @@ export default function BathingList() {
         </div>
       </main>
 
-      {/* フッター：追加ボタン */}
-      <div className="fixed bottom-6 right-6">
+      {/* フッター */}
+      <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-end">
         <Button
-          onClick={handleAddRecord}
-          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-14 h-14 shadow-lg"
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={addNewRecord}
           data-testid="button-add-record"
         >
-          <Plus className="w-6 h-6" />
+          <Plus className="w-4 h-4" />
         </Button>
       </div>
     </div>

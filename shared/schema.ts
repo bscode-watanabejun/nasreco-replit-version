@@ -218,6 +218,7 @@ export const bathingRecords = pgTable("bathing_records", {
   minute: varchar("minute"), // 分 (0, 15, 30, 45)
   staffName: varchar("staff_name"), // 承認者
   bathType: varchar("bath_type"), // 区分: 入浴, シャワー浴, 清拭, ×
+  temperature: varchar("temperature"), // 体温
   weight: varchar("weight"), // 体重
   bloodPressureSystolic: varchar("blood_pressure_systolic"),
   bloodPressureDiastolic: varchar("blood_pressure_diastolic"),
@@ -395,6 +396,10 @@ export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
   minute: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  temperature: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'string' ? parseFloat(val) : val;
   }),
   weight: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;

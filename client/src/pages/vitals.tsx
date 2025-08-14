@@ -761,8 +761,8 @@ export default function Vitals() {
       if (savedFloor === "all") {
         return "全階";
       } else {
-        // "1F" -> "1" の変換を行う
-        const cleanFloor = savedFloor.replace("F", "");
+        // "1F" -> "1階" の変換を行う
+        const cleanFloor = savedFloor.replace("F", "階");
         return cleanFloor;
       }
     }
@@ -1044,11 +1044,11 @@ export default function Vitals() {
 
   const floorOptions = [
     { value: "全階", label: "全階" },
-    { value: "1", label: "1階" },
-    { value: "2", label: "2階" },
-    { value: "3", label: "3階" },
-    { value: "4", label: "4階" },
-    { value: "5", label: "5階" },
+    { value: "1階", label: "1階" },
+    { value: "2階", label: "2階" },
+    { value: "3階", label: "3階" },
+    { value: "4階", label: "4階" },
+    { value: "5階", label: "5階" },
   ];
 
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({
@@ -1212,7 +1212,18 @@ export default function Vitals() {
       if (selectedFloor === "全階") return true;
 
       const residentFloor = resident.floor;
-      return residentFloor === selectedFloor;
+      if (!residentFloor) return false; // null/undefinedをフィルタアウト
+      
+      // 複数のフォーマットに対応した比較
+      const selectedFloorNumber = selectedFloor.replace("階", "");
+      
+      // "1階" 形式との比較
+      if (residentFloor === selectedFloor) return true;
+      
+      // "1" 形式との比較
+      if (residentFloor === selectedFloorNumber) return true;
+      
+      return false;
     });
 
     const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
