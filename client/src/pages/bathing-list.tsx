@@ -655,31 +655,43 @@ export default function BathingList() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, field, value, residentId }: any) => {
       if (id.startsWith("temp-")) {
-        // 新規作成の場合：全フィールドを含むデータを送信
-        const updateData: any = { [field]: value };
-        
-        // 一時的レコードの現在の状態を取得
+        // 新規作成の場合：完全なレコードデータを構築
         const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
         const currentRecord = currentData?.find((record: any) => record.id === id);
         
-        if (currentRecord) {
-          // 既存の値をすべて含める（nullではない値のみ）
-          Object.keys(currentRecord).forEach(key => {
-            if (key !== 'id' && key !== 'isTemporary' && currentRecord[key] !== null && currentRecord[key] !== undefined) {
-              if (key !== field) { // 更新対象フィールド以外
-                updateData[key] = currentRecord[key];
-              }
-            }
-          });
-          
-          // 必須フィールドを設定
-          updateData.residentId = residentId || currentRecord.residentId || "";
-          updateData.recordDate = currentRecord.recordDate;
-          updateData.timing = currentRecord.timing || "午前";
+        if (!currentRecord) {
+          throw new Error("一時的レコードが見つかりません");
         }
+
+        // 必須フィールドの確認
+        const finalResidentId = residentId || currentRecord.residentId;
+        if (!finalResidentId || finalResidentId === "") {
+          throw new Error("利用者IDが設定されていません");
+        }
+
+        // 新規作成用の完全なデータを構築
+        const createData = {
+          residentId: finalResidentId,
+          recordDate: selectedDate, // ISO形式の日付文字列
+          timing: currentRecord.timing || "午前",
+          hour: currentRecord.hour || "",
+          minute: currentRecord.minute || "",
+          staffName: currentRecord.staffName || "",
+          bathType: currentRecord.bathType || "",
+          weight: currentRecord.weight || "",
+          bloodPressureSystolic: currentRecord.bloodPressureSystolic || "",
+          bloodPressureDiastolic: currentRecord.bloodPressureDiastolic || "",
+          pulseRate: currentRecord.pulseRate || "",
+          oxygenSaturation: currentRecord.oxygenSaturation || "",
+          notes: currentRecord.notes || "",
+          rejectionReason: currentRecord.rejectionReason || "",
+          nursingCheck: currentRecord.nursingCheck || false,
+          // 更新対象フィールドを上書き
+          [field]: value
+        };
         
-        // 新規作成API呼び出し
-        await apiRequest("/api/bathing-records", "POST", updateData);
+        console.log("Creating bathing record with data:", createData);
+        await apiRequest("/api/bathing-records", "POST", createData);
       } else {
         // 既存レコード更新の場合
         const updateData = { [field]: value };
@@ -853,8 +865,8 @@ export default function BathingList() {
       // 新しい空のレコードを作成（文字列型で統一）
       const newEmptyRecord = {
         id: tempId,
-        residentId: residentList[0]?.id || "", // 最初の利用者を選択
-        recordDate: `${selectedDate}T00:00:00.000Z`,
+        residentId: residentList[0]?.id, // 最初の利用者を自動選択
+        recordDate: selectedDate, // YYYY-MM-DD形式
         timing: "午前",
         hour: "",
         minute: "",
