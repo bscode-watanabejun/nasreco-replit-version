@@ -286,13 +286,17 @@ function ResidentSelector({
   };
 
   // vital.residentIdが変更されたらローカル状態をクリア
-  // ただし、pendingResidentIdが設定されている場合は、それが優先される
   useEffect(() => {
     if (pendingResidentId && vital.residentId === pendingResidentId) {
       // サーバーからの更新でresidentIdが正しく反映されたらローカル状態をクリア
       setPendingResidentId(null);
     }
   }, [vital.residentId, pendingResidentId]);
+
+  // vital.residentIdが外部から変更された場合、ローカル状態をリセット
+  useEffect(() => {
+    setPendingResidentId(null);
+  }, [vital.id, vital.residentId]);
 
   // 全項目未入力でない場合は変更不可
   const disabled = !isAllEmpty;
@@ -364,7 +368,7 @@ function VitalCard({
   const resident = residents.find((r: any) => r.id === vital.residentId);
 
   return (
-    <Card key={`${vital.id}-${vital.residentId}`} className="bg-white shadow-sm">
+    <Card className="bg-white shadow-sm">
       <CardContent className="p-3">
         {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
         <div className="flex items-center justify-between mb-3">
@@ -1028,10 +1032,6 @@ export default function Vitals() {
     onSuccess: () => {
       // 成功時はサーバーから最新データを取得して確実に同期
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      toast({
-        title: "成功",
-        description: "利用者を変更しました",
-      });
     },
   });
 
@@ -1348,7 +1348,7 @@ export default function Vitals() {
         ) : (
           filteredVitalSigns.map((vital: any) => (
             <VitalCard
-              key={`${vital.id}-${vital.residentId}`}
+              key={vital.id}
               vital={vital}
               residents={residents as any[]}
               selectedTiming={selectedTiming}
