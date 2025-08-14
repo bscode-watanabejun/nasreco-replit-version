@@ -564,19 +564,48 @@ export default function Vitals() {
         residentId: newResidentId
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      toast({
-        title: "成功",
-        description: "利用者を変更しました",
+    // 楽観的更新の実装
+    onMutate: async ({ vitalId, newResidentId }) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousVitalSigns = queryClient.getQueryData(["/api/vital-signs"]);
+      
+      // 楽観的に更新（利用者変更）
+      queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+        if (!old) return old;
+        
+        return old.map((vital: any) => {
+          if (vital.id === vitalId) {
+            return { ...vital, residentId: newResidentId };
+          }
+          return vital;
+        });
       });
+      
+      // ロールバック用のコンテキストを返す
+      return { previousVitalSigns };
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousVitalSigns) {
+        queryClient.setQueryData(["/api/vital-signs"], context.previousVitalSigns);
+      }
+      
       console.error('Change resident error:', error);
       toast({
         title: "エラー",
         description: error.message || "利用者の変更に失敗しました",
         variant: "destructive",
+      });
+    },
+    onSuccess: () => {
+      // 成功時はサーバーから最新データを取得して確実に同期
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      toast({
+        title: "成功",
+        description: "利用者を変更しました",
       });
     },
   });
