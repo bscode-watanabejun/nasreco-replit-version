@@ -654,12 +654,14 @@ export default function BathingList() {
   // 入浴記録の更新
   const updateMutation = useMutation({
     mutationFn: async ({ id, field, value, residentId }: any) => {
-      if (id.startsWith("temp-")) {
+      // 一時的レコード（新規作成）かどうかを判定
+      if (id && typeof id === 'string' && id.startsWith("temp-")) {
         // 新規作成の場合：完全なレコードデータを構築
         const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
         const currentRecord = currentData?.find((record: any) => record.id === id);
         
         if (!currentRecord) {
+          console.error("一時的レコードが見つかりません", { id, currentData });
           throw new Error("一時的レコードが見つかりません");
         }
 
@@ -694,6 +696,7 @@ export default function BathingList() {
         await apiRequest("/api/bathing-records", "POST", createData);
       } else {
         // 既存レコード更新の場合
+        console.log("Updating existing record:", { id, field, value });
         const updateData = { [field]: value };
         await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
       }
@@ -710,7 +713,7 @@ export default function BathingList() {
       queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
         if (!old) return old;
         
-        if (id.startsWith("temp-")) {
+        if (id && typeof id === 'string' && id.startsWith("temp-")) {
           // 新規作成の場合：一時的なレコードを更新
           return old.map((record: any) => {
             if (record.id === id) {
@@ -750,7 +753,7 @@ export default function BathingList() {
     },
     onSuccess: (data, variables) => {
       // 新規作成の場合のみinvalidateを実行（一時的IDを実際のIDに置き換えるため）
-      if (variables.id.startsWith("temp-")) {
+      if (variables.id && typeof variables.id === 'string' && variables.id.startsWith("temp-")) {
         queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
       }
       // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
