@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -6,12 +6,77 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ArrowLeft, Info, Calendar, Building } from "lucide-react";
 import { useLocation } from "wouter";
 import { type StaffNotice, type StaffNoticeReadStatus } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = (selectedValue: string) => {
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          readOnly
+          onClick={() => setOpen(!open)}
+          placeholder={placeholder}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function Communications() {
   const [, setLocation] = useLocation();
@@ -241,34 +306,36 @@ export default function Communications() {
           {/* Job Role Selection */}
           <div className="flex items-center space-x-1">
             <span className="text-xs sm:text-sm">職種</span>
-            <Select value={selectedJobRole} onValueChange={setSelectedJobRole}>
-              <SelectTrigger className="w-20 sm:w-24 h-6 sm:h-8 text-xs sm:text-sm" data-testid="select-job-role">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="全体" data-testid="option-job-role-all">全体</SelectItem>
-                <SelectItem value="介護" data-testid="option-job-role-care">介護</SelectItem>
-                <SelectItem value="施設看護" data-testid="option-job-role-facility-nursing">施設看護</SelectItem>
-                <SelectItem value="訪問看護" data-testid="option-job-role-visiting-nursing">訪問看護</SelectItem>
-              </SelectContent>
-            </Select>
+            <InputWithDropdown
+              value={selectedJobRole}
+              options={[
+                { value: "全体", label: "全体" },
+                { value: "介護", label: "介護" },
+                { value: "施設看護", label: "施設看護" },
+                { value: "訪問看護", label: "訪問看護" }
+              ]}
+              onSave={(value) => setSelectedJobRole(value)}
+              placeholder="職種選択"
+              className="w-20 sm:w-24 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {/* Floor Selection */}
           <div className="flex items-center space-x-1">
             <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-              <SelectTrigger className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm" data-testid="select-floor">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="全階" data-testid="option-floor-all">全階</SelectItem>
-                <SelectItem value="1階" data-testid="option-floor-1">1階</SelectItem>
-                <SelectItem value="2階" data-testid="option-floor-2">2階</SelectItem>
-                <SelectItem value="3階" data-testid="option-floor-3">3階</SelectItem>
-                <SelectItem value="4階" data-testid="option-floor-4">4階</SelectItem>
-              </SelectContent>
-            </Select>
+            <InputWithDropdown
+              value={selectedFloor}
+              options={[
+                { value: "全階", label: "全階" },
+                { value: "1階", label: "1階" },
+                { value: "2階", label: "2階" },
+                { value: "3階", label: "3階" },
+                { value: "4階", label: "4階" }
+              ]}
+              onSave={(value) => setSelectedFloor(value)}
+              placeholder="階数選択"
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
       </div>

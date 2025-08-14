@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -11,6 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +33,66 @@ const careRecordSchema = z.object({
 });
 
 type CareRecordForm = z.infer<typeof careRecordSchema>;
+
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = (selectedValue: string) => {
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          readOnly
+          onClick={() => setOpen(!open)}
+          placeholder={placeholder}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // インライン編集用のコンポーネント
 function InlineEditableField({ 
@@ -694,18 +759,16 @@ export default function CareRecords() {
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
-                  <SelectValue placeholder="フロア選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {floorOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <InputWithDropdown
+                value={(() => {
+                  const option = floorOptions.find(opt => opt.value === selectedFloor);
+                  return option ? option.label : "全階";
+                })()}
+                options={floorOptions}
+                onSave={(value) => setSelectedFloor(value)}
+                placeholder="フロア選択"
+                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
         </div>

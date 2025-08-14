@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -19,6 +24,66 @@ interface MealsMedicationWithResident extends MealsAndMedication {
   residentName: string;
   roomNumber: string;
   floor: string;
+}
+
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = (selectedValue: string) => {
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          readOnly
+          onClick={() => setOpen(!open)}
+          placeholder={placeholder}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function MealsMedicationPage() {
@@ -295,36 +360,43 @@ export default function MealsMedicationPage() {
           {/* 食事時間選択 */}
           <div className="flex items-center space-x-1">
             <ClockIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <Select value={selectedMealTime} onValueChange={setSelectedMealTime}>
-              <SelectTrigger className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm" data-testid="select-meal-time">
-                <SelectValue placeholder="時間" />
-              </SelectTrigger>
-              <SelectContent>
-                {mealTimes.map((time) => (
-                  <SelectItem key={time} value={time} data-testid={`option-meal-time-${time}`}>
-                    {time}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <InputWithDropdown
+              value={selectedMealTime}
+              options={mealTimes.map(time => ({ value: time, label: time }))}
+              onSave={(value) => setSelectedMealTime(value)}
+              placeholder="時間"
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
           
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <BuildingIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-              <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm" data-testid="select-floor">
-                <SelectValue placeholder="フロア選択" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" data-testid="option-floor-all">全階</SelectItem>
-                <SelectItem value="1F" data-testid="option-floor-1F">1階</SelectItem>
-                <SelectItem value="2F" data-testid="option-floor-2F">2階</SelectItem>
-                <SelectItem value="3F" data-testid="option-floor-3F">3階</SelectItem>
-                <SelectItem value="4F" data-testid="option-floor-4F">4階</SelectItem>
-                <SelectItem value="5F" data-testid="option-floor-5F">5階</SelectItem>
-              </SelectContent>
-            </Select>
+            <InputWithDropdown
+              value={(() => {
+                const floorOptions = [
+                  { value: "all", label: "全階" },
+                  { value: "1F", label: "1階" },
+                  { value: "2F", label: "2階" },
+                  { value: "3F", label: "3階" },
+                  { value: "4F", label: "4階" },
+                  { value: "5F", label: "5階" }
+                ];
+                const option = floorOptions.find(opt => opt.value === selectedFloor);
+                return option ? option.label : "全階";
+              })()}
+              options={[
+                { value: "all", label: "全階" },
+                { value: "1F", label: "1階" },
+                { value: "2F", label: "2階" },
+                { value: "3F", label: "3階" },
+                { value: "4F", label: "4階" },
+                { value: "5F", label: "5階" }
+              ]}
+              onSave={(value) => setSelectedFloor(value)}
+              placeholder="フロア選択"
+              className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
       </div>

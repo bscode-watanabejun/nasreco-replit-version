@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -30,6 +30,66 @@ interface Resident {
   name: string;
   floor: string;
   roomNumber: string;
+}
+
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = (selectedValue: string) => {
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          readOnly
+          onClick={() => setOpen(!open)}
+          placeholder={placeholder}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function CleaningLinenList() {
@@ -335,21 +395,13 @@ export default function CleaningLinenList() {
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-            <SelectTrigger 
-              className="w-20 h-8 bg-white text-gray-900 text-xs border-gray-300 ml-2" 
-              data-testid="select-floor"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {floors.map(floor => (
-                <SelectItem key={floor} value={floor} data-testid={`floor-option-${floor}`}>
-                  {floor}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <InputWithDropdown
+            value={selectedFloor}
+            options={floors.map(floor => ({ value: floor, label: floor }))}
+            onSave={(value) => setSelectedFloor(value)}
+            placeholder="階数選択"
+            className="w-20 h-8 text-xs px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ml-2"
+          />
         </div>
 
         {/* テーブル */}

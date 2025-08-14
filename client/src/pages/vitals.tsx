@@ -233,6 +233,71 @@ function InputWithDropdown({
   );
 }
 
+// 全バイタル項目が未入力かどうかを判定する関数
+function isAllVitalFieldsEmpty(vital: any) {
+  return (
+    !vital.temperature &&
+    !vital.bloodPressureSystolic &&
+    !vital.bloodPressureDiastolic &&
+    !vital.pulseRate &&
+    !vital.oxygenSaturation &&
+    !vital.bloodSugar &&
+    !vital.respirationRate &&
+    !vital.notes
+  );
+}
+
+// 利用者選択コンポーネント
+function ResidentSelector({
+  vital,
+  residents,
+  onResidentChange,
+}: {
+  vital: any;
+  residents: any[];
+  onResidentChange: (vitalId: string, residentId: string) => void;
+}) {
+  const currentResident = residents.find((r: any) => r.id === vital.residentId);
+  const isAllEmpty = isAllVitalFieldsEmpty(vital);
+  
+  if (!isAllEmpty) {
+    // 通常の利用者名表示
+    return (
+      <div className="font-medium text-sm truncate max-w-[120px] sm:max-w-none">
+        {currentResident?.name || "未設定"}
+      </div>
+    );
+  }
+  
+  // 全項目未入力の場合はプルダウン選択
+  const residentOptions = residents.map((r: any) => ({
+    value: r.id,
+    label: r.name,
+  }));
+
+  return (
+    <div className="font-medium text-sm truncate max-w-[120px] sm:max-w-none">
+      <Select
+        value={vital.residentId}
+        onValueChange={(residentId) => onResidentChange(vital.id, residentId)}
+      >
+        <SelectTrigger className="h-auto min-h-[1.5rem] border-0 bg-transparent p-0 text-sm font-medium hover:bg-slate-50 focus:ring-0">
+          <SelectValue placeholder="利用者選択">
+            {currentResident?.name || "利用者選択"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {residentOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export default function Vitals() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -310,7 +375,7 @@ export default function Vitals() {
     },
   });
 
-  // 記録更新用ミューテーション
+  // 記録更新用ミューテーション（楽観的更新対応）
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -411,16 +476,62 @@ export default function Vitals() {
         await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+    // 楽観的更新の実装
+    onMutate: async ({ id, field, value, residentId }) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousVitalSigns = queryClient.getQueryData(["/api/vital-signs"]);
+      
+      // 楽観的に更新
+      queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+        if (!old) return old;
+        
+        if (id.startsWith("temp-")) {
+          // 新規作成の場合：一時的なレコードを更新
+          return old.map((vital: any) => {
+            if (vital.id === id) {
+              return { ...vital, [field]: value };
+            }
+            return vital;
+          });
+        } else {
+          // 既存レコード更新の場合
+          return old.map((vital: any) => {
+            if (vital.id === id) {
+              return { ...vital, [field]: value };
+            }
+            return vital;
+          });
+        }
+      });
+      
+      // ロールバック用のコンテキストを返す
+      return { previousVitalSigns };
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousVitalSigns) {
+        queryClient.setQueryData(["/api/vital-signs"], context.previousVitalSigns);
+      }
+      
       console.error('Update error:', error);
       toast({
         title: "エラー",
-        description: error.message || "バイタルサインの更新に失敗しました",
+        description: error.message || "バイタルサインの更新に失敗しました。変更を元に戻しました。",
         variant: "destructive",
       });
+      
+      // エラー時のみサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+    },
+    onSuccess: (data, variables) => {
+      // 新規作成の場合のみinvalidateを実行（一時的IDを実際のIDに置き換えるため）
+      if (variables.id.startsWith("temp-")) {
+        queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      }
+      // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
     },
   });
 
@@ -441,6 +552,30 @@ export default function Vitals() {
       toast({
         title: "エラー",
         description: error.message || "記録の削除に失敗しました",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 利用者変更用ミューテーション
+  const changeResidentMutation = useMutation({
+    mutationFn: async ({ vitalId, newResidentId }: { vitalId: string; newResidentId: string }) => {
+      await apiRequest(`/api/vital-signs/${vitalId}`, "PATCH", {
+        residentId: newResidentId
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      toast({
+        title: "成功",
+        description: "利用者を変更しました",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Change resident error:', error);
+      toast({
+        title: "エラー",
+        description: error.message || "利用者の変更に失敗しました",
         variant: "destructive",
       });
     },
@@ -727,35 +862,25 @@ export default function Vitals() {
 
           {/* 時間選択 */}
           <div className="flex items-center space-x-1">
-            <Select value={selectedTiming} onValueChange={setSelectedTiming}>
-              <SelectTrigger className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm">
-                <SelectValue placeholder="時間" />
-              </SelectTrigger>
-              <SelectContent>
-                {timingOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <InputWithDropdown
+              value={selectedTiming}
+              options={timingOptions}
+              onSave={(value) => setSelectedTiming(value)}
+              placeholder="時間"
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-              <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
-                <SelectValue placeholder="フロア選択" />
-              </SelectTrigger>
-              <SelectContent>
-                {floorOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <InputWithDropdown
+              value={selectedFloor}
+              options={floorOptions}
+              onSave={(value) => setSelectedFloor(value)}
+              placeholder="フロア選択"
+              className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
       </div>
@@ -777,13 +902,17 @@ export default function Vitals() {
                 <CardContent className="p-3">
                   {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
                   <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <div className="text-lg font-bold text-blue-600 min-w-[50px]">
                         {resident?.roomNumber || "未設定"}
                       </div>
-                      <div className="font-medium text-sm">
-                        {resident?.name || "未設定"}
-                      </div>
+                      <ResidentSelector
+                        vital={vital}
+                        residents={residents as any[]}
+                        onResidentChange={(vitalId, residentId) => 
+                          changeResidentMutation.mutate({ vitalId, newResidentId: residentId })
+                        }
+                      />
                     </div>
                     <div className="flex items-center gap-1 text-sm">
                       <span className="bg-slate-100 px-1 py-1 rounded text-xs">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfDay } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -19,6 +24,66 @@ interface RoundGridData {
       positionChange?: RoundRecord;
     };
   };
+}
+
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = (selectedValue: string) => {
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          readOnly
+          onClick={() => setOpen(!open)}
+          placeholder={placeholder}
+          className={className}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-32 p-0.5" align="center">
+        <div className="space-y-0 max-h-40 overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleSelect(option.value)}
+              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export default function Rounds() {
@@ -210,19 +275,31 @@ export default function Rounds() {
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm">
-                  <SelectValue placeholder="フロア選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全階</SelectItem>
-                  <SelectItem value="1">1階</SelectItem>
-                  <SelectItem value="2">2階</SelectItem>
-                  <SelectItem value="3">3階</SelectItem>
-                  <SelectItem value="4">4階</SelectItem>
-                  <SelectItem value="5">5階</SelectItem>
-                </SelectContent>
-              </Select>
+              <InputWithDropdown
+                value={(() => {
+                  const options = [
+                    { value: "all", label: "全階" },
+                    { value: "1", label: "1階" },
+                    { value: "2", label: "2階" },
+                    { value: "3", label: "3階" },
+                    { value: "4", label: "4階" },
+                    { value: "5", label: "5階" }
+                  ];
+                  const option = options.find(opt => opt.value === selectedFloor);
+                  return option ? option.label : "全階";
+                })()}
+                options={[
+                  { value: "all", label: "全階" },
+                  { value: "1", label: "1階" },
+                  { value: "2", label: "2階" },
+                  { value: "3", label: "3階" },
+                  { value: "4", label: "4階" },
+                  { value: "5", label: "5階" }
+                ]}
+                onSave={(value) => setSelectedFloor(value)}
+                placeholder="フロア選択"
+                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
 
 
