@@ -661,8 +661,23 @@ export default function BathingList() {
         const currentRecord = currentData?.find((record: any) => record.id === id);
         
         if (!currentRecord) {
-          console.error("一時的レコードが見つかりません", { id, currentData });
-          throw new Error("一時的レコードが見つかりません");
+          console.error("一時的レコードが見つかりません", { id, currentData, selectedDate });
+          
+          // 一時的レコードが見つからない場合、最小限のデータで新規作成を試行
+          const createData = {
+            residentId: residentId || "",
+            recordDate: selectedDate,
+            timing: "午前",
+            [field]: value
+          };
+          
+          if (!createData.residentId) {
+            throw new Error("利用者IDが設定されていません");
+          }
+          
+          console.log("Creating record with minimal data:", createData);
+          await apiRequest("/api/bathing-records", "POST", createData);
+          return;
         }
 
         // 必須フィールドの確認
@@ -846,8 +861,8 @@ export default function BathingList() {
     });
   };
 
-  // 新しい入浴記録の追加（空のカードを最下部に追加）
-  const addNewRecord = () => {
+  // 新しい入浴記録の追加（即座にサーバーに送信）
+  const addNewRecord = async () => {
     const residentList = residents as any[];
     if (!residentList || residentList.length === 0) {
       toast({
@@ -858,18 +873,11 @@ export default function BathingList() {
       return;
     }
 
-    // 一時的なIDを生成（タイムスタンプベース）
-    const tempId = `temp-new-${Date.now()}`;
-    
-    // 楽観的更新で空のカードを即座に追加
-    queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
-      if (!old) return old;
-      
-      // 新しい空のレコードを作成（文字列型で統一）
-      const newEmptyRecord = {
-        id: tempId,
-        residentId: residentList[0]?.id, // 最初の利用者を自動選択
-        recordDate: selectedDate, // YYYY-MM-DD形式
+    try {
+      // 直接サーバーに新規レコードを作成
+      const createData = {
+        residentId: residentList[0]?.id,
+        recordDate: selectedDate,
         timing: "午前",
         hour: "",
         minute: "",
@@ -883,14 +891,26 @@ export default function BathingList() {
         notes: "",
         rejectionReason: "",
         nursingCheck: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isTemporary: true,
       };
+
+      console.log("Creating new bathing record directly:", createData);
+      await apiRequest("/api/bathing-records", "POST", createData);
       
-      // 既存のレコードに新しい空のレコードを追加
-      return [...old, newEmptyRecord];
-    });
+      // 作成成功後、データを再取得
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+      
+      toast({
+        title: "新規記録を追加しました",
+        description: "入浴記録が正常に作成されました",
+      });
+    } catch (error) {
+      console.error("Failed to create new record:", error);
+      toast({
+        title: "エラー",
+        description: "新規記録の作成に失敗しました",
+        variant: "destructive",
+      });
+    }
   };
 
   // フィルタリングロジック
@@ -1155,7 +1175,7 @@ export default function BathingList() {
       <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-end">
         <Button
           className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={addNewRecord}
+          onClick={() => addNewRecord()}
           data-testid="button-add-record"
         >
           <Plus className="w-4 h-4" />
