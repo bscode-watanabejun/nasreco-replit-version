@@ -320,6 +320,14 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
+  hour: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  minute: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
   temperature: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'string' ? parseFloat(val) : val;

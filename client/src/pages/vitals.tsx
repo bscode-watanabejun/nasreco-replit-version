@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -1021,10 +1021,17 @@ export default function Vitals() {
         description: error.message || "利用者の変更に失敗しました",
         variant: "destructive",
       });
+      
+      // エラー時もサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
     },
     onSuccess: () => {
       // 成功時はサーバーから最新データを取得して確実に同期
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      toast({
+        title: "成功",
+        description: "利用者を変更しました",
+      });
     },
   });
 
