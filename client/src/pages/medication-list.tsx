@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
@@ -130,6 +129,8 @@ export default function MedicationList() {
   
   // ローカル状態管理（編集中のメモ）
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  // 保存済みの一時的レコードを追跡
+  const [savedTempRecords, setSavedTempRecords] = useState<Set<string>>(new Set());
 
   // 利用者データ取得
   const { data: residents } = useQuery<Resident[]>({
@@ -141,12 +142,22 @@ export default function MedicationList() {
     return residents.filter((resident: any) => {
       // 階数フィルタ
       if (floor !== 'all') {
-        const residentFloor = resident.floor?.toString();
-        const selectedFloorValue = floor.replace('F', '');
-        const floorMatch = residentFloor === floor || 
-                          residentFloor === selectedFloorValue || 
-                          `${residentFloor}F` === floor;
-        if (!floorMatch) return false;
+        const residentFloor = resident.floor;
+        if (!residentFloor) return false; // null/undefinedをフィルタアウト
+        
+        // selectedFloorは "1F", "2F" などの形式
+        const selectedFloorNumber = floor.replace("F", ""); // "1F" -> "1"
+        
+        // "1F" 形式との比較
+        if (residentFloor === floor) return true;
+        
+        // "1" 形式との比較
+        if (residentFloor === selectedFloorNumber) return true;
+        
+        // "1階" 形式との比較
+        if (residentFloor === `${selectedFloorNumber}階`) return true;
+        
+        return false;
       }
       
       // 服薬時間帯フィルタ（利用者の服薬時間帯に指定されたタイミングが含まれているかチェック）
@@ -316,6 +327,18 @@ export default function MedicationList() {
           context.previousData
         );
       }
+      
+      // 保存済みマークもクリア（再試行可能にする）
+      const tempId = Array.from(savedTempRecords).find(id => 
+        displayMedicationRecords.find(r => r.id === id && r.residentId === variables.residentId)
+      );
+      if (tempId) {
+        setSavedTempRecords(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(tempId);
+          return newSet;
+        });
+      }
     },
     onSuccess: (response: any, variables) => {
       console.log('Create successful for:', variables);
@@ -325,6 +348,12 @@ export default function MedicationList() {
         if (!old) return old;
         return old.map((record: any) => {
           if (record.id.startsWith('temp-new-')) {
+            // 保存済みレコードリストからも削除
+            setSavedTempRecords(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(record.id);
+              return newSet;
+            });
             return { ...record, id: response.id || record.id };
           }
           return record;
@@ -413,6 +442,42 @@ export default function MedicationList() {
       console.error('Delete failed for record:', variables, error);
     }
   });
+
+  // 一時的なレコードを実際にサーバーに保存する
+  const saveTemporaryRecord = (recordId: string) => {
+    // 既に保存済みの場合はスキップ
+    if (savedTempRecords.has(recordId)) {
+      console.log('Record already saved, skipping:', recordId);
+      return;
+    }
+    
+    const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
+    if (!currentRecord || !recordId.startsWith('temp-')) return;
+    
+    // 必須フィールドがない場合はスキップ
+    if (!currentRecord.residentId || !currentRecord.timing || !currentRecord.type) {
+      console.log('Missing required fields, skipping save:', recordId);
+      return;
+    }
+    
+    // 保存済みとしてマーク
+    setSavedTempRecords(prev => new Set(prev).add(recordId));
+    
+    const newRecord: InsertMedicationRecord = {
+      residentId: currentRecord.residentId,
+      recordDate: new Date(selectedDate),
+      timing: currentRecord.timing,
+      type: currentRecord.type,
+      confirmer1: currentRecord.confirmer1 || "",
+      confirmer2: currentRecord.confirmer2 || "",
+      notes: currentRecord.notes || "",
+      result: currentRecord.result || "",
+      createdBy: (user as any).claims?.sub || "unknown"
+    };
+    
+    console.log('Saving temporary record:', newRecord);
+    createMutation.mutate(newRecord);
+  };
 
   // 新規カード追加 - 未記録の利用者を探して追加
   const handleAddRecord = () => {
@@ -510,26 +575,22 @@ export default function MedicationList() {
       }
     }
     
-    // 一時的なIDの場合は新規作成
+    // 一時的なIDの場合は楽観的更新のみで即座にUIに反映
     if (recordId.startsWith('temp-')) {
-      const residentId = recordId.replace('temp-', '');
+      // 楽観的更新でUIを即座に更新
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id === recordId) {
+            return { ...record, [field]: value };
+          }
+          return record;
+        });
+      });
       
-      // 現在の表示レコードから既存の値を取得
-      const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
-      
-      const newRecord: InsertMedicationRecord = {
-        residentId: field === 'residentId' ? value : (currentRecord?.residentId || residentId),
-        recordDate: new Date(selectedDate),
-        timing: field === 'timing' ? value : (currentRecord?.timing || selectedTiming),
-        type: field === 'type' ? value : (currentRecord?.type || "服薬"),
-        confirmer1: field === 'confirmer1' ? value : (currentRecord?.confirmer1 || ""),
-        confirmer2: field === 'confirmer2' ? value : (currentRecord?.confirmer2 || ""),
-        notes: field === 'notes' ? value : (currentRecord?.notes || ""),
-        result: field === 'result' ? value : (currentRecord?.result || ""),
-        createdBy: (user as any).claims?.sub || "unknown"
-      };
-      console.log('Creating new record:', newRecord);
-      createMutation.mutate(newRecord);
+      // API呼び出しはしない（楽観的更新のみ）
+      return;
     } else {
       const updateData = { [field]: value };
       console.log('Updating existing record:', updateData);
@@ -540,15 +601,25 @@ export default function MedicationList() {
     }
   };
 
-  // 確認者設定
+  // 確認者設定（食事一覧の記入者と同じ仕様）
   const handleConfirmerClick = (recordId: string, confirmerField: "confirmer1" | "confirmer2") => {
     if (!user) return;
-    const staffName = (user as any).firstName && (user as any).lastName 
-      ? `${(user as any).lastName} ${(user as any).firstName}`
-      : (user as any).email || "スタッフ";
+    const staffName = (user as any)?.firstName || 'スタッフ';
     
-    console.log(`Setting ${confirmerField} for record ${recordId} to:`, staffName);
-    handleFieldUpdate(recordId, confirmerField, staffName);
+    // 現在の確認者情報を取得
+    const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
+    const currentConfirmer = currentRecord ? currentRecord[confirmerField] : '';
+    
+    // 確認者が空白の場合はログイン者名を設定、入っている場合はクリア
+    const newConfirmer = currentConfirmer ? '' : staffName;
+    
+    console.log(`Setting ${confirmerField} for record ${recordId} to:`, newConfirmer);
+    handleFieldUpdate(recordId, confirmerField, newConfirmer);
+    
+    // 一時的なレコードの場合は保存処理を実行
+    if (recordId.startsWith('temp-')) {
+      setTimeout(() => saveTemporaryRecord(recordId), 200);
+    }
   };
 
   // 削除
@@ -576,21 +647,25 @@ export default function MedicationList() {
 
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="flex items-center gap-2 mb-4">
-        <Link href="/meals-medication">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-2"
-            data-testid="button-back"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-bold">服薬一覧</h1>
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Link href="/meals-medication">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2"
+              data-testid="button-back"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold">服薬一覧</h1>
+        </div>
       </div>
+
+      <div className="space-y-4 p-4">
 
       {/* 日付とフロア選択 */}
       <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
@@ -678,167 +753,164 @@ export default function MedicationList() {
             })
             .map((record: MedicationRecordWithResident) => (
             <Card key={record.id} className="bg-white shadow-sm">
-              <CardContent className="p-4 space-y-4">
-                {/* 1行目：居室番号と利用者名 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">居室番号</label>
-                    <div className="p-2 border border-gray-300 rounded-md bg-gray-50 text-center font-bold text-lg">
+              <CardContent className="p-2 space-y-2">
+                {/* 1段目：居室番号・利用者名・服薬タイミング・確認者1・確認者2 */}
+                <div className="flex items-center gap-1">
+                  {/* 居室番号 */}
+                  <div className="w-12 flex-shrink-0">
+                    <div className="h-6 px-1 border border-gray-300 rounded-md bg-gray-50 text-center font-bold text-xs flex items-center justify-center">
                       {record.roomNumber}
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">利用者名</label>
-                    <Select
-                      value={record.residentId}
-                      onValueChange={(value) => {
-                        console.log('Resident changed for record', record.id, 'to:', value);
-                        handleFieldUpdate(record.id, "residentId", value);
+                  
+                  {/* 利用者名 */}
+                  <div className="w-16 flex-shrink-0">
+                    <InputWithDropdown
+                      value={(() => {
+                        const name = residents?.find(r => r.id === record.residentId)?.name || record.residentName || "";
+                        return name.replace(/\s+/g, '\n');
+                      })()}
+                      options={residents?.map((resident) => ({
+                        value: resident.id,
+                        label: resident.name
+                      })) || []}
+                      onSave={(selectedId) => {
+                        console.log('Resident changed for record', record.id, 'to:', selectedId);
+                        handleFieldUpdate(record.id, "residentId", selectedId);
+                        // 一時的なレコードの場合は保存処理を実行
+                        if (record.id.startsWith('temp-')) {
+                          setTimeout(() => saveTemporaryRecord(record.id), 200);
+                        }
                       }}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue>
-                          <span>
-                            {residents?.find(r => r.id === record.residentId)?.name || record.residentName}
-                          </span>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {residents?.map((resident) => (
-                          <SelectItem key={resident.id} value={resident.id}>
-                            {resident.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="利用者"
+                      className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-pre-line leading-tight text-center"
+                    />
                   </div>
-                </div>
-
-                {/* 2行目：服薬タイミングと種類 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">服薬タイミング</label>
-                    <Select
+                  
+                  {/* 服薬タイミング */}
+                  <div className="w-16 flex-shrink-0">
+                    <InputWithDropdown
                       value={record.timing}
-                      onValueChange={(value) => {
+                      options={timingOptions}
+                      onSave={(value) => {
                         console.log('Timing changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "timing", value);
+                        // 一時的なレコードの場合は保存処理を実行
+                        if (record.id.startsWith('temp-')) {
+                          setTimeout(() => saveTemporaryRecord(record.id), 200);
+                        }
                       }}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timingOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="タイミング"
+                      className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                    />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">種類</label>
-                    <Select
-                      value={record.type}
-                      onValueChange={(value) => {
-                        console.log('Type changed for record', record.id, 'to:', value);
-                        handleFieldUpdate(record.id, "type", value);
-                      }}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {typeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* 3行目：確認者1と確認者2 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">確認者1</label>
-                    <Button
-                      variant="outline"
-                      className="h-10 w-full text-sm text-gray-500 hover:bg-gray-100 justify-start"
+                  
+                  {/* 確認者1 */}
+                  <div className="w-16 flex-shrink-0">
+                    <button
+                      className="h-6 w-full text-xs text-gray-500 hover:bg-gray-100 border border-gray-300 rounded px-1 bg-white"
                       onClick={() => handleConfirmerClick(record.id, "confirmer1")}
                       data-testid={`button-confirmer1-${record.id}`}
                     >
-                      {record.confirmer1 || "タップして記入"}
-                    </Button>
+                      {record.confirmer1 || "確認者1"}
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">確認者2</label>
-                    <Button
-                      variant="outline"
-                      className="h-10 w-full text-sm text-gray-500 hover:bg-gray-100 justify-start"
+                  
+                  {/* 確認者2 */}
+                  <div className="w-16 flex-shrink-0">
+                    <button
+                      className="h-6 w-full text-xs text-gray-500 hover:bg-gray-100 border border-gray-300 rounded px-1 bg-white"
                       onClick={() => handleConfirmerClick(record.id, "confirmer2")}
                       data-testid={`button-confirmer2-${record.id}`}
                     >
-                      {record.confirmer2 || "タップして記入"}
-                    </Button>
+                      {record.confirmer2 || "確認者2"}
+                    </button>
                   </div>
                 </div>
 
-                {/* 4行目：記録欄 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">記録</label>
-                  <Textarea
-                    value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
-                    onChange={(e) => {
-                      setLocalNotes(prev => ({
-                        ...prev,
-                        [record.id]: e.target.value
-                      }));
-                    }}
-                    onBlur={(e) => {
-                      handleFieldUpdate(record.id, "notes", e.target.value);
-                      setLocalNotes(prev => {
-                        const newState = { ...prev };
-                        delete newState[record.id];
-                        return newState;
-                      });
-                    }}
-                    className="h-16 text-sm resize-none w-full"
-                    placeholder="記録を入力..."
-                    data-testid={`textarea-notes-${record.id}`}
-                  />
-                </div>
-
-                {/* 5行目：結果と削除 */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">結果</label>
-                    <Select
-                      value={record.result || "空欄"}
-                      onValueChange={(value) => {
+                {/* 2段目：記録・種類・結果・削除アイコン */}
+                <div className="flex items-center gap-1">
+                  {/* 記録 */}
+                  <div className="flex-1">
+                    <Textarea
+                      value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
+                      onChange={(e) => {
+                        setLocalNotes(prev => ({
+                          ...prev,
+                          [record.id]: e.target.value
+                        }));
+                      }}
+                      onBlur={(e) => {
+                        handleFieldUpdate(record.id, "notes", e.target.value);
+                        setLocalNotes(prev => {
+                          const newState = { ...prev };
+                          delete newState[record.id];
+                          return newState;
+                        });
+                        // 一時的なレコードの場合は保存処理を実行
+                        if (record.id.startsWith('temp-')) {
+                          saveTemporaryRecord(record.id);
+                        }
+                      }}
+                      className="h-6 text-xs resize-none w-full leading-tight"
+                      style={{ minHeight: "24px", maxHeight: "24px" }}
+                      placeholder="記録を入力..."
+                      data-testid={`textarea-notes-${record.id}`}
+                    />
+                  </div>
+                  
+                  {/* 種類 */}
+                  <div className="w-12 flex-shrink-0">
+                    <InputWithDropdown
+                      value={record.type}
+                      options={typeOptions}
+                      onSave={(value) => {
+                        console.log('Type changed for record', record.id, 'to:', value);
+                        handleFieldUpdate(record.id, "type", value);
+                        // 一時的なレコードの場合は保存処理を実行
+                        if (record.id.startsWith('temp-')) {
+                          setTimeout(() => saveTemporaryRecord(record.id), 200);
+                        }
+                      }}
+                      placeholder="種類"
+                      className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                    />
+                  </div>
+                  
+                  {/* 結果 */}
+                  <div className="w-12 flex-shrink-0">
+                    <InputWithDropdown
+                      value={record.result || ""}
+                      options={resultOptions.map(option => ({
+                        ...option,
+                        label: option.value === "空欄" ? "" : option.label
+                      }))}
+                      onSave={(value) => {
                         console.log('Result changed for record', record.id, 'to:', value);
                         const actualValue = value === "空欄" ? "" : value;
                         handleFieldUpdate(record.id, "result", actualValue);
+                        // 一時的なレコードの場合は保存処理を実行
+                        if (record.id.startsWith('temp-')) {
+                          setTimeout(() => saveTemporaryRecord(record.id), 200);
+                        }
                       }}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue placeholder="結果" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {resultOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="結果"
+                      className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                    />
                   </div>
-                  <div className="flex items-end">
-                    <Button
-                      variant="outline"
-                      className="h-10 w-full text-red-600 hover:bg-red-50 border-red-200"
+                  
+                  {/* 削除アイコン */}
+                  <div className="w-6 flex-shrink-0 flex justify-center">
+                    <button
+                      className="rounded text-xs flex items-center justify-center bg-red-500 hover:bg-red-600 text-white"
+                      style={{
+                        height: "24px",
+                        width: "24px",
+                        minHeight: "24px",
+                        minWidth: "24px",
+                        maxHeight: "24px",
+                        maxWidth: "24px",
+                      }}
                       onClick={() => {
                         console.log('Delete button clicked for record:', record.id);
                         handleDelete(record.id);
@@ -846,9 +918,8 @@ export default function MedicationList() {
                       data-testid={`button-delete-${record.id}`}
                       disabled={deleteMutation.isPending}
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      削除
-                    </Button>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               </CardContent>
@@ -879,6 +950,7 @@ export default function MedicationList() {
 
       {/* 下部余白 */}
       <div className="h-20"></div>
+      </div>
     </div>
   );
 }

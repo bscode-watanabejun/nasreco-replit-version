@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
@@ -143,15 +142,54 @@ export default function MealsMedicationPage() {
     mutationFn: async (data: InsertMealsAndMedication) => {
       return apiRequest('/api/meals-medication', 'POST', data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
+    // 楽観的更新の実装
+    onMutate: async (newRecord) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/meals-medication'] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousData = queryClient.getQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor]);
+      
+      // 楽観的に更新（新規作成）
+      queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], (old: any) => {
+        if (!old) return [newRecord];
+        
+        // 既存の記録があるかチェック
+        const existingIndex = old.findIndex((record: any) => 
+          record.residentId === newRecord.residentId && record.mealType === newRecord.mealType
+        );
+        
+        if (existingIndex >= 0) {
+          // 既存レコードを更新
+          const updated = [...old];
+          updated[existingIndex] = { ...updated[existingIndex], ...newRecord, id: updated[existingIndex].id };
+          return updated;
+        } else {
+          // 新規レコードを追加
+          return [...old, { ...newRecord, id: `temp-${Date.now()}` }];
+        }
+      });
+      
+      return { previousData };
     },
-    onError: () => {
+    onError: (error: any, _, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], context.previousData);
+      }
+      
       toast({
         title: "エラー",
-        description: "記録の作成に失敗しました。",
+        description: "記録の作成に失敗しました。変更を元に戻しました。",
         variant: "destructive",
       });
+      
+      // エラー時のみサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
+    },
+    onSuccess: () => {
+      // 成功時はサーバーから最新データを取得して同期
+      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
     },
   });
 
@@ -159,15 +197,45 @@ export default function MealsMedicationPage() {
     mutationFn: async ({ id, data }: { id: string; data: InsertMealsAndMedication }) => {
       return apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
+    // 楽観的更新の実装
+    onMutate: async ({ id, data }) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/meals-medication'] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousData = queryClient.getQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor]);
+      
+      // 楽観的に更新
+      queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], (old: any) => {
+        if (!old) return old;
+        
+        return old.map((record: any) => {
+          if (record.id === id) {
+            return { ...record, ...data };
+          }
+          return record;
+        });
+      });
+      
+      return { previousData };
     },
-    onError: () => {
+    onError: (error: any, _, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], context.previousData);
+      }
+      
       toast({
         title: "エラー",
-        description: "記録の更新に失敗しました。",
+        description: "記録の更新に失敗しました。変更を元に戻しました。",
         variant: "destructive",
       });
+      
+      // エラー時のみサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
+    },
+    onSuccess: () => {
+      // 成功時は楽観的更新のみで完了（invalidateしない）
     },
   });
 
@@ -231,12 +299,24 @@ export default function MealsMedicationPage() {
       mealData.categories[field] = value === "empty" ? "" : value;
     }
     
-    // どの項目が更新されても記入者情報を自動設定
-    mealData.staffName = staffName;
-    mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    // staffNameフィールドの場合は直接記入者情報を設定
+    if (field === 'staffName') {
+      mealData.staffName = value;
+      mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } else {
+      // 他の項目が更新された場合は既存の記入者情報を保持
+      const existingStaffName = mealData.staffName || staffName;
+      mealData.staffName = existingStaffName;
+      if (!mealData.staffTime) {
+        mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+      }
+    }
 
     const recordData: InsertMealsAndMedication = {
       residentId,
@@ -248,6 +328,7 @@ export default function MealsMedicationPage() {
       dosage: existingRecord?.dosage || '',
       notes: JSON.stringify(mealData),
       administeredTime: new Date(),
+      staffId: (user as any)?.id || 'unknown',
     };
 
     if (existingRecord) {
@@ -311,15 +392,43 @@ export default function MealsMedicationPage() {
     }
   };
 
+  // 承認者アイコン機能（バイタル一覧と同じ）
+  const handleStaffStamp = (residentId: string) => {
+    const staffName = (user as any)?.firstName || 'スタッフ';
+    const existingRecord = mealsMedicationData.find(
+      (record: MealsMedicationWithResident) => 
+        record.residentId === residentId && record.mealType === selectedMealTime
+    );
+    
+    // 現在の記入者名を取得
+    const currentStaffName = getStaffInfo(existingRecord).name;
+    
+    // 記入者が空白の場合はログイン者名を設定、入っている場合はクリア
+    const newStaffName = currentStaffName ? '' : staffName;
+    
+    handleSaveRecord(residentId, 'staffName', newStaffName);
+  };
+
   const filteredResidents = residents.filter((resident: any) => {
     if (selectedFloor === 'all') return true;
-    // Handle both number and string formats
-    const residentFloor = resident.floor?.toString();
-    const selectedFloorValue = selectedFloor.replace('F', ''); // Remove 'F' from "3F" -> "3"
+
+    const residentFloor = resident.floor;
+    if (!residentFloor) return false; // null/undefinedをフィルタアウト
     
-    return residentFloor === selectedFloor || 
-           residentFloor === selectedFloorValue || 
-           `${residentFloor}F` === selectedFloor;
+    // selectedFloorは "1F", "2F" などの形式
+    // residentFloorは "1", "2" または "1F", "2F" などの形式
+    const selectedFloorNumber = selectedFloor.replace("F", ""); // "1F" -> "1"
+    
+    // "1F" 形式との比較
+    if (residentFloor === selectedFloor) return true;
+    
+    // "1" 形式との比較
+    if (residentFloor === selectedFloorNumber) return true;
+    
+    // "1階" 形式との比較
+    if (residentFloor === `${selectedFloorNumber}階`) return true;
+    
+    return false;
   });
 
   return (
@@ -420,108 +529,125 @@ export default function MealsMedicationPage() {
                   </div>
                   
                   {/* 主 */}
-                  <div className="w-16 flex-shrink-0">
-                    <div className="text-center text-xs mb-1">主</div>
-                    <Select
-                      value={getMealCategoryValue(existingRecord, 'main')}
-                      onValueChange={(value) => handleSaveRecord(resident.id, 'main', value)}
-                    >
-                      <SelectTrigger className="h-6 text-xs">
-                        <SelectValue placeholder="" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {mainOptions.filter(option => option !== "").map((option, idx) => (
-                          <SelectItem key={idx} value={option}>
-                            {option === "empty" ? "" : option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="w-10 flex-shrink-0">
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'main');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={mainOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'main', value)}
+                      placeholder="主"
+                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
                   {/* 副 */}
-                  <div className="w-16 flex-shrink-0">
-                    <div className="text-center text-xs mb-1">副</div>
-                    <Select
-                      value={getMealCategoryValue(existingRecord, 'side')}
-                      onValueChange={(value) => handleSaveRecord(resident.id, 'side', value)}
-                    >
-                      <SelectTrigger className="h-6 text-xs">
-                        <SelectValue placeholder="" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sideOptions.filter(option => option !== "").map((option, idx) => (
-                          <SelectItem key={idx} value={option}>
-                            {option === "empty" ? "" : option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="w-10 flex-shrink-0">
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'side');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={sideOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'side', value)}
+                      placeholder="副"
+                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
                   {/* 水分 */}
-                  <div className="w-20 flex-shrink-0">
-                    <div className="text-center text-xs mb-1">水分</div>
-                    <Select
-                      value={getMealCategoryValue(existingRecord, 'water')}
-                      onValueChange={(value) => handleSaveRecord(resident.id, 'water', value)}
-                    >
-                      <SelectTrigger className="h-6 text-xs">
-                        <SelectValue placeholder="" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {waterOptions.filter(option => option !== "").map((option, idx) => (
-                          <SelectItem key={idx} value={option}>
-                            {option === "empty" ? "" : option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="w-16 flex-shrink-0">
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'water');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={waterOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'water', value)}
+                      placeholder="水分"
+                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
                   {/* 記入者 */}
-                  <div className="flex-1 ml-2">
-                    <div className="text-center text-xs mb-1">記入者</div>
-                    <div className="h-6 flex items-center justify-center px-1 bg-gray-50 rounded border text-xs">
-                      {(() => {
+                  <div className="w-20 flex-shrink-0 ml-2 flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={(() => {
                         const staffInfo = getStaffInfo(existingRecord);
                         return staffInfo.name || '';
                       })()}
-                    </div>
+                      onClick={(e) => {
+                        const currentValue = e.currentTarget.value;
+                        if (!currentValue.trim()) {
+                          const staffName = (user as any)?.firstName || 'スタッフ';
+                          handleSaveRecord(resident.id, 'staffName', staffName);
+                        }
+                      }}
+                      onChange={(e) => {
+                        // 手動入力も可能にする
+                        handleSaveRecord(resident.id, 'staffName', e.target.value);
+                      }}
+                      placeholder="記入者"
+                      className="h-6 w-12 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      className="rounded text-xs flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
+                      style={{
+                        height: "24px",
+                        width: "24px",
+                        minHeight: "24px",
+                        minWidth: "24px",
+                        maxHeight: "24px",
+                        maxWidth: "24px",
+                      }}
+                      onClick={() => handleStaffStamp(resident.id)}
+                      data-testid={`button-stamp-${resident.id}`}
+                    >
+                      <UserIcon className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
 
                 {/* 2行目：利用者名 + その他 */}
                 <div className="flex items-center gap-2">
                   <div className="w-12 text-center flex-shrink-0">
-                    <div className="text-xs font-medium">{resident.name}</div>
+                    <div className="text-xs font-medium whitespace-pre-line leading-tight">
+                      {resident.name.replace(/\s+/g, '\n')}
+                    </div>
                   </div>
                   
                   {/* その他 */}
                   <div className="flex-1">
-                    <div className="text-left text-xs mb-1">その他</div>
-                    <Select
-                      value={getMealCategoryValue(existingRecord, 'supplement')}
-                      onValueChange={(value) => handleSaveRecord(resident.id, 'supplement', value)}
-                    >
-                      <SelectTrigger className="h-6 text-xs w-full">
-                        <SelectValue placeholder="" />
-                      </SelectTrigger>
-                      <SelectContent className="min-w-[200px]">
-                        {otherOptions.filter(option => option !== "").map((option, idx) => (
-                          <SelectItem key={idx} value={option}>
-                            {option === "empty" ? "" : option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'supplement');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={otherOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'supplement', value)}
+                      placeholder="その他"
+                      className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                 </div>
 
                 {/* 3行目：記録欄 */}
                 <div className="flex items-center gap-2">
                   <div className="w-12 text-center flex-shrink-0">
-                    <div className="text-xs text-gray-500">記録</div>
                   </div>
                   
                   {/* 記録欄 */}
@@ -542,7 +668,8 @@ export default function MealsMedicationPage() {
                           return newState;
                         });
                       }}
-                      className="h-12 text-xs resize-none w-full leading-tight"
+                      className="h-6 text-xs resize-none w-full leading-tight"
+                      style={{ minHeight: "48px", maxHeight: "48px" }}
                       placeholder="記録を入力..."
                       data-testid={`textarea-notes-${resident.id}`}
                     />
@@ -560,23 +687,30 @@ export default function MealsMedicationPage() {
         </div>
       )}
 
-      {/* 下部ボタン */}
-      <div className="flex justify-center gap-4 mt-8 pb-4">
-        <Button 
-          variant="outline" 
-          disabled
-          data-testid="button-bulk-register"
-        >
-          一括登録
-        </Button>
-        <Button 
-          variant="default"
-          onClick={() => setLocation('/medication-list')}
-          data-testid="button-medication-list"
-        >
-          服薬一覧へ
-        </Button>
+      {/* フッター */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className="flex items-center justify-between max-w-md mx-auto">
+          <Button 
+            variant="outline" 
+            disabled
+            data-testid="button-bulk-register"
+            className="flex items-center gap-2"
+          >
+            一括登録
+          </Button>
+          <Button 
+            variant="default"
+            onClick={() => setLocation('/medication-list')}
+            data-testid="button-medication-list"
+            className="flex items-center gap-2"
+          >
+            服薬一覧へ
+          </Button>
+        </div>
       </div>
+
+      {/* 下部余白 */}
+      <div className="h-20"></div>
       </div>
     </div>
   );

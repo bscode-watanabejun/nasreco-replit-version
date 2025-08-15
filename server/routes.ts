@@ -402,6 +402,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/weight-records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertWeightRecordSchema.partial().parse(req.body);
+      const record = await storage.updateWeightRecord(id, validatedData);
+      res.json(record);
+    } catch (error) {
+      console.error("Error updating weight record:", error);
+      res.status(400).json({ message: "Invalid weight record data" });
+    }
+  });
+
+  app.delete('/api/weight-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteWeightRecord(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting weight record:", error);
+      res.status(500).json({ message: "Failed to delete weight record" });
+    }
+  });
+
   // Communications routes
   app.get('/api/communications', isAuthenticated, async (req, res) => {
     try {

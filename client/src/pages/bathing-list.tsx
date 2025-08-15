@@ -56,70 +56,145 @@ function InputWithDropdown({
   className?: string;
   disabled?: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [localValue, setLocalValue] = useState(value);
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // 値が外部から変更された場合に同期
   useEffect(() => {
-    setLocalValue(value);
+    setInputValue(value);
   }, [value]);
 
-  const handleSave = () => {
-    if (localValue !== value) {
-      onSave(localValue);
-    }
-    setIsOpen(false);
+  // アクティブ要素を監視してフォーカス状態を更新
+  useEffect(() => {
+    const checkFocus = () => {
+      if (inputRef.current) {
+        setIsFocused(document.activeElement === inputRef.current);
+      }
+    };
+
+    // 初回チェック
+    checkFocus();
+
+    // フォーカス変更を監視
+    const handleFocusChange = () => {
+      checkFocus();
+    };
+
+    // document全体でfocus/blurイベントを監視
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusChange);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusChange);
+    };
+  }, []);
+
+  const handleSelect = (selectedValue: string) => {
+    if (disabled) return;
+    setInputValue(selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+
+    // 特定の遅延後にフォーカス移動を実行
+    setTimeout(() => {
+      if (inputRef.current) {
+        const allInputs = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            el !== inputRef.current &&
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentElement = inputRef.current;
+        const allElements = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentIndex = allElements.indexOf(currentElement);
+        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+          // フォーカス移動前に現在のプルダウンを確実に閉じる
+          setOpen(false);
+          allElements[currentIndex + 1].focus();
+        }
+      }
+    }, 200);
   };
 
-  const handleBlur = () => {
-    handleSave();
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    if (disabled) return;
+    onSave(inputValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
     if (e.key === "Enter") {
-      handleSave();
+      onSave(inputValue);
+      setOpen(false);
     } else if (e.key === "Escape") {
-      setLocalValue(value);
-      setIsOpen(false);
+      setInputValue(value);
+      setOpen(false);
     }
   };
 
   return (
-    <Popover open={isOpen && !disabled} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <input
-          ref={inputRef}
-          type="text"
-          value={localValue}
-          onChange={(e) => setLocalValue(e.target.value)}
-          onFocus={() => !disabled && setIsOpen(true)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className={className}
-          disabled={disabled}
-          data-testid={`input-dropdown-${placeholder.toLowerCase()}`}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-32 p-0.5" align="center">
-        <div className="space-y-0 max-h-40 overflow-y-auto">
-          {(options || []).map((option, index) => (
-            <button
-              key={index}
-              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem] border-0 bg-transparent"
-              onClick={() => {
-                setLocalValue(option.value);
-                onSave(option.value);
-                setIsOpen(false);
-              }}
-              data-testid={`option-${option.value}`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onFocus={() => {
+              if (!disabled) {
+                setOpen(true);
+                setIsFocused(true);
+              }
+            }}
+            onBlur={(e) => {
+              // プルダウンが開いている場合はフォーカスを維持
+              if (!open) {
+                setTimeout(() => setIsFocused(false), 50);
+              }
+              handleInputBlur();
+            }}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.preventDefault()}
+            placeholder={placeholder}
+            className={`${className} ${disabled ? 'cursor-not-allowed' : ''} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
+            disabled={disabled}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="w-32 p-0.5" align="center">
+          <div className="space-y-0 max-h-40 overflow-y-auto">
+            {(options || []).map((option, index) => (
+              <button
+                key={index}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem] border-0 bg-transparent"
+                onClick={() => handleSelect(option.value)}
+                data-testid={`option-${option.value}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
@@ -127,7 +202,7 @@ function InputWithDropdown({
 function isAllBathingFieldsEmpty(record: any) {
   return (
     !record.bathType &&
-    !record.weight &&
+    !record.temperature &&
     !record.bloodPressureSystolic &&
     !record.bloodPressureDiastolic &&
     !record.pulseRate &&
@@ -290,6 +365,7 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
+              disabled={!record.residentId}
             />
             <span className="text-xs">:</span>
             <InputWithDropdown
@@ -305,6 +381,7 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
+              disabled={!record.residentId}
             />
           </div>
           
@@ -324,6 +401,7 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-16 ${inputBaseClass}`}
+              disabled={!record.residentId}
             />
           </div>
           
@@ -341,11 +419,12 @@ function BathingCard({
             }
             placeholder="承認者"
             className={`w-12 ${inputBaseClass} px-1`}
+            disabled={!record.residentId}
           />
           
           {/* 承認アイコン */}
           <button
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
+            className={`${record.residentId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'} text-white rounded text-xs flex items-center justify-center`}
             style={{
               height: "32px",
               width: "32px",
@@ -355,9 +434,10 @@ function BathingCard({
               maxWidth: "32px",
             }}
             onClick={() =>
-              handleStaffStamp(record.id, record.residentId)
+              record.residentId && handleStaffStamp(record.id, record.residentId)
             }
             data-testid={`button-stamp-${record.id}`}
+            disabled={!record.residentId}
           >
             <User className="w-3 h-3" />
           </button>
@@ -385,6 +465,7 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
+              disabled={!record.residentId}
             />
           </div>
 
@@ -405,6 +486,7 @@ function BathingCard({
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
+                disabled={!record.residentId}
               />
               <span className="text-xs">/</span>
               <InputWithDropdown
@@ -420,6 +502,7 @@ function BathingCard({
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
+                disabled={!record.residentId}
               />
             </div>
           </div>
@@ -614,6 +697,11 @@ export default function BathingList() {
     queryKey: ["/api/residents"],
   });
 
+  // 現在のユーザー情報を取得
+  const { data: currentUser } = useQuery({
+    queryKey: ["/api/auth/user"],
+  });
+
   // 入浴記録データの取得
   const { data: bathingRecords, isLoading } = useQuery({
     queryKey: ["/api/bathing-records", selectedDate],
@@ -654,6 +742,26 @@ export default function BathingList() {
   // 入浴記録の更新
   const updateMutation = useMutation({
     mutationFn: async ({ id, field, value, residentId }: any) => {
+      // 一時的レコードで利用者IDが未設定の場合は事前チェック
+      if (id && typeof id === 'string' && id.startsWith("temp-")) {
+        const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
+        const currentRecord = currentData?.find((record: any) => record.id === id);
+        
+        if (currentRecord) {
+          const finalResidentId = residentId || currentRecord.residentId;
+          if (!finalResidentId || finalResidentId === "") {
+            // ミューテーション自体を実行せず、メッセージのみ表示
+            toast({
+              title: "利用者名を選択してください",
+              description: "他の項目を入力する前に利用者を選択してください。",
+              variant: "destructive",
+            });
+            // エラーとして処理し、onSuccessの実行を防ぐ
+            throw new Error("利用者が選択されていません");
+          }
+        }
+      }
+      
       // 一時的レコード（新規作成）かどうかを判定
       if (id && typeof id === 'string' && id.startsWith("temp-")) {
         // 新規作成の場合：完全なレコードデータを構築
@@ -671,20 +779,15 @@ export default function BathingList() {
             [field]: value
           };
           
-          if (!createData.residentId) {
-            throw new Error("利用者IDが設定されていません");
-          }
+          // この時点では既に事前チェック済みなので、residentIdが設定されているはず
           
           console.log("Creating record with minimal data:", createData);
           await apiRequest("/api/bathing-records", "POST", createData);
           return;
         }
 
-        // 必須フィールドの確認
+        // 必須フィールドの確認（事前チェック済みなので、ここに到達することはないはず）
         const finalResidentId = residentId || currentRecord.residentId;
-        if (!finalResidentId || finalResidentId === "") {
-          throw new Error("利用者IDが設定されていません");
-        }
 
         // 新規作成用の完全なデータを構築
         const createData = {
@@ -718,6 +821,21 @@ export default function BathingList() {
     },
     // 楽観的更新の実装
     onMutate: async ({ id, field, value, residentId }) => {
+      // 一時的レコードで利用者IDが未設定の場合は楽観的更新を完全にスキップ
+      if (id && typeof id === 'string' && id.startsWith("temp-")) {
+        const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
+        const currentRecord = currentData?.find((record: any) => record.id === id);
+        
+        if (currentRecord) {
+          const finalResidentId = residentId || currentRecord.residentId;
+          if (!finalResidentId || finalResidentId === "") {
+            // 利用者ID未設定の場合は何もしない（現在の状態を保持）
+            // mutationFnでエラーがthrowされるので、楽観的更新はしない
+            return;
+          }
+        }
+      }
+      
       // 進行中のクエリをキャンセル
       await queryClient.cancelQueries({ queryKey: ["/api/bathing-records", selectedDate] });
       
@@ -780,10 +898,6 @@ export default function BathingList() {
     mutationFn: (id: string) => apiRequest(`/api/bathing-records/${id}`, "DELETE"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      toast({
-        title: "入浴記録を削除しました",
-        description: "記録が正常に削除されました。",
-      });
     },
     onError: () => {
       toast({
@@ -797,9 +911,41 @@ export default function BathingList() {
   // 利用者変更
   const changeResidentMutation = useMutation({
     mutationFn: async ({ recordId, newResidentId }: { recordId: string; newResidentId: string }) => {
-      await apiRequest(`/api/bathing-records/${recordId}`, "PATCH", {
-        residentId: newResidentId
-      });
+      // 一時的レコード（新規作成）かどうかを判定
+      if (recordId && typeof recordId === 'string' && recordId.startsWith("temp-")) {
+        // 新規作成の場合：完全なレコードデータを構築
+        const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
+        const currentRecord = currentData?.find((record: any) => record.id === recordId);
+        
+        if (!currentRecord) {
+          throw new Error("一時的レコードが見つかりません");
+        }
+        
+        const createData = {
+          residentId: newResidentId,
+          recordDate: selectedDate,
+          timing: currentRecord.timing || "午前",
+          hour: currentRecord.hour || "",
+          minute: currentRecord.minute || "",
+          staffName: currentRecord.staffName || "",
+          bathType: currentRecord.bathType || "",
+          temperature: currentRecord.temperature || "",
+          bloodPressureSystolic: currentRecord.bloodPressureSystolic || "",
+          bloodPressureDiastolic: currentRecord.bloodPressureDiastolic || "",
+          pulseRate: currentRecord.pulseRate || "",
+          oxygenSaturation: currentRecord.oxygenSaturation || "",
+          notes: currentRecord.notes || "",
+          rejectionReason: currentRecord.rejectionReason || "",
+          nursingCheck: currentRecord.nursingCheck || false,
+        };
+        
+        await apiRequest("/api/bathing-records", "POST", createData);
+      } else {
+        // 既存レコードの更新
+        await apiRequest(`/api/bathing-records/${recordId}`, "PATCH", {
+          residentId: newResidentId
+        });
+      }
     },
     // 楽観的更新で即座にUIを更新
     onMutate: async ({ recordId, newResidentId }) => {
@@ -815,7 +961,12 @@ export default function BathingList() {
         
         return old.map((record: any) => {
           if (record.id === recordId) {
-            return { ...record, residentId: newResidentId };
+            return { 
+              ...record, 
+              residentId: newResidentId,
+              // 一時的レコードの場合はisTemporaryフラグを保持
+              isTemporary: record.id.startsWith("temp-") ? true : record.isTemporary
+            };
           }
           return record;
         });
@@ -840,29 +991,85 @@ export default function BathingList() {
       // エラー時もサーバーから最新データを取得
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
-    onSuccess: () => {
+    onSuccess: (data, { recordId }) => {
       // 成功時はサーバーから最新データを取得して確実に同期
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+      
+      // 一時的レコードの場合は、新規作成されたレコードでローカルデータを更新
+      if (recordId && typeof recordId === 'string' && recordId.startsWith("temp-")) {
+        queryClient.invalidateQueries({ queryKey: ["/api/bathing-records", selectedDate] });
+      }
     },
   });
 
-  // スタッフスタンプ機能
-  const handleStaffStamp = (recordId: string, residentId?: string) => {
-    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    const staffName = currentUser.firstName && currentUser.lastName 
-      ? `${currentUser.lastName} ${currentUser.firstName}`
-      : currentUser.email?.split('@')[0] || 'スタッフ';
-
-    updateMutation.mutate({
-      id: recordId,
-      field: "staffName",
-      value: staffName,
-      residentId,
-    });
+  // スタッフ印機能
+  const handleStaffStamp = async (recordId: string, residentId?: string) => {
+    const user = currentUser as any;
+    const staffName = user?.firstName && user?.lastName
+      ? `${user.lastName} ${user.firstName}`
+      : user?.email || "スタッフ";
+      
+    // 現在の入浴記録を取得
+    const record = filteredBathingRecords.find((r: any) => r.id === recordId);
+    if (!record) return;
+    
+    const currentHour = record.hour?.toString() || "";
+    const currentMinute = record.minute?.toString() || "";
+    const currentStaffName = record.staffName || "";
+    
+    // 現在時刻を取得
+    const now = new Date();
+    const currentHourStr = now.getHours().toString();
+    const currentMinuteStr = Math.floor(now.getMinutes() / 15) * 15 === now.getMinutes() 
+      ? now.getMinutes().toString() 
+      : (Math.floor(now.getMinutes() / 15) * 15).toString();
+      
+    let updateData: any = {};
+    
+    // 時分、承認者名の両方が空白の場合
+    if (!currentHour && !currentMinute && !currentStaffName) {
+      updateData = {
+        hour: currentHourStr,
+        minute: currentMinuteStr,
+        staffName: staffName
+      };
+    }
+    // 時分が空白で承認者名が入っている場合
+    else if (!currentHour && !currentMinute && currentStaffName) {
+      updateData = {
+        staffName: ""
+      };
+    }
+    // 時分が入っていて、承認者名が空白の場合
+    else if ((currentHour || currentMinute) && !currentStaffName) {
+      updateData = {
+        hour: currentHourStr,
+        minute: currentMinuteStr,
+        staffName: staffName
+      };
+    }
+    // 時分と承認者名の両方が入っている場合
+    else if ((currentHour || currentMinute) && currentStaffName) {
+      updateData = {
+        hour: "",
+        minute: "",
+        staffName: ""
+      };
+    }
+    
+    // 複数フィールドを同時に更新
+    for (const [field, value] of Object.entries(updateData)) {
+      updateMutation.mutate({
+        id: recordId,
+        field,
+        value: value as string,
+        residentId,
+      });
+    }
   };
 
-  // 新しい入浴記録の追加（即座にサーバーに送信）
-  const addNewRecord = async () => {
+  // 新規記録追加（空のカードを最下部に追加）
+  const addNewRecord = () => {
     const residentList = residents as any[];
     if (!residentList || residentList.length === 0) {
       toast({
@@ -872,18 +1079,25 @@ export default function BathingList() {
       });
       return;
     }
-
-    try {
-      // 直接サーバーに新規レコードを作成
-      const createData = {
-        residentId: residentList[0]?.id,
+    
+    // 一時的なIDを生成（タイムスタンプベース）
+    const tempId = `temp-new-${Date.now()}`;
+    
+    // 楽観的更新で空のカードを即座に追加
+    queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+      if (!old) return old;
+      
+      // 新しい空のレコードを作成
+      const newEmptyRecord = {
+        id: tempId,
+        residentId: "", // 空の状態に設定
         recordDate: selectedDate,
         timing: "午前",
         hour: "",
         minute: "",
         staffName: "",
         bathType: "",
-        weight: "",
+        temperature: "",
         bloodPressureSystolic: "",
         bloodPressureDiastolic: "",
         pulseRate: "",
@@ -891,26 +1105,13 @@ export default function BathingList() {
         notes: "",
         rejectionReason: "",
         nursingCheck: false,
+        createdAt: null,
+        updatedAt: null,
+        isTemporary: true,
       };
-
-      console.log("Creating new bathing record directly:", createData);
-      await apiRequest("/api/bathing-records", "POST", createData);
       
-      // 作成成功後、データを再取得
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      
-      toast({
-        title: "新規記録を追加しました",
-        description: "入浴記録が正常に作成されました",
-      });
-    } catch (error) {
-      console.error("Failed to create new record:", error);
-      toast({
-        title: "エラー",
-        description: "新規記録の作成に失敗しました",
-        variant: "destructive",
-      });
-    }
+      return [...old, newEmptyRecord];
+    });
   };
 
   // フィルタリングロジック
@@ -1175,7 +1376,7 @@ export default function BathingList() {
       <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-end">
         <Button
           className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={() => addNewRecord()}
+          onClick={addNewRecord}
           data-testid="button-add-record"
         >
           <Plus className="w-4 h-4" />

@@ -206,18 +206,18 @@ export default function Dashboard() {
       path: "/excretion"
     },
     {
-      icon: Waves,
-      title: "入浴",
-      description: "入浴記録",
-      color: "blue",
-      path: "/bathing-list"
-    },
-    {
       icon: Sparkles,
       title: "清掃リネン",
       description: "清拭・リネン交換",
       color: "blue",
       path: "/cleaning-linen-list"
+    },
+    {
+      icon: Waves,
+      title: "入浴",
+      description: "入浴記録",
+      color: "blue",
+      path: "/bathing-list"
     },
 
     {
@@ -225,7 +225,7 @@ export default function Dashboard() {
       title: "体重",
       description: "体重測定記録",
       color: "blue",
-      path: "/weight"
+      path: "/weight-list"
     },
     {
       icon: Stethoscope,

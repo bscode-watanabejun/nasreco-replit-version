@@ -102,6 +102,8 @@ export interface IStorage {
   // Weight record operations
   getWeightRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<WeightRecord[]>;
   createWeightRecord(record: InsertWeightRecord): Promise<WeightRecord>;
+  updateWeightRecord(id: string, record: Partial<InsertWeightRecord>): Promise<WeightRecord>;
+  deleteWeightRecord(id: string): Promise<void>;
 
   // Communication operations
   getCommunications(residentId?: string, startDate?: Date, endDate?: Date): Promise<Communication[]>;
@@ -411,6 +413,19 @@ export class DatabaseStorage implements IStorage {
   async createWeightRecord(record: InsertWeightRecord): Promise<WeightRecord> {
     const [newRecord] = await db.insert(weightRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateWeightRecord(id: string, record: Partial<InsertWeightRecord>): Promise<WeightRecord> {
+    const [updatedRecord] = await db
+      .update(weightRecords)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(weightRecords.id, id))
+      .returning();
+    return updatedRecord;
+  }
+
+  async deleteWeightRecord(id: string): Promise<void> {
+    await db.delete(weightRecords).where(eq(weightRecords.id, id));
   }
 
   // Communication operations

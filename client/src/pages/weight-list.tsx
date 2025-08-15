@@ -37,93 +37,8 @@ import {
   Trash2,
   ArrowLeft,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, addMonths, subMonths } from "date-fns";
 import { ja } from "date-fns/locale";
-
-// インライン編集用のコンポーネント
-function InlineEditableField({
-  value,
-  onSave,
-  type = "text",
-  placeholder = "",
-  options = [],
-  disabled = false,
-}: {
-  value: string;
-  onSave: (newValue: string) => void;
-  type?: "text" | "select" | "number";
-  placeholder?: string;
-  options?: { value: string; label: string }[];
-  disabled?: boolean;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentValue, setCurrentValue] = useState(value);
-
-  const handleSave = async () => {
-    if (currentValue !== value && !disabled) {
-      await onSave(currentValue);
-    }
-    setIsEditing(false);
-  };
-
-  const handleBlur = () => {
-    handleSave();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSave();
-    } else if (e.key === "Escape") {
-      setCurrentValue(value);
-      setIsEditing(false);
-    }
-  };
-
-  if (disabled || !isEditing) {
-    return (
-      <div
-        className={`cursor-pointer hover:bg-slate-50 p-2 rounded border-2 border-transparent hover:border-slate-200 transition-colors ${disabled ? "cursor-not-allowed bg-slate-100" : ""}`}
-        onClick={() => !disabled && setIsEditing(true)}
-      >
-        {value || <span className="text-slate-400">{placeholder}</span>}
-      </div>
-    );
-  }
-
-  if (type === "select") {
-    return (
-      <Select
-        value={currentValue}
-        onValueChange={setCurrentValue}
-        onOpenChange={(open) => !open && handleBlur()}
-      >
-        <SelectTrigger className="h-auto min-h-[2.5rem]">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  }
-
-  return (
-    <Input
-      type={type}
-      value={currentValue}
-      onChange={(e) => setCurrentValue(e.target.value)}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-      placeholder={placeholder}
-      className="h-auto min-h-[2.5rem]"
-      autoFocus
-    />
-  );
-}
 
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
@@ -133,6 +48,7 @@ function InputWithDropdown({
   placeholder,
   className,
   disabled = false,
+  enableAutoFocus = true,
 }: {
   value: string;
   options: { value: string; label: string }[];
@@ -140,6 +56,7 @@ function InputWithDropdown({
   placeholder: string;
   className?: string;
   disabled?: boolean;
+  enableAutoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -183,33 +100,36 @@ function InputWithDropdown({
     onSave(selectedValue);
     setOpen(false);
 
-    // 特定の遅延後にフォーカス移動を実行
-    setTimeout(() => {
-      if (inputRef.current) {
-        const allInputs = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            el !== inputRef.current &&
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+    // enableAutoFocusがtrueの場合のみフォーカス移動を実行
+    if (enableAutoFocus) {
+      // 特定の遅延後にフォーカス移動を実行
+      setTimeout(() => {
+        if (inputRef.current) {
+          const allInputs = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              el !== inputRef.current &&
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentElement = inputRef.current;
-        const allElements = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+          const currentElement = inputRef.current;
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentIndex = allElements.indexOf(currentElement);
-        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-          allElements[currentIndex + 1].focus();
+          const currentIndex = allElements.indexOf(currentElement);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            allElements[currentIndex + 1].focus();
+          }
         }
-      }
-    }, 200);
+      }, 200);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,14 +169,23 @@ function InputWithDropdown({
               }
             }}
             onBlur={(e) => {
-              // プルダウンが開いている場合はフォーカスを維持
-              if (!open) {
+              // enableAutoFocusがfalseの場合は常にプルダウンを閉じる
+              if (!enableAutoFocus) {
+                setOpen(false);
+                setTimeout(() => setIsFocused(false), 50);
+              } else if (!open) {
+                // enableAutoFocusがtrueの場合は従来通りの動作
                 setTimeout(() => setIsFocused(false), 50);
               }
               handleInputBlur();
             }}
             onKeyDown={handleKeyDown}
-            onClick={(e) => e.preventDefault()}
+            onClick={() => {
+              if (!disabled && !open) {
+                setOpen(true);
+                setIsFocused(true);
+              }
+            }}
             placeholder={placeholder}
             className={`${className} ${disabled ? 'cursor-not-allowed' : ''} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
             disabled={disabled}
@@ -280,36 +209,22 @@ function InputWithDropdown({
   );
 }
 
-// 全バイタル項目が未入力かどうかを判定する関数
-function isAllVitalFieldsEmpty(vital: any) {
-  return (
-    !vital.temperature &&
-    !vital.bloodPressureSystolic &&
-    !vital.bloodPressureDiastolic &&
-    !vital.pulseRate &&
-    !vital.oxygenSaturation &&
-    !vital.bloodSugar &&
-    !vital.respirationRate &&
-    !vital.notes
-  );
-}
-
 // 利用者選択コンポーネント
 function ResidentSelector({
-  vital,
+  weight,
   residents,
   onResidentChange,
 }: {
-  vital: any;
+  weight: any;
   residents: any[];
-  onResidentChange: (vitalId: string, residentId: string) => void;
+  onResidentChange: (weightId: string, residentId: string) => void;
 }) {
   const [pendingResidentId, setPendingResidentId] = useState<string | null>(null);
   
-  // pendingResidentIdがある場合はそれを使用、なければvital.residentIdを使用
-  const effectiveResidentId = pendingResidentId || vital.residentId;
+  // pendingResidentIdがある場合はそれを使用、なければweight.residentIdを使用
+  const effectiveResidentId = pendingResidentId || weight.residentId;
   const currentResident = residents.find((r: any) => r.id === effectiveResidentId);
-  const isAllEmpty = isAllVitalFieldsEmpty(vital);
+  const isAllEmpty = !weight.weight && !weight.notes;
   
   // 利用者選択肢（valueとlabelを名前で統一）
   const residentOptions = residents.map((r: any) => ({
@@ -322,21 +237,21 @@ function ResidentSelector({
     setPendingResidentId(residentId);
     
     // 実際の更新処理を呼び出し
-    onResidentChange(vital.id, residentId);
+    onResidentChange(weight.id, residentId);
   };
 
-  // vital.residentIdが変更されたらローカル状態をクリア
+  // weight.residentIdが変更されたらローカル状態をクリア
   useEffect(() => {
-    if (pendingResidentId && vital.residentId === pendingResidentId) {
+    if (pendingResidentId && weight.residentId === pendingResidentId) {
       // サーバーからの更新でresidentIdが正しく反映されたらローカル状態をクリア
       setPendingResidentId(null);
     }
-  }, [vital.residentId, pendingResidentId]);
+  }, [weight.residentId, pendingResidentId]);
 
-  // vital.residentIdが外部から変更された場合、ローカル状態をリセット
+  // weight.residentIdが外部から変更された場合、ローカル状態をリセット
   useEffect(() => {
     setPendingResidentId(null);
-  }, [vital.id, vital.residentId]);
+  }, [weight.id, weight.residentId]);
 
   // 全項目未入力でない場合は変更不可
   const disabled = !isAllEmpty;
@@ -361,86 +276,142 @@ function ResidentSelector({
   );
 }
 
-// バイタルカードコンポーネント
-function VitalCard({
-  vital,
+// 体重カードコンポーネント
+function WeightCard({
+  weight,
   residents,
-  selectedTiming,
+  selectedMonth,
   inputBaseClass,
   hourOptions,
   minuteOptions,
-  temperatureOptions,
-  systolicBPOptions,
-  diastolicBPOptions,
-  pulseOptions,
-  spo2Options,
-  respirationOptions,
   localNotes,
   setLocalNotes,
-  localBloodSugar,
-  setLocalBloodSugar,
+  localWeight,
+  setLocalWeight,
   updateMutation,
   handleStaffStamp,
   deleteMutation,
   changeResidentMutation,
 }: {
-  vital: any;
+  weight: any;
   residents: any[];
-  selectedTiming: string;
+  selectedMonth: string;
   inputBaseClass: string;
   hourOptions: any[];
   minuteOptions: any[];
-  temperatureOptions: any[];
-  systolicBPOptions: any[];
-  diastolicBPOptions: any[];
-  pulseOptions: any[];
-  spo2Options: any[];
-  respirationOptions: any[];
   localNotes: Record<string, string>;
   setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  localBloodSugar: Record<string, string>;
-  setLocalBloodSugar: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  localWeight: Record<string, string>;
+  setLocalWeight: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   updateMutation: any;
-  handleStaffStamp: (vitalId: string, residentId?: string) => void;
+  handleStaffStamp: (weightId: string, residentId?: string) => void;
   deleteMutation: any;
   changeResidentMutation: any;
 }) {
-  const resident = residents.find((r: any) => r.id === vital.residentId);
+  const resident = residents.find((r: any) => r.id === weight.residentId);
   
   // 利用者が選択されているかチェック
-  const isResidentSelected = vital.residentId && vital.residentId !== "";
+  const isResidentSelected = weight.residentId && weight.residentId !== "";
 
   return (
     <Card className="bg-white shadow-sm">
       <CardContent className="p-3">
-        {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1">
+        {/* 上段：居室番号、利用者名、体重 */}
+        <div className="flex items-center mb-3">
+          <div className="flex items-center gap-2">
             <div className="text-lg font-bold text-blue-600 min-w-[50px]">
               {resident?.roomNumber || "未設定"}
             </div>
             <ResidentSelector
-              vital={vital}
+              weight={weight}
               residents={residents}
-              onResidentChange={(vitalId, residentId) => 
-                changeResidentMutation.mutate({ vitalId, newResidentId: residentId })
+              onResidentChange={(weightId, residentId) => 
+                changeResidentMutation.mutate({ weightId, newResidentId: residentId })
               }
             />
           </div>
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-xs font-medium text-blue-600">体重</span>
+            <input
+              type="text"
+              value={
+                localWeight[weight.id] !== undefined
+                  ? localWeight[weight.id]
+                  : weight.weight?.toString() || ""
+              }
+              onChange={(e) => {
+                setLocalWeight((prev) => ({
+                  ...prev,
+                  [weight.id]: e.target.value,
+                }));
+              }}
+              onBlur={(e) => {
+                const newValue = e.target.value;
+                if (newValue !== (weight.weight?.toString() || "")) {
+                  updateMutation.mutate({
+                    id: weight.id,
+                    field: "weight",
+                    value: newValue,
+                    residentId: weight.residentId,
+                  });
+                }
+                // ローカル状態をクリア
+                setLocalWeight((prev) => {
+                  const updated = { ...prev };
+                  delete updated[weight.id];
+                  return updated;
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setLocalWeight((prev) => {
+                    const updated = { ...prev };
+                    delete updated[weight.id];
+                    return updated;
+                  });
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="--"
+              className={`w-16 ${inputBaseClass} text-left ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              disabled={!isResidentSelected}
+            />
+          </div>
+        </div>
+
+        {/* 中段：計測日、時、分、承認者、承認アイコン */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-blue-600">計測日</span>
+            <input
+              type="date"
+              value={weight.measurementDate || ""}
+              onChange={(e) => {
+                updateMutation.mutate({
+                  id: weight.id,
+                  field: "measurementDate",
+                  value: e.target.value,
+                  residentId: weight.residentId,
+                });
+              }}
+              className={`w-32 ${inputBaseClass} ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              disabled={!isResidentSelected}
+            />
+          </div>
           <div className="flex items-center gap-1 text-sm">
-            <span className="bg-slate-100 px-1 py-1 rounded text-xs">
-              {selectedTiming}
-            </span>
             <div className="flex items-center gap-0.5">
               <InputWithDropdown
-                value={vital.hour?.toString() || ""}
+                value={weight.hour?.toString() || ""}
                 options={hourOptions}
                 onSave={(value) =>
                   updateMutation.mutate({
-                    id: vital.id,
+                    id: weight.id,
                     field: "hour",
                     value,
-                    residentId: vital.residentId,
+                    residentId: weight.residentId,
                   })
                 }
                 placeholder="--"
@@ -449,14 +420,14 @@ function VitalCard({
               />
               <span className="text-xs">:</span>
               <InputWithDropdown
-                value={vital.minute?.toString() || ""}
+                value={weight.minute?.toString() || ""}
                 options={minuteOptions}
                 onSave={(value) =>
                   updateMutation.mutate({
-                    id: vital.id,
+                    id: weight.id,
                     field: "minute",
                     value,
-                    residentId: vital.residentId,
+                    residentId: weight.residentId,
                   })
                 }
                 placeholder="--"
@@ -466,16 +437,16 @@ function VitalCard({
             </div>
             <input
               type="text"
-              value={vital.staffName || ""}
+              value={weight.staffName || ""}
               onChange={(e) =>
                 updateMutation.mutate({
-                  id: vital.id,
+                  id: weight.id,
                   field: "staffName",
                   value: e.target.value,
-                  residentId: vital.residentId,
+                  residentId: weight.residentId,
                 })
               }
-              placeholder="記入者"
+              placeholder="承認者"
               className={`w-12 ${inputBaseClass} px-1 ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
             />
@@ -494,239 +465,46 @@ function VitalCard({
                 maxWidth: "32px",
               }}
               onClick={() =>
-                isResidentSelected && handleStaffStamp(vital.id, vital.residentId)
+                isResidentSelected && handleStaffStamp(weight.id, weight.residentId)
               }
               disabled={!isResidentSelected}
-              data-testid={`button-stamp-${vital.id}`}
+              data-testid={`button-stamp-${weight.id}`}
             >
               <User className="w-3 h-3" />
             </button>
           </div>
         </div>
 
-        {/* メインバイタル */}
-        <div className="flex gap-1 mb-3">
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              体温
-            </span>
-            <InputWithDropdown
-              value={
-                vital.temperature
-                  ? parseFloat(vital.temperature.toString()).toFixed(
-                      1,
-                    )
-                  : ""
-              }
-              options={temperatureOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "temperature",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
-              placeholder="--"
-              className={`w-12 ${inputBaseClass}`}
-              disabled={!isResidentSelected}
-            />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              血圧
-            </span>
-            <div className="flex items-center gap-0.5">
-              <InputWithDropdown
-                value={vital.bloodPressureSystolic?.toString() || ""}
-                options={systolicBPOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "bloodPressureSystolic",
-                    value,
-                    residentId: vital.residentId,
-                  })
-                }
-                placeholder="--"
-                className={`w-10 ${inputBaseClass}`}
-                disabled={!isResidentSelected}
-              />
-              <span className="text-xs">/</span>
-              <InputWithDropdown
-                value={vital.bloodPressureDiastolic?.toString() || ""}
-                options={diastolicBPOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "bloodPressureDiastolic",
-                    value,
-                    residentId: vital.residentId,
-                  })
-                }
-                placeholder="--"
-                className={`w-10 ${inputBaseClass}`}
-                disabled={!isResidentSelected}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              脈拍
-            </span>
-            <InputWithDropdown
-              value={vital.pulseRate?.toString() || ""}
-              options={pulseOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "pulseRate",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
-              placeholder="--"
-              className={`w-12 ${inputBaseClass}`}
-              disabled={!isResidentSelected}
-            />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              SpO2
-            </span>
-            <InputWithDropdown
-              value={
-                vital.oxygenSaturation
-                  ? Math.round(
-                      parseFloat(vital.oxygenSaturation.toString()),
-                    ).toString()
-                  : ""
-              }
-              options={spo2Options}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "oxygenSaturation",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
-              placeholder="--"
-              className={`w-12 ${inputBaseClass}`}
-              disabled={!isResidentSelected}
-            />
-          </div>
-        </div>
-
-        {/* サブバイタルと記録 */}
-        <div className="flex gap-1 mb-3 items-center">
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              血糖
-            </span>
-            <input
-              type="text"
-              value={
-                localBloodSugar[vital.id] !== undefined
-                  ? localBloodSugar[vital.id]
-                  : vital.bloodSugar?.toString() || ""
-              }
-              onChange={(e) => {
-                setLocalBloodSugar((prev) => ({
-                  ...prev,
-                  [vital.id]: e.target.value,
-                }));
-              }}
-              onBlur={(e) => {
-                const newValue = e.target.value;
-                if (newValue !== (vital.bloodSugar?.toString() || "")) {
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "bloodSugar",
-                    value: newValue,
-                    residentId: vital.residentId,
-                  });
-                }
-                // ローカル状態をクリア
-                setLocalBloodSugar((prev) => {
-                  const updated = { ...prev };
-                  delete updated[vital.id];
-                  return updated;
-                });
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                } else if (e.key === "Escape") {
-                  setLocalBloodSugar((prev) => {
-                    const updated = { ...prev };
-                    delete updated[vital.id];
-                    return updated;
-                  });
-                  e.currentTarget.blur();
-                }
-              }}
-              placeholder="--"
-              className={`w-12 ${inputBaseClass} ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
-              disabled={!isResidentSelected}
-            />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">
-              呼吸
-            </span>
-            <InputWithDropdown
-              value={vital.respirationRate?.toString() || ""}
-              options={respirationOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "respirationRate",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
-              placeholder="--"
-              className={`w-8 ${inputBaseClass}`}
-              disabled={!isResidentSelected}
-            />
-          </div>
-
+        {/* 下段：記録、削除 */}
+        <div className="flex gap-1 items-center">
           <div className="flex items-center gap-1 flex-1">
-            <span className="text-xs font-medium text-blue-600">
-              記録
-            </span>
+            <span className="text-xs font-medium text-blue-600">記録</span>
             <textarea
               value={
-                localNotes[vital.id] !== undefined
-                  ? localNotes[vital.id]
-                  : vital.notes || ""
+                localNotes[weight.id] !== undefined
+                  ? localNotes[weight.id]
+                  : weight.notes || ""
               }
               onChange={(e) => {
                 setLocalNotes((prev) => ({
                   ...prev,
-                  [vital.id]: e.target.value,
+                  [weight.id]: e.target.value,
                 }));
               }}
               onBlur={(e) => {
                 const newValue = e.target.value;
-                if (newValue !== (vital.notes || "")) {
+                if (newValue !== (weight.notes || "")) {
                   updateMutation.mutate({
-                    id: vital.id,
+                    id: weight.id,
                     field: "notes",
                     value: newValue,
-                    residentId: vital.residentId,
+                    residentId: weight.residentId,
                   });
                 }
                 // ローカル状態をクリア
                 setLocalNotes((prev) => {
                   const updated = { ...prev };
-                  delete updated[vital.id];
+                  delete updated[weight.id];
                   return updated;
                 });
               }}
@@ -737,7 +515,7 @@ function VitalCard({
                 }
               }}
               placeholder="記録内容"
-              className={`w-24 ${inputBaseClass} px-2 resize-none ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              className={`flex-1 ${inputBaseClass} px-2 resize-none ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               rows={1}
               style={{ minHeight: "32px", maxHeight: "64px" }}
               disabled={!isResidentSelected}
@@ -759,7 +537,7 @@ function VitalCard({
                     maxWidth: "32px",
                   }}
                   disabled={!isResidentSelected}
-                  data-testid={`button-delete-${vital.id}`}
+                  data-testid={`button-delete-${weight.id}`}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -774,7 +552,7 @@ function VitalCard({
                 <AlertDialogFooter>
                   <AlertDialogCancel>キャンセル</AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={() => deleteMutation.mutate(vital.id)}
+                    onClick={() => deleteMutation.mutate(weight.id)}
                   >
                     削除
                   </AlertDialogAction>
@@ -788,23 +566,20 @@ function VitalCard({
   );
 }
 
-export default function Vitals() {
+export default function WeightList() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-  const [localBloodSugar, setLocalBloodSugar] = useState<Record<string, string>>({});
+  const [localWeight, setLocalWeight] = useState<Record<string, string>>({});
 
   // 共通スタイル定数
   const inputBaseClass =
     "h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
 
-  // URLパラメータから日付と時間帯、フロアの初期値を取得
+  // URLパラメータから年月、フロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(
-    urlParams.get("date") || format(new Date(), "yyyy-MM-dd"),
-  );
-  const [selectedTiming, setSelectedTiming] = useState(
-    urlParams.get("timing") || "午前",
+  const [selectedMonth, setSelectedMonth] = useState(
+    urlParams.get("month") || format(new Date(), "yyyy-MM"),
   );
   const [selectedFloor, setSelectedFloor] = useState(() => {
     // URLパラメータから階数を取得
@@ -835,14 +610,13 @@ export default function Vitals() {
     queryKey: ["/api/residents"],
   });
 
-  const { data: vitalSigns = [] } = useQuery({
-    queryKey: ["/api/vital-signs"],
+  const { data: weightRecords = [] } = useQuery({
+    queryKey: ["/api/weight-records"],
   });
 
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/user"],
   });
-
 
   // 記録更新用ミューテーション（楽観的更新対応）
   const updateMutation = useMutation({
@@ -859,7 +633,7 @@ export default function Vitals() {
     }) => {
       // 一時的なレコード（IDがtempで始まる）の場合は新規作成
       if (id.startsWith("temp-")) {
-        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{date}-{timing}から抽出
+        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{month}から抽出
         
         // residentIdの検証
         if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
@@ -868,31 +642,13 @@ export default function Vitals() {
 
         const newRecordData: any = {
           residentId: residentIdFromTemp,
-          recordDate: new Date(selectedDate),
-          timing: selectedTiming,
+          recordDate: new Date(selectedMonth + "-01"),
           [field]: value,
         };
 
         // データ型を適切に変換
-        if (field === "recordDate") {
-          newRecordData[field] = new Date(value);
-        } else if (
-          [
-            "temperature",
-            "bloodPressureSystolic",
-            "bloodPressureDiastolic",
-            "pulseRate",
-            "respirationRate",
-            "oxygenSaturation",
-          ].includes(field)
-        ) {
-          if (value && value.trim() !== "") {
-            const numValue = parseFloat(value);
-            if (!isNaN(numValue)) {
-              newRecordData[field] = numValue;
-            }
-          }
-          // 空の値の場合はフィールドを送信しない（削除）
+        if (field === "measurementDate") {
+          newRecordData[field] = value;
         } else if (["hour", "minute"].includes(field)) {
           if (value && value.trim() !== "") {
             const intValue = parseInt(value);
@@ -900,36 +656,21 @@ export default function Vitals() {
               newRecordData[field] = intValue;
             }
           }
-          // 空の値の場合はフィールドを送信しない（削除）
+        } else if (field === "weight") {
+          if (value && value.trim() !== "") {
+            newRecordData[field] = value;
+          }
         } else {
-          // その他のフィールド（bloodSugar, notes, staffName等）はそのまま設定
+          // その他のフィールド（notes, staffName等）はそのまま設定
           newRecordData[field] = value;
         }
 
-        await apiRequest("/api/vital-signs", "POST", newRecordData);
+        await apiRequest("/api/weight-records", "POST", newRecordData);
       } else {
         // 既存レコードの更新
         const updateData: any = { [field]: value };
-        if (field === "recordDate") {
-          updateData[field] = new Date(value);
-        } else if (
-          [
-            "temperature",
-            "bloodPressureSystolic",
-            "bloodPressureDiastolic",
-            "pulseRate",
-            "respirationRate",
-            "oxygenSaturation",
-          ].includes(field)
-        ) {
-          if (value && value.trim() !== "") {
-            const numValue = parseFloat(value);
-            if (!isNaN(numValue)) {
-              updateData[field] = numValue;
-            }
-          } else {
-            updateData[field] = null;
-          }
+        if (field === "measurementDate") {
+          updateData[field] = value;
         } else if (["hour", "minute"].includes(field)) {
           if (value && value.trim() !== "") {
             const intValue = parseInt(value);
@@ -939,66 +680,72 @@ export default function Vitals() {
           } else {
             updateData[field] = null;
           }
+        } else if (field === "weight") {
+          if (value && value.trim() !== "") {
+            updateData[field] = value;
+          } else {
+            updateData[field] = null;
+          }
         }
-        // その他のフィールド（bloodSugar, notes, staffName等）は最初の { [field]: value } でそのまま設定される
+        // その他のフィールド（notes, staffName等）は最初の { [field]: value } でそのまま設定される
 
-        await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
+        await apiRequest(`/api/weight-records/${id}`, "PATCH", updateData);
       }
     },
     // 楽観的更新の実装
     onMutate: async ({ id, field, value }) => {
       // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/weight-records"] });
       
       // 現在のデータのスナップショットを取得
-      const previousVitalSigns = queryClient.getQueryData(["/api/vital-signs"]);
+      const previousWeightRecords = queryClient.getQueryData(["/api/weight-records"]);
       
       // 楽観的に更新
-      queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+      queryClient.setQueryData(["/api/weight-records"], (old: any) => {
         if (!old) return old;
         
         if (id.startsWith("temp-")) {
           // 新規作成の場合：一時的なレコードを更新
-          return old.map((vital: any) => {
-            if (vital.id === id) {
-              return { ...vital, [field]: value };
+          return old.map((weight: any) => {
+            if (weight.id === id) {
+              return { ...weight, [field]: value };
             }
-            return vital;
+            return weight;
           });
         } else {
           // 既存レコード更新の場合
-          return old.map((vital: any) => {
-            if (vital.id === id) {
-              return { ...vital, [field]: value };
+          return old.map((weight: any) => {
+            if (weight.id === id) {
+              return { ...weight, [field]: value };
             }
-            return vital;
+            return weight;
           });
         }
       });
       
       // ロールバック用のコンテキストを返す
-      return { previousVitalSigns };
+      return { previousWeightRecords };
     },
     onError: (error: any, _, context) => {
       // エラー時に前の状態に戻す
-      if (context?.previousVitalSigns) {
-        queryClient.setQueryData(["/api/vital-signs"], context.previousVitalSigns);
+      if (context?.previousWeightRecords) {
+        queryClient.setQueryData(["/api/weight-records"], context.previousWeightRecords);
       }
       
       console.error('Update error:', error);
       toast({
         title: "エラー",
-        description: error.message || "バイタルサインの更新に失敗しました。変更を元に戻しました。",
+        description: error.message || "体重記録の更新に失敗しました。変更を元に戻しました。",
         variant: "destructive",
       });
       
       // エラー時のみサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
     },
     onSuccess: (_, variables) => {
       // 新規作成の場合のみinvalidateを実行（一時的IDを実際のIDに置き換えるため）
       if (variables.id.startsWith("temp-")) {
-        queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
       }
       // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
     },
@@ -1007,10 +754,10 @@ export default function Vitals() {
   // 記録削除用ミューテーション
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest(`/api/vital-signs/${id}`, "DELETE");
+      await apiRequest(`/api/weight-records/${id}`, "DELETE");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
     },
     onError: (error: any) => {
       console.error('Delete error:', error);
@@ -1024,38 +771,38 @@ export default function Vitals() {
 
   // 利用者変更用ミューテーション
   const changeResidentMutation = useMutation({
-    mutationFn: async ({ vitalId, newResidentId }: { vitalId: string; newResidentId: string }) => {
-      await apiRequest(`/api/vital-signs/${vitalId}`, "PATCH", {
+    mutationFn: async ({ weightId, newResidentId }: { weightId: string; newResidentId: string }) => {
+      await apiRequest(`/api/weight-records/${weightId}`, "PATCH", {
         residentId: newResidentId
       });
     },
     // 楽観的更新で即座にUIを更新
-    onMutate: async ({ vitalId, newResidentId }) => {
+    onMutate: async ({ weightId, newResidentId }) => {
       // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
+      await queryClient.cancelQueries({ queryKey: ["/api/weight-records"] });
       
       // 現在のデータのスナップショットを取得
-      const previousVitalSigns = queryClient.getQueryData(["/api/vital-signs"]);
+      const previousWeightRecords = queryClient.getQueryData(["/api/weight-records"]);
       
       // 楽観的に更新（利用者変更）
-      queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+      queryClient.setQueryData(["/api/weight-records"], (old: any) => {
         if (!old) return old;
         
-        return old.map((vital: any) => {
-          if (vital.id === vitalId) {
-            return { ...vital, residentId: newResidentId };
+        return old.map((weight: any) => {
+          if (weight.id === weightId) {
+            return { ...weight, residentId: newResidentId };
           }
-          return vital;
+          return weight;
         });
       });
       
       // ロールバック用のコンテキストを返す
-      return { previousVitalSigns };
+      return { previousWeightRecords };
     },
     onError: (error: any, _, context) => {
       // エラー時に前の状態に戻す
-      if (context?.previousVitalSigns) {
-        queryClient.setQueryData(["/api/vital-signs"], context.previousVitalSigns);
+      if (context?.previousWeightRecords) {
+        queryClient.setQueryData(["/api/weight-records"], context.previousWeightRecords);
       }
       
       console.error('Change resident error:', error);
@@ -1066,21 +813,15 @@ export default function Vitals() {
       });
       
       // エラー時もサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
     },
     onSuccess: () => {
       // 成功時はサーバーから最新データを取得して確実に同期
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
     },
   });
 
   // 選択肢の定義
-  const timingOptions = [
-    { value: "午前", label: "午前" },
-    { value: "午後", label: "午後" },
-    { value: "夜間", label: "夜間" },
-  ];
-
   const floorOptions = [
     { value: "全階", label: "全階" },
     { value: "1階", label: "1階" },
@@ -1101,52 +842,21 @@ export default function Vitals() {
     { value: "45", label: "45" },
   ];
 
-  // バイタルサインの選択肢
-  const temperatureOptions = Array.from({ length: 50 }, (_, i) => {
-    const temp = (35.0 + i * 0.1).toFixed(1);
-    return { value: temp, label: temp };
-  });
-
-  const systolicBPOptions = Array.from({ length: 101 }, (_, i) => {
-    const bp = (80 + i).toString();
-    return { value: bp, label: bp };
-  });
-
-  const diastolicBPOptions = Array.from({ length: 81 }, (_, i) => {
-    const bp = (40 + i).toString();
-    return { value: bp, label: bp };
-  });
-
-  const pulseOptions = Array.from({ length: 101 }, (_, i) => {
-    const pulse = (40 + i).toString();
-    return { value: pulse, label: pulse };
-  });
-
-  const spo2Options = Array.from({ length: 31 }, (_, i) => {
-    const spo2 = (70 + i).toString();
-    return { value: spo2, label: spo2 };
-  });
-
-  const respirationOptions = Array.from({ length: 31 }, (_, i) => {
-    const rr = (10 + i).toString();
-    return { value: rr, label: rr };
-  });
-
   // スタッフ印機能
-  const handleStaffStamp = async (vitalId: string, residentId?: string) => {
+  const handleStaffStamp = async (weightId: string, residentId?: string) => {
     const user = currentUser as any;
     const staffName =
       user?.firstName && user?.lastName
         ? `${user.lastName} ${user.firstName}`
         : user?.email || "スタッフ";
 
-    // 現在のバイタル記録を取得
-    const vital = filteredVitalSigns.find((v: any) => v.id === vitalId);
-    if (!vital) return;
+    // 現在の体重記録を取得
+    const weight = filteredWeightRecords.find((w: any) => w.id === weightId);
+    if (!weight) return;
 
-    const currentHour = vital.hour?.toString() || "";
-    const currentMinute = vital.minute?.toString() || "";
-    const currentStaffName = vital.staffName || "";
+    const currentHour = weight.hour?.toString() || "";
+    const currentMinute = weight.minute?.toString() || "";
+    const currentStaffName = weight.staffName || "";
     
     // 現在時刻を取得
     const now = new Date();
@@ -1191,7 +901,7 @@ export default function Vitals() {
     // 複数フィールドを同時に更新
     for (const [field, value] of Object.entries(updateData)) {
       updateMutation.mutate({
-        id: vitalId,
+        id: weightId,
         field,
         value: value as string,
         residentId,
@@ -1215,25 +925,19 @@ export default function Vitals() {
     const tempId = `temp-new-${Date.now()}`;
     
     // 楽観的更新で空のカードを即座に追加
-    queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+    queryClient.setQueryData(["/api/weight-records"], (old: any) => {
       if (!old) return old;
       
       // 新しい空のレコードを作成
       const newEmptyRecord = {
         id: tempId,
         residentId: "", // 空の状態に設定
-        recordDate: selectedDate,
-        timing: selectedTiming,
+        recordDate: selectedMonth,
+        measurementDate: null,
         hour: null,
         minute: null,
         staffName: null,
-        temperature: null,
-        bloodPressureSystolic: null,
-        bloodPressureDiastolic: null,
-        pulseRate: null,
-        respirationRate: null,
-        oxygenSaturation: null,
-        bloodSugar: null,
+        weight: null,
         notes: null,
         createdAt: null,
         updatedAt: null,
@@ -1246,7 +950,7 @@ export default function Vitals() {
   };
 
   // フィルタリングロジック
-  const getFilteredVitalSigns = () => {
+  const getFilteredWeightRecords = () => {
     const filteredResidents = (residents as any[]).filter((resident: any) => {
       if (selectedFloor === "全階") return true;
 
@@ -1265,16 +969,14 @@ export default function Vitals() {
       return false;
     });
 
-    const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
-      const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
-      if (vitalDate !== selectedDate) return false;
-
-      if (vital.timing !== selectedTiming) return false;
+    const existingWeights = (weightRecords as any[]).filter((weight: any) => {
+      const weightMonth = format(new Date(weight.recordDate), "yyyy-MM");
+      if (weightMonth !== selectedMonth) return false;
 
       // フロアフィルタリング（空のresidentIdの場合は通す）
-      if (vital.residentId !== "") {
+      if (weight.residentId !== "") {
         const resident = filteredResidents.find(
-          (r: any) => r.id === vital.residentId,
+          (r: any) => r.id === weight.residentId,
         );
         if (!resident) return false;
       }
@@ -1282,69 +984,55 @@ export default function Vitals() {
       return true;
     });
 
-    // 当日以前の日付の場合、すべての利用者のカードを表示
-    const selectedDateObj = new Date(selectedDate);
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    // すべての利用者のカードを表示
+    const weightsWithEmpty = [...existingWeights];
 
-    if (selectedDateObj <= today) {
-      const vitalsWithEmpty = [...existingVitals];
-
-      filteredResidents.forEach((resident: any) => {
-        const hasRecord = existingVitals.some(
-          (vital: any) => vital.residentId === resident.id,
-        );
-        if (!hasRecord) {
-          vitalsWithEmpty.push({
-            id: `temp-${resident.id}-${selectedDate}-${selectedTiming}`,
-            residentId: resident.id,
-            recordDate: selectedDate,
-            timing: selectedTiming,
-            hour: null,
-            minute: null,
-            staffName: null,
-            temperature: null,
-            bloodPressureSystolic: null,
-            bloodPressureDiastolic: null,
-            pulseRate: null,
-            respirationRate: null,
-            oxygenSaturation: null,
-            bloodSugar: null,
-            notes: null,
-            createdAt: null,
-            updatedAt: null,
-            isTemporary: true,
-          });
-        }
-      });
-
-      const uniqueVitals = vitalsWithEmpty.reduce(
-        (acc: any[], current: any) => {
-          const existing = acc.find(
-            (item) => item.residentId === current.residentId,
-          );
-          if (!existing) {
-            acc.push(current);
-          } else {
-            if (existing.isTemporary && !current.isTemporary) {
-              const index = acc.findIndex(
-                (item) => item.residentId === current.residentId,
-              );
-              acc[index] = current;
-            }
-          }
-          return acc;
-        },
-        [],
+    filteredResidents.forEach((resident: any) => {
+      const hasRecord = existingWeights.some(
+        (weight: any) => weight.residentId === resident.id,
       );
+      if (!hasRecord) {
+        weightsWithEmpty.push({
+          id: `temp-${resident.id}-${selectedMonth}`,
+          residentId: resident.id,
+          recordDate: selectedMonth,
+          measurementDate: null,
+          hour: null,
+          minute: null,
+          staffName: null,
+          weight: null,
+          notes: null,
+          createdAt: null,
+          updatedAt: null,
+          isTemporary: true,
+        });
+      }
+    });
 
-      return uniqueVitals;
-    }
+    const uniqueWeights = weightsWithEmpty.reduce(
+      (acc: any[], current: any) => {
+        const existing = acc.find(
+          (item) => item.residentId === current.residentId,
+        );
+        if (!existing) {
+          acc.push(current);
+        } else {
+          if (existing.isTemporary && !current.isTemporary) {
+            const index = acc.findIndex(
+              (item) => item.residentId === current.residentId,
+            );
+            acc[index] = current;
+          }
+        }
+        return acc;
+      },
+      [],
+    );
 
-    return existingVitals;
+    return uniqueWeights;
   };
 
-  const filteredVitalSigns = getFilteredVitalSigns().sort((a: any, b: any) => {
+  const filteredWeightRecords = getFilteredWeightRecords().sort((a: any, b: any) => {
     const residentA = (residents as any[]).find(
       (r: any) => r.id === a.residentId,
     );
@@ -1355,6 +1043,40 @@ export default function Vitals() {
     const roomB = parseInt(residentB?.roomNumber || "0");
     return roomA - roomB;
   });
+
+  // 年月選択肢を生成（過去1年から未来6ヶ月）
+  const generateMonthOptions = () => {
+    const options = [];
+    const currentDate = new Date();
+    
+    // 過去1年
+    for (let i = 12; i >= 1; i--) {
+      const date = subMonths(currentDate, i);
+      options.push({
+        value: format(date, "yyyy-MM"),
+        label: format(date, "yyyy年M月", { locale: ja }),
+      });
+    }
+    
+    // 現在月
+    options.push({
+      value: format(currentDate, "yyyy-MM"),
+      label: format(currentDate, "yyyy年M月", { locale: ja }),
+    });
+    
+    // 未来6ヶ月
+    for (let i = 1; i <= 6; i++) {
+      const date = addMonths(currentDate, i);
+      options.push({
+        value: format(date, "yyyy-MM"),
+        label: format(date, "yyyy年M月", { locale: ja }),
+      });
+    }
+    
+    return options;
+  };
+
+  const monthOptions = generateMonthOptions();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1370,7 +1092,7 @@ export default function Vitals() {
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-xl font-bold text-slate-800">バイタル一覧</h1>
+            <h1 className="text-xl font-bold text-slate-800">体重一覧</h1>
           </div>
         </div>
       </div>
@@ -1378,25 +1100,16 @@ export default function Vitals() {
       {/* フィルタ条件 */}
       <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
         <div className="flex gap-2 sm:gap-4 items-center justify-center">
-          {/* 日付選択 */}
+          {/* 年月選択 */}
           <div className="flex items-center space-x-1">
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
-            />
-          </div>
-
-          {/* 時間選択 */}
-          <div className="flex items-center space-x-1">
             <InputWithDropdown
-              value={selectedTiming}
-              options={timingOptions}
-              onSave={(value) => setSelectedTiming(value)}
-              placeholder="時間"
-              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={selectedMonth}
+              options={monthOptions}
+              onSave={(value) => setSelectedMonth(value)}
+              placeholder="年月選択"
+              className="w-24 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              enableAutoFocus={false}
             />
           </div>
 
@@ -1409,6 +1122,7 @@ export default function Vitals() {
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              enableAutoFocus={false}
             />
           </div>
         </div>
@@ -1416,30 +1130,24 @@ export default function Vitals() {
 
       {/* 記録一覧 */}
       <main className="max-w-4xl mx-auto px-4 py-4 pb-24 space-y-4">
-        {filteredVitalSigns.length === 0 ? (
+        {filteredWeightRecords.length === 0 ? (
           <div className="text-center py-8 text-slate-600">
             <p>選択した条件の記録がありません</p>
           </div>
         ) : (
-          filteredVitalSigns.map((vital: any) => (
-            <VitalCard
-              key={vital.id}
-              vital={vital}
+          filteredWeightRecords.map((weight: any) => (
+            <WeightCard
+              key={weight.id}
+              weight={weight}
               residents={residents as any[]}
-              selectedTiming={selectedTiming}
+              selectedMonth={selectedMonth}
               inputBaseClass={inputBaseClass}
               hourOptions={hourOptions}
               minuteOptions={minuteOptions}
-              temperatureOptions={temperatureOptions}
-              systolicBPOptions={systolicBPOptions}
-              diastolicBPOptions={diastolicBPOptions}
-              pulseOptions={pulseOptions}
-              spo2Options={spo2Options}
-              respirationOptions={respirationOptions}
               localNotes={localNotes}
               setLocalNotes={setLocalNotes}
-              localBloodSugar={localBloodSugar}
-              setLocalBloodSugar={setLocalBloodSugar}
+              localWeight={localWeight}
+              setLocalWeight={setLocalWeight}
               updateMutation={updateMutation}
               handleStaffStamp={handleStaffStamp}
               deleteMutation={deleteMutation}

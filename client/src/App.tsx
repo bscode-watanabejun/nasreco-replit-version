@@ -21,6 +21,7 @@ import CommunicationManagement from "@/pages/communication-management";
 import Communications from "@/pages/communications";
 import CleaningLinenList from "@/pages/cleaning-linen-list";
 import BathingList from "@/pages/bathing-list";
+import WeightList from "@/pages/weight-list";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -58,6 +59,7 @@ function Router() {
       <Route path="/communications" component={Communications} />
       <Route path="/cleaning-linen-list" component={CleaningLinenList} />
       <Route path="/bathing-list" component={BathingList} />
+      <Route path="/weight-list" component={WeightList} />
       <Route component={NotFound} />
     </Switch>
   );

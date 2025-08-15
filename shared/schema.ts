@@ -249,11 +249,16 @@ export const excretionRecords = pgTable("excretion_records", {
 export const weightRecords = pgTable("weight_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
-  weight: decimal("weight", { precision: 5, scale: 2 }).notNull(),
-  notes: text("notes"),
+  measurementDate: date("measurement_date"), // 計測日 (recordDateとは別)
+  hour: integer("hour"), // 時間 (0-23)
+  minute: integer("minute"), // 分 (0, 15, 30, 45)
+  staffName: varchar("staff_name"), // 承認者名
+  weight: decimal("weight", { precision: 5, scale: 2 }), // 体重（必須から任意に変更）
+  notes: text("notes"), // 記録
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Communication/notes
@@ -417,10 +422,30 @@ export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, 
 });
 
 export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
-  recordDate: z.string().transform((str) => new Date(str)),
+  recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
+  measurementDate: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return val;
+  }),
+  hour: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  minute: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val : parseInt(val, 10);
+  }),
+  weight: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
+    return typeof val === 'number' ? val.toString() : val;
+  }),
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertCommunicationSchema = createInsertSchema(communications, {
