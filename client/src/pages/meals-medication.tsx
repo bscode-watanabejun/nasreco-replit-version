@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -686,7 +685,8 @@ export default function MealsMedicationPage() {
                   
                   {/* 記録欄 */}
                   <div className="flex-1">
-                    <Textarea
+                    <input
+                      type="text"
                       value={getFreeText(existingRecord, resident.id)}
                       onChange={(e) => {
                         setLocalNotes(prev => ({
@@ -702,10 +702,9 @@ export default function MealsMedicationPage() {
                           return newState;
                         });
                       }}
-                      className="h-6 text-xs resize-none w-full leading-tight"
-                      style={{ minHeight: "48px", maxHeight: "48px" }}
+                      className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
                       placeholder="記録を入力..."
-                      data-testid={`textarea-notes-${resident.id}`}
+                      data-testid={`input-notes-${resident.id}`}
                     />
                   </div>
                 </div>

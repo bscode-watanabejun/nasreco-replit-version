@@ -809,7 +809,8 @@ export default function MedicationList() {
                 <div className="flex items-center gap-1">
                   {/* 記録 */}
                   <div className="flex-1">
-                    <Textarea
+                    <input
+                      type="text"
                       value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
                       onChange={(e) => {
                         setLocalNotes(prev => ({
@@ -829,10 +830,9 @@ export default function MedicationList() {
                           saveTemporaryRecord(record.id);
                         }
                       }}
-                      className="h-6 text-xs resize-none w-full leading-tight"
-                      style={{ minHeight: "24px", maxHeight: "24px" }}
+                      className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
                       placeholder="記録を入力..."
-                      data-testid={`textarea-notes-${record.id}`}
+                      data-testid={`input-notes-${record.id}`}
                     />
                   </div>
                   
