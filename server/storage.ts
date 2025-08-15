@@ -276,14 +276,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVitalSigns(vitals: InsertVitalSigns): Promise<VitalSigns> {
-    const [newVitals] = await db.insert(vitalSigns).values(vitals).returning();
+    const [newVitals] = await db.insert(vitalSigns).values([vitals]).returning();
     return newVitals;
   }
 
   async updateVitalSigns(id: string, data: Partial<InsertVitalSigns>): Promise<VitalSigns> {
     const [record] = await db
       .update(vitalSigns)
-      .set(data)
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(vitalSigns.id, id))
       .returning();
     return record;

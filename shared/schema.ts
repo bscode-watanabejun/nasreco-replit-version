@@ -346,7 +346,7 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
   }),
   temperature: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'string' ? parseFloat(val) : val;
+    return typeof val === 'number' ? val.toString() : val;
   }),
   bloodPressureSystolic: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
@@ -366,7 +366,7 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
   }),
   oxygenSaturation: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'string' ? parseFloat(val) : val;
+    return typeof val === 'number' ? val.toString() : val;
   }),
   bloodSugar: z.union([z.string(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
