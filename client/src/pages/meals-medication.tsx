@@ -10,7 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon } from "lucide-react";
+import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -409,6 +409,40 @@ export default function MealsMedicationPage() {
     handleSaveRecord(residentId, 'staffName', newStaffName);
   };
 
+  // 新規レコード追加機能（服薬一覧と同じ）
+  const handleAddRecord = () => {
+    if (!residents || residents.length === 0 || !user) return;
+
+    // フィルタ条件に合致する利用者を取得
+    const filteredResidentsList = filteredResidents;
+    
+    // 既に記録がある利用者のIDを取得
+    const recordedResidentIds = mealsMedicationData.map(r => r.residentId);
+    
+    // 未記録の利用者を探す
+    const unrecordedResident = filteredResidentsList.find((resident: any) => 
+      !recordedResidentIds.includes(resident.id)
+    );
+    
+    // 未記録の利用者がいる場合は新しいレコードを作成、いない場合は最初の利用者で作成
+    const targetResident = unrecordedResident || filteredResidentsList[0];
+    
+    if (targetResident) {
+      createMutation.mutate({
+        residentId: targetResident.id,
+        recordDate: selectedDate,
+        type: 'meal',
+        mealType: selectedMealTime,
+        mealIntake: '',
+        medicationName: '',
+        dosage: '',
+        notes: JSON.stringify({ categories: {}, freeText: '', staffName: '', staffTime: '' }),
+        administeredTime: new Date(),
+        staffId: (user as any)?.id || 'unknown',
+      } as InsertMealsAndMedication);
+    }
+  };
+
   const filteredResidents = residents.filter((resident: any) => {
     if (selectedFloor === 'all') return true;
 
@@ -689,7 +723,7 @@ export default function MealsMedicationPage() {
 
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
-        <div className="flex items-center justify-between max-w-md mx-auto">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
           <Button 
             variant="outline" 
             disabled
@@ -699,12 +733,20 @@ export default function MealsMedicationPage() {
             一括登録
           </Button>
           <Button 
-            variant="default"
+            variant="outline"
             onClick={() => setLocation('/medication-list')}
             data-testid="button-medication-list"
             className="flex items-center gap-2"
           >
             服薬一覧へ
+          </Button>
+          <Button
+            onClick={handleAddRecord}
+            className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
+            disabled={createMutation.isPending}
+            data-testid="button-add-record"
+          >
+            <Plus className="w-6 h-6" />
           </Button>
         </div>
       </div>

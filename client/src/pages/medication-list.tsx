@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Calendar,
   ChevronLeft,
@@ -120,6 +121,7 @@ function InputWithDropdown({
 
 export default function MedicationList() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   
   // フィルタ状態
@@ -259,144 +261,83 @@ export default function MedicationList() {
     return allRecords;
   })();
 
-  // 新規記録作成ミューテーション（楽観的更新）
+  // 新規記録作成ミューテーション（食事一覧と同じシンプルなアプローチ）
   const createMutation = useMutation({
     mutationFn: (data: InsertMedicationRecord) => {
       console.log('Creating medication record:', data);
       return apiRequest("/api/medication-records", "POST", data);
     },
-    onMutate: async (data) => {
-      // 楽観的更新: APIレスポンスを待たずにUIを更新
+    onMutate: async (newRecord) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/medication-records'] });
+      
+      // 現在のデータのスナップショットを取得
       const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
-      
-      // 現在のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey });
-      
-      // 現在のデータを取得
       const previousData = queryClient.getQueryData(queryKey);
       
-      // 楽観的にデータを更新（一時的なIDのレコードを実際のレコードに置き換え）
+      // 楽観的に更新（新規作成）
       queryClient.setQueryData(queryKey, (old: any) => {
-        if (!old) return old;
+        if (!old) return [newRecord];
         
-        // 利用者情報を取得
-        const resident = residents?.find(r => r.id === data.residentId);
+        // 既存の記録があるかチェック
+        const existingIndex = old.findIndex((record: any) => 
+          record.residentId === newRecord.residentId && record.timing === newRecord.timing
+        );
         
-        // 新しいレコードを作成（一時的なIDから実際のレコードへ）
-        const newRecord = {
-          id: `temp-new-${Date.now()}`, // 実際のIDは後でサーバーから取得
-          residentId: data.residentId,
-          residentName: resident?.name || '',
-          roomNumber: resident?.roomNumber || '',
-          floor: resident?.floor || '',
-          recordDate: data.recordDate,
-          timing: data.timing,
-          type: data.type,
-          confirmer1: data.confirmer1,
-          confirmer2: data.confirmer2,
-          notes: data.notes,
-          result: data.result,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: data.createdBy
-        };
-        
-        // 一時的なIDのレコードがある場合は置き換え、なければ追加
-        const tempId = `temp-${data.residentId}`;
-        const tempIndex = old.findIndex((record: any) => record.id === tempId);
-        
-        if (tempIndex >= 0) {
-          // 一時的なレコードを置き換え
-          const newData = [...old];
-          newData[tempIndex] = newRecord;
-          return newData;
+        if (existingIndex >= 0) {
+          // 既存レコードを更新
+          const updated = [...old];
+          updated[existingIndex] = { ...updated[existingIndex], ...newRecord, id: updated[existingIndex].id };
+          return updated;
         } else {
-          // 新しいレコードを追加
-          return [...old, newRecord];
+          // 新規レコードを追加
+          return [...old, { ...newRecord, id: `temp-${Date.now()}` }];
         }
       });
       
       return { previousData };
     },
-    onError: (err, variables, context) => {
-      console.error('Create failed:', err, variables);
-      // エラー時は元のデータに戻す
+    onError: (error: any, _, context) => {
+      // エラー時に前の状態に戻す
       if (context?.previousData) {
-        queryClient.setQueryData(
-          ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
-          context.previousData
-        );
+        queryClient.setQueryData(["/api/medication-records", selectedDate, selectedTiming, selectedFloor], context.previousData);
       }
       
-      // 保存済みマークもクリア（再試行可能にする）
-      const tempId = Array.from(savedTempRecords).find(id => 
-        displayMedicationRecords.find(r => r.id === id && r.residentId === variables.residentId)
-      );
-      if (tempId) {
-        setSavedTempRecords(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(tempId);
-          return newSet;
-        });
-      }
-    },
-    onSuccess: (response: any, variables) => {
-      console.log('Create successful for:', variables);
-      // 作成成功後、一時的なIDを実際のIDに更新
-      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
-      queryClient.setQueryData(queryKey, (old: any) => {
-        if (!old) return old;
-        return old.map((record: any) => {
-          if (record.id.startsWith('temp-new-')) {
-            // 保存済みレコードリストからも削除
-            setSavedTempRecords(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(record.id);
-              return newSet;
-            });
-            return { ...record, id: response.id || record.id };
-          }
-          return record;
-        });
+      toast({
+        title: "エラー",
+        description: "記録の作成に失敗しました。変更を元に戻しました。",
+        variant: "destructive",
       });
       
-      // 他の条件での検索時に最新データが取得されるよう、ベースクエリのみ無効化
-      queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
-    }
+      // エラー時のみサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ['/api/medication-records'] });
+    },
+    onSuccess: () => {
+      // 成功時は楽観的更新のみで完了（invalidateしない）
+    },
   });
 
-  // 記録更新ミューテーション（楽観的更新）
+  // 記録更新ミューテーション（食事一覧と同じシンプルなアプローチ）
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<InsertMedicationRecord> }) => {
       console.log('Updating medication record:', id, data);
       return apiRequest(`/api/medication-records/${id}`, "PUT", data);
     },
     onMutate: async ({ id, data }) => {
-      // 楽観的更新: APIレスポンスを待たずにUIを更新
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/medication-records'] });
+      
+      // 現在のデータのスナップショットを取得
       const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
-      
-      // 現在のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey });
-      
-      // 現在のデータを取得
       const previousData = queryClient.getQueryData(queryKey);
       
-      // 楽観的にデータを更新
+      // 楽観的に更新
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
+        
         return old.map((record: any) => {
           if (record.id === id) {
-            const updatedRecord = { ...record, ...data };
-            // 利用者が変更された場合、利用者名と部屋番号も更新
-            if (data.residentId && residents) {
-              const resident = residents.find(r => r.id === data.residentId);
-              if (resident) {
-                updatedRecord.residentName = resident.name;
-                updatedRecord.roomNumber = resident.roomNumber;
-                updatedRecord.floor = resident.floor;
-              }
-            }
-            return updatedRecord;
+            return { ...record, ...data };
           }
           return record;
         });
@@ -404,21 +345,24 @@ export default function MedicationList() {
       
       return { previousData };
     },
-    onError: (err, variables, context) => {
-      console.error('Update failed:', err, variables);
-      // エラー時は元のデータに戻す
+    onError: (error: any, _, context) => {
+      // エラー時に前の状態に戻す
       if (context?.previousData) {
-        queryClient.setQueryData(
-          ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
-          context.previousData
-        );
+        queryClient.setQueryData(["/api/medication-records", selectedDate, selectedTiming, selectedFloor], context.previousData);
       }
+      
+      toast({
+        title: "エラー",
+        description: "記録の更新に失敗しました。変更を元に戻しました。",
+        variant: "destructive",
+      });
+      
+      // エラー時のみサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ['/api/medication-records'] });
     },
-    onSuccess: (_, variables) => {
-      console.log('Update successful for:', variables);
-      // 他の条件での検索時に最新データが取得されるよう、ベースクエリのみ無効化
-      queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
-    }
+    onSuccess: () => {
+      // 成功時は楽観的更新のみで完了（invalidateしない）
+    },
   });
 
   // 記録削除ミューテーション
@@ -445,9 +389,9 @@ export default function MedicationList() {
 
   // 一時的なレコードを実際にサーバーに保存する
   const saveTemporaryRecord = (recordId: string) => {
-    // 既に保存済みの場合はスキップ
-    if (savedTempRecords.has(recordId)) {
-      console.log('Record already saved, skipping:', recordId);
+    // 既に保存済みまたは作成中の場合はスキップ
+    if (savedTempRecords.has(recordId) || createMutation.isPending) {
+      console.log('Record already saved or pending, skipping:', recordId);
       return;
     }
     
@@ -601,24 +545,49 @@ export default function MedicationList() {
     }
   };
 
-  // 確認者設定（食事一覧の記入者と同じ仕様）
-  const handleConfirmerClick = (recordId: string, confirmerField: "confirmer1" | "confirmer2") => {
+  // 確認者設定（食事一覧の記入者と完全に同じ仕様）
+  const handleConfirmerStamp = (residentId: string, confirmerField: "confirmer1" | "confirmer2") => {
     if (!user) return;
+    
     const staffName = (user as any)?.firstName || 'スタッフ';
     
-    // 現在の確認者情報を取得
-    const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
-    const currentConfirmer = currentRecord ? currentRecord[confirmerField] : '';
+    // 現在のレコードを取得（食事一覧と同じパターン - 生のAPIデータから検索）
+    const existingRecord = medicationRecords.find(
+      (record: MedicationRecordWithResident) => 
+        record.residentId === residentId && record.timing === selectedTiming
+    );
+    
+    console.log('Existing record found:', existingRecord);
+    console.log('All medication records:', medicationRecords.map(r => ({ id: r.id, residentId: r.residentId, timing: r.timing })));
+    
+    // 現在の確認者名を取得
+    const currentConfirmer = existingRecord?.[confirmerField] || '';
     
     // 確認者が空白の場合はログイン者名を設定、入っている場合はクリア
     const newConfirmer = currentConfirmer ? '' : staffName;
     
-    console.log(`Setting ${confirmerField} for record ${recordId} to:`, newConfirmer);
-    handleFieldUpdate(recordId, confirmerField, newConfirmer);
+    // レコードデータを準備（食事一覧と同じフォーマット）
+    const recordData: InsertMedicationRecord = {
+      residentId,
+      recordDate: new Date(selectedDate),
+      timing: selectedTiming,
+      type: existingRecord?.type || "服薬",
+      confirmer1: confirmerField === 'confirmer1' ? newConfirmer : (existingRecord?.confirmer1 || ''),
+      confirmer2: confirmerField === 'confirmer2' ? newConfirmer : (existingRecord?.confirmer2 || ''),
+      notes: existingRecord?.notes || '',
+      result: existingRecord?.result || '',
+      createdBy: (user as any)?.claims?.sub || 'unknown',
+    };
     
-    // 一時的なレコードの場合は保存処理を実行
-    if (recordId.startsWith('temp-')) {
-      setTimeout(() => saveTemporaryRecord(recordId), 200);
+    console.log('Record data to save:', recordData);
+    console.log('Will use existing record:', !!existingRecord);
+    
+    if (existingRecord) {
+      console.log('Updating existing record with ID:', existingRecord.id);
+      updateMutation.mutate({ id: existingRecord.id, data: recordData });
+    } else {
+      console.log('Creating new record');
+      createMutation.mutate(recordData);
     }
   };
 
@@ -727,9 +696,9 @@ export default function MedicationList() {
       </div>
 
       {/* 利用者一覧（服薬記録用） */}
-      <div className="space-y-4">
+      <div className="space-y-0 border rounded-lg overflow-hidden">
         {error && (
-          <div className="bg-red-50 border-red-200 p-4 text-center rounded-lg">
+          <div className="bg-red-50 border-red-200 p-4 text-center rounded-lg mb-4">
             <p className="text-red-600 text-lg mb-2">エラーが発生しました</p>
             <p className="text-sm text-red-500">{error.message}</p>
           </div>
@@ -751,9 +720,9 @@ export default function MedicationList() {
               const roomB = parseInt(b.roomNumber || "0");
               return roomA - roomB;
             })
-            .map((record: MedicationRecordWithResident) => (
-            <Card key={record.id} className="bg-white shadow-sm">
-              <CardContent className="p-2 space-y-2">
+            .map((record: MedicationRecordWithResident, index: number) => (
+            <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
+              <div className="p-2 space-y-2">
                 {/* 1段目：居室番号・利用者名・服薬タイミング・確認者1・確認者2 */}
                 <div className="flex items-center gap-1">
                   {/* 居室番号 */}
@@ -807,24 +776,32 @@ export default function MedicationList() {
                   
                   {/* 確認者1 */}
                   <div className="w-16 flex-shrink-0">
-                    <button
-                      className="h-6 w-full text-xs text-gray-500 hover:bg-gray-100 border border-gray-300 rounded px-1 bg-white"
-                      onClick={() => handleConfirmerClick(record.id, "confirmer1")}
-                      data-testid={`button-confirmer1-${record.id}`}
-                    >
-                      {record.confirmer1 || "確認者1"}
-                    </button>
+                    <input
+                      type="text"
+                      value={record.confirmer1 || ''}
+                      onClick={() => handleConfirmerStamp(record.residentId, "confirmer1")}
+                      onChange={(e) => {
+                        // 手動入力も可能にする
+                        handleFieldUpdate(record.id, 'confirmer1', e.target.value);
+                      }}
+                      placeholder="確認者1"
+                      className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                   
                   {/* 確認者2 */}
                   <div className="w-16 flex-shrink-0">
-                    <button
-                      className="h-6 w-full text-xs text-gray-500 hover:bg-gray-100 border border-gray-300 rounded px-1 bg-white"
-                      onClick={() => handleConfirmerClick(record.id, "confirmer2")}
-                      data-testid={`button-confirmer2-${record.id}`}
-                    >
-                      {record.confirmer2 || "確認者2"}
-                    </button>
+                    <input
+                      type="text"
+                      value={record.confirmer2 || ''}
+                      onClick={() => handleConfirmerStamp(record.residentId, "confirmer2")}
+                      onChange={(e) => {
+                        // 手動入力も可能にする
+                        handleFieldUpdate(record.id, 'confirmer2', e.target.value);
+                      }}
+                      placeholder="確認者2"
+                      className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
                 </div>
 
@@ -922,18 +899,18 @@ export default function MedicationList() {
                     </button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))
         ) : null}
       </div>
 
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
-        <div className="flex items-center justify-between max-w-md mx-auto">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <div></div>
           <Link href="/meals-medication">
             <Button variant="outline" className="flex items-center gap-2">
-              <ChevronLeft className="w-4 h-4" />
               食事一覧へ
             </Button>
           </Link>
