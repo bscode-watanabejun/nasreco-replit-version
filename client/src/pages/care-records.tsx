@@ -753,13 +753,6 @@ export default function CareRecords() {
       description: '',
       notes: ''
     };
-    // 選択された記録がある場合は使用、ない場合は現在時刻で初期化
-    const currentRecord = selectedRecordForDetail || {
-      id: 'new',
-      recordDate: new Date().toISOString(),
-      description: '',
-      notes: ''
-    };
     
     return (
       <div className="min-h-screen bg-slate-50">
@@ -869,7 +862,7 @@ export default function CareRecords() {
                         if (e.target.value.trim()) {
                           createMutation.mutate({
                             residentId: selectedResident?.id,
-                            recordDate: new Date(currentRecord.recordDate),
+                            recordDate: new Date(currentRecord.recordDate).toISOString(),
                             category: 'observation',
                             description: e.target.value,
                             notes: '',
@@ -1028,7 +1021,7 @@ export default function CareRecords() {
                             if (block.description.trim() && selectedResident) {
                               const submitData = {
                                 residentId: selectedResident.id,
-                                recordDate: currentDate,
+                                recordDate: currentDate.toISOString(),
                                 category: 'observation',
                                 description: block.description,
                                 notes: '',
@@ -1068,7 +1061,7 @@ export default function CareRecords() {
                               if (block.description.trim() && selectedResident) {
                                 const submitData = {
                                   residentId: selectedResident.id,
-                                  recordDate: currentDate,
+                                  recordDate: currentDate.toISOString(),
                                   category: 'observation',
                                   description: block.description,
                                   notes: '',
@@ -1130,7 +1123,7 @@ export default function CareRecords() {
                           if (e.target.value.trim() && selectedResident) {
                             const submitData = {
                               residentId: selectedResident.id,
-                              recordDate: new Date(block.recordDate),
+                              recordDate: new Date(block.recordDate).toISOString(),
                               category: 'observation',
                               description: e.target.value,
                               notes: '',
