@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { useUnreadStaffNoticesCount } from "@/hooks/useStaffNotices";
 
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
@@ -101,6 +102,12 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
+  
+  // 未読連絡事項数を取得
+  const { data: unreadCount = 0 } = useUnreadStaffNoticesCount();
+  
+  // テスト用: 一時的に固定値を設定（実際に未読があるかテストするため）
+  const testUnreadCount = 3;
   
   // 日付とフロア選択のstate
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -344,6 +351,7 @@ export default function Dashboard() {
                   color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
                   onClick={() => handleModuleClick(module.path)}
                   compact={true}
+                  badge={module.path === "/communications" ? testUnreadCount : null}
                 />
               ))}
             </div>

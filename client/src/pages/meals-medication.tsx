@@ -52,6 +52,25 @@ function InputWithDropdown({
     setInputValue(selectedOption ? selectedOption.label : selectedValue);
     onSave(selectedValue);
     setOpen(false);
+
+    // 特定の遅延後にフォーカス移動を実行
+    setTimeout(() => {
+      if (inputRef.current) {
+        const currentElement = inputRef.current;
+        const allElements = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentIndex = allElements.indexOf(currentElement);
+        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+          allElements[currentIndex + 1].focus();
+        }
+      }
+    }, 200);
   };
 
   return (
@@ -62,7 +81,8 @@ function InputWithDropdown({
           type="text"
           value={inputValue}
           readOnly
-          onClick={() => setOpen(!open)}
+          onFocus={() => setOpen(true)}
+          onClick={(e) => e.preventDefault()}
           placeholder={placeholder}
           className={className}
         />
@@ -171,7 +191,7 @@ export default function MealsMedicationPage() {
       
       return { previousData };
     },
-    onError: (error: any, _, context) => {
+    onError: (_, __, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
         queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], context.previousData);
@@ -218,7 +238,7 @@ export default function MealsMedicationPage() {
       
       return { previousData };
     },
-    onError: (error: any, _, context) => {
+    onError: (_, __, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
         queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], context.previousData);
@@ -243,7 +263,6 @@ export default function MealsMedicationPage() {
   }) as { data: any[] };
 
   const mealTimes = ["朝", "10時", "昼", "15時", "夕"];
-  const floors = ["all", "1F", "2F", "3F"];
   
   // 主・副の選択肢
   const mainOptions = ["empty", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
@@ -264,14 +283,7 @@ export default function MealsMedicationPage() {
     "ラコールＮＦ半固形剤 300g"
   ];
 
-  const mealCategories = [
-    { key: "main", label: "主", options: mainOptions },
-    { key: "side", label: "副", options: sideOptions },
-    { key: "water", label: "水分", options: waterOptions },
-    { key: "supplement", label: "その他", options: otherOptions }
-  ];
-
-  const handleSaveRecord = (residentId: string, field: string, value: string, notes?: string) => {
+  const handleSaveRecord = (residentId: string, field: string, value: string) => {
     // 自動で記入者情報を設定
     const staffName = (user as any)?.firstName || 'スタッフ';
     

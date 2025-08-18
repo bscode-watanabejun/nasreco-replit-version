@@ -52,7 +52,7 @@ import {
   type InsertCleaningLinenRecord,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, or } from "drizzle-orm";
+import { eq, desc, and, gte, lte, or, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -133,6 +133,7 @@ export interface IStorage {
   getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]>;
   markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus>;
   markStaffNoticeAsUnread(noticeId: string, staffId: string): Promise<void>;
+  getUnreadStaffNoticesCount(staffId: string): Promise<number>;
 
   // Cleaning Linen operations
   getCleaningLinenRecords(weekStartDate: Date, floor?: string): Promise<CleaningLinenRecord[]>;
@@ -642,6 +643,29 @@ export class DatabaseStorage implements IStorage {
           eq(staffNoticeReadStatus.staffId, staffId)
         )
       );
+  }
+
+  async getUnreadStaffNoticesCount(staffId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql`count(*)`.as('count') })
+      .from(staffNotices)
+      .leftJoin(
+        staffNoticeReadStatus,
+        and(
+          eq(staffNotices.id, staffNoticeReadStatus.noticeId),
+          eq(staffNoticeReadStatus.staffId, staffId)
+        )
+      )
+      .where(
+        and(
+          eq(staffNotices.isActive, true),
+          lte(staffNotices.startDate, sql`CURRENT_DATE`),
+          gte(staffNotices.endDate, sql`CURRENT_DATE`),
+          isNull(staffNoticeReadStatus.id)
+        )
+      );
+    
+    return Number(result[0]?.count) || 0;
   }
 
   // Cleaning Linen operations

@@ -703,6 +703,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/staff-notices/unread-count', isAuthenticated, async (req: any, res) => {
+    try {
+      const count = await storage.getUnreadStaffNoticesCount(req.user.claims.sub);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+
   // Cleaning Linen routes (清掃リネン管理)
   app.get('/api/cleaning-linen', isAuthenticated, async (req, res) => {
     try {

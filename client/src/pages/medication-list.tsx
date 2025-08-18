@@ -3,25 +3,30 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Calendar,
-  ChevronLeft,
   Plus,
   Trash2,
-  Menu,
-  User,
   ArrowLeft as ArrowLeftIcon,
   Calendar as CalendarIcon,
   Clock as ClockIcon,
   Building as BuildingIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import type { MedicationRecord, InsertMedicationRecord, Resident } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -66,12 +71,18 @@ function InputWithDropdown({
   onSave,
   placeholder,
   className,
+  isTimingField = false,
+  disabled = false,
+  disableFocusMove = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder: string;
   className?: string;
+  isTimingField?: boolean;
+  disabled?: boolean;
+  disableFocusMove?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -83,10 +94,53 @@ function InputWithDropdown({
   }, [value]);
 
   const handleSelect = (selectedValue: string) => {
+    if (disabled) return;
     const selectedOption = options.find(opt => opt.value === selectedValue);
     setInputValue(selectedOption ? selectedOption.label : selectedValue);
     onSave(selectedValue);
     setOpen(false);
+
+    // フォーカス移動が無効化されている場合はスキップ
+    if (disableFocusMove) return;
+    
+    // 特定の遅延後にフォーカス移動を実行
+    setTimeout(() => {
+      if (inputRef.current) {
+        const currentElement = inputRef.current;
+        
+        // 服薬タイミングフィールドの場合は記録欄（notes）に移動
+        if (isTimingField) {
+          // 同じカード内の記録欄を探す（2段目の最初の項目）
+          const cardElement = currentElement.closest('.bg-white');
+          if (cardElement) {
+            // 2段目のdivを探す（"2段目：記録・種類・結果・削除アイコン"のコメントがある部分）
+            const secondRowDiv = cardElement.querySelector('.space-y-2 > div:nth-child(2)');
+            if (secondRowDiv) {
+              // flex-1のクラスを持つdiv内のinputを探す（記録欄）
+              const notesInput = secondRowDiv.querySelector('.flex-1 input') as HTMLInputElement;
+              if (notesInput) {
+                notesInput.focus();
+                return;
+              }
+            }
+          }
+        }
+        
+        // 通常のフォーカス移動
+        const allElements = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentIndex = allElements.indexOf(currentElement);
+        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+          allElements[currentIndex + 1].focus();
+        }
+      }
+    }, 200);
   };
 
   return (
@@ -97,9 +151,18 @@ function InputWithDropdown({
           type="text"
           value={inputValue}
           readOnly
-          onClick={() => setOpen(!open)}
+          onFocus={() => !disabled && !disableFocusMove && setOpen(true)}
+          onClick={(e) => {
+            if (disableFocusMove && !disabled) {
+              // フィルタ条件項目の場合はクリックでプルダウンを開く
+              setOpen(!open);
+            } else {
+              e.preventDefault();
+            }
+          }}
           placeholder={placeholder}
-          className={className}
+          className={`${className} ${disabled ? 'cursor-not-allowed bg-slate-100' : ''}`}
+          disabled={disabled}
         />
       </PopoverTrigger>
       <PopoverContent className="w-32 p-0.5" align="center">
@@ -139,45 +202,6 @@ export default function MedicationList() {
     queryKey: ["/api/residents"]
   });
 
-  // 利用者フィルタリング関数（階数と服薬時間帯を考慮）
-  const filterResidentsByConditions = (residents: any[], floor: string, timing: string) => {
-    return residents.filter((resident: any) => {
-      // 階数フィルタ
-      if (floor !== 'all') {
-        const residentFloor = resident.floor;
-        if (!residentFloor) return false; // null/undefinedをフィルタアウト
-        
-        // selectedFloorは "1F", "2F" などの形式
-        const selectedFloorNumber = floor.replace("F", ""); // "1F" -> "1"
-        
-        // "1F" 形式との比較
-        if (residentFloor === floor) return true;
-        
-        // "1" 形式との比較
-        if (residentFloor === selectedFloorNumber) return true;
-        
-        // "1階" 形式との比較
-        if (residentFloor === `${selectedFloorNumber}階`) return true;
-        
-        return false;
-      }
-      
-      // 服薬時間帯フィルタ（利用者の服薬時間帯に指定されたタイミングが含まれているかチェック）
-      if (resident.medicationTimes && Array.isArray(resident.medicationTimes)) {
-        return resident.medicationTimes.includes(timing);
-      } else if (resident.medicationTimes && typeof resident.medicationTimes === 'string') {
-        // 文字列の場合はカンマ区切りと仮定
-        const times = resident.medicationTimes.split(',').map((t: string) => t.trim());
-        return times.includes(timing);
-      } else if (resident.medicationTime) {
-        // 単一フィールドの場合
-        return resident.medicationTime === timing;
-      }
-      
-      // 服薬時間帯の情報がない場合は表示する（既存の動作を維持）
-      return true;
-    });
-  };
 
   // 服薬記録データ取得
   const { data: medicationRecords = [], isLoading, error } = useQuery<MedicationRecordWithResident[]>({
@@ -200,65 +224,10 @@ export default function MedicationList() {
     }
   });
 
-  // 本日を含む過去日かどうかを判定
-  const isCurrentOrPastDate = () => {
-    const today = new Date();
-    const selected = new Date(selectedDate);
-    today.setHours(0, 0, 0, 0);
-    selected.setHours(0, 0, 0, 0);
-    return selected <= today;
-  };
-
-  // 表示用の服薬記録データを作成（本日を含む過去日の場合は全利用者分のレコードを作成）
+  // 表示用の服薬記録データを作成（既存レコードのみ表示）
   const displayMedicationRecords = (() => {
-    if (!isCurrentOrPastDate() || !residents) {
-      return medicationRecords;
-    }
-
-    // フィルタ条件に合致する利用者を取得（共通関数を使用）
-    const filteredResidents = filterResidentsByConditions(residents, selectedFloor, selectedTiming);
-
-    // 既存の記録がある利用者のIDを取得
-    const existingRecordsByResident = medicationRecords.reduce((acc, record) => {
-      acc[record.residentId] = record;
-      return acc;
-    }, {} as Record<string, MedicationRecordWithResident>);
-
-    // 全利用者分のレコードを作成
-    const allRecords = filteredResidents.map((resident: any) => {
-      const existingRecord = existingRecordsByResident[resident.id];
-      
-      if (existingRecord) {
-        // 既存の記録がある場合はそれを使用
-        return {
-          ...existingRecord,
-          residentName: resident.name,
-          roomNumber: resident.roomNumber,
-          floor: resident.floor
-        };
-      } else {
-        // 既存の記録がない場合は空のレコードを作成
-        return {
-          id: `temp-${resident.id}`,
-          residentId: resident.id,
-          residentName: resident.name,
-          roomNumber: resident.roomNumber,
-          floor: resident.floor,
-          recordDate: selectedDate,
-          timing: selectedTiming,
-          type: "服薬",
-          confirmer1: "",
-          confirmer2: "",
-          notes: "",
-          result: "",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          createdBy: ""
-        } as any as MedicationRecordWithResident;
-      }
-    });
-
-    return allRecords;
+    // 既存レコードのみを表示（自動的に全利用者分のカードは作成しない）
+    return medicationRecords;
   })();
 
   // 新規記録作成ミューテーション（食事一覧と同じシンプルなアプローチ）
@@ -297,7 +266,7 @@ export default function MedicationList() {
       
       return { previousData };
     },
-    onError: (error: any, _, context) => {
+    onError: (_, __, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
         queryClient.setQueryData(["/api/medication-records", selectedDate, selectedTiming, selectedFloor], context.previousData);
@@ -345,7 +314,7 @@ export default function MedicationList() {
       
       return { previousData };
     },
-    onError: (error: any, _, context) => {
+    onError: (_, __, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
         queryClient.setQueryData(["/api/medication-records", selectedDate, selectedTiming, selectedFloor], context.previousData);
@@ -423,37 +392,40 @@ export default function MedicationList() {
     createMutation.mutate(newRecord);
   };
 
-  // 新規カード追加 - 未記録の利用者を探して追加
+  // 新規カード追加 - 空のカード（利用者未選択、服薬タイミングのみセット）
   const handleAddRecord = () => {
-    if (!residents || residents.length === 0 || !user) return;
+    if (!user) return;
 
-    // フィルタ条件に合致する利用者を取得（共通関数を使用）
-    const filteredResidents = filterResidentsByConditions(residents, selectedFloor, selectedTiming);
+    // 一時的なIDを生成（タイムスタンプベース）
+    const tempId = `temp-new-${Date.now()}`;
     
-    // 既に記録がある利用者のIDを取得
-    const recordedResidentIds = medicationRecords.map(r => r.residentId);
-    
-    // 未記録の利用者を探す
-    const unrecordedResident = filteredResidents.find((resident: any) => 
-      !recordedResidentIds.includes(resident.id)
-    );
-    
-    // 未記録の利用者がいる場合は新しいレコードを作成、いない場合は最初の利用者で作成
-    const targetResident = unrecordedResident || filteredResidents[0];
-    
-    if (targetResident) {
-      createMutation.mutate({
-        residentId: targetResident.id,
-        recordDate: new Date(selectedDate),
-        timing: selectedTiming,
+    // 楽観的更新で空のカードを即座に追加
+    queryClient.setQueryData(["/api/medication-records", selectedDate, selectedTiming, selectedFloor], (old: any) => {
+      if (!old) return old;
+      
+      // 新しい空のレコードを作成（利用者未選択、服薬タイミングのみセット）
+      const newEmptyRecord = {
+        id: tempId,
+        residentId: "", // 空の状態に設定
+        residentName: "",
+        roomNumber: "",
+        floor: "",
+        recordDate: selectedDate,
+        timing: selectedTiming, // ヘッダーで選択されている服薬タイミングをセット
         type: "服薬",
         confirmer1: "",
         confirmer2: "",
         notes: "",
         result: "",
-        createdBy: (user as any).claims?.sub || "unknown"
-      } as InsertMedicationRecord);
-    }
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: "",
+        isTemporary: true,
+      };
+      
+      // 既存のレコードに新しい空のレコードを追加
+      return [...old, newEmptyRecord];
+    });
   };
 
   // 特定の利用者の既存データを取得する関数
@@ -591,11 +563,16 @@ export default function MedicationList() {
     }
   };
 
+  // 利用者が選択されているかどうかを判定する関数
+  const isResidentSelected = (record: MedicationRecordWithResident) => {
+    return record.residentId && record.residentId !== "";
+  };
+
   // 削除
   const handleDelete = (recordId: string) => {
     console.log('Deleting record:', recordId);
     
-    // 一時的なIDの場合は削除確認なしで即座に削除
+    // 一時的なIDの場合は即座に削除
     if (recordId.startsWith('temp-')) {
       console.log('Removing temp record from display');
       // 一時的なレコードの削除時は現在の表示条件で再取得
@@ -605,13 +582,9 @@ export default function MedicationList() {
       return;
     }
     
-    // 実際のレコードの場合は削除確認を表示
-    if (window.confirm('この記録を削除しますか？')) {
-      console.log('User confirmed deletion, proceeding with delete');
-      deleteMutation.mutate(recordId);
-    } else {
-      console.log('User cancelled deletion');
-    }
+    // 実際のレコードの場合は削除実行（AlertDialogで確認済み）
+    console.log('Proceeding with delete');
+    deleteMutation.mutate(recordId);
   };
 
 
@@ -660,6 +633,7 @@ export default function MedicationList() {
               onSave={(value) => setSelectedTiming(value)}
               placeholder="タイミング"
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disableFocusMove={true}
             />
           </div>
           
@@ -690,6 +664,7 @@ export default function MedicationList() {
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disableFocusMove={true}
             />
           </div>
         </div>
@@ -771,6 +746,8 @@ export default function MedicationList() {
                       }}
                       placeholder="タイミング"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                      isTimingField={true}
+                      disabled={!isResidentSelected(record)}
                     />
                   </div>
                   
@@ -779,13 +756,14 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer1 || ''}
-                      onClick={() => handleConfirmerStamp(record.residentId, "confirmer1")}
+                      onClick={() => isResidentSelected(record) && handleConfirmerStamp(record.residentId, "confirmer1")}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        handleFieldUpdate(record.id, 'confirmer1', e.target.value);
+                        isResidentSelected(record) && handleFieldUpdate(record.id, 'confirmer1', e.target.value);
                       }}
                       placeholder="確認者1"
-                      className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
+                      disabled={!isResidentSelected(record)}
                     />
                   </div>
                   
@@ -794,13 +772,14 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer2 || ''}
-                      onClick={() => handleConfirmerStamp(record.residentId, "confirmer2")}
+                      onClick={() => isResidentSelected(record) && handleConfirmerStamp(record.residentId, "confirmer2")}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        handleFieldUpdate(record.id, 'confirmer2', e.target.value);
+                        isResidentSelected(record) && handleFieldUpdate(record.id, 'confirmer2', e.target.value);
                       }}
                       placeholder="確認者2"
-                      className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={`h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
+                      disabled={!isResidentSelected(record)}
                     />
                   </div>
                 </div>
@@ -813,12 +792,14 @@ export default function MedicationList() {
                       type="text"
                       value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
                       onChange={(e) => {
+                        if (!isResidentSelected(record)) return;
                         setLocalNotes(prev => ({
                           ...prev,
                           [record.id]: e.target.value
                         }));
                       }}
                       onBlur={(e) => {
+                        if (!isResidentSelected(record)) return;
                         handleFieldUpdate(record.id, "notes", e.target.value);
                         setLocalNotes(prev => {
                           const newState = { ...prev };
@@ -830,9 +811,10 @@ export default function MedicationList() {
                           saveTemporaryRecord(record.id);
                         }
                       }}
-                      className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
+                      className={`h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
                       placeholder="記録を入力..."
                       data-testid={`input-notes-${record.id}`}
+                      disabled={!isResidentSelected(record)}
                     />
                   </div>
                   
@@ -851,6 +833,7 @@ export default function MedicationList() {
                       }}
                       placeholder="種類"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                      disabled={!isResidentSelected(record)}
                     />
                   </div>
                   
@@ -873,30 +856,51 @@ export default function MedicationList() {
                       }}
                       placeholder="結果"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                      disabled={!isResidentSelected(record)}
                     />
                   </div>
                   
                   {/* 削除アイコン */}
                   <div className="w-6 flex-shrink-0 flex justify-center">
-                    <button
-                      className="rounded text-xs flex items-center justify-center bg-red-500 hover:bg-red-600 text-white"
-                      style={{
-                        height: "24px",
-                        width: "24px",
-                        minHeight: "24px",
-                        minWidth: "24px",
-                        maxHeight: "24px",
-                        maxWidth: "24px",
-                      }}
-                      onClick={() => {
-                        console.log('Delete button clicked for record:', record.id);
-                        handleDelete(record.id);
-                      }}
-                      data-testid={`button-delete-${record.id}`}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button
+                          className={`rounded text-xs flex items-center justify-center ${
+                            isResidentSelected(record) 
+                              ? "bg-red-500 hover:bg-red-600 text-white"
+                              : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                          }`}
+                          style={{
+                            height: "24px",
+                            width: "24px",
+                            minHeight: "24px",
+                            minWidth: "24px",
+                            maxHeight: "24px",
+                            maxWidth: "24px",
+                          }}
+                          disabled={deleteMutation.isPending || !isResidentSelected(record)}
+                          data-testid={`button-delete-${record.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            この記録を削除してもよろしいですか？この操作は取り消せません。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(record.id)}
+                          >
+                            削除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </div>
