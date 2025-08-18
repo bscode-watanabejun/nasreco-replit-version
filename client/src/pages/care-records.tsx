@@ -47,21 +47,21 @@ type CareRecordForm = z.infer<typeof careRecordSchema>;
 
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
+  id,
   value,
   options,
   onSave,
   placeholder,
   className,
   disabled = false,
-  autoFocusNext = true,
 }: {
+  id?: string;
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder: string;
   className?: string;
   disabled?: boolean;
-  autoFocusNext?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -105,32 +105,33 @@ function InputWithDropdown({
     onSave(selectedValue);
     setOpen(false);
 
-    // autoFocusNextがtrueの場合のみフォーカス移動を実行
-    if (autoFocusNext) {
-      // 特定の遅延後にフォーカス移動を実行
-      setTimeout(() => {
-        if (inputRef.current) {
-          const allElements = Array.from(
-            document.querySelectorAll("input, textarea, select, button"),
-          ).filter(
-            (el) =>
-              !el.hasAttribute("disabled") &&
-              (el as HTMLElement).offsetParent !== null,
-          ) as HTMLElement[];
+    // 特定の遅延後にフォーカス移動を実行
+    setTimeout(() => {
+      if (inputRef.current) {
+        const allInputs = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            el !== inputRef.current &&
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
 
-          const currentIndex = allElements.indexOf(inputRef.current);
-          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-            const nextElement = allElements[currentIndex + 1] as HTMLInputElement;
-            nextElement.focus();
-            
-            // 次の要素がInputWithDropdownの場合、プルダウンを開く
-            setTimeout(() => {
-              nextElement.click();
-            }, 100);
-          }
+        const currentElement = inputRef.current;
+        const allElements = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
+
+        const currentIndex = allElements.indexOf(currentElement);
+        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+          allElements[currentIndex + 1].focus();
         }
-      }, 200);
-    }
+      }
+    }, 200);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,11 +159,7 @@ function InputWithDropdown({
   const [isClickFocus, setIsClickFocus] = useState(false);
 
   const handleFocus = () => {
-    if (disabled || isClickFocus || !autoFocusNext) return;
-    // 自動フォーカス移動の場合のみプルダウンを開く
-    setTimeout(() => {
-      setOpen(true);
-    }, 100);
+    if (disabled || isClickFocus) return;
   };
 
   return (
@@ -170,6 +167,7 @@ function InputWithDropdown({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <input
+            id={id}
             ref={inputRef}
             type="text"
             value={inputValue}
@@ -380,7 +378,7 @@ export default function CareRecords() {
     },
   });
 
-  // 記録更新用ミューテーション（楽観的更新）
+  // 記録更新用ミューテーション（一覧画面用）
   const updateMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
       const updateData: any = { [field]: value };
@@ -435,6 +433,38 @@ export default function CareRecords() {
       if (variables.field === 'description') {
         setLocalRecordDescriptions({});
       }
+    },
+  });
+
+  // 詳細画面専用の記録更新ミューテーション
+  const updateDetailMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
+      const updateData: any = { [field]: value };
+      return apiRequest(`/api/care-records/${id}`, "PATCH", updateData);
+    },
+    onMutate: async (newData: { id: string; field: string; value: any }) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/care-records'] });
+      const previousCareRecords = queryClient.getQueryData(['/api/care-records']);
+      queryClient.setQueryData(['/api/care-records'], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.map(record =>
+          record.id === newData.id ? { ...record, [newData.field]: newData.value } : record
+        );
+      });
+      return { previousCareRecords };
+    },
+    onError: (err, newData, context) => {
+      if (context?.previousCareRecords) {
+        queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
+      }
+      toast({
+        title: "エラー",
+        description: "記録の更新に失敗しました",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/care-records'] });
     },
   });
 
@@ -639,6 +669,23 @@ export default function CareRecords() {
   // 新規記録ブロックの編集用ローカル状態
   const [localNewBlockDescriptions, setLocalNewBlockDescriptions] = useState<Record<string, string>>({});
   
+  // 詳細画面専用のstate
+  const [editedDescription, setEditedDescription] = useState("");
+  const [editedDate, setEditedDate] = useState(new Date());
+
+  // 選択された記録が変更されたら、編集用のstateを初期化
+  const { id: recordId, description: recordDescription, recordDate: initialRecordDate } = selectedRecordForDetail || {};
+  useEffect(() => {
+    if (selectedRecordForDetail) {
+      setEditedDescription(recordDescription || "");
+      setEditedDate(initialRecordDate ? new Date(initialRecordDate) : new Date());
+    } else {
+      // 新規レコードの場合
+      setEditedDescription("");
+      setEditedDate(new Date());
+    }
+  }, [recordId, recordDescription, initialRecordDate]);
+  
   
   
   // ファイルアップロード用state
@@ -742,18 +789,14 @@ export default function CareRecords() {
 
   
 
-  // 介護記録詳細画面のコンポーネント
-  const DetailScreen = () => {
-    const { data: careRecords = [] } = useQuery({ queryKey: ["/api/care-records"] });
-
-    // selectedRecordForDetailのIDを使って、常に最新のレコード情報をキャッシュから取得する
-    const currentRecord = (careRecords as any[]).find(r => r.id === selectedRecordForDetail?.id) || selectedRecordForDetail || {
+  // 詳細画面表示の条件分岐
+  if (showRecordDetail && selectedResident) {
+    const currentRecord = selectedRecordForDetail || {
       id: 'new',
       recordDate: new Date().toISOString(),
       description: '',
       notes: ''
     };
-    
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -779,41 +822,57 @@ export default function CareRecords() {
                 {/* 時間 */}
                 <div className="flex items-center gap-0.5">
                   <InputWithDropdown
-                    value={format(new Date(currentRecord.recordDate), "HH", { locale: ja })}
+                    id="hour-input-detail"
+                    value={format(editedDate, "HH", { locale: ja })}
                     options={hourOptions}
                     onSave={(value) => {
-                      const currentDate = new Date(currentRecord.recordDate);
-                      currentDate.setHours(parseInt(value));
+                      const newDate = new Date(editedDate);
+                      newDate.setHours(parseInt(value));
+                      setEditedDate(newDate);
+
                       if (currentRecord.id !== 'new') {
-                        updateMutation.mutate({ 
-                          id: currentRecord.id, 
-                          field: 'recordDate', 
-                          value: currentDate.toISOString()
-                        });
+                        updateDetailMutation.mutate(
+                          { id: currentRecord.id, field: 'recordDate', value: newDate.toISOString() },
+                          {
+                            onSuccess: () => {
+                              setSelectedRecordForDetail(prev => ({ ...prev, recordDate: newDate.toISOString() }));
+                              setTimeout(() => document.getElementById('minute-input-detail')?.focus(), 100);
+                            }
+                          }
+                        );
+                      } else {
+                        setTimeout(() => document.getElementById('minute-input-detail')?.focus(), 100);
                       }
                     }}
                     placeholder="--"
                     className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoFocusNext={true}
                   />
                   <span className="text-xs">:</span>
                   <InputWithDropdown
-                    value={format(new Date(currentRecord.recordDate), "mm", { locale: ja })}
+                    id="minute-input-detail"
+                    value={format(editedDate, "mm", { locale: ja })}
                     options={minuteOptions}
                     onSave={(value) => {
-                      const currentDate = new Date(currentRecord.recordDate);
-                      currentDate.setMinutes(parseInt(value));
+                      const newDate = new Date(editedDate);
+                      newDate.setMinutes(parseInt(value));
+                      setEditedDate(newDate);
+
                       if (currentRecord.id !== 'new') {
-                        updateMutation.mutate({ 
-                          id: currentRecord.id, 
-                          field: 'recordDate', 
-                          value: currentDate.toISOString()
-                        });
+                        updateDetailMutation.mutate(
+                          { id: currentRecord.id, field: 'recordDate', value: newDate.toISOString() },
+                          {
+                            onSuccess: () => {
+                              setSelectedRecordForDetail(prev => ({ ...prev, recordDate: newDate.toISOString() }));
+                              setTimeout(() => document.getElementById('description-textarea-detail')?.focus(), 100);
+                            }
+                          }
+                        );
+                      } else {
+                        setTimeout(() => document.getElementById('description-textarea-detail')?.focus(), 100);
                       }
                     }}
                     placeholder="--"
                     className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoFocusNext={false}
                   />
                 </div>
                 
@@ -841,28 +900,35 @@ export default function CareRecords() {
               {/* 記録内容 */}
               <div className="flex-1">
                 <textarea
-                  value={localRecordDescriptions[currentRecord.id] !== undefined ? localRecordDescriptions[currentRecord.id] : currentRecord.description}
-                  onChange={(e) => {
-                    setLocalRecordDescriptions(prev => ({
-                      ...prev,
-                      [currentRecord.id]: e.target.value
-                    }));
-                  }}
+                  id="description-textarea-detail"
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
                   onBlur={(e) => {
-                    // 変更があった場合のみ保存
-                    if (e.target.value !== currentRecord.description) {
+                    const originalDescription = selectedRecordForDetail?.description || "";
+                    if (e.target.value !== originalDescription) {
                       if (currentRecord.id !== 'new') {
-                        updateMutation.mutate({
-                          id: currentRecord.id,
-                          field: 'description',
-                          value: e.target.value
-                        });
+                        updateDetailMutation.mutate(
+                          {
+                            id: currentRecord.id,
+                            field: 'description',
+                            value: e.target.value
+                          },
+                          {
+                            onSuccess: () => {
+                              // 詳細画面の元データであるselectedRecordForDetailも更新する
+                              setSelectedRecordForDetail(prev => ({
+                                ...prev,
+                                description: e.target.value
+                              }));
+                            }
+                          }
+                        );
                       } else {
                         // 新規記録の場合は作成
                         if (e.target.value.trim()) {
                           createMutation.mutate({
                             residentId: selectedResident?.id,
-                            recordDate: new Date(currentRecord.recordDate).toISOString(),
+                            recordDate: new Date(currentRecord.recordDate),
                             category: 'observation',
                             description: e.target.value,
                             notes: '',
@@ -888,7 +954,7 @@ export default function CareRecords() {
               {getDetailAttachments().map((file, index) => (
                 <div key={index} className="border border-slate-200 p-4 rounded-lg bg-slate-50 relative">
                   {file.type.startsWith('image/') ? (
-                    <img src={file.url} alt={file.name} className="w-full h-32 object-cover rounded mb-2" />
+                    <img src={file.url} alt={file.name} className="w-full h-32 object-contain rounded mb-2" />
                   ) : (
                     <div className="w-full h-32 bg-slate-200 rounded mb-2 flex items-center justify-center">
                       <FileText className="w-8 h-8 text-slate-500" />
@@ -949,11 +1015,6 @@ export default function CareRecords() {
         </div>
       </div>
     );
-  };
-
-  // 詳細画面表示の条件分岐
-  if (showRecordDetail && selectedResident) {
-    return <DetailScreen />;
   }
 
   if (view === 'detail' && selectedResident) {

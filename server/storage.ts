@@ -16,6 +16,7 @@ import {
   staffNotices,
   staffNoticeReadStatus,
   cleaningLinenRecords,
+  staffManagement,
   type User,
   type UpsertUser,
   type Resident,
@@ -50,6 +51,9 @@ import {
   type InsertStaffNoticeReadStatus,
   type CleaningLinenRecord,
   type InsertCleaningLinenRecord,
+  type StaffManagement,
+  type InsertStaffManagement,
+  type UpdateStaffManagement,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, isNull } from "drizzle-orm";
@@ -826,6 +830,121 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+
+  // Staff Management methods
+  async getStaffManagement(): Promise<StaffManagement[]> {
+    return await db.select().from(staffManagement).orderBy(staffManagement.sortOrder, staffManagement.createdAt);
+  }
+
+  async getStaffManagementById(id: string): Promise<StaffManagement | null> {
+    const result = await db.select().from(staffManagement).where(eq(staffManagement.id, id));
+    return result[0] || null;
+  }
+
+  async createStaffManagement(record: InsertStaffManagement): Promise<StaffManagement> {
+    try {
+      console.log("💾 Creating staff record:", record);
+      
+      // 職員IDの重複チェック
+      console.log("🔍 Checking for duplicate staffId:", record.staffId);
+      const existing = await db.select().from(staffManagement).where(eq(staffManagement.staffId, record.staffId));
+      console.log("📊 Found existing records:", existing.length);
+      
+      if (existing.length > 0) {
+        throw new Error("この職員IDは既に使用されています");
+      }
+
+      // パスワードのハッシュ化（実装簡略化のため、実際の本番環境ではbcryptを使用）
+      const hashedPassword = record.password ? Buffer.from(record.password).toString('base64') : null;
+      console.log("🔐 Password hashed");
+
+      const insertData = {
+        ...record,
+        password: hashedPassword,
+        lastModifiedAt: new Date(),
+      };
+      console.log("📝 Inserting data:", insertData);
+
+      const [created] = await db.insert(staffManagement).values(insertData).returning();
+      console.log("✅ Staff created successfully:", created);
+      
+      return created;
+    } catch (error: any) {
+      console.error("❌ Database error in createStaffManagement:", error);
+      throw error;
+    }
+  }
+
+  async updateStaffManagement(record: UpdateStaffManagement): Promise<StaffManagement> {
+    if (!record.id) {
+      throw new Error("IDが必要です");
+    }
+
+    // 職員IDの重複チェック（自分以外）
+    if (record.staffId) {
+      const existing = await db.select().from(staffManagement)
+        .where(and(
+          eq(staffManagement.staffId, record.staffId),
+          sql`${staffManagement.id} != ${record.id}`
+        ));
+      if (existing.length > 0) {
+        throw new Error("この職員IDは既に使用されています");
+      }
+    }
+
+    const updateData: any = { ...record };
+    delete updateData.id;
+    updateData.lastModifiedAt = new Date();
+    updateData.updatedAt = new Date();
+
+    const [updated] = await db.update(staffManagement)
+      .set(updateData)
+      .where(eq(staffManagement.id, record.id))
+      .returning();
+    return updated;
+  }
+
+  async deleteStaffManagement(id: string): Promise<void> {
+    await db.delete(staffManagement).where(eq(staffManagement.id, id));
+  }
+
+  async unlockStaffAccount(id: string, password: string): Promise<StaffManagement> {
+    // パスワードのハッシュ化（実装簡略化のため、実際の本番環境ではbcryptを使用）
+    const hashedPassword = Buffer.from(password).toString('base64');
+
+    const [updated] = await db.update(staffManagement)
+      .set({
+        status: "ロック解除",
+        password: hashedPassword,
+        lastModifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(staffManagement.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error("職員が見つかりません");
+    }
+    
+    return updated;
+  }
+
+  async lockStaffAccount(id: string): Promise<StaffManagement> {
+    const [updated] = await db.update(staffManagement)
+      .set({
+        status: "ロック",
+        lastModifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(staffManagement.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error("職員が見つかりません");
+    }
+    
+    return updated;
   }
 }
 

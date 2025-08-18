@@ -18,6 +18,8 @@ import {
   insertStaffNoticeSchema,
   insertStaffNoticeReadStatusSchema,
   insertCleaningLinenRecordSchema,
+  insertStaffManagementSchema,
+  updateStaffManagementSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -765,6 +767,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error upserting cleaning linen record:", error);
       res.status(400).json({ message: "Invalid cleaning linen data" });
+    }
+  });
+
+  // Staff Management routes
+  
+  // デバッグ用のミドルウェア
+  app.use('/api/staff-management*', (req, res, next) => {
+    console.log("🔍 Staff Management API requested:", {
+      method: req.method,
+      url: req.url,
+      path: req.path,
+      body: req.body
+    });
+    next();
+  });
+  
+  app.get('/api/staff-management', isAuthenticated, async (req, res) => {
+    try {
+      const staffList = await storage.getStaffManagement();
+      res.json(staffList);
+    } catch (error) {
+      console.error("Error fetching staff:", error);
+      res.status(500).json({ message: "Failed to fetch staff" });
+    }
+  });
+
+  app.get('/api/staff-management/:id', isAuthenticated, async (req, res) => {
+    try {
+      const staff = await storage.getStaffManagementById(req.params.id);
+      if (!staff) {
+        return res.status(404).json({ message: "Staff not found" });
+      }
+      res.json(staff);
+    } catch (error) {
+      console.error("Error fetching staff:", error);
+      res.status(500).json({ message: "Failed to fetch staff" });
+    }
+  });
+
+  app.post('/api/staff-management', isAuthenticated, async (req, res) => {
+    try {
+      console.log("📥 POST /api/staff-management - Request body:", req.body);
+      
+      const validatedData = insertStaffManagementSchema.parse(req.body);
+      console.log("✅ Data validation passed:", validatedData);
+      
+      const staff = await storage.createStaffManagement(validatedData);
+      console.log("🎉 Staff created successfully:", staff);
+      
+      res.status(201).json(staff);
+    } catch (error: any) {
+      console.error("❌ Error creating staff:", error);
+      console.error("❌ Error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      // Zodバリデーションエラーの詳細処理
+      if (error.name === 'ZodError') {
+        console.error("❌ Validation errors:", error.errors);
+        return res.status(400).json({ 
+          message: "入力データの検証に失敗しました", 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(400).json({ message: error.message || "職員情報の作成に失敗しました" });
+    }
+  });
+
+  app.patch('/api/staff-management/:id', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = updateStaffManagementSchema.parse({
+        ...req.body,
+        id: req.params.id,
+      });
+      const staff = await storage.updateStaffManagement(validatedData);
+      res.json(staff);
+    } catch (error) {
+      console.error("Error updating staff:", error);
+      res.status(400).json({ message: "Invalid staff data" });
+    }
+  });
+
+  app.delete('/api/staff-management/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteStaffManagement(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting staff:", error);
+      res.status(500).json({ message: "Failed to delete staff" });
+    }
+  });
+
+  app.post('/api/staff-management/:id/unlock', isAuthenticated, async (req, res) => {
+    try {
+      const { password } = req.body;
+      if (!password || password.length < 6) {
+        return res.status(400).json({ message: "パスワードは6文字以上で入力してください" });
+      }
+      const staff = await storage.unlockStaffAccount(req.params.id, password);
+      res.json(staff);
+    } catch (error) {
+      console.error("Error unlocking staff account:", error);
+      res.status(400).json({ message: "アカウントロック解除に失敗しました" });
+    }
+  });
+
+  app.post('/api/staff-management/:id/lock', isAuthenticated, async (req, res) => {
+    try {
+      const staff = await storage.lockStaffAccount(req.params.id);
+      res.json(staff);
+    } catch (error) {
+      console.error("Error locking staff account:", error);
+      res.status(400).json({ message: "アカウントロックに失敗しました" });
     }
   });
 

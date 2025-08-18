@@ -41,8 +41,7 @@ export default function ManagementMenu() {
       title: "職員管理",
       description: "職員の情報を管理する画面です。職員の基本情報、権限情報の登録や変更が行えます。",
       onClick: () => {
-        // TODO: Implement employee management
-        console.log("職員管理");
+        navigate("/staff-management");
       }
     },
     {

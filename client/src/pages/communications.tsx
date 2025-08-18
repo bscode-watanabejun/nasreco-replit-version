@@ -107,6 +107,7 @@ export default function Communications() {
 
   // Fetch read status for all notices to determine unread status  
   const [readStatuses, setReadStatuses] = useState<{[key: string]: any[]}>({});
+  const [readStatusesLoaded, setReadStatusesLoaded] = useState(false);
 
   useEffect(() => {
     if (notices.length > 0 && user && (user as any)?.id) {
@@ -126,6 +127,7 @@ export default function Communications() {
           statusMap[result.noticeId] = result.statuses;
         });
         setReadStatuses(statusMap);
+        setReadStatusesLoaded(true);
       });
     }
   }, [notices, user]);
@@ -163,6 +165,7 @@ export default function Communications() {
             statusMap[result.noticeId] = result.statuses;
           });
           setReadStatuses(statusMap);
+          setReadStatusesLoaded(true);
           setIsDialogOpen(false);
         });
       }
@@ -178,7 +181,13 @@ export default function Communications() {
 
   // Check if notice is unread for current user
   const isNoticeUnread = (notice: StaffNotice): boolean => {
-    if (!user || !(user as any)?.id || !readStatuses || !readStatuses[notice.id]) return true;
+    // 既読状態が読み込まれていない場合は、undefinedを返す（赤太字にしない）
+    if (!readStatusesLoaded || !user || !(user as any)?.id) return false;
+    
+    // 既読状態が読み込み済みで、該当通知の既読情報がない場合は未読とする
+    if (!readStatuses[notice.id]) return true;
+    
+    // 既読状態をチェック
     return !readStatuses[notice.id].some((status: any) => status.staffId === (user as any).id);
   };
 
@@ -250,6 +259,7 @@ export default function Communications() {
             statusMap[result.noticeId] = result.statuses;
           });
           setReadStatuses(statusMap);
+          setReadStatusesLoaded(true);
         });
       }
       // Close dialog without showing message
@@ -374,7 +384,7 @@ export default function Communications() {
                     </div>
                     
                     {/* Content */}
-                    <div className={`flex-1 text-xs leading-tight truncate ${isUnread ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
+                    <div className={`flex-1 text-xs leading-tight truncate ${readStatusesLoaded && isUnread ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
                       {notice.content}
                     </div>
                     

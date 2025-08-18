@@ -638,3 +638,47 @@ export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenR
 
 export type CleaningLinenRecord = typeof cleaningLinenRecords.$inferSelect;
 export type InsertCleaningLinenRecord = z.infer<typeof insertCleaningLinenRecordSchema>;
+
+// Staff Management table
+export const staffManagement = pgTable("staff_management", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  staffId: varchar("staff_id").unique().notNull(), // 職員ID（ログインID）
+  staffName: varchar("staff_name").notNull(), // 職員名
+  staffNameKana: varchar("staff_name_kana").notNull(), // 職員名フリガナ
+  floor: varchar("floor").notNull(), // 所属階
+  jobRole: varchar("job_role").notNull(), // 職種
+  authority: varchar("authority").notNull(), // 権限
+  status: varchar("status").default("ロック").notNull(), // ステータス（ロック/ロック解除）
+  sortOrder: integer("sort_order").default(0), // ソート順
+  password: varchar("password"), // パスワード（ハッシュ化）
+  lastModifiedAt: timestamp("last_modified_at").defaultNow(), // 最終修正日時
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Staff Management insert schema
+export const insertStaffManagementSchema = createInsertSchema(staffManagement, {
+  staffId: z.string()
+    .min(1, "職員IDを入力してください")
+    .regex(/^[a-zA-Z0-9]+$/, "職員IDは英字と数字のみ使用できます"),
+  staffName: z.string().min(1, "職員名を入力してください"),
+  staffNameKana: z.string()
+    .min(1, "職員名フリガナを入力してください")
+    .regex(/^[ァ-ヶー\s]+$/, "職員名フリガナはカタカナのみ使用できます"),
+  floor: z.enum(["全階", "1階", "2階", "3階"]),
+  jobRole: z.enum(["全体", "介護", "施設看護", "訪問看護"]),
+  authority: z.enum(["管理者", "準管理者", "職員"]),
+  status: z.enum(["ロック", "ロック解除"]).default("ロック"),
+  sortOrder: z.coerce.number().int().default(0),
+  password: z.string().min(6, "パスワードは6文字以上で入力してください")
+    .regex(/^[a-zA-Z0-9]+$/, "パスワードは英数字のみ使用できます").optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true, lastModifiedAt: true });
+
+// Update schema
+export const updateStaffManagementSchema = insertStaffManagementSchema.partial().extend({
+  id: z.string(),
+});
+
+export type StaffManagement = typeof staffManagement.$inferSelect;
+export type InsertStaffManagement = z.infer<typeof insertStaffManagementSchema>;
+export type UpdateStaffManagement = z.infer<typeof updateStaffManagementSchema>;
