@@ -133,7 +133,7 @@ export default function NursingRecords() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {residents.map((resident: any) => (
+                            {(residents as any[]).map((resident: any) => (
                               <SelectItem key={resident.id} value={resident.id}>
                                 {resident.name}
                               </SelectItem>
@@ -265,7 +265,7 @@ export default function NursingRecords() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
               <p className="text-slate-600">記録を読み込み中...</p>
             </div>
-          ) : nursingRecords.length === 0 ? (
+          ) : (nursingRecords as any[]).length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
                 <p className="text-slate-600">看護記録がありません</p>
@@ -273,8 +273,8 @@ export default function NursingRecords() {
               </CardContent>
             </Card>
           ) : (
-            nursingRecords.map((record: any) => {
-              const resident = residents.find((r: any) => r.id === record.residentId);
+            (nursingRecords as any[]).map((record: any) => {
+              const resident = (residents as any[]).find((r: any) => r.id === record.residentId);
               const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
               
               return (

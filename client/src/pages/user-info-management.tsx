@@ -48,7 +48,7 @@ export default function UserInfoManagement() {
     queryKey: ["/api/residents"],
   });
 
-  const form = useForm<InsertResident>({
+  const form = useForm<any>({
     resolver: zodResolver(insertResidentSchema),
     defaultValues: {
       roomNumber: "",
@@ -128,7 +128,7 @@ export default function UserInfoManagement() {
     },
   });
 
-  const editForm = useForm<InsertResident>({
+  const editForm = useForm<any>({
     resolver: zodResolver(insertResidentSchema),
     defaultValues: form.getValues(),
   });
@@ -1642,7 +1642,7 @@ export default function UserInfoManagement() {
                       <div>
                         <span className="font-medium text-gray-700 dark:text-gray-300">入院:</span>
                         <div className="text-gray-900 dark:text-gray-100">
-                          {resident.isHospitalized ? "入院中" : "-"}
+                          {resident.isAdmitted ? "入院中" : "-"}
                         </div>
                       </div>
                       <div>

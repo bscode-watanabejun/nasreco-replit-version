@@ -46,8 +46,8 @@ export default function Header() {
             <div className="hidden sm:block text-slate-600">
               <span className="mr-1">{greeting}</span>
               <span className="font-medium text-slate-900">
-                {user?.firstName && user?.lastName 
-                  ? `${user.firstName}・${user.lastName}さん` 
+                {(user as any)?.firstName && (user as any)?.lastName 
+                  ? `${(user as any).firstName}・${(user as any).lastName}さん` 
                   : "ユーザーさん"
                 }
               </span>
@@ -64,9 +64,9 @@ export default function Header() {
               className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors p-0"
               onClick={handleProfileClick}
             >
-              {user?.profileImageUrl ? (
+              {(user as any)?.profileImageUrl ? (
                 <img
-                  src={user.profileImageUrl}
+                  src={(user as any).profileImageUrl}
                   alt="Profile"
                   className="w-5 h-5 rounded-full object-cover"
                 />

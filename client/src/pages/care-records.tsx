@@ -373,8 +373,8 @@ export default function CareRecords() {
       const floor = r.floor?.toString().replace('F', '');
       return floor ? parseInt(floor) : null;
     }).filter(Boolean)))
-      .sort((a, b) => a - b)
-      .map(floor => ({ value: floor.toString(), label: `${floor}階` }))
+      .sort((a, b) => (a || 0) - (b || 0))
+      .map(floor => ({ value: floor?.toString() || '', label: `${floor}階` }))
   ];
 
   // フィルター適用済みの利用者一覧

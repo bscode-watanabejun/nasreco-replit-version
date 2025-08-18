@@ -409,7 +409,7 @@ export default function CleaningLinenList() {
           <table className="w-full text-xs border-separate border-spacing-0">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-0.5 text-center border border-gray-300 rounded-tl-lg w-20" colspan={2} data-testid="header-room-type"></th>
+                <th className="p-0.5 text-center border border-gray-300 rounded-tl-lg w-20" colSpan={2} data-testid="header-room-type"></th>
                 {weekDays.map((day, index) => {
                   const date = addDays(selectedWeek, index);
                   const isSelectedDate = selectedDateFromUrl && format(date, 'yyyy-MM-dd') === selectedDateFromUrl;
