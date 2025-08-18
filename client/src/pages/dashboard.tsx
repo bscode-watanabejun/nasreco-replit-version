@@ -104,10 +104,7 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   
   // 未読連絡事項数を取得
-  const { data: unreadCount = 0 } = useUnreadStaffNoticesCount();
-  
-  // テスト用: 一時的に固定値を設定（実際に未読があるかテストするため）
-  const testUnreadCount = 3;
+  const { data: unreadCount = 0, refetchUnreadCount } = useUnreadStaffNoticesCount();
   
   // 日付とフロア選択のstate
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -351,7 +348,7 @@ export default function Dashboard() {
                   color={module.color as "orange" | "slate" | "blue" | "green" | "pink" | "red"}
                   onClick={() => handleModuleClick(module.path)}
                   compact={true}
-                  badge={module.path === "/communications" ? testUnreadCount : null}
+                  badge={module.path === "/communications" && unreadCount > 0 ? unreadCount : null}
                 />
               ))}
             </div>

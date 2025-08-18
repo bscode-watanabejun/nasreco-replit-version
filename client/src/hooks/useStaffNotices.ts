@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // 未読連絡事項数を取得するフック
 export function useUnreadStaffNoticesCount() {
-  return useQuery({
+  const queryClient = useQueryClient();
+  
+  const query = useQuery({
     queryKey: ["staff-notices", "unread-count"],
     queryFn: async () => {
       const response = await fetch("/api/staff-notices/unread-count", {
@@ -20,8 +22,8 @@ export function useUnreadStaffNoticesCount() {
       const data = await response.json();
       return data.count as number;
     },
-    refetchInterval: 30000, // 30秒ごとに更新
-    staleTime: 25000, // 25秒間はfreshと見なす
+    refetchInterval: 10000, // 10秒ごとに更新
+    staleTime: 8000, // 8秒間はfreshと見なす
     retry: (failureCount, error) => {
       // 認証エラーの場合は再試行しない
       if (error instanceof Error && error.message.includes("401")) {
@@ -32,4 +34,14 @@ export function useUnreadStaffNoticesCount() {
     // デフォルト値として0を設定
     initialData: 0,
   });
+
+  // 手動で未読数を更新する関数
+  const refetchUnreadCount = () => {
+    queryClient.invalidateQueries({ queryKey: ["staff-notices", "unread-count"] });
+  };
+
+  return {
+    ...query,
+    refetchUnreadCount,
+  };
 }

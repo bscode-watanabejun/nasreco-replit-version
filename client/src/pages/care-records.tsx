@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -11,6 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Popover,
   PopoverContent,
@@ -41,15 +52,20 @@ function InputWithDropdown({
   onSave,
   placeholder,
   className,
+  disabled = false,
+  autoFocusNext = true,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder: string;
   className?: string;
+  disabled?: boolean;
+  autoFocusNext?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 値が外部から変更された場合に同期
@@ -57,40 +73,139 @@ function InputWithDropdown({
     setInputValue(value);
   }, [value]);
 
+  // アクティブ要素を監視してフォーカス状態を更新
+  useEffect(() => {
+    const checkFocus = () => {
+      if (inputRef.current) {
+        setIsFocused(document.activeElement === inputRef.current);
+      }
+    };
+
+    // 初回チェック
+    checkFocus();
+
+    // フォーカス変更を監視
+    const handleFocusChange = () => {
+      checkFocus();
+    };
+
+    // document全体でfocus/blurイベントを監視
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusChange);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusChange);
+    };
+  }, []);
+
   const handleSelect = (selectedValue: string) => {
-    const selectedOption = options.find(opt => opt.value === selectedValue);
-    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    if (disabled) return;
+    setInputValue(selectedValue);
     onSave(selectedValue);
     setOpen(false);
+
+    // autoFocusNextがtrueの場合のみフォーカス移動を実行
+    if (autoFocusNext) {
+      // 特定の遅延後にフォーカス移動を実行
+      setTimeout(() => {
+        if (inputRef.current) {
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
+
+          const currentIndex = allElements.indexOf(inputRef.current);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            const nextElement = allElements[currentIndex + 1] as HTMLInputElement;
+            nextElement.focus();
+            
+            // 次の要素がInputWithDropdownの場合、プルダウンを開く
+            setTimeout(() => {
+              nextElement.click();
+            }, 100);
+          }
+        }
+      }, 200);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    if (disabled) return;
+    onSave(inputValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+    if (e.key === "Enter") {
+      onSave(inputValue);
+      setOpen(false);
+    } else if (e.key === "Escape") {
+      setInputValue(value);
+      setOpen(false);
+    }
+  };
+
+  // クリックによるフォーカスかどうかを追跡
+  const [isClickFocus, setIsClickFocus] = useState(false);
+
+  const handleFocus = () => {
+    if (disabled || isClickFocus || !autoFocusNext) return;
+    // 自動フォーカス移動の場合のみプルダウンを開く
+    setTimeout(() => {
+      setOpen(true);
+    }, 100);
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          readOnly
-          onClick={() => setOpen(!open)}
-          placeholder={placeholder}
-          className={className}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-32 p-0.5" align="center">
-        <div className="space-y-0 max-h-40 overflow-y-auto">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleSelect(option.value)}
-              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            onClick={(e) => {
+              e.preventDefault();
+              setIsClickFocus(true);
+              setOpen(!open);
+              // フラグをリセット
+              setTimeout(() => {
+                setIsClickFocus(false);
+              }, 200);
+            }}
+            placeholder={placeholder}
+            className={className}
+            disabled={disabled}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="w-32 p-0.5" align="center">
+          <div className="space-y-0 max-h-40 overflow-y-auto">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
@@ -237,7 +352,7 @@ export default function CareRecords() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CareRecordForm) => {
-      await apiRequest("POST", "/api/care-records", {
+      await apiRequest("/api/care-records", "POST", {
         ...data,
         recordDate: new Date(data.recordDate),
       });
@@ -255,10 +370,6 @@ export default function CareRecords() {
         notes: "",
       });
       setOpen(false);
-      toast({
-        title: "成功",
-        description: "介護記録を作成しました",
-      });
     },
     onError: (error) => {
       toast({
@@ -269,28 +380,61 @@ export default function CareRecords() {
     },
   });
 
-  // 記録更新用ミューテーション
+  // 記録更新用ミューテーション（楽観的更新）
   const updateMutation = useMutation({
-    mutationFn: async ({ id, field, value }: { id: string; field: string; value: string }) => {
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
       const updateData: any = { [field]: value };
       if (field === 'recordDate') {
         updateData[field] = new Date(value);
       }
-      await apiRequest("PATCH", `/api/care-records/${id}`, updateData);
+      return apiRequest(`/api/care-records/${id}`, "PATCH", updateData);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
-      toast({
-        title: "保存完了",
-        description: "記録を更新しました",
+    onMutate: async (newData: { id: string; field: string; value: any }) => {
+      // recordDateの更新時は楽観的更新によるキャッシュ操作を行わない
+      if (newData.field === 'recordDate') {
+        return;
+      }
+      // クエリのキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/care-records'] });
+
+      // 以前のデータをスナップショット
+      const previousCareRecords = queryClient.getQueryData(['/api/care-records']);
+
+      // キャッシュを楽観的に更新
+      queryClient.setQueryData(['/api/care-records'], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.map(record =>
+          record.id === newData.id ? { ...record, [newData.field]: newData.value } : record
+        );
       });
+
+      // コンテキストオブジェクトで以前のデータを返す
+      return { previousCareRecords };
     },
-    onError: (error) => {
+    onError: (err, newData, context) => {
+      // description更新時のロールバック
+      if (context?.previousCareRecords) {
+        queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
+      }
+      // recordDate更新エラー時にローカルstateを元に戻す
+      if (newData.field === 'recordDate') {
+        setLocalRecordDates(prev => {
+          const newState = { ...prev };
+          delete newState[newData.id];
+          return newState;
+        });
+      }
       toast({
         title: "エラー",
         description: "記録の更新に失敗しました",
         variant: "destructive",
       });
+    },
+    onSettled: (data, error, variables) => {
+      // description更新時のみローカルstateをクリア
+      if (variables.field === 'description') {
+        setLocalRecordDescriptions({});
+      }
     },
   });
 
@@ -300,11 +444,38 @@ export default function CareRecords() {
 
   // 新規追加ブロック作成
   const addNewRecordBlock = () => {
+    if (!selectedResident && view === 'detail') {
+      toast({
+        title: "エラー",
+        description: "利用者が選択されていません",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // 現在時刻を取得
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    // 分のオプション（0, 15, 30, 45）から最も近いものを選択
+    const minuteOptions = [0, 15, 30, 45];
+    const closestMinute = minuteOptions.reduce((prev, curr) => {
+      return Math.abs(curr - currentMinute) < Math.abs(prev - currentMinute) ? curr : prev;
+    });
+    
+    // 現在時刻に基づいてrecordDateを設定
+    const recordDate = new Date();
+    recordDate.setHours(currentHour);
+    recordDate.setMinutes(closestMinute);
+    recordDate.setSeconds(0);
+    recordDate.setMilliseconds(0);
+    
     const newBlock = {
-      id: Date.now().toString(),
-      residentId: selectedResident ? selectedResident.id : "",
+      id: `${selectedResident.id}-${Date.now()}`,
+      residentId: selectedResident.id,
       category: "",
-      recordDate: new Date().toISOString().slice(0, 16),
+      recordDate: recordDate.toISOString(),
       description: "",
       notes: "",
     };
@@ -332,15 +503,15 @@ export default function CareRecords() {
     if (!updatedBlock) return;
 
     // 必須フィールドがすべて入力されたら自動保存
-    const hasRequiredFields = selectedResident 
-      ? updatedBlock.category && updatedBlock.description // 利用者詳細画面
-      : updatedBlock.residentId && updatedBlock.category && updatedBlock.description; // メイン画面
+    const hasRequiredFields = updatedBlock.description && selectedResident;
 
     if (hasRequiredFields) {
       const submitData = {
         ...updatedBlock,
-        residentId: selectedResident ? selectedResident.id : updatedBlock.residentId,
+        residentId: selectedResident.id,
+        category: 'observation', // デフォルトカテゴリ
       };
+      
       createMutation.mutate(submitData);
       // 保存後にブロックを削除
       setNewRecordBlocks(prev => prev.filter(block => block.id !== blockId));
@@ -360,10 +531,38 @@ export default function CareRecords() {
     { value: "other", label: "その他" },
   ];
 
+  // 時分選択用のオプション（バイタル一覧画面と同じ）
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: i.toString(),
+    label: i.toString().padStart(2, "0"),
+  }));
+  const minuteOptions = [
+    { value: "0", label: "00" },
+    { value: "15", label: "15" },
+    { value: "30", label: "30" },
+    { value: "45", label: "45" },
+  ];
+
   // 利用者詳細の記録を取得（既存のcareRecordsを利用）
   const residentRecords = (careRecords as any[]).filter((record: any) => 
     selectedResident ? record.residentId === selectedResident.id : false
   );
+
+  // 新規記録ブロックも利用者でフィルタリング
+  const filteredNewRecordBlocks = newRecordBlocks.filter(block => 
+    selectedResident ? block.residentId === selectedResident.id : false
+  );
+
+  // ソート済みの既存記録（初期処理と日付変更時のみソート）
+  const sortedCareRecords = useMemo(() => {
+    return (careRecords as any[])
+      .filter((record: any) => {
+        if (!selectedResident || record.residentId !== selectedResident.id) return false;
+        const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+        return recordDate === selectedDate;
+      })
+      .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
+  }, [careRecords, selectedResident, selectedDate]);
 
   // 階数のオプションを生成（利用者データから）
   const floorOptions = [
@@ -424,32 +623,143 @@ export default function CareRecords() {
   const [selectedRecordContent, setSelectedRecordContent] = useState<string>("");
   const [contentDialogOpen, setContentDialogOpen] = useState(false);
   
+  // 画像拡大表示用のstate
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string>("");
+  const [selectedImageInfo, setSelectedImageInfo] = useState<{recordId: string; fileIndex: number; url: string; name: string} | null>(null);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  
   // 記録詳細画面用のstate
   const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<any>(null);
   const [showRecordDetail, setShowRecordDetail] = useState(false);
   
+  // 既存記録の編集用ローカル状態
+  const [localRecordDescriptions, setLocalRecordDescriptions] = useState<Record<string, string>>({});
+  const [localRecordDates, setLocalRecordDates] = useState<Record<string, string>>({});
+  
+  // 新規記録ブロックの編集用ローカル状態
+  const [localNewBlockDescriptions, setLocalNewBlockDescriptions] = useState<Record<string, string>>({});
+  
+  
+  
   // ファイルアップロード用state
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; url: string; type: string }>>([]);
+  const [recordAttachments, setRecordAttachments] = useState<Record<string, Array<{ name: string; url: string; type: string }>>>({});
 
-  // ファイルアップロード処理
+  // ファイルアップロード処理（介護記録詳細画面用）
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
+      const currentFiles = getDetailAttachments();
+      const newFiles: Array<{ name: string; url: string; type: string }> = [];
+      
       Array.from(files).forEach(file => {
-        const url = URL.createObjectURL(file);
-        setUploadedFiles(prev => [...prev, {
-          name: file.name,
-          url: url,
-          type: file.type
-        }]);
+        // 最大3つまでの制限をチェック
+        if (currentFiles.length + newFiles.length < 3) {
+          const url = URL.createObjectURL(file);
+          newFiles.push({
+            name: file.name,
+            url: url,
+            type: file.type
+          });
+        }
       });
+      
+      if (newFiles.length > 0) {
+        setDetailAttachments([...currentFiles, ...newFiles]);
+      }
     }
+    // ファイル選択をリセット
+    event.target.value = '';
   };
 
-  // 介護記録詳細画面
-  if (showRecordDetail && selectedRecordForDetail && selectedResident) {
-    const recordTime = format(new Date(selectedRecordForDetail.recordDate), "HH : mm", { locale: ja });
-    const categoryLabel = categoryOptions.find(opt => opt.value === selectedRecordForDetail.category)?.label || selectedRecordForDetail.category;
+  // 記録別ファイルアップロード処理
+  const handleRecordFileUpload = (recordId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const currentAttachments = recordAttachments[recordId] || [];
+      const newFiles: Array<{ name: string; url: string; type: string }> = [];
+      
+      Array.from(files).forEach(file => {
+        // 最大3つまでの制限をチェック
+        if (currentAttachments.length + newFiles.length < 3) {
+          const url = URL.createObjectURL(file);
+          newFiles.push({
+            name: file.name,
+            url: url,
+            type: file.type
+          });
+        }
+      });
+      
+      if (newFiles.length > 0) {
+        setRecordAttachments(prev => ({
+          ...prev,
+          [recordId]: [...currentAttachments, ...newFiles]
+        }));
+      }
+    }
+    // ファイル選択をリセット
+    event.target.value = '';
+  };
+
+  // ファイル削除処理
+  const removeRecordAttachment = (recordId: string, fileIndex: number) => {
+    setRecordAttachments(prev => ({
+      ...prev,
+      [recordId]: (prev[recordId] || []).filter((_, index) => index !== fileIndex)
+    }));
+  };
+
+  // 新規ブロックの記録内容を取得するヘルパー関数（食事一覧と同じパターン）
+  const getNewBlockDescription = (blockId: string): string => {
+    // ローカル状態があればそれを使用
+    if (localNewBlockDescriptions[blockId] !== undefined) {
+      return localNewBlockDescriptions[blockId];
+    }
+    
+    // 新規ブロックから取得
+    const block = newRecordBlocks.find(b => b.id === blockId);
+    return block?.description || '';
+  };
+
+  
+
+  // 介護記録詳細画面用のファイル管理（利用者別）
+  const getDetailAttachments = () => {
+    const recordId = selectedRecordForDetail?.id || 'new';
+    const residentKey = selectedResident ? `${selectedResident.id}-${recordId}` : recordId;
+    return recordAttachments[residentKey] || [];
+  };
+
+  const setDetailAttachments = (files: Array<{ name: string; url: string; type: string }>) => {
+    const recordId = selectedRecordForDetail?.id || 'new';
+    const residentKey = selectedResident ? `${selectedResident.id}-${recordId}` : recordId;
+    setRecordAttachments(prev => ({
+      ...prev,
+      [residentKey]: files
+    }));
+  };
+
+  
+
+  // 介護記録詳細画面のコンポーネント
+  const DetailScreen = () => {
+    const { data: careRecords = [] } = useQuery({ queryKey: ["/api/care-records"] });
+
+    // selectedRecordForDetailのIDを使って、常に最新のレコード情報をキャッシュから取得する
+    const currentRecord = (careRecords as any[]).find(r => r.id === selectedRecordForDetail?.id) || selectedRecordForDetail || {
+      id: 'new',
+      recordDate: new Date().toISOString(),
+      description: '',
+      notes: ''
+    };
+    // 選択された記録がある場合は使用、ない場合は現在時刻で初期化
+    const currentRecord = selectedRecordForDetail || {
+      id: 'new',
+      recordDate: new Date().toISOString(),
+      description: '',
+      notes: ''
+    };
     
     return (
       <div className="min-h-screen bg-slate-50">
@@ -459,9 +769,9 @@ export default function CareRecords() {
           </div>
           <div className="text-center">
             <div className="text-lg font-medium text-slate-800">
-              {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　　
+              {selectedResident?.roomNumber || "未設定"}: {selectedResident?.name}　　
               <span className="text-sm font-normal">
-                {selectedResident.gender === 'male' ? '男性' : selectedResident.gender === 'female' ? '女性' : '未設定'} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
+                {selectedResident?.gender === 'male' ? '男性' : selectedResident?.gender === 'female' ? '女性' : '未設定'} {selectedResident?.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident?.careLevel || '未設定'}
               </span>
             </div>
           </div>
@@ -469,19 +779,109 @@ export default function CareRecords() {
 
         <main className="max-w-4xl mx-auto px-4 py-4">
           {/* 記録情報カード */}
-          <div className="bg-white border border-slate-200 p-4 shadow-sm mb-4">
-            <div className="flex h-auto">
-              <div className="flex flex-col justify-start min-w-[150px] mr-4">
-                <div className="text-lg font-medium text-slate-800 mb-2">{recordTime}</div>
-                <div className="text-sm text-slate-600 mb-2">{categoryLabel}</div>
-                <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded text-center">
-                  記録者: {(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+          <div className="bg-white border border-slate-200 p-2 shadow-sm mb-4">
+            <div className="flex items-center gap-2 h-20">
+              {/* 左側：時間、カテゴリ、記録者を縦並び */}
+              <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
+                {/* 時間 */}
+                <div className="flex items-center gap-0.5">
+                  <InputWithDropdown
+                    value={format(new Date(currentRecord.recordDate), "HH", { locale: ja })}
+                    options={hourOptions}
+                    onSave={(value) => {
+                      const currentDate = new Date(currentRecord.recordDate);
+                      currentDate.setHours(parseInt(value));
+                      if (currentRecord.id !== 'new') {
+                        updateMutation.mutate({ 
+                          id: currentRecord.id, 
+                          field: 'recordDate', 
+                          value: currentDate.toISOString()
+                        });
+                      }
+                    }}
+                    placeholder="--"
+                    className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocusNext={true}
+                  />
+                  <span className="text-xs">:</span>
+                  <InputWithDropdown
+                    value={format(new Date(currentRecord.recordDate), "mm", { locale: ja })}
+                    options={minuteOptions}
+                    onSave={(value) => {
+                      const currentDate = new Date(currentRecord.recordDate);
+                      currentDate.setMinutes(parseInt(value));
+                      if (currentRecord.id !== 'new') {
+                        updateMutation.mutate({ 
+                          id: currentRecord.id, 
+                          field: 'recordDate', 
+                          value: currentDate.toISOString()
+                        });
+                      }
+                    }}
+                    placeholder="--"
+                    className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocusNext={false}
+                  />
+                </div>
+                
+                {/* カテゴリ */}
+                <div>
+                  <input
+                    type="text"
+                    value="様子"
+                    readOnly
+                    className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                  />
+                </div>
+                
+                {/* 記録者 */}
+                <div>
+                  <input
+                    type="text"
+                    value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                    readOnly
+                    className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                  />
                 </div>
               </div>
+
+              {/* 記録内容 */}
               <div className="flex-1">
-                <div className="border border-slate-200 p-4 bg-slate-50 rounded-lg mb-4">
-                  <p className="text-slate-800 whitespace-pre-wrap">{selectedRecordForDetail.description}</p>
-                </div>
+                <textarea
+                  value={localRecordDescriptions[currentRecord.id] !== undefined ? localRecordDescriptions[currentRecord.id] : currentRecord.description}
+                  onChange={(e) => {
+                    setLocalRecordDescriptions(prev => ({
+                      ...prev,
+                      [currentRecord.id]: e.target.value
+                    }));
+                  }}
+                  onBlur={(e) => {
+                    // 変更があった場合のみ保存
+                    if (e.target.value !== currentRecord.description) {
+                      if (currentRecord.id !== 'new') {
+                        updateMutation.mutate({
+                          id: currentRecord.id,
+                          field: 'description',
+                          value: e.target.value
+                        });
+                      } else {
+                        // 新規記録の場合は作成
+                        if (e.target.value.trim()) {
+                          createMutation.mutate({
+                            residentId: selectedResident?.id,
+                            recordDate: new Date(currentRecord.recordDate),
+                            category: 'observation',
+                            description: e.target.value,
+                            notes: '',
+                          });
+                        }
+                      }
+                    }
+                  }}
+                  className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                  placeholder="記録内容を入力..."
+                  rows={4}
+                />
               </div>
             </div>
           </div>
@@ -492,7 +892,7 @@ export default function CareRecords() {
             
             {/* アップロードされたファイル表示 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              {uploadedFiles.map((file, index) => (
+              {getDetailAttachments().map((file, index) => (
                 <div key={index} className="border border-slate-200 p-4 rounded-lg bg-slate-50 relative">
                   {file.type.startsWith('image/') ? (
                     <img src={file.url} alt={file.name} className="w-full h-32 object-cover rounded mb-2" />
@@ -507,7 +907,8 @@ export default function CareRecords() {
                     size="sm"
                     className="absolute top-2 right-2 text-red-500 hover:bg-red-50"
                     onClick={() => {
-                      setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+                      const newFiles = getDetailAttachments().filter((_, i) => i !== index);
+                      setDetailAttachments(newFiles);
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -516,17 +917,19 @@ export default function CareRecords() {
               ))}
               
               {/* ファイルアップロードエリア */}
-              <label className="border-2 border-dashed border-slate-300 p-4 rounded-lg bg-slate-50 cursor-pointer hover:bg-slate-100 flex flex-col items-center justify-center h-32">
-                <Paperclip className="w-8 h-8 text-slate-400 mb-2" />
-                <span className="text-sm text-slate-600">ファイルを追加</span>
-                <input
-                  type="file"
-                  className="hidden"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={handleFileUpload}
-                />
-              </label>
+              {getDetailAttachments().length < 3 && (
+                <label className="border-2 border-dashed border-slate-300 p-4 rounded-lg bg-slate-50 cursor-pointer hover:bg-slate-100 flex flex-col items-center justify-center h-32">
+                  <Paperclip className="w-8 h-8 text-slate-400 mb-2" />
+                  <span className="text-sm text-slate-600">ファイルを追加</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                  />
+                </label>
+              )}
             </div>
 
             {/* ページングドット */}
@@ -543,13 +946,21 @@ export default function CareRecords() {
           <Button 
             variant="ghost" 
             className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => setShowRecordDetail(false)}
+            onClick={() => {
+              setShowRecordDetail(false);
+              setSelectedRecordForDetail(null);
+            }}
           >
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </div>
       </div>
     );
+  };
+
+  // 詳細画面表示の条件分岐
+  if (showRecordDetail && selectedResident) {
+    return <DetailScreen />;
   }
 
   if (view === 'detail' && selectedResident) {
@@ -559,13 +970,19 @@ export default function CareRecords() {
           <div className="text-center mb-3">
             <h1 className="text-xl font-bold text-slate-800">介護記録</h1>
           </div>
-          <div className="text-center mb-3">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-3 py-2 border border-slate-300 rounded-md text-slate-700 bg-white"
-            />
+          <div className="bg-white rounded-lg p-2 mb-3 shadow-sm">
+            <div className="flex gap-2 sm:gap-4 items-center justify-center">
+              {/* 日付選択 */}
+              <div className="flex items-center space-x-1">
+                <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                />
+              </div>
+            </div>
           </div>
           <div className="text-center">
             <div className="text-lg font-medium text-slate-800">
@@ -577,105 +994,369 @@ export default function CareRecords() {
           </div>
         </div>
 
-        <main className="max-w-4xl mx-auto px-4 py-4 space-y-2">
-          {(careRecords as any[])
-            .filter((record: any) => {
-              if (record.residentId !== selectedResident.id) return false;
-              const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-              return recordDate === selectedDate;
-            })
-            .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime())
-            .length === 0 ? (
-              <div className="text-center py-8 text-slate-600">
-                <p>選択した日付の介護記録がありません</p>
+        <main className="max-w-4xl mx-auto px-4 py-4 pb-20">
+          {/* 利用者一覧テーブル（食事一覧と同じレイアウト） */}
+          <div className="space-y-0 border rounded-lg overflow-hidden">
+            {/* 新規記録ブロック */}
+            {filteredNewRecordBlocks.map((block, index) => (
+              <div key={block.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
+                <div className="p-2">
+                  {/* 1行目：時間 + 記録内容 + アクションボタン */}
+                  <div className="flex items-center gap-2 h-20">
+                    {/* 左側：時間、カテゴリ、記録者を縦並び */}
+                    <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
+                      {/* 時間 */}
+                      <div className="flex items-center gap-0.5">
+                        <InputWithDropdown
+                          value={format(new Date(block.recordDate), "HH", { locale: ja })}
+                          options={hourOptions}
+                          onSave={(value) => {
+                            const currentDate = new Date(block.recordDate);
+                            currentDate.setHours(parseInt(value));
+                            const newDateString = currentDate.toISOString();
+                            
+                            // 即座に画面に反映
+                            setNewRecordBlocks(prev => 
+                              prev.map(b => 
+                                b.id === block.id 
+                                  ? { ...b, recordDate: newDateString }
+                                  : b
+                              )
+                            );
+                            
+                            // バックグラウンドで保存処理（非同期）
+                            if (block.description.trim() && selectedResident) {
+                              const submitData = {
+                                residentId: selectedResident.id,
+                                recordDate: currentDate,
+                                category: 'observation',
+                                description: block.description,
+                                notes: '',
+                              };
+                              createMutation.mutate(submitData);
+                              // 保存後にブロックを削除
+                              setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                            }
+                          }}
+                          placeholder="--"
+                          className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocusNext={true}
+                        />
+                        <span className="text-xs">:</span>
+                        <InputWithDropdown
+                          value={format(new Date(block.recordDate), "mm", { locale: ja })}
+                          options={minuteOptions}
+                          onSave={(value) => {
+                            const currentMinute = format(new Date(block.recordDate), "mm", { locale: ja });
+                            
+                            // 値が実際に変更された場合のみ処理を実行
+                            if (value !== currentMinute) {
+                              const currentDate = new Date(block.recordDate);
+                              currentDate.setMinutes(parseInt(value));
+                              const newDateString = currentDate.toISOString();
+                              
+                              // 即座に画面に反映
+                              setNewRecordBlocks(prev => 
+                                prev.map(b => 
+                                  b.id === block.id 
+                                    ? { ...b, recordDate: newDateString }
+                                    : b
+                                )
+                              );
+                              
+                              // バックグラウンドで保存処理（非同期）
+                              if (block.description.trim() && selectedResident) {
+                                const submitData = {
+                                  residentId: selectedResident.id,
+                                  recordDate: currentDate,
+                                  category: 'observation',
+                                  description: block.description,
+                                  notes: '',
+                                };
+                                createMutation.mutate(submitData);
+                                // 保存後にブロックを削除
+                                setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                              }
+                              
+                              // 分選択後に記録内容をアクティブにする（値が変更された場合のみ）
+                              setTimeout(() => {
+                                const targetTextarea = document.querySelector(`textarea[data-block-id="${block.id}"]`) as HTMLTextAreaElement;
+                                if (targetTextarea) {
+                                  targetTextarea.focus();
+                                }
+                              }, 200);
+                            }
+                          }}
+                          placeholder="--"
+                          className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocusNext={false}
+                        />
+                      </div>
+                      
+                      {/* カテゴリ */}
+                      <div>
+                        <input
+                          type="text"
+                          value="様子"
+                          readOnly
+                          className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                        />
+                      </div>
+                      
+                      {/* 記録者 */}
+                      <div>
+                        <input
+                          type="text"
+                          value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                          readOnly
+                          className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 記録内容（高さいっぱい） */}
+                    <div className="flex-1">
+                      <textarea
+                        value={getNewBlockDescription(block.id)}
+                        onChange={(e) => {
+                          // 食事一覧画面と同じパターン：ローカル状態のみ更新
+                          setLocalNewBlockDescriptions(prev => ({
+                            ...prev,
+                            [block.id]: e.target.value
+                          }));
+                        }}
+                        onBlur={(e) => {
+                          // カーソルアウト時に保存処理
+                          if (e.target.value.trim() && selectedResident) {
+                            const submitData = {
+                              residentId: selectedResident.id,
+                              recordDate: new Date(block.recordDate),
+                              category: 'observation',
+                              description: e.target.value,
+                              notes: '',
+                            };
+                            
+                            // 保存処理を実行（ブロック削除は成功後に行う）
+                            createMutation.mutate(submitData, {
+                              onSuccess: () => {
+                                // 保存成功後にブロックを削除
+                                setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                                // ローカル状態もクリア
+                                setLocalNewBlockDescriptions(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
+                                });
+                              }
+                            });
+                          } else {
+                            // 空の場合はローカル状態のみクリア
+                            setLocalNewBlockDescriptions(prev => {
+                              const newState = { ...prev };
+                              delete newState[block.id];
+                              return newState;
+                            });
+                          }
+                        }}
+                        placeholder="記録内容を入力してください"
+                        className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                        rows={4}
+                        data-block-id={block.id}
+                      />
+                    </div>
+
+                    {/* アイコンボタン */}
+                    <div className="flex flex-col justify-center gap-1 flex-shrink-0">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
+                        onClick={() => {
+                          // 新規ブロックを一時的な記録として詳細画面に渡す
+                          setSelectedRecordForDetail({
+                            ...block,
+                            recordDate: block.recordDate
+                          });
+                          setShowRecordDetail(true);
+                        }}
+                      >
+                        <Info className="w-3 h-3" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
+                        onClick={() => {
+                          setSelectedRecordContent(block.description);
+                          setContentDialogOpen(true);
+                        }}
+                      >
+                        <Search className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : (
-              (careRecords as any[])
-                .filter((record: any) => {
-                  if (record.residentId !== selectedResident.id) return false;
-                  const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-                  return recordDate === selectedDate;
-                })
-                .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime())
-                .map((record: any) => {
-                  const categoryLabel = categoryOptions.find(opt => opt.value === record.category)?.label || record.category;
-                  const recordTime = format(new Date(record.recordDate), "HH : mm", { locale: ja });
-                  
-                  return (
-                    <div key={record.id} className="bg-white border border-slate-200 p-3 shadow-sm">
-                      <div className="flex h-32">
+            ))}
+
+            {/* 既存の記録 */}
+            {sortedCareRecords
+              .map((record: any, index: number) => {
+                const adjustedIndex = index + filteredNewRecordBlocks.length; // 新規ブロック分のインデックス調整
+                const displayDate = localRecordDates[record.id] || record.recordDate;
+                
+                return (
+                  <div key={record.id} className={`${(adjustedIndex > 0 || filteredNewRecordBlocks.length > 0) ? 'border-t' : ''} bg-white`}>
+                    <div className="p-2">
+                      {/* 1行目：時間 + 記録内容 + アクションボタン */}
+                      <div className="flex items-center gap-2 h-20">
                         {/* 左側：時間、カテゴリ、記録者を縦並び */}
-                        <div className="flex flex-col justify-between min-w-[150px] mr-3">
-                          <InlineEditableField
-                            value={recordTime}
-                            onSave={(value) => {
-                              // 時刻の更新処理
-                              const [hours, minutes] = value.split(':');
-                              const currentDate = new Date(record.recordDate);
-                              currentDate.setHours(parseInt(hours), parseInt(minutes));
-                              updateMutation.mutate({ 
-                                id: record.id, 
-                                field: 'recordDate', 
-                                value: currentDate.toISOString()
-                              });
-                            }}
-                            type="time"
-                            placeholder="時刻"
-                          />
-                          <InlineEditableField
-                            value={record.category}
-                            onSave={(value) => updateMutation.mutate({ id: record.id, field: 'category', value })}
-                            type="select"
-                            options={categoryOptions}
-                            placeholder="カテゴリ"
-                          />
-                          <div className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded text-center break-words">
-                            記録者: {(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                        <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
+                          {/* 時間 */}
+                          <div className="flex items-center gap-0.5">
+                            <InputWithDropdown
+                              value={format(new Date(displayDate), "HH", { locale: ja })}
+                              options={hourOptions}
+                              onSave={(value) => {
+                                const currentDate = new Date(displayDate);
+                                currentDate.setHours(parseInt(value));
+                                const newDateString = currentDate.toISOString();
+                                setLocalRecordDates(prev => ({ ...prev, [record.id]: newDateString }));
+                                updateMutation.mutate({
+                                  id: record.id,
+                                  field: 'recordDate',
+                                  value: newDateString
+                                });
+                              }}
+                              placeholder="--"
+                              className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocusNext={true}
+                            />
+                            <span className="text-xs">:</span>
+                            <InputWithDropdown
+                              value={format(new Date(displayDate), "mm", { locale: ja })}
+                              options={minuteOptions}
+                              onSave={(value) => {
+                                const currentMinute = format(new Date(displayDate), "mm", { locale: ja });
+
+                                // 値が実際に変更された場合のみ処理を実行
+                                if (value !== currentMinute) {
+                                  const currentDate = new Date(displayDate);
+                                  currentDate.setMinutes(parseInt(value));
+                                  const newDateString = currentDate.toISOString();
+                                  setLocalRecordDates(prev => ({ ...prev, [record.id]: newDateString }));
+                                  updateMutation.mutate({
+                                    id: record.id,
+                                    field: 'recordDate',
+                                    value: newDateString
+                                  });
+
+                                  // 分選択後に記録内容をアクティブにする（値が変更された場合のみ）
+                                  setTimeout(() => {
+                                    const targetTextarea = document.querySelector(`textarea[data-record-id="${record.id}"]`) as HTMLTextAreaElement;
+                                    if (targetTextarea) {
+                                      targetTextarea.focus();
+                                    }
+                                  }, 200);
+                                }
+                              }}
+                              placeholder="--"
+                              className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocusNext={false}
+                            />
                           </div>
-                        </div>
-                        
-                        {/* 中央：記録内容（高さいっぱい） */}
-                        <div className="flex-1 mr-3">
-                          <div className="h-full">
-                            <InlineEditableField
-                              value={record.description}
-                              onSave={(value) => updateMutation.mutate({ id: record.id, field: 'description', value })}
-                              placeholder="記録内容"
-                              multiline={true}
+                          
+                          {/* カテゴリ */}
+                          <div>
+                            <input
+                              type="text"
+                              value="様子"
+                              readOnly
+                              className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                            />
+                          </div>
+                          
+                          {/* 記録者 */}
+                          <div>
+                            <input
+                              type="text"
+                              value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                              readOnly
+                              className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                             />
                           </div>
                         </div>
-                        
-                        {/* 右側：アイコンを縦並び */}
-                        <div className="flex flex-col justify-center space-y-1">
+
+                        {/* 記録内容（高さいっぱい） */}
+                        <div className="flex-1">
+                          <textarea
+                            value={localRecordDescriptions[record.id] !== undefined ? localRecordDescriptions[record.id] : record.description}
+                            onChange={(e) => {
+                              // 即座に画面に反映（保存はしない）
+                              setLocalRecordDescriptions(prev => ({
+                                ...prev,
+                                [record.id]: e.target.value
+                              }));
+                            }}
+                            onBlur={(e) => {
+                              // 変更がない場合は何もしない
+                              if (e.target.value === record.description) {
+                                // ローカル状態もクリア
+                                setLocalRecordDescriptions(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[record.id];
+                                  return newState;
+                                });
+                                return;
+                              }
+                              // カーソルアウト時に保存処理を実行
+                              updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value });
+                            }}
+                            className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                            placeholder="記録を入力..."
+                            rows={4}
+                            data-record-id={record.id}
+                          />
+                        </div>
+
+                        {/* アイコンボタン */}
+                        <div className="flex flex-col justify-center gap-1 flex-shrink-0">
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="text-blue-600 hover:bg-blue-50 p-1 h-8 w-8"
+                            className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
                             onClick={() => {
                               setSelectedRecordForDetail(record);
                               setShowRecordDetail(true);
                             }}
                           >
-                            <Info className="w-4 h-4" />
+                            <Info className="w-3 h-3" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="text-blue-600 hover:bg-blue-50 p-1 h-8 w-8"
+                            className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
                             onClick={() => {
                               setSelectedRecordContent(record.description);
                               setContentDialogOpen(true);
                             }}
                           >
-                            <Search className="w-4 h-4" />
+                            <Search className="w-3 h-3" />
                           </Button>
                         </div>
                       </div>
                     </div>
-                  );
-                })
-            )}
+                  </div>
+                );
+              })}
+          </div>
+
+          {/* 記録がない場合のメッセージ */}
+          {sortedCareRecords.length === 0 && filteredNewRecordBlocks.length === 0 && (
+            <div className="text-center py-8 text-slate-600">
+              <p>選択した日付の介護記録がありません</p>
+            </div>
+          )}
         </main>
 
         <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex justify-between">
@@ -689,17 +1370,7 @@ export default function CareRecords() {
           <Button 
             variant="ghost" 
             className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => {
-              const now = new Date();
-              const newRecord = {
-                residentId: selectedResident.id,
-                recordDate: now.toISOString(),
-                category: 'general',
-                description: '',
-              };
-              
-              createMutation.mutate(newRecord);
-            }}
+            onClick={addNewRecordBlock}
           >
             <Plus className="w-4 h-4" />
           </Button>
@@ -716,6 +1387,60 @@ export default function CareRecords() {
               <div className="p-4 bg-slate-50 rounded-lg border">
                 <p className="text-slate-800 whitespace-pre-wrap">{selectedRecordContent}</p>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* 画像拡大表示ダイアログ */}
+        <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+            {/* 削除ボタンを上部中央に配置 */}
+            {selectedImageInfo && (
+              <div className="flex justify-center p-4">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-red-600 hover:bg-red-50 border-red-300"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      削除
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>画像削除の確認</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        この添付画像を削除してもよろしいですか？この操作は取り消せません。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          if (selectedImageInfo) {
+                            removeRecordAttachment(selectedImageInfo.recordId, selectedImageInfo.fileIndex);
+                            setImageDialogOpen(false);
+                            setSelectedImageInfo(null);
+                          }
+                        }}
+                      >
+                        削除
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+            <div className="flex justify-center items-center p-4">
+              {selectedImageUrl && (
+                <img 
+                  src={selectedImageUrl} 
+                  alt="拡大画像" 
+                  className="max-w-full max-h-[70vh] object-contain rounded"
+                />
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -736,7 +1461,7 @@ export default function CareRecords() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">介護記録</h1>
+          <h1 className="text-2xl font-bold">介護記録　利用者一覧</h1>
         </div>
       </div>
 
@@ -788,12 +1513,7 @@ export default function CareRecords() {
               {filteredResidents.map((resident: any) => (
                 <Card 
                   key={resident.id} 
-                  className="hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => {
-                    setSelectedResident(resident);
-                    setView('detail');
-                    form.setValue('residentId', resident.id);
-                  }}
+                  className="hover:shadow-md transition-shadow"
                 >
                   <CardContent className="p-1.5 sm:p-2">
                     <div className="flex items-center justify-between gap-2 sm:gap-4">
@@ -816,8 +1536,7 @@ export default function CareRecords() {
                         size="sm" 
                         variant="outline" 
                         className="flex items-center gap-1 px-2 sm:px-3 text-xs sm:text-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onClick={() => {
                           setSelectedResident(resident);
                           setView('detail');
                           form.setValue('residentId', resident.id);
