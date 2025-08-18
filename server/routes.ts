@@ -772,17 +772,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Staff Management routes
   
-  // デバッグ用のミドルウェア
-  app.use('/api/staff-management*', (req, res, next) => {
-    console.log("🔍 Staff Management API requested:", {
-      method: req.method,
-      url: req.url,
-      path: req.path,
-      body: req.body
-    });
-    next();
-  });
-  
   app.get('/api/staff-management', isAuthenticated, async (req, res) => {
     try {
       const staffList = await storage.getStaffManagement();
@@ -808,26 +797,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/staff-management', isAuthenticated, async (req, res) => {
     try {
-      console.log("📥 POST /api/staff-management - Request body:", req.body);
-      
       const validatedData = insertStaffManagementSchema.parse(req.body);
-      console.log("✅ Data validation passed:", validatedData);
-      
       const staff = await storage.createStaffManagement(validatedData);
-      console.log("🎉 Staff created successfully:", staff);
-      
       res.status(201).json(staff);
     } catch (error: any) {
-      console.error("❌ Error creating staff:", error);
-      console.error("❌ Error details:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
+      console.error("Error creating staff:", error);
       
       // Zodバリデーションエラーの詳細処理
       if (error.name === 'ZodError') {
-        console.error("❌ Validation errors:", error.errors);
         return res.status(400).json({ 
           message: "入力データの検証に失敗しました", 
           errors: error.errors 

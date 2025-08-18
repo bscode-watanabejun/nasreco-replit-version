@@ -138,19 +138,9 @@ export default function StaffManagement() {
   // 新規作成用ミューテーション
   const createMutation = useMutation({
     mutationFn: async (data: InsertStaffManagement) => {
-      console.log("🚀 Sending create request with data:", data);
-      try {
-        const result = await apiRequest("/api/staff-management", "POST", data);
-        console.log("✅ Create API response:", result);
-        return result;
-      } catch (error) {
-        console.error("❌ API request failed:", error);
-        throw error;
-      }
+      return await apiRequest("/api/staff-management", "POST", data);
     },
     onSuccess: (data) => {
-      console.log("🎉 Create mutation success:", data);
-      
       // キャッシュに新しいデータを直接追加
       queryClient.setQueryData<StaffManagement[]>(["/api/staff-management"], (oldData) => {
         return oldData ? [...oldData, data] : [data];
@@ -169,13 +159,6 @@ export default function StaffManagement() {
       });
     },
     onError: (error: any) => {
-      console.error("❌ Create mutation error:", error);
-      console.error("❌ Error details:", {
-        message: error.message,
-        stack: error.stack,
-        cause: error.cause
-      });
-      
       toast({
         title: "エラー",
         description: error.message || "職員情報の作成に失敗しました",

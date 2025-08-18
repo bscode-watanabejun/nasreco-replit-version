@@ -835,7 +835,7 @@ export default function CareRecords() {
                           { id: currentRecord.id, field: 'recordDate', value: newDate.toISOString() },
                           {
                             onSuccess: () => {
-                              setSelectedRecordForDetail(prev => ({ ...prev, recordDate: newDate.toISOString() }));
+                              setSelectedRecordForDetail((prev: any) => ({ ...prev, recordDate: newDate.toISOString() }));
                               setTimeout(() => document.getElementById('minute-input-detail')?.focus(), 100);
                             }
                           }
@@ -862,7 +862,7 @@ export default function CareRecords() {
                           { id: currentRecord.id, field: 'recordDate', value: newDate.toISOString() },
                           {
                             onSuccess: () => {
-                              setSelectedRecordForDetail(prev => ({ ...prev, recordDate: newDate.toISOString() }));
+                              setSelectedRecordForDetail((prev: any) => ({ ...prev, recordDate: newDate.toISOString() }));
                               setTimeout(() => document.getElementById('description-textarea-detail')?.focus(), 100);
                             }
                           }
@@ -916,7 +916,7 @@ export default function CareRecords() {
                           {
                             onSuccess: () => {
                               // 詳細画面の元データであるselectedRecordForDetailも更新する
-                              setSelectedRecordForDetail(prev => ({
+                              setSelectedRecordForDetail((prev: any) => ({
                                 ...prev,
                                 description: e.target.value
                               }));
@@ -928,7 +928,7 @@ export default function CareRecords() {
                         if (e.target.value.trim()) {
                           createMutation.mutate({
                             residentId: selectedResident?.id,
-                            recordDate: new Date(currentRecord.recordDate),
+                            recordDate: currentRecord.recordDate,
                             category: 'observation',
                             description: e.target.value,
                             notes: '',
@@ -1094,7 +1094,6 @@ export default function CareRecords() {
                           }}
                           placeholder="--"
                           className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          autoFocusNext={true}
                         />
                         <span className="text-xs">:</span>
                         <InputWithDropdown
@@ -1143,7 +1142,6 @@ export default function CareRecords() {
                           }}
                           placeholder="--"
                           className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          autoFocusNext={false}
                         />
                       </div>
                       
@@ -1284,7 +1282,6 @@ export default function CareRecords() {
                               }}
                               placeholder="--"
                               className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              autoFocusNext={true}
                             />
                             <span className="text-xs">:</span>
                             <InputWithDropdown
@@ -1316,7 +1313,6 @@ export default function CareRecords() {
                               }}
                               placeholder="--"
                               className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              autoFocusNext={false}
                             />
                           </div>
                           
