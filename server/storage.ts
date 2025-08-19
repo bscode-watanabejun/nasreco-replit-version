@@ -470,45 +470,6 @@ export class DatabaseStorage implements IStorage {
     await db.update(communications).set({ isRead: true }).where(eq(communications.id, id));
   }
 
-  // Meals Medication operations (新仕様)
-  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<any[]> {
-    const conditions = [eq(mealsMedication.recordDate, recordDate)];
-    
-    if (mealTime && mealTime !== 'all') {
-      conditions.push(eq(mealsMedication.mealTime, mealTime));
-    }
-
-    if (floor && floor !== 'all') {
-      conditions.push(eq(residents.floor, floor));
-    }
-
-    return await db.select()
-      .from(mealsMedication)
-      .leftJoin(residents, eq(mealsMedication.residentId, residents.id))
-      .where(and(...conditions));
-  }
-
-  async createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication> {
-    const recordToInsert = {
-      ...record,
-      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
-    };
-    const [newRecord] = await db.insert(mealsMedication).values([recordToInsert]).returning();
-    return newRecord;
-  }
-
-  async updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication> {
-    const recordToUpdate = {
-      ...record,
-      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
-    };
-    const [updatedRecord] = await db
-      .update(mealsMedication)
-      .set(recordToUpdate)
-      .where(eq(mealsMedication.id, id))
-      .returning();
-    return updatedRecord;
-  }
 
   // Round record operations
   async getRoundRecords(recordDate: Date): Promise<RoundRecord[]> {
@@ -993,7 +954,11 @@ export class DatabaseStorage implements IStorage {
         mainAmount: mealsMedication.mainAmount,
         sideAmount: mealsMedication.sideAmount,
         waterIntake: mealsMedication.waterIntake,
-        supplement: mealsMedication.supplement,
+        supplement1: mealsMedication.supplement1,
+        amount1: mealsMedication.amount1,
+        supplement2: mealsMedication.supplement2,
+        amount2: mealsMedication.amount2,
+        totalAmount: mealsMedication.totalAmount,
         staffName: mealsMedication.staffName,
         notes: mealsMedication.notes,
         createdBy: mealsMedication.createdBy,

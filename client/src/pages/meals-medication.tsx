@@ -388,7 +388,7 @@ export default function MealsMedicationPage() {
       const waterValue = field === 'water' ? (value === 'empty' ? '' : value) : recordData.waterIntake;
       const amount1Value = field === 'amount1' ? (value === 'empty' ? '' : value) : recordData.amount1;
       const amount2Value = field === 'amount2' ? (value === 'empty' ? '' : value) : recordData.amount2;
-      recordData.totalAmount = calculateTotal(waterValue, amount1Value, amount2Value);
+      recordData.totalAmount = calculateTotal(waterValue || '', amount1Value || '', amount2Value || '');
     }
 
     // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
