@@ -144,6 +144,9 @@ export interface IStorage {
   createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
   updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord>;
   upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
+
+  // Staff authentication
+  authenticateStaff(staffId: string, password: string): Promise<StaffManagement | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -945,6 +948,20 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updated;
+  }
+
+  async authenticateStaff(staffId: string, password: string): Promise<StaffManagement | null> {
+    const hashedPassword = Buffer.from(password).toString('base64');
+    const [staff] = await db.select()
+      .from(staffManagement)
+      .where(
+        and(
+          eq(staffManagement.staffId, staffId),
+          eq(staffManagement.password, hashedPassword)
+        )
+      );
+    
+    return staff || null;
   }
 }
 

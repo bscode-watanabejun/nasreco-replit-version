@@ -23,6 +23,7 @@ import CleaningLinenList from "@/pages/cleaning-linen-list";
 import BathingList from "@/pages/bathing-list";
 import WeightList from "@/pages/weight-list";
 import StaffManagement from "@/pages/staff-management";
+import StaffLogin from "@/pages/staff-login";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -39,30 +40,37 @@ function Router() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Landing />;
-  }
-
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/care-records" component={CareRecords} />
-      <Route path="/nursing-records" component={NursingRecords} />
-      <Route path="/vitals" component={Vitals} />
-      <Route path="/meals-medication" component={MealsMedication} />
-      <Route path="/medication-list" component={MedicationList} />
-      <Route path="/user-info" component={UserInfoView} />
-      <Route path="/user-info-management" component={UserInfoManagement} />
-      <Route path="/rounds" component={Rounds} />
-      <Route path="/management-menu" component={ManagementMenu} />
-      <Route path="/facility-settings" component={FacilitySettings} />
-      <Route path="/communication-management" component={CommunicationManagement} />
-      <Route path="/communications" component={Communications} />
-      <Route path="/cleaning-linen-list" component={CleaningLinenList} />
-      <Route path="/bathing-list" component={BathingList} />
-      <Route path="/weight-list" component={WeightList} />
-      <Route path="/staff-management" component={StaffManagement} />
-      <Route component={NotFound} />
+      {/* Public routes */}
+      <Route path="/staff-login" component={StaffLogin} />
+      <Route path="/landing" component={Landing} />
+      
+      {/* Protected routes */}
+      {!isAuthenticated ? (
+        <Route component={Landing} />
+      ) : (
+        <>
+          <Route path="/" component={Dashboard} />
+          <Route path="/care-records" component={CareRecords} />
+          <Route path="/nursing-records" component={NursingRecords} />
+          <Route path="/vitals" component={Vitals} />
+          <Route path="/meals-medication" component={MealsMedication} />
+          <Route path="/medication-list" component={MedicationList} />
+          <Route path="/user-info" component={UserInfoView} />
+          <Route path="/user-info-management" component={UserInfoManagement} />
+          <Route path="/rounds" component={Rounds} />
+          <Route path="/management-menu" component={ManagementMenu} />
+          <Route path="/facility-settings" component={FacilitySettings} />
+          <Route path="/communication-management" component={CommunicationManagement} />
+          <Route path="/communications" component={Communications} />
+          <Route path="/cleaning-linen-list" component={CleaningLinenList} />
+          <Route path="/bathing-list" component={BathingList} />
+          <Route path="/weight-list" component={WeightList} />
+          <Route path="/staff-management" component={StaffManagement} />
+          <Route component={NotFound} />
+        </>
+      )}
     </Switch>
   );
 }

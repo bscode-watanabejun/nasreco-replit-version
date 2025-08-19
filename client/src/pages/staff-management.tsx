@@ -63,7 +63,7 @@ function InlineEditableField({
   if (disabled || !isEditing) {
     return (
       <div 
-        className={`cursor-pointer hover:bg-slate-50 p-2 rounded border-2 border-transparent hover:border-slate-200 transition-colors ${disabled ? "cursor-not-allowed bg-slate-100" : ""}`}
+        className={`cursor-pointer hover:bg-slate-50 p-1 rounded border-2 border-transparent hover:border-slate-200 transition-colors ${disabled ? "cursor-not-allowed bg-slate-100" : ""}`}
         onClick={() => !disabled && setIsEditing(true)}
       >
         {type === "select" && options.length > 0 ? (
@@ -78,7 +78,7 @@ function InlineEditableField({
   if (type === "select") {
     return (
       <Select value={currentValue} onValueChange={setCurrentValue} onOpenChange={(open) => !open && handleBlur()}>
-        <SelectTrigger className="h-auto min-h-[2.5rem]">
+        <SelectTrigger className="h-auto min-h-[2rem]">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -100,7 +100,7 @@ function InlineEditableField({
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
-      className="h-auto min-h-[2.5rem]"
+      className="h-auto min-h-[2rem]"
       autoFocus
     />
   );
@@ -517,121 +517,149 @@ export default function StaffManagement() {
           </Dialog>
         </div>
 
-        {/* Staff List Table */}
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead className="bg-pink-50 border-b">
-                  <tr>
-                    <th className="text-left p-4 font-medium text-pink-800">職員ID</th>
-                    <th className="text-left p-4 font-medium text-pink-800">職員名</th>
-                    <th className="text-left p-4 font-medium text-pink-800">職員名フリガナ</th>
-                    <th className="text-left p-4 font-medium text-pink-800">所属階</th>
-                    <th className="text-left p-4 font-medium text-pink-800">職種</th>
-                    <th className="text-left p-4 font-medium text-pink-800">権限</th>
-                    <th className="text-left p-4 font-medium text-pink-800">最終修正日時</th>
-                    <th className="text-left p-4 font-medium text-pink-800">ステータス</th>
-                    <th className="text-left p-4 font-medium text-pink-800">ソート順</th>
-                    <th className="text-center p-4 font-medium text-pink-800">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedStaff.map((staff, index) => (
-                    <tr key={staff.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.staffId}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffId', value })}
-                          placeholder="職員ID"
-                        />
-                      </td>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.staffName}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffName', value })}
-                          placeholder="職員名"
-                        />
-                      </td>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.staffNameKana}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffNameKana', value })}
-                          placeholder="職員名フリガナ"
-                        />
-                      </td>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.floor}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'floor', value })}
-                          type="select"
-                          options={floorOptions}
-                        />
-                      </td>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.jobRole}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'jobRole', value })}
-                          type="select"
-                          options={jobRoleOptions}
-                        />
-                      </td>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.authority}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'authority', value })}
-                          type="select"
-                          options={authorityOptions}
-                        />
-                      </td>
-                      <td className="p-4 text-sm text-gray-600">
-                        {staff.lastModifiedAt ? format(new Date(staff.lastModifiedAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
-                      </td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          staff.status === "ロック解除" 
-                            ? "bg-green-100 text-green-800" 
-                            : "bg-red-100 text-red-800"
-                        }`}>
-                          {staff.status}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <InlineEditableField
-                          value={staff.sortOrder?.toString() || "0"}
-                          onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'sortOrder', value: parseInt(value) || 0 })}
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-center space-x-2">
-                          {staff.status === "ロック" ? (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-green-600 hover:bg-green-50"
-                                >
-                                  <Unlock className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>アカウントロック解除</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    この職員のアカウントのロックを解除しますか？解除時、再度パスワード設定します。
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleUnlock(staff)}>
-                                    ロック解除
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          ) : (
+        {/* Staff List - Desktop Table View */}
+        <div className="hidden md:block">
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-pink-50 border-b">
+                    <tr>
+                      <th className="text-left p-2 font-medium text-pink-800">職員ID</th>
+                      <th className="text-left p-2 font-medium text-pink-800">職員名</th>
+                      <th className="text-left p-2 font-medium text-pink-800">職員名フリガナ</th>
+                      <th className="text-left p-2 font-medium text-pink-800">所属階</th>
+                      <th className="text-left p-2 font-medium text-pink-800">職種</th>
+                      <th className="text-left p-2 font-medium text-pink-800">権限</th>
+                      <th className="text-left p-2 font-medium text-pink-800">最終修正日時</th>
+                      <th className="text-left p-2 font-medium text-pink-800">ステータス</th>
+                      <th className="text-left p-2 font-medium text-pink-800">ソート順</th>
+                      <th className="text-center p-2 font-medium text-pink-800">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedStaff.map((staff, index) => (
+                      <tr key={staff.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.staffId}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffId', value })}
+                            placeholder="職員ID"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.staffName}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffName', value })}
+                            placeholder="職員名"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.staffNameKana}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffNameKana', value })}
+                            placeholder="職員名フリガナ"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.floor}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'floor', value })}
+                            type="select"
+                            options={floorOptions}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.jobRole}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'jobRole', value })}
+                            type="select"
+                            options={jobRoleOptions}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.authority}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'authority', value })}
+                            type="select"
+                            options={authorityOptions}
+                          />
+                        </td>
+                        <td className="p-2 text-sm text-gray-600">
+                          {staff.lastModifiedAt ? format(new Date(staff.lastModifiedAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
+                        </td>
+                        <td className="p-2">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            staff.status === "ロック解除" 
+                              ? "bg-green-100 text-green-800" 
+                              : "bg-red-100 text-red-800"
+                          }`}>
+                            {staff.status}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <InlineEditableField
+                            value={staff.sortOrder?.toString() || "0"}
+                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'sortOrder', value: parseInt(value) || 0 })}
+                            placeholder="0"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <div className="flex items-center justify-center space-x-2">
+                            {staff.status === "ロック" ? (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-green-600 hover:bg-green-50"
+                                  >
+                                    <Unlock className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>アカウントロック解除</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      この職員のアカウントのロックを解除しますか？解除時、再度パスワード設定します。
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleUnlock(staff)}>
+                                      ロック解除
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            ) : (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:bg-red-50"
+                                  >
+                                    <Lock className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>アカウントロック</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      この職員のアカウントをロックしますか？
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleLock(staff)}>
+                                      ロック
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                            
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button
@@ -639,63 +667,213 @@ export default function StaffManagement() {
                                   size="sm"
                                   className="text-red-600 hover:bg-red-50"
                                 >
-                                  <Lock className="w-4 h-4" />
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>アカウントロック</AlertDialogTitle>
+                                  <AlertDialogTitle>職員削除</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    この職員のアカウントをロックしますか？
+                                    この職員のアカウントを完全に削除しますか？この操作を行うとアカウントを戻せません。
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleLock(staff)}>
-                                    ロック
+                                  <AlertDialogAction
+                                    className="bg-red-600 hover:bg-red-700"
+                                    onClick={() => deleteMutation.mutate(staff.id)}
+                                  >
+                                    削除
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
-                          )}
-                          
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>職員削除</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  この職員のアカウントを完全に削除しますか？この操作を行うとアカウントを戻せません。
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-red-600 hover:bg-red-700"
-                                  onClick={() => deleteMutation.mutate(staff.id)}
-                                >
-                                  削除
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Staff List - Mobile Card View */}
+        <div className="md:hidden space-y-4">
+          {sortedStaff.map((staff) => (
+            <Card key={staff.id} className="border border-pink-200">
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  {/* ヘッダー部分 */}
+                  <div className="flex items-center justify-between pb-2 border-b border-pink-100">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium text-pink-800">{staff.staffName}</span>
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        staff.status === "ロック解除" 
+                          ? "bg-green-100 text-green-800" 
+                          : "bg-red-100 text-red-800"
+                      }`}>
+                        {staff.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {staff.status === "ロック" ? (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-green-600 hover:bg-green-50"
+                            >
+                              <Unlock className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>アカウントロック解除</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                この職員のアカウントのロックを解除しますか？解除時、再度パスワード設定します。
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleUnlock(staff)}>
+                                ロック解除
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      ) : (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:bg-red-50"
+                            >
+                              <Lock className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>アカウントロック</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                この職員のアカウントをロックしますか？
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleLock(staff)}>
+                                ロック
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>職員削除</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              この職員のアカウントを完全に削除しますか？この操作を行うとアカウントを戻せません。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => deleteMutation.mutate(staff.id)}
+                            >
+                              削除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+
+                  {/* 職員情報グリッド */}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">職員ID</label>
+                      <InlineEditableField
+                        value={staff.staffId}
+                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffId', value })}
+                        placeholder="職員ID"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">ソート順</label>
+                      <InlineEditableField
+                        value={staff.sortOrder?.toString() || "0"}
+                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'sortOrder', value: parseInt(value) || 0 })}
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">職員名フリガナ</label>
+                      <InlineEditableField
+                        value={staff.staffNameKana}
+                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffNameKana', value })}
+                        placeholder="職員名フリガナ"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">所属階</label>
+                      <InlineEditableField
+                        value={staff.floor}
+                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'floor', value })}
+                        type="select"
+                        options={floorOptions}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">職種</label>
+                      <InlineEditableField
+                        value={staff.jobRole}
+                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'jobRole', value })}
+                        type="select"
+                        options={jobRoleOptions}
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">権限</label>
+                      <InlineEditableField
+                        value={staff.authority}
+                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'authority', value })}
+                        type="select"
+                        options={authorityOptions}
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">最終修正日時</label>
+                      <span className="text-gray-600">
+                        {staff.lastModifiedAt ? format(new Date(staff.lastModifiedAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
         {sortedStaff.length === 0 && (
           <div className="text-center py-8 text-gray-500">

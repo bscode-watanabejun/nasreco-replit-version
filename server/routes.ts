@@ -38,6 +38,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Staff login route
+  app.post('/api/auth/staff-login', async (req, res) => {
+    try {
+      const { staffId, password } = req.body;
+      
+      if (!staffId || !password) {
+        return res.status(400).json({ message: "職員IDとパスワードを入力してください" });
+      }
+
+      const staff = await storage.authenticateStaff(staffId, password);
+      
+      if (!staff) {
+        return res.status(401).json({ message: "職員IDまたはパスワードが正しくありません" });
+      }
+
+      if (staff.status === "ロック") {
+        return res.status(401).json({ message: "このアカウントはロックされています" });
+      }
+
+      // セッションに職員情報を保存
+      (req as any).session.staff = {
+        id: staff.id,
+        staffId: staff.staffId,
+        staffName: staff.staffName,
+        authority: staff.authority,
+        floor: staff.floor,
+        jobRole: staff.jobRole,
+      };
+
+      res.json({
+        id: staff.id,
+        staffId: staff.staffId,
+        staffName: staff.staffName,
+        authority: staff.authority,
+        floor: staff.floor,
+        jobRole: staff.jobRole,
+      });
+    } catch (error) {
+      console.error("Error during staff login:", error);
+      res.status(500).json({ message: "ログイン処理中にエラーが発生しました" });
+    }
+  });
+
+  // Staff logout route
+  app.post('/api/auth/staff-logout', (req, res) => {
+    (req as any).session.staff = null;
+    res.json({ message: "ログアウトしました" });
+  });
+
+  // Get current staff user
+  app.get('/api/auth/staff-user', async (req, res) => {
+    try {
+      const staff = (req as any).session?.staff;
+      if (!staff) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      res.json(staff);
+    } catch (error) {
+      console.error("Error fetching staff user:", error);
+      res.status(500).json({ message: "Failed to fetch staff user" });
+    }
+  });
+
   // Residents routes
   app.get('/api/residents', isAuthenticated, async (req, res) => {
     try {

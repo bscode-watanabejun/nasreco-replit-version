@@ -1,8 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { HeartPulse, Shield, Users, Activity } from "lucide-react";
+import { HeartPulse, Shield, Users, Activity, UserCog, LogIn } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function Landing() {
+  const [, navigate] = useLocation();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100">
       {/* Header */}
@@ -28,13 +31,30 @@ export default function Landing() {
           <p className="text-xl text-slate-600 mb-8">
             包括的な介護・看護施設管理システム
           </p>
-          <Button 
-            size="lg" 
-            onClick={() => window.location.href = '/api/login'}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
-          >
-            ログイン
-          </Button>
+          
+          {/* Login Options */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+            <Button 
+              size="lg" 
+              onClick={() => window.location.href = '/api/login'}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg w-full sm:w-auto"
+            >
+              <LogIn className="w-5 h-5 mr-2" />
+              管理者ログイン
+            </Button>
+            
+            <div className="text-gray-400">または</div>
+            
+            <Button 
+              size="lg" 
+              variant="outline"
+              onClick={() => navigate('/staff-login')}
+              className="border-pink-300 text-pink-700 hover:bg-pink-50 px-8 py-3 text-lg w-full sm:w-auto"
+            >
+              <UserCog className="w-5 h-5 mr-2" />
+              職員ログイン
+            </Button>
+          </div>
         </div>
 
         {/* Features Grid */}
