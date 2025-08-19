@@ -333,7 +333,7 @@ export default function MealsMedicationPage() {
     }
 
     // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
-    if (existingRecord && !existingRecord.id.startsWith('temp-')) {
+    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
       createMutation.mutate(recordData);
