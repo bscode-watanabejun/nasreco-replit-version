@@ -748,6 +748,7 @@ export default function MedicationList() {
                         label: resident.name
                       })) || []}
                       onSave={(selectedId) => {
+                        if (!record.id) return;
                         console.log('Resident changed for record', record.id, 'to:', selectedId);
                         handleFieldUpdate(record.id, "residentId", selectedId);
                         // 一時的なレコードの場合は保存処理を実行
@@ -766,6 +767,7 @@ export default function MedicationList() {
                       value={record.timing}
                       options={timingOptions}
                       onSave={(value) => {
+                        if (!record.id) return;
                         console.log('Timing changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "timing", value);
                         // 一時的なレコードの場合は保存処理を実行
@@ -785,10 +787,10 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer1 || ''}
-                      onClick={() => isResidentSelected(record) && handleConfirmerStamp(record.residentId, "confirmer1")}
+                      onClick={() => isResidentSelected(record) && record.id && handleConfirmerStamp(record.residentId, "confirmer1")}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        isResidentSelected(record) && handleFieldUpdate(record.id, 'confirmer1', e.target.value);
+                        isResidentSelected(record) && record.id && handleFieldUpdate(record.id, 'confirmer1', e.target.value);
                       }}
                       placeholder="確認者1"
                       className={`h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
@@ -801,10 +803,10 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer2 || ''}
-                      onClick={() => isResidentSelected(record) && handleConfirmerStamp(record.residentId, "confirmer2")}
+                      onClick={() => isResidentSelected(record) && record.id && handleConfirmerStamp(record.residentId, "confirmer2")}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        isResidentSelected(record) && handleFieldUpdate(record.id, 'confirmer2', e.target.value);
+                        isResidentSelected(record) && record.id && handleFieldUpdate(record.id, 'confirmer2', e.target.value);
                       }}
                       placeholder="確認者2"
                       className={`h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
@@ -853,6 +855,7 @@ export default function MedicationList() {
                       value={record.type}
                       options={typeOptions}
                       onSave={(value) => {
+                        if (!record.id) return;
                         console.log('Type changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "type", value);
                         // 一時的なレコードの場合は保存処理を実行
@@ -875,6 +878,7 @@ export default function MedicationList() {
                         label: option.value === "空欄" ? "" : option.label
                       }))}
                       onSave={(value) => {
+                        if (!record.id) return;
                         console.log('Result changed for record', record.id, 'to:', value);
                         const actualValue = value === "空欄" ? "" : value;
                         handleFieldUpdate(record.id, "result", actualValue);
