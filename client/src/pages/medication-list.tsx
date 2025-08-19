@@ -535,7 +535,8 @@ export default function MedicationList() {
       
       // API呼び出しはしない（楽観的更新のみ）
       return;
-    } else {
+    } else if (recordId && !recordId.startsWith('temp-')) {
+      // recordId が存在し、一時的なIDでない場合のみ更新
       const updateData = { [field]: value };
       console.log('Updating existing record:', updateData);
       updateMutation.mutate({
