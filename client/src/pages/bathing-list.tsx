@@ -1333,7 +1333,6 @@ export default function BathingList() {
             </div>
           </div>
         </div>
-      </div>
 
       {/* メインコンテンツ */}
       <main className="container mx-auto px-4 py-6 pb-24">
