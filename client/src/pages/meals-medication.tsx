@@ -13,12 +13,12 @@ import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon,
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { MealsAndMedication, InsertMealsAndMedication } from "@shared/schema";
+import type { MealsMedication, InsertMealsMedication } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
 
-interface MealsMedicationWithResident extends MealsAndMedication {
+interface MealsMedicationWithResident extends MealsMedication {
   residentName: string;
   roomNumber: string;
   floor: string;
@@ -158,7 +158,7 @@ export default function MealsMedicationPage() {
   const mealsMedicationData: MealsMedicationWithResident[] = Array.isArray(mealsMedicationResponse) ? mealsMedicationResponse : [];
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertMealsAndMedication) => {
+    mutationFn: async (data: InsertMealsMedication) => {
       return apiRequest('/api/meals-medication', 'POST', data);
     },
     // 楽観的更新の実装
@@ -175,7 +175,7 @@ export default function MealsMedicationPage() {
         
         // 既存の記録があるかチェック
         const existingIndex = old.findIndex((record: any) => 
-          record.residentId === newRecord.residentId && record.mealType === newRecord.mealType
+          record.residentId === newRecord.residentId && record.mealTime === newRecord.mealTime
         );
         
         if (existingIndex >= 0) {
@@ -213,7 +213,7 @@ export default function MealsMedicationPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: InsertMealsAndMedication }) => {
+    mutationFn: async ({ id, data }: { id: string; data: InsertMealsMedication }) => {
       return apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
     },
     // 楽観的更新の実装
@@ -303,9 +303,9 @@ export default function MealsMedicationPage() {
     }
 
     // 新しいスキーマに合わせたレコードデータを作成
-    const recordData: any = {
+    const recordData: InsertMealsMedication = {
       residentId,
-      recordDate: selectedDate,
+      recordDate: format(selectedDate, 'yyyy-MM-dd'),
       mealTime: selectedMealTime,
       mainAmount: existingRecord?.mainAmount || '',
       sideAmount: existingRecord?.sideAmount || '',
@@ -313,7 +313,7 @@ export default function MealsMedicationPage() {
       supplement: existingRecord?.supplement || '',
       staffName: existingRecord?.staffName || staffName,
       notes: existingRecord?.notes || '',
-      createdBy: (user as any)?.id || 'unknown',
+      createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
     };
 
     // フィールドを更新
@@ -393,7 +393,7 @@ export default function MealsMedicationPage() {
     const staffName = (user as any)?.firstName || 'スタッフ';
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
-        record.residentId === residentId && record.mealType === selectedMealTime
+        record.residentId === residentId && record.mealTime === selectedMealTime
     );
     
     // 現在の記入者名を取得
@@ -424,9 +424,9 @@ export default function MealsMedicationPage() {
     const targetResident = unrecordedResident || filteredResidentsList[0];
     
     if (targetResident) {
-      createMutation.mutate({
+      const newRecord: InsertMealsMedication = {
         residentId: targetResident.id,
-        recordDate: selectedDate,
+        recordDate: format(selectedDate, 'yyyy-MM-dd'),
         mealTime: selectedMealTime,
         mainAmount: '',
         sideAmount: '',
@@ -434,8 +434,9 @@ export default function MealsMedicationPage() {
         supplement: '',
         staffName: (user as any)?.firstName || 'スタッフ',
         notes: '',
-        createdBy: (user as any)?.id || 'unknown',
-      });
+        createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+      };
+      createMutation.mutate(newRecord);
     }
   };
 
@@ -545,7 +546,7 @@ export default function MealsMedicationPage() {
         {filteredResidents.map((resident: any, index: number) => {
           const existingRecord = mealsMedicationData.find(
             (record: MealsMedicationWithResident) => 
-              record.residentId === resident.id && record.mealType === selectedMealTime
+              record.residentId === resident.id && record.mealTime === selectedMealTime
           );
 
           return (

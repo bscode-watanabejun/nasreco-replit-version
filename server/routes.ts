@@ -549,29 +549,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsMedicationSchema.parse({
-        ...req.body,
-        createdBy: req.user.claims.sub,
-      });
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      const validatedData = insertMealsMedicationSchema.parse(req.body);
+      console.log("Validated data:", JSON.stringify(validatedData, null, 2));
       const record = await storage.createMealsMedication(validatedData);
       res.status(201).json(record);
     } catch (error) {
       console.error("Error creating meals medication:", error);
-      res.status(400).json({ message: "Invalid meals medication data" });
+      if (error.issues) {
+        console.error("Validation issues:", JSON.stringify(error.issues, null, 2));
+      }
+      res.status(400).json({ 
+        message: "Invalid meals medication data",
+        error: error.message,
+        issues: error.issues || []
+      });
     }
   });
 
   app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsMedicationSchema.parse({
-        ...req.body,
-        createdBy: req.user.claims.sub,
-      });
+      console.log("Update request body:", JSON.stringify(req.body, null, 2));
+      const validatedData = insertMealsMedicationSchema.parse(req.body);
+      console.log("Validated update data:", JSON.stringify(validatedData, null, 2));
       const record = await storage.updateMealsMedication(req.params.id, validatedData);
       res.json(record);
     } catch (error) {
       console.error("Error updating meals medication:", error);
-      res.status(400).json({ message: "Invalid meals medication data" });
+      if (error.issues) {
+        console.error("Update validation issues:", JSON.stringify(error.issues, null, 2));
+      }
+      res.status(400).json({ 
+        message: "Invalid meals medication data",
+        error: error.message,
+        issues: error.issues || []
+      });
     }
   });
 

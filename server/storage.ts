@@ -971,7 +971,20 @@ export class DatabaseStorage implements IStorage {
 
   // Meals Medication operations (新スキーマ)
   async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]> {
-    const query = db
+    let whereConditions = and(
+      eq(mealsMedication.recordDate, recordDate),
+      eq(mealsMedication.mealTime, mealTime)
+    );
+
+    if (floor !== 'all') {
+      whereConditions = and(
+        eq(mealsMedication.recordDate, recordDate),
+        eq(mealsMedication.mealTime, mealTime),
+        eq(residents.floor, floor)
+      );
+    }
+
+    const results = await db
       .select({
         id: mealsMedication.id,
         residentId: mealsMedication.residentId,
@@ -992,24 +1005,9 @@ export class DatabaseStorage implements IStorage {
       })
       .from(mealsMedication)
       .leftJoin(residents, eq(mealsMedication.residentId, residents.id))
-      .where(
-        and(
-          eq(mealsMedication.recordDate, recordDate),
-          eq(mealsMedication.mealTime, mealTime)
-        )
-      );
+      .where(whereConditions);
 
-    if (floor !== 'all') {
-      query.where(
-        and(
-          eq(mealsMedication.recordDate, recordDate),
-          eq(mealsMedication.mealTime, mealTime),
-          eq(residents.floor, floor)
-        )
-      );
-    }
-
-    return await query;
+    return results;
   }
 
   async createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication> {

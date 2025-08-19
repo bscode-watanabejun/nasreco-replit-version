@@ -502,12 +502,24 @@ export const roundRecords = pgTable("round_records", {
 });
 
 export const insertMealsMedicationSchema = createInsertSchema(mealsMedication, {
-  recordDate: z.string().transform((str) => new Date(str)),
+  recordDate: z.string(),
+  residentId: z.string().min(1),
+  mealTime: z.string().min(1),
+  createdBy: z.string().min(1),
+  mainAmount: z.string().optional().nullable(),
+  sideAmount: z.string().optional().nullable(),
+  waterIntake: z.string().optional().nullable(),
+  supplement: z.string().optional().nullable(),
+  staffName: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 }).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
+
+export type MealsMedication = typeof mealsMedication.$inferSelect;
+export type InsertMealsMedication = z.infer<typeof insertMealsMedicationSchema>;
 
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
   recordDate: z.string().transform((str) => new Date(str)),

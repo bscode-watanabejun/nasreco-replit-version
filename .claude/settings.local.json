@@ -15,7 +15,8 @@
       "Bash(ss:*)",
       "Bash(lsof:*)",
       "Bash(pkill:*)",
-      "Bash(killall:*)"
+      "Bash(killall:*)",
+      "Bash(PORT=5001 npm run dev)"
     ],
     "deny": [],
     "ask": [],
