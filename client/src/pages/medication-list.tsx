@@ -586,7 +586,8 @@ export default function MedicationList() {
     console.log('Record data to save:', recordData);
     console.log('Will use existing record:', !!existingRecord);
     
-    if (existingRecord) {
+    // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
+    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
       console.log('Updating existing record with ID:', existingRecord.id);
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
