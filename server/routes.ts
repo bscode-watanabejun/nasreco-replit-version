@@ -33,7 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       res.json(user);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
@@ -76,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         floor: staff.floor,
         jobRole: staff.jobRole,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during staff login:", error);
       res.status(500).json({ message: "ログイン処理中にエラーが発生しました" });
     }
@@ -96,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       res.json(staff);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching staff user:", error);
       res.status(500).json({ message: "Failed to fetch staff user" });
     }
@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const residents = await storage.getResidents();
       res.json(residents);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching residents:", error);
       res.status(500).json({ message: "Failed to fetch residents" });
     }
@@ -120,7 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Resident not found" });
       }
       res.json(resident);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching resident:", error);
       res.status(500).json({ message: "Failed to fetch resident" });
     }
@@ -131,7 +131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertResidentSchema.parse(req.body);
       const resident = await storage.createResident(validatedData);
       res.status(201).json(resident);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating resident:", error);
       res.status(400).json({ message: "Invalid resident data" });
     }
@@ -146,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Resident not found" });
       }
       res.json(resident);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating resident:", error);
       res.status(400).json({ message: "Invalid resident data" });
     }
@@ -157,7 +157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       await storage.deleteResident(id);
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting resident:", error);
       res.status(500).json({ message: "Failed to delete resident" });
     }
@@ -173,7 +173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching care records:", error);
       res.status(500).json({ message: "Failed to fetch care records" });
     }
@@ -187,7 +187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createCareRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating care record:", error);
       res.status(400).json({ message: "Invalid care record data" });
     }
@@ -201,7 +201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const record = await storage.updateCareRecord(req.params.id, updateData);
       res.json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating care record:", error);
       res.status(500).json({ message: "Failed to update care record" });
     }
@@ -217,7 +217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching nursing records:", error);
       res.status(500).json({ message: "Failed to fetch nursing records" });
     }
@@ -231,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createNursingRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating nursing record:", error);
       res.status(400).json({ message: "Invalid nursing record data" });
     }
@@ -247,7 +247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(vitals);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching vital signs:", error);
       res.status(500).json({ message: "Failed to fetch vital signs" });
     }
@@ -302,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       await storage.deleteVitalSigns(id);
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting vital signs:", error);
       res.status(500).json({ message: "Failed to delete vital signs" });
     }
@@ -318,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching meals and medication:", error);
       res.status(500).json({ message: "Failed to fetch meals and medication records" });
     }
@@ -333,7 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createMealsAndMedication(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating meals/medication record:", error);
       res.status(400).json({ message: "Invalid meals/medication data" });
     }
@@ -349,7 +349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching bathing records:", error);
       res.status(500).json({ message: "Failed to fetch bathing records" });
     }
@@ -402,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       await storage.deleteBathingRecord(id);
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting bathing record:", error);
       res.status(500).json({ message: "Failed to delete bathing record" });
     }
@@ -418,7 +418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching excretion records:", error);
       res.status(500).json({ message: "Failed to fetch excretion records" });
     }
@@ -432,7 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createExcretionRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating excretion record:", error);
       res.status(400).json({ message: "Invalid excretion record data" });
     }
@@ -448,7 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching weight records:", error);
       res.status(500).json({ message: "Failed to fetch weight records" });
     }
@@ -462,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createWeightRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating weight record:", error);
       res.status(400).json({ message: "Invalid weight record data" });
     }
@@ -474,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertWeightRecordSchema.partial().parse(req.body);
       const record = await storage.updateWeightRecord(id, validatedData);
       res.json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating weight record:", error);
       res.status(400).json({ message: "Invalid weight record data" });
     }
@@ -485,7 +485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       await storage.deleteWeightRecord(id);
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting weight record:", error);
       res.status(500).json({ message: "Failed to delete weight record" });
     }
@@ -501,7 +501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       res.json(communications);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching communications:", error);
       res.status(500).json({ message: "Failed to fetch communications" });
     }
@@ -515,7 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const communication = await storage.createCommunication(validatedData);
       res.status(201).json(communication);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating communication:", error);
       res.status(400).json({ message: "Invalid communication data" });
     }
@@ -525,7 +525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.markCommunicationAsRead(req.params.id);
       res.json({ message: "Communication marked as read" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error marking communication as read:", error);
       res.status(500).json({ message: "Failed to mark communication as read" });
     }
@@ -541,7 +541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         floor as string || 'all'
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching meals medication:", error);
       res.status(500).json({ message: "Failed to fetch meals medication" });
     }
@@ -554,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Validated data:", JSON.stringify(validatedData, null, 2));
       const record = await storage.createMealsMedication(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating meals medication:", error);
       if (error.issues) {
         console.error("Validation issues:", JSON.stringify(error.issues, null, 2));
@@ -574,7 +574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Validated update data:", JSON.stringify(validatedData, null, 2));
       const record = await storage.updateMealsMedication(req.params.id, validatedData);
       res.json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating meals medication:", error);
       if (error.issues) {
         console.error("Update validation issues:", JSON.stringify(error.issues, null, 2));
@@ -595,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recordDate ? new Date(recordDate as string) : new Date()
       );
       res.json(rounds);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching round records:", error);
       res.status(500).json({ message: "Failed to fetch round records" });
     }
@@ -609,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const roundRecord = await storage.createRoundRecord(validatedData);
       res.status(201).json(roundRecord);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating round record:", error);
       res.status(400).json({ message: "Invalid round record data" });
     }
@@ -619,7 +619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteRoundRecord(req.params.id);
       res.json({ message: "Round record deleted" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting round record:", error);
       res.status(500).json({ message: "Failed to delete round record" });
     }
@@ -635,7 +635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         floor as string || 'all'
       );
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching medication records:", error);
       res.status(500).json({ message: "Failed to fetch medication records" });
     }
@@ -649,7 +649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createMedicationRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating medication record:", error);
       res.status(400).json({ message: "Invalid medication record data" });
     }
@@ -672,7 +672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteMedicationRecord(req.params.id);
       res.json({ message: "Medication record deleted" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting medication record:", error);
       res.status(500).json({ message: "Failed to delete medication record" });
     }
@@ -683,7 +683,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const settings = await storage.getFacilitySettings();
       res.json(settings);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching facility settings:", error);
       res.status(500).json({ message: "Failed to fetch facility settings" });
     }
@@ -694,7 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertFacilitySettingsSchema.parse(req.body);
       const settings = await storage.createFacilitySettings(validatedData);
       res.json(settings);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating facility settings:", error);
       res.status(500).json({ message: "Failed to create facility settings" });
     }
@@ -705,7 +705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertFacilitySettingsSchema.parse(req.body);
       const settings = await storage.updateFacilitySettings(req.params.id, validatedData);
       res.json(settings);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating facility settings:", error);
       res.status(500).json({ message: "Failed to update facility settings" });
     }
@@ -717,7 +717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { facilityId } = req.query;
       const notices = await storage.getStaffNotices(facilityId as string);
       res.json(notices);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching staff notices:", error);
       res.status(500).json({ message: "Failed to fetch staff notices" });
     }
@@ -731,7 +731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const notice = await storage.createStaffNotice(validatedData);
       res.status(201).json(notice);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating staff notice:", error);
       res.status(400).json({ message: "Invalid staff notice data" });
     }
@@ -741,7 +741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteStaffNotice(req.params.id);
       res.json({ message: "Staff notice deleted" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting staff notice:", error);
       res.status(500).json({ message: "Failed to delete staff notice" });
     }
@@ -752,7 +752,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const readStatus = await storage.getStaffNoticeReadStatus(req.params.id);
       res.json(readStatus);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching staff notice read status:", error);
       res.status(500).json({ message: "Failed to fetch read status" });
     }
@@ -762,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const readStatus = await storage.markStaffNoticeAsRead(req.params.id, req.user.claims.sub);
       res.status(201).json(readStatus);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error marking staff notice as read:", error);
       res.status(400).json({ message: "Failed to mark as read" });
     }
@@ -772,7 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.markStaffNoticeAsUnread(req.params.id, req.user.claims.sub);
       res.status(200).json({ message: "Marked as unread" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error marking staff notice as unread:", error);
       res.status(400).json({ message: "Failed to mark as unread" });
     }
@@ -782,7 +782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const count = await storage.getUnreadStaffNoticesCount(req.user.claims.sub);
       res.json({ count });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching unread count:", error);
       res.status(500).json({ message: "Failed to fetch unread count" });
     }
@@ -795,7 +795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startDate = new Date(weekStartDate as string);
       const records = await storage.getCleaningLinenRecords(startDate, floor as string);
       res.json(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching cleaning linen records:", error);
       res.status(500).json({ message: "Failed to fetch cleaning linen records" });
     }
@@ -809,7 +809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.createCleaningLinenRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating cleaning linen record:", error);
       res.status(400).json({ message: "Invalid cleaning linen data" });
     }
@@ -823,7 +823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.updateCleaningLinenRecord(req.params.id, validatedData);
       res.json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating cleaning linen record:", error);
       res.status(400).json({ message: "Invalid cleaning linen data" });
     }
@@ -837,7 +837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const record = await storage.upsertCleaningLinenRecord(validatedData);
       res.status(201).json(record);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error upserting cleaning linen record:", error);
       res.status(400).json({ message: "Invalid cleaning linen data" });
     }
@@ -849,7 +849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const staffList = await storage.getStaffManagement();
       res.json(staffList);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching staff:", error);
       res.status(500).json({ message: "Failed to fetch staff" });
     }
@@ -862,7 +862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Staff not found" });
       }
       res.json(staff);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching staff:", error);
       res.status(500).json({ message: "Failed to fetch staff" });
     }
@@ -896,7 +896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const staff = await storage.updateStaffManagement(validatedData);
       res.json(staff);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating staff:", error);
       res.status(400).json({ message: "Invalid staff data" });
     }
@@ -906,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteStaffManagement(req.params.id);
       res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting staff:", error);
       res.status(500).json({ message: "Failed to delete staff" });
     }
@@ -920,7 +920,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const staff = await storage.unlockStaffAccount(req.params.id, password);
       res.json(staff);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error unlocking staff account:", error);
       res.status(400).json({ message: "アカウントロック解除に失敗しました" });
     }
@@ -930,7 +930,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const staff = await storage.lockStaffAccount(req.params.id);
       res.json(staff);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error locking staff account:", error);
       res.status(400).json({ message: "アカウントロックに失敗しました" });
     }
