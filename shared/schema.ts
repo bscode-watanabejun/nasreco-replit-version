@@ -509,6 +509,9 @@ export const insertMealsMedicationSchema = createInsertSchema(mealsMedication, {
   updatedAt: true,
 });
 
+export type MealsMedication = typeof mealsMedication.$inferSelect;
+export type InsertMealsMedication = z.infer<typeof insertMealsMedicationSchema>;
+
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
   recordDate: z.string().transform((str) => new Date(str)),
 }).omit({

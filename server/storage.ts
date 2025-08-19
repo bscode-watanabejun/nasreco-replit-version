@@ -147,6 +147,11 @@ export interface IStorage {
 
   // Staff authentication
   authenticateStaff(staffId: string, password: string): Promise<StaffManagement | null>;
+
+  // Meals Medication operations (新スキーマ)
+  getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]>;
+  createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication>;
+  updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -962,6 +967,68 @@ export class DatabaseStorage implements IStorage {
       );
     
     return staff || null;
+  }
+
+  // Meals Medication operations (新スキーマ)
+  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]> {
+    const query = db
+      .select({
+        id: mealsMedication.id,
+        residentId: mealsMedication.residentId,
+        recordDate: mealsMedication.recordDate,
+        mealTime: mealsMedication.mealTime,
+        mainAmount: mealsMedication.mainAmount,
+        sideAmount: mealsMedication.sideAmount,
+        waterIntake: mealsMedication.waterIntake,
+        supplement: mealsMedication.supplement,
+        staffName: mealsMedication.staffName,
+        notes: mealsMedication.notes,
+        createdBy: mealsMedication.createdBy,
+        createdAt: mealsMedication.createdAt,
+        updatedAt: mealsMedication.updatedAt,
+        residentName: residents.name,
+        roomNumber: residents.roomNumber,
+        floor: residents.floor,
+      })
+      .from(mealsMedication)
+      .leftJoin(residents, eq(mealsMedication.residentId, residents.id))
+      .where(
+        and(
+          eq(mealsMedication.recordDate, recordDate),
+          eq(mealsMedication.mealTime, mealTime)
+        )
+      );
+
+    if (floor !== 'all') {
+      query.where(
+        and(
+          eq(mealsMedication.recordDate, recordDate),
+          eq(mealsMedication.mealTime, mealTime),
+          eq(residents.floor, floor)
+        )
+      );
+    }
+
+    return await query;
+  }
+
+  async createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication> {
+    const [newRecord] = await db.insert(mealsMedication).values(record).returning();
+    return newRecord;
+  }
+
+  async updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication> {
+    const [updatedRecord] = await db
+      .update(mealsMedication)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(mealsMedication.id, id))
+      .returning();
+    
+    if (!updatedRecord) {
+      throw new Error("Meals medication record not found");
+    }
+    
+    return updatedRecord;
   }
 }
 

@@ -8,6 +8,7 @@ import {
   insertNursingRecordSchema,
   insertVitalSignsSchema,
   insertMealsAndMedicationSchema,
+  insertMealsMedicationSchema,
   insertBathingRecordSchema,
   insertExcretionRecordSchema,
   insertWeightRecordSchema,
@@ -534,11 +535,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
       const { recordDate, mealTime, floor } = req.query;
-      // Use the correct method with proper parameters
-      const records = await storage.getMealsAndMedication(
-        undefined, // residentId
-        recordDate ? new Date(recordDate as string) : undefined, 
-        recordDate ? new Date(recordDate as string) : undefined
+      const records = await storage.getMealsMedication(
+        recordDate as string || new Date().toISOString().split('T')[0],
+        mealTime as string || '朝',
+        floor as string || 'all'
       );
       res.json(records);
     } catch (error) {
@@ -549,12 +549,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsAndMedicationSchema.parse({
+      const validatedData = insertMealsMedicationSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
-        type: 'meal'
+        createdBy: req.user.claims.sub,
       });
-      const record = await storage.createMealsAndMedication(validatedData);
+      const record = await storage.createMealsMedication(validatedData);
       res.status(201).json(record);
     } catch (error) {
       console.error("Error creating meals medication:", error);
@@ -564,12 +563,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertMealsAndMedicationSchema.parse({
+      const validatedData = insertMealsMedicationSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
-        type: 'meal'
+        createdBy: req.user.claims.sub,
       });
-      const record = await storage.updateMealsAndMedication(req.params.id, validatedData);
+      const record = await storage.updateMealsMedication(req.params.id, validatedData);
       res.json(record);
     } catch (error) {
       console.error("Error updating meals medication:", error);

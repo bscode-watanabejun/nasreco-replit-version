@@ -289,7 +289,7 @@ export default function MealsMedicationPage() {
     
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
-        record.residentId === residentId && record.mealType === selectedMealTime
+        record.residentId === residentId && record.mealTime === selectedMealTime
     );
 
     // 既存の食事カテゴリデータを解析
@@ -302,45 +302,35 @@ export default function MealsMedicationPage() {
       mealData = { freeText: existingRecord?.notes || '' };
     }
 
+    // 新しいスキーマに合わせたレコードデータを作成
+    const recordData: any = {
+      residentId,
+      recordDate: selectedDate,
+      mealTime: selectedMealTime,
+      mainAmount: existingRecord?.mainAmount || '',
+      sideAmount: existingRecord?.sideAmount || '',
+      waterIntake: existingRecord?.waterIntake || '',
+      supplement: existingRecord?.supplement || '',
+      staffName: existingRecord?.staffName || staffName,
+      notes: existingRecord?.notes || '',
+      createdBy: (user as any)?.id || 'unknown',
+    };
+
     // フィールドを更新
     if (field === 'notes') {
       mealData.freeText = value;
-    } else if (['main', 'side', 'water', 'supplement'].includes(field)) {
-      if (!mealData.categories) mealData.categories = {};
-      mealData.categories[field] = value === "empty" ? "" : value;
+      recordData.notes = JSON.stringify(mealData);
+    } else if (field === 'main') {
+      recordData.mainAmount = value === "empty" ? "" : value;
+    } else if (field === 'side') {
+      recordData.sideAmount = value === "empty" ? "" : value;
+    } else if (field === 'water') {
+      recordData.waterIntake = value === "empty" ? "" : value;
+    } else if (field === 'supplement') {
+      recordData.supplement = value === "empty" ? "" : value;
+    } else if (field === 'staffName') {
+      recordData.staffName = value;
     }
-    
-    // staffNameフィールドの場合は直接記入者情報を設定
-    if (field === 'staffName') {
-      mealData.staffName = value;
-      mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    } else {
-      // 他の項目が更新された場合は既存の記入者情報を保持
-      const existingStaffName = mealData.staffName || staffName;
-      mealData.staffName = existingStaffName;
-      if (!mealData.staffTime) {
-        mealData.staffTime = new Date().toLocaleTimeString('ja-JP', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
-      }
-    }
-
-    const recordData: InsertMealsAndMedication = {
-      residentId,
-      recordDate: selectedDate,
-      type: 'meal',
-      mealType: selectedMealTime,
-      mealIntake: value || existingRecord?.mealIntake || '',
-      medicationName: existingRecord?.medicationName || '',
-      dosage: existingRecord?.dosage || '',
-      notes: JSON.stringify(mealData),
-      administeredTime: new Date(),
-      staffId: (user as any)?.id || 'unknown',
-    };
 
     if (existingRecord) {
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
@@ -351,36 +341,31 @@ export default function MealsMedicationPage() {
 
   // 既存レコードから食事カテゴリデータを取得するヘルパー関数
   const getMealCategoryValue = (record: MealsMedicationWithResident | undefined, category: string): string => {
-    if (!record?.notes) return "empty";
+    if (!record) return "empty";
     
-    try {
-      if (record.notes.startsWith('{')) {
-        const mealData = JSON.parse(record.notes);
-        const value = mealData.categories?.[category];
-        return value === "" || value === undefined ? "empty" : value;
-      }
-    } catch (e) {
-      // JSONパースに失敗した場合は"empty"を返す
+    // 新しいスキーマの専用フィールドから直接取得
+    if (category === 'main') {
+      return record.mainAmount === "" || record.mainAmount === null || record.mainAmount === undefined ? "empty" : record.mainAmount;
+    } else if (category === 'side') {
+      return record.sideAmount === "" || record.sideAmount === null || record.sideAmount === undefined ? "empty" : record.sideAmount;
+    } else if (category === 'water') {
+      return record.waterIntake === "" || record.waterIntake === null || record.waterIntake === undefined ? "empty" : record.waterIntake;
+    } else if (category === 'supplement') {
+      return record.supplement === "" || record.supplement === null || record.supplement === undefined ? "empty" : record.supplement;
     }
+    
     return "empty";
   };
 
   // スタッフ情報を取得するヘルパー関数
   const getStaffInfo = (record: MealsMedicationWithResident | undefined): { name: string; time: string } => {
-    if (!record?.notes) return { name: '', time: '' };
+    if (!record) return { name: '', time: '' };
     
-    try {
-      if (record.notes.startsWith('{')) {
-        const mealData = JSON.parse(record.notes);
-        return {
-          name: mealData.staffName || '',
-          time: mealData.staffTime || ''
-        };
-      }
-    } catch (e) {
-      // JSONパースに失敗した場合は空文字を返す
-    }
-    return { name: '', time: '' };
+    // 新しいスキーマのstaffNameフィールドから直接取得
+    return {
+      name: record.staffName || '',
+      time: '' // 時刻情報は現在のスキーマにはないので空文字
+    };
   };
 
   // フリーテキストを取得するヘルパー関数
@@ -442,15 +427,15 @@ export default function MealsMedicationPage() {
       createMutation.mutate({
         residentId: targetResident.id,
         recordDate: selectedDate,
-        type: 'meal',
-        mealType: selectedMealTime,
-        mealIntake: '',
-        medicationName: '',
-        dosage: '',
-        notes: JSON.stringify({ categories: {}, freeText: '', staffName: '', staffTime: '' }),
-        administeredTime: new Date(),
-        staffId: (user as any)?.id || 'unknown',
-      } as InsertMealsAndMedication);
+        mealTime: selectedMealTime,
+        mainAmount: '',
+        sideAmount: '',
+        waterIntake: '',
+        supplement: '',
+        staffName: (user as any)?.firstName || 'スタッフ',
+        notes: '',
+        createdBy: (user as any)?.id || 'unknown',
+      });
     }
   };
 

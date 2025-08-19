@@ -1001,17 +1001,20 @@ export default function CareRecords() {
         </main>
 
         {/* 戻るボタン */}
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex justify-start">
-          <Button 
-            variant="ghost" 
-            className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => {
-              setShowRecordDetail(false);
-              setSelectedRecordForDetail(null);
-            }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+          <div className="flex items-center justify-start max-w-lg mx-auto">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowRecordDetail(false);
+                setSelectedRecordForDetail(null);
+              }}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              戻る
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -1409,21 +1412,23 @@ export default function CareRecords() {
           )}
         </main>
 
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex justify-between">
-          <Button 
-            variant="ghost" 
-            className="bg-blue-600 hover:bg-blue-700"
-            onClick={() => setView('list')}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            className="bg-blue-600 hover:bg-blue-700"
-            onClick={addNewRecordBlock}
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+          <div className="flex items-center justify-between max-w-lg mx-auto">
+            <Button 
+              variant="outline" 
+              onClick={() => setView('list')}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              戻る
+            </Button>
+            <Button
+              onClick={addNewRecordBlock}
+              className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
+            >
+              <Plus className="w-6 h-6" />
+            </Button>
+          </div>
         </div>
 
         {/* 記録内容全文表示ダイアログ */}
