@@ -1450,14 +1450,16 @@ export default function Vitals() {
       </main>
 
       {/* フッター */}
-      <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-end">
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={addNewRecord}
-          data-testid="button-add-record"
-        >
-          <Plus className="w-4 h-4" />
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className="flex items-center justify-end max-w-lg mx-auto">
+          <Button
+            onClick={addNewRecord}
+            className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
+            data-testid="button-add-record"
+          >
+            <Plus className="w-6 h-6" />
+          </Button>
+        </div>
       </div>
     </div>
   );

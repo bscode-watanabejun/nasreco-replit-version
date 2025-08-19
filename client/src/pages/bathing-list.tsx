@@ -1289,9 +1289,9 @@ export default function BathingList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
@@ -1304,9 +1304,10 @@ export default function BathingList() {
             <h1 className="text-xl font-bold text-slate-800">入浴一覧</h1>
           </div>
         </div>
+      </div>
 
-        {/* フィルター */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+      {/* フィルタ条件 */}
+      <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
           <div className="flex gap-2 sm:gap-4 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
@@ -1373,14 +1374,16 @@ export default function BathingList() {
       </main>
 
       {/* フッター */}
-      <div className="fixed bottom-0 left-0 right-0 bg-orange-50 p-4 flex justify-end">
-        <Button
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={addNewRecord}
-          data-testid="button-add-record"
-        >
-          <Plus className="w-4 h-4" />
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className="flex items-center justify-end max-w-lg mx-auto">
+          <Button
+            onClick={addNewRecord}
+            className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
+            data-testid="button-add-record"
+          >
+            <Plus className="w-6 h-6" />
+          </Button>
+        </div>
       </div>
     </div>
   );
