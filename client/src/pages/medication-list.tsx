@@ -486,13 +486,16 @@ export default function MedicationList() {
           if (!old) return old;
           return old.map((record: any) => {
             if (record.id === recordId) {
-              // 既存データで置き換え（利用者情報も更新）
+              // APIレスポンス構造を考慮して正しく既存データで置き換え
+              const medicationRecord = existingData.medication_records || existingData;
               return {
-                ...existingData,
+                ...record, // 元のレコード構造を維持
+                ...medicationRecord, // 既存の薬物記録データで更新
                 id: recordId, // 元のIDを維持
-                residentName: resident?.name || existingData.residentName,
-                roomNumber: resident?.roomNumber || existingData.roomNumber,
-                floor: resident?.floor || existingData.floor
+                residentId: value, // 新しく選択した利用者ID
+                residentName: resident?.name || '',
+                roomNumber: resident?.roomNumber || '',
+                floor: resident?.floor || ''
               };
             }
             return record;
