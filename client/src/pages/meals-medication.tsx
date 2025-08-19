@@ -31,15 +31,18 @@ function InputWithDropdown({
   onSave,
   placeholder,
   className,
+  disableAutoFocus = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder: string;
   className?: string;
+  disableAutoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 値が外部から変更された場合に同期
@@ -47,46 +50,84 @@ function InputWithDropdown({
     setInputValue(value);
   }, [value]);
 
+  // アクティブ要素を監視してフォーカス状態を更新
+  useEffect(() => {
+    const checkFocus = () => {
+      if (inputRef.current) {
+        setIsFocused(document.activeElement === inputRef.current);
+      }
+    };
+
+    // 初回チェック
+    checkFocus();
+
+    // フォーカス変更を監視
+    const handleFocusChange = () => {
+      checkFocus();
+    };
+
+    // document全体でfocus/blurイベントを監視
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusChange);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusChange);
+    };
+  }, []);
+
   const handleSelect = (selectedValue: string) => {
     const selectedOption = options.find(opt => opt.value === selectedValue);
     setInputValue(selectedOption ? selectedOption.label : selectedValue);
     onSave(selectedValue);
     setOpen(false);
 
-    // 特定の遅延後にフォーカス移動を実行
-    setTimeout(() => {
-      if (inputRef.current) {
-        const currentElement = inputRef.current;
-        const allElements = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+    // 自動フォーカス移動が有効な場合のみ実行
+    if (!disableAutoFocus) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          const currentElement = inputRef.current;
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentIndex = allElements.indexOf(currentElement);
-        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-          allElements[currentIndex + 1].focus();
+          const currentIndex = allElements.indexOf(currentElement);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            allElements[currentIndex + 1].focus();
+          }
         }
-      }
-    }, 200);
+      }, 200);
+    }
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          readOnly
-          onFocus={() => setOpen(true)}
-          onClick={(e) => e.preventDefault()}
-          placeholder={placeholder}
-          className={className}
-        />
-      </PopoverTrigger>
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            readOnly
+            onFocus={() => {
+              setOpen(true);
+              setIsFocused(true);
+            }}
+            onBlur={() => {
+              // プルダウンが開いている場合はフォーカスを維持
+              if (!open) {
+                setTimeout(() => setIsFocused(false), 50);
+              }
+            }}
+            onClick={(e) => e.preventDefault()}
+            placeholder={placeholder}
+            className={`${className} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
+          />
+        </PopoverTrigger>
       <PopoverContent className="w-32 p-0.5" align="center">
         <div className="space-y-0 max-h-40 overflow-y-auto">
           {options.map((option) => (
@@ -100,7 +141,8 @@ function InputWithDropdown({
           ))}
         </div>
       </PopoverContent>
-    </Popover>
+      </Popover>
+    </div>
   );
 }
 
@@ -113,7 +155,6 @@ export default function MealsMedicationPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedMealTime, setSelectedMealTime] = useState("朝");
   const [selectedFloor, setSelectedFloor] = useState("all");
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
 
   // URLパラメータからstate復元
   useEffect(() => {
@@ -272,7 +313,7 @@ export default function MealsMedicationPage() {
   const waterOptions = ["empty", "300", "250", "200", "150", "100", "50", "0"];
   
   // その他の選択肢
-  const otherOptions = [
+  const supplementOptions = [
     "empty",
     "ラコール 200ml",
     "エンシュア 200ml", 
@@ -282,6 +323,18 @@ export default function MealsMedicationPage() {
     "イノラス 187.5ml",
     "ラコールＮＦ半固形剤 300g"
   ];
+  
+  // 量の選択肢（水分と同様）
+  const amountOptions = ["empty", "300", "250", "200", "150", "100", "50", "0"];
+  
+  // 合計値を計算するヘルパー関数
+  const calculateTotal = (water: string, amount1: string, amount2: string): string => {
+    const waterNum = parseFloat(water) || 0;
+    const amount1Num = parseFloat(amount1) || 0;
+    const amount2Num = parseFloat(amount2) || 0;
+    const total = waterNum + amount1Num + amount2Num;
+    return total > 0 ? total.toString() : '';
+  };
 
   const handleSaveRecord = (residentId: string, field: string, value: string) => {
     // 自動で記入者情報を設定
@@ -292,15 +345,6 @@ export default function MealsMedicationPage() {
         record.residentId === residentId && record.mealTime === selectedMealTime
     );
 
-    // 既存の食事カテゴリデータを解析
-    let mealData: any = {};
-    try {
-      if (existingRecord?.notes && existingRecord.notes.startsWith('{')) {
-        mealData = JSON.parse(existingRecord.notes);
-      }
-    } catch (e) {
-      mealData = { freeText: existingRecord?.notes || '' };
-    }
 
     // 新しいスキーマに合わせたレコードデータを作成
     const recordData: InsertMealsMedication = {
@@ -310,26 +354,41 @@ export default function MealsMedicationPage() {
       mainAmount: existingRecord?.mainAmount || '',
       sideAmount: existingRecord?.sideAmount || '',
       waterIntake: existingRecord?.waterIntake || '',
-      supplement: existingRecord?.supplement || '',
+      supplement1: existingRecord?.supplement1 || '',
+      amount1: existingRecord?.amount1 || '',
+      supplement2: existingRecord?.supplement2 || '',
+      amount2: existingRecord?.amount2 || '',
+      totalAmount: existingRecord?.totalAmount || '',
       staffName: existingRecord?.staffName || staffName,
       notes: existingRecord?.notes || '',
       createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
     };
 
     // フィールドを更新
-    if (field === 'notes') {
-      mealData.freeText = value;
-      recordData.notes = JSON.stringify(mealData);
-    } else if (field === 'main') {
+    if (field === 'main') {
       recordData.mainAmount = value === "empty" ? "" : value;
     } else if (field === 'side') {
       recordData.sideAmount = value === "empty" ? "" : value;
     } else if (field === 'water') {
       recordData.waterIntake = value === "empty" ? "" : value;
-    } else if (field === 'supplement') {
-      recordData.supplement = value === "empty" ? "" : value;
+    } else if (field === 'supplement1') {
+      recordData.supplement1 = value === "empty" ? "" : value;
+    } else if (field === 'amount1') {
+      recordData.amount1 = value === "empty" ? "" : value;
+    } else if (field === 'supplement2') {
+      recordData.supplement2 = value === "empty" ? "" : value;
+    } else if (field === 'amount2') {
+      recordData.amount2 = value === "empty" ? "" : value;
     } else if (field === 'staffName') {
       recordData.staffName = value;
+    }
+    
+    // 水分、量1、量2の値が変更されたら合計を再計算
+    if (['water', 'amount1', 'amount2'].includes(field)) {
+      const waterValue = field === 'water' ? (value === 'empty' ? '' : value) : recordData.waterIntake;
+      const amount1Value = field === 'amount1' ? (value === 'empty' ? '' : value) : recordData.amount1;
+      const amount2Value = field === 'amount2' ? (value === 'empty' ? '' : value) : recordData.amount2;
+      recordData.totalAmount = calculateTotal(waterValue, amount1Value, amount2Value);
     }
 
     // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
@@ -351,8 +410,16 @@ export default function MealsMedicationPage() {
       return record.sideAmount === "" || record.sideAmount === null || record.sideAmount === undefined ? "empty" : record.sideAmount;
     } else if (category === 'water') {
       return record.waterIntake === "" || record.waterIntake === null || record.waterIntake === undefined ? "empty" : record.waterIntake;
-    } else if (category === 'supplement') {
-      return record.supplement === "" || record.supplement === null || record.supplement === undefined ? "empty" : record.supplement;
+    } else if (category === 'supplement1') {
+      return record.supplement1 === "" || record.supplement1 === null || record.supplement1 === undefined ? "empty" : record.supplement1;
+    } else if (category === 'amount1') {
+      return record.amount1 === "" || record.amount1 === null || record.amount1 === undefined ? "empty" : record.amount1;
+    } else if (category === 'supplement2') {
+      return record.supplement2 === "" || record.supplement2 === null || record.supplement2 === undefined ? "empty" : record.supplement2;
+    } else if (category === 'amount2') {
+      return record.amount2 === "" || record.amount2 === null || record.amount2 === undefined ? "empty" : record.amount2;
+    } else if (category === 'total') {
+      return record.totalAmount === "" || record.totalAmount === null || record.totalAmount === undefined ? "" : record.totalAmount;
     }
     
     return "empty";
@@ -369,25 +436,6 @@ export default function MealsMedicationPage() {
     };
   };
 
-  // フリーテキストを取得するヘルパー関数
-  const getFreeText = (record: MealsMedicationWithResident | undefined, residentId: string): string => {
-    // ローカル状態があればそれを使用
-    if (localNotes[residentId] !== undefined) {
-      return localNotes[residentId];
-    }
-    
-    if (!record?.notes) return '';
-    
-    try {
-      if (record.notes.startsWith('{')) {
-        const mealData = JSON.parse(record.notes);
-        return mealData.freeText || '';
-      }
-      return record.notes; // 古い形式の場合はそのまま返す
-    } catch (e) {
-      return record.notes; // JSONパースに失敗した場合は元の値を返す
-    }
-  };
 
   // 承認者アイコン機能（バイタル一覧と同じ）
   const handleStaffStamp = (residentId: string) => {
@@ -432,7 +480,11 @@ export default function MealsMedicationPage() {
         mainAmount: '',
         sideAmount: '',
         waterIntake: '',
-        supplement: '',
+        supplement1: '',
+        amount1: '',
+        supplement2: '',
+        amount2: '',
+        totalAmount: '',
         staffName: (user as any)?.firstName || 'スタッフ',
         notes: '',
         createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
@@ -461,6 +513,11 @@ export default function MealsMedicationPage() {
     if (residentFloor === `${selectedFloorNumber}階`) return true;
     
     return false;
+  }).sort((a: any, b: any) => {
+    // 居室番号で並べ替え（数値として比較）
+    const roomA = parseInt(a.roomNumber) || 0;
+    const roomB = parseInt(b.roomNumber) || 0;
+    return roomA - roomB;
   });
 
   return (
@@ -507,6 +564,7 @@ export default function MealsMedicationPage() {
               onSave={(value) => setSelectedMealTime(value)}
               placeholder="時間"
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disableAutoFocus={true}
             />
           </div>
           
@@ -537,6 +595,7 @@ export default function MealsMedicationPage() {
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disableAutoFocus={true}
             />
           </div>
         </div>
@@ -552,11 +611,11 @@ export default function MealsMedicationPage() {
 
           return (
             <div key={resident.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
-              <div className="p-2 space-y-2">
+              <div className="p-1 space-y-1">
                 {/* 1行目：部屋番号 + 主/副/水分 + 記入者 */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   {/* 部屋番号 */}
-                  <div className="w-12 text-center flex-shrink-0">
+                  <div className="w-10 text-center flex-shrink-0">
                     <div className="font-bold text-lg">{resident.roomNumber}</div>
                   </div>
                   
@@ -576,6 +635,9 @@ export default function MealsMedicationPage() {
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  
+                  {/* / ラベル */}
+                  <div className="text-xs text-gray-500 flex-shrink-0">/</div>
 
                   {/* 副 */}
                   <div className="w-10 flex-shrink-0">
@@ -595,7 +657,7 @@ export default function MealsMedicationPage() {
                   </div>
 
                   {/* 水分 */}
-                  <div className="w-16 flex-shrink-0">
+                  <div className="w-12 flex-shrink-0">
                     <InputWithDropdown
                       value={(() => {
                         const value = getMealCategoryValue(existingRecord, 'water');
@@ -610,9 +672,26 @@ export default function MealsMedicationPage() {
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  
+                  {/* 合計ラベル */}
+                  <div className="text-xs text-gray-600 flex-shrink-0 writing-mode-vertical-rl text-orientation-mixed" style={{writingMode: 'vertical-rl'}}>合計</div>
+                  
+                  {/* 合計 */}
+                  <div className="w-12 flex-shrink-0">
+                    <input
+                      type="text"
+                      value={(() => {
+                        const totalValue = getMealCategoryValue(existingRecord, 'total');
+                        return totalValue === "empty" ? "" : totalValue;
+                      })()}
+                      readOnly
+                      placeholder="合計"
+                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-gray-100 focus:outline-none cursor-not-allowed"
+                    />
+                  </div>
 
                   {/* 記入者 */}
-                  <div className="w-20 flex-shrink-0 ml-2 flex items-center gap-1">
+                  <div className="w-20 flex-shrink-0 flex items-center gap-1">
                     <input
                       type="text"
                       value={(() => {
@@ -631,7 +710,7 @@ export default function MealsMedicationPage() {
                         handleSaveRecord(resident.id, 'staffName', e.target.value);
                       }}
                       placeholder="記入者"
-                      className="h-6 w-12 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="h-6 w-10 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       className="rounded text-xs flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
@@ -651,62 +730,89 @@ export default function MealsMedicationPage() {
                   </div>
                 </div>
 
-                {/* 2行目：利用者名 + その他 */}
-                <div className="flex items-center gap-2">
-                  <div className="w-12 text-center flex-shrink-0">
+                {/* 2行目：利用者名 + その他1 + 量1 */}
+                <div className="flex items-center gap-1">
+                  <div className="w-10 text-center flex-shrink-0">
                     <div className="text-xs font-medium whitespace-pre-line leading-tight">
                       {resident.name.replace(/\s+/g, '\n')}
                     </div>
                   </div>
                   
-                  {/* その他 */}
+                  {/* その他1 */}
                   <div className="flex-1">
                     <InputWithDropdown
                       value={(() => {
-                        const value = getMealCategoryValue(existingRecord, 'supplement');
+                        const value = getMealCategoryValue(existingRecord, 'supplement1');
                         return value === "empty" ? "" : value;
                       })()}
-                      options={otherOptions.filter(option => option !== "").map(option => ({
+                      options={supplementOptions.filter(option => option !== "").map(option => ({
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'supplement', value)}
-                      placeholder="その他"
+                      onSave={(value) => handleSaveRecord(resident.id, 'supplement1', value)}
+                      placeholder="その他1"
                       className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  {/* 量1 */}
+                  <div className="w-12 flex-shrink-0">
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'amount1');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={amountOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'amount1', value)}
+                      placeholder="量1"
+                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                
+                {/* 3行目：その他2 + 量2 */}
+                <div className="flex items-center gap-1">
+                  <div className="w-10 text-center flex-shrink-0">
+                  </div>
+                  
+                  {/* その他2 */}
+                  <div className="flex-1">
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'supplement2');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={supplementOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'supplement2', value)}
+                      placeholder="その他2"
+                      className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  {/* 量2 */}
+                  <div className="w-12 flex-shrink-0">
+                    <InputWithDropdown
+                      value={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'amount2');
+                        return value === "empty" ? "" : value;
+                      })()}
+                      options={amountOptions.filter(option => option !== "").map(option => ({
+                        value: option,
+                        label: option === "empty" ? "" : option
+                      }))}
+                      onSave={(value) => handleSaveRecord(resident.id, 'amount2', value)}
+                      placeholder="量2"
+                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* 3行目：記録欄 */}
-                <div className="flex items-center gap-2">
-                  <div className="w-12 text-center flex-shrink-0">
-                  </div>
-                  
-                  {/* 記録欄 */}
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={getFreeText(existingRecord, resident.id)}
-                      onChange={(e) => {
-                        setLocalNotes(prev => ({
-                          ...prev,
-                          [resident.id]: e.target.value
-                        }));
-                      }}
-                      onBlur={(e) => {
-                        handleSaveRecord(resident.id, 'notes', e.target.value);
-                        setLocalNotes(prev => {
-                          const newState = { ...prev };
-                          delete newState[resident.id];
-                          return newState;
-                        });
-                      }}
-                      className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
-                      placeholder="記録を入力..."
-                      data-testid={`input-notes-${resident.id}`}
-                    />
-                  </div>
-                </div>
               </div>
             </div>
           );

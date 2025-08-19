@@ -480,7 +480,11 @@ export const mealsMedication = pgTable("meals_medication", {
   mainAmount: varchar("main_amount"), // 主食摂取量 (0-10, -, 欠, 拒, 空欄)
   sideAmount: varchar("side_amount"), // 副食摂取量 (0-10, -, 欠, 拒, 空欄)
   waterIntake: varchar("water_intake"), // 水分摂取量 (300, 250, 200, 150, 100, 50, 0, 空欄)
-  supplement: varchar("supplement"), // その他(栄養補助食品など)
+  supplement1: varchar("supplement1"), // その他1(栄養補助食品など)
+  amount1: varchar("amount1"), // 量1 (300, 250, 200, 150, 100, 50, 0, 空欄)
+  supplement2: varchar("supplement2"), // その他2(栄養補助食品など)
+  amount2: varchar("amount2"), // 量2 (300, 250, 200, 150, 100, 50, 0, 空欄)
+  totalAmount: varchar("total_amount"), // 合計（水分+量1+量2の自動計算値）
   staffName: varchar("staff_name"), // 記入者
   notes: text("notes"), // 記録(フリー入力)
   createdBy: varchar("created_by").notNull(),
@@ -509,7 +513,11 @@ export const insertMealsMedicationSchema = createInsertSchema(mealsMedication, {
   mainAmount: z.string().optional().nullable(),
   sideAmount: z.string().optional().nullable(),
   waterIntake: z.string().optional().nullable(),
-  supplement: z.string().optional().nullable(),
+  supplement1: z.string().optional().nullable(),
+  amount1: z.string().optional().nullable(),
+  supplement2: z.string().optional().nullable(),
+  amount2: z.string().optional().nullable(),
+  totalAmount: z.string().optional().nullable(),
   staffName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 }).omit({

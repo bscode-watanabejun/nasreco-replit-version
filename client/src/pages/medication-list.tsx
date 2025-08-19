@@ -365,7 +365,7 @@ export default function MedicationList() {
     }
     
     const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
-    if (!currentRecord || !recordId.startsWith('temp-')) return;
+    if (!currentRecord || !recordId || !recordId.startsWith('temp-')) return;
     
     // 必須フィールドがない場合はスキップ
     if (!currentRecord.residentId || !currentRecord.timing || !currentRecord.type) {
@@ -456,21 +456,40 @@ export default function MedicationList() {
     
     // 利用者変更時の特別処理
     if (field === 'residentId') {
+      // 利用者情報を追加して楽観的更新
+      const resident = residents?.find(r => r.id === value);
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id === recordId) {
+            return { 
+              ...record, 
+              residentId: value,
+              residentName: resident?.name || '',
+              roomNumber: resident?.roomNumber || '',
+              floor: resident?.floor || ''
+            };
+          }
+          return record;
+        });
+      });
+      
       // 既存データを取得
       const existingData = await fetchExistingDataForResident(value);
       console.log('Existing data for resident:', existingData);
       
       if (existingData) {
-        // 既存データがある場合は楽観的更新で置き換え
-        const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+        // 既存データがある場合は再度更新で置き換え
         queryClient.setQueryData(queryKey, (old: any) => {
           if (!old) return old;
           return old.map((record: any) => {
             if (record.id === recordId) {
               // 既存データで置き換え（利用者情報も更新）
-              const resident = residents?.find(r => r.id === value);
               return {
                 ...existingData,
+                id: recordId, // 元のIDを維持
                 residentName: resident?.name || existingData.residentName,
                 roomNumber: resident?.roomNumber || existingData.roomNumber,
                 floor: resident?.floor || existingData.floor
@@ -481,7 +500,7 @@ export default function MedicationList() {
         });
         
         // 既存レコードの場合は更新、一時的なレコードの場合は新規作成は不要
-        if (!recordId.startsWith('temp-')) {
+        if (!recordId || !recordId.startsWith('temp-')) {
           updateMutation.mutate({
             id: recordId,
             data: { residentId: value }
@@ -489,10 +508,19 @@ export default function MedicationList() {
         }
         return;
       }
+      
+      // 既存レコードがない場合、一時的なIDでない場合は通常更新
+      if (!recordId || !recordId.startsWith('temp-')) {
+        updateMutation.mutate({
+          id: recordId,
+          data: { residentId: value }
+        });
+      }
+      return;
     }
     
     // 一時的なIDの場合は楽観的更新のみで即座にUIに反映
-    if (recordId.startsWith('temp-')) {
+    if (recordId && recordId.startsWith('temp-')) {
       // 楽観的更新でUIを即座に更新
       const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
       queryClient.setQueryData(queryKey, (old: any) => {
@@ -573,7 +601,7 @@ export default function MedicationList() {
     console.log('Deleting record:', recordId);
     
     // 一時的なIDの場合は即座に削除
-    if (recordId.startsWith('temp-')) {
+    if (recordId && recordId.startsWith('temp-')) {
       console.log('Removing temp record from display');
       // 一時的なレコードの削除時は現在の表示条件で再取得
       queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
@@ -722,7 +750,7 @@ export default function MedicationList() {
                         console.log('Resident changed for record', record.id, 'to:', selectedId);
                         handleFieldUpdate(record.id, "residentId", selectedId);
                         // 一時的なレコードの場合は保存処理を実行
-                        if (record.id.startsWith('temp-')) {
+                        if (record.id && record.id.startsWith('temp-')) {
                           setTimeout(() => saveTemporaryRecord(record.id), 200);
                         }
                       }}
@@ -740,7 +768,7 @@ export default function MedicationList() {
                         console.log('Timing changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "timing", value);
                         // 一時的なレコードの場合は保存処理を実行
-                        if (record.id.startsWith('temp-')) {
+                        if (record.id && record.id.startsWith('temp-')) {
                           setTimeout(() => saveTemporaryRecord(record.id), 200);
                         }
                       }}
@@ -807,7 +835,7 @@ export default function MedicationList() {
                           return newState;
                         });
                         // 一時的なレコードの場合は保存処理を実行
-                        if (record.id.startsWith('temp-')) {
+                        if (record.id && record.id.startsWith('temp-')) {
                           saveTemporaryRecord(record.id);
                         }
                       }}
@@ -827,7 +855,7 @@ export default function MedicationList() {
                         console.log('Type changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "type", value);
                         // 一時的なレコードの場合は保存処理を実行
-                        if (record.id.startsWith('temp-')) {
+                        if (record.id && record.id.startsWith('temp-')) {
                           setTimeout(() => saveTemporaryRecord(record.id), 200);
                         }
                       }}
@@ -850,7 +878,7 @@ export default function MedicationList() {
                         const actualValue = value === "空欄" ? "" : value;
                         handleFieldUpdate(record.id, "result", actualValue);
                         // 一時的なレコードの場合は保存処理を実行
-                        if (record.id.startsWith('temp-')) {
+                        if (record.id && record.id.startsWith('temp-')) {
                           setTimeout(() => saveTemporaryRecord(record.id), 200);
                         }
                       }}
