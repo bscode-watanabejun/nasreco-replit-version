@@ -363,6 +363,7 @@ export default function ExcretionList() {
   const [cellData, setCellData] = useState<Record<string, ExcretionData>>({});
   const [notesData, setNotesData] = useState<Record<string, string>>({});
   const [assistanceData, setAssistanceData] = useState<Record<string, { stool: string; urine: string }>>({});
+  const [aiAnalysisData, setAiAnalysisData] = useState<Record<string, string>>({});
   
   // タブ管理
   const [activeTab, setActiveTab] = useState<'record' | 'summary'>('record');
@@ -398,6 +399,7 @@ export default function ExcretionList() {
     setCellData({});
     setNotesData({});
     setAssistanceData({});
+    setAiAnalysisData({});
   }, [selectedDate, selectedFloor]);
 
   // APIから取得したデータをローカル状態に反映
@@ -612,6 +614,25 @@ export default function ExcretionList() {
     setNotesDialogOpen(true);
   };
 
+  // AI分析データ保存ハンドラー
+  const handleSaveAiAnalysis = async (residentId: string, analysis: string) => {
+    setAiAnalysisData(prev => ({
+      ...prev,
+      [residentId]: analysis
+    }));
+    
+    console.log('AI分析データ保存:', { residentId, analysis });
+    
+    // ここで必要に応じてAPIに送信（現在はローカルstateのみ更新）
+    try {
+      // 将来的にAPIエンドポイントを追加する場合はここに実装
+      // await apiRequest('/api/ai-analysis', 'POST', { residentId, date: selectedDate, analysis });
+      // queryClient.invalidateQueries({ queryKey: ['/api/ai-analysis'] });
+    } catch (error) {
+      console.error('AI分析データの保存エラー:', error);
+    }
+  };
+
   // セルデータ取得
   const getCellData = (residentId: string, hour: number): ExcretionData => {
     const key = `${residentId}-${hour}`;
@@ -633,6 +654,11 @@ export default function ExcretionList() {
   const getAssistanceData = (residentId: string, type: 'stool' | 'urine'): string => {
     const key = `${residentId}--1`;
     return assistanceData[key]?.[type] || "";
+  };
+
+  // AI分析データ取得
+  const getAiAnalysisData = (residentId: string): string => {
+    return aiAnalysisData[residentId] || "";
   };
 
   // セル表示用の文字取得関数
@@ -921,7 +947,7 @@ export default function ExcretionList() {
                         const residentRecords = records.filter((r: any) => r.residentId === residentId);
                         
                         if (residentRecords.length === 0) {
-                          return "傾向：過去1週間の記録がありません。\n注意：記録漏れの可能性があります。";
+                          return "傾向：過去1週間の記録が\nありません。\n注意：記録漏れの可能性があります。";
                         }
 
                         const stoolRecords = residentRecords.filter((r: any) => r.type === 'bowel_movement');
@@ -953,12 +979,15 @@ export default function ExcretionList() {
 
                       const aiAnalysis = generateAIAnalysis(resident.id, excretionRecords);
                       
+                      // 編集済みのAI分析があればそれを使用、なければ自動生成されたものを使用
+                      const currentAiAnalysis = getAiAnalysisData(resident.id) || aiAnalysis;
+                      
                       const residentId = resident.id;
                       return (
                         <>
                           {/* 便の行 */}
-                          <tr key={`${residentId}-stool`}> 
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10" rowSpan={2}>
+                          <tr key={`${residentId}-stool`}>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10 w-16" rowSpan={2}>
                               <div className="text-xs font-bold">{resident.roomNumber}</div>
                               <div className="text-xs text-gray-600 leading-tight font-bold">
                                 {resident.name.includes(' ') ? 
@@ -969,50 +998,61 @@ export default function ExcretionList() {
                                 }
                               </div>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
                               便計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed">
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed w-10">
                               <span className="text-xs font-bold">{stoolCount > 0 ? stoolCount : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
                               最終便
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed">
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed w-16">
                               <span className="text-xs font-bold">{daysSinceLastStool}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
                               サイズ
                             </td>
-                            <td className="border-b border-gray-200 px-2 py-2 text-center border-b-dashed">
+                            <td className="border-b border-gray-200 px-2 py-2 text-center border-b-dashed w-24">
                               <span className="text-xs font-bold">{resident.diaperSize || ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center" rowSpan={2}>
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center w-64" rowSpan={2}>
                               <textarea
-                                readOnly
-                                value={aiAnalysis}
-                                className="w-full h-24 text-xs p-1 border border-gray-300 rounded bg-gray-50 resize-none"
+                                value={currentAiAnalysis}
+                                onChange={(e) => {
+                                  // リアルタイムでローカルstateを更新
+                                  setAiAnalysisData(prev => ({
+                                    ...prev,
+                                    [resident.id]: e.target.value
+                                  }));
+                                }}
+                                onBlur={(e) => {
+                                  // カーソルアウト時にデータを保存
+                                  handleSaveAiAnalysis(resident.id, e.target.value);
+                                }}
+                                className="w-full h-24 text-xs p-1 border border-gray-300 rounded bg-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="AI分析結果を編集できます..."
                               />
                             </td>
                           </tr>
                           {/* 尿の行 */}
                           <tr key={`${residentId}-urine`}> 
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100 w-12">
                               尿計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center w-10">
                               <span className="text-xs font-bold">{urineCount > 0 ? urineCount : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100 w-12">
                               尿量計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
                               <span className="text-xs font-bold">{totalUrineCC > 0 ? `${totalUrineCC}cc` : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100 w-12">
                               コース
                             </td>
-                            <td className="border-b border-gray-200 px-2 py-2 text-center">
+                            <td className="border-b border-gray-200 px-2 py-2 text-center w-24">
                               <span className="text-xs font-bold">{resident.diaperType || ''}</span>
                             </td>
                           </tr>
