@@ -797,7 +797,7 @@ export default function ExcretionList() {
                 {filteredResidents.map((resident: Resident) => {
                   const residentId = resident.id;
                   return (
-                    <React.Fragment key={`${residentId}-record`}>
+                    <div key={`${residentId}-record`}>
                       {/* 便の行 */}
                       <tr key={`${residentId}-stool`}>
                       <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10" rowSpan={2}>
@@ -889,7 +889,7 @@ export default function ExcretionList() {
                         );
                       })}
                       </tr>
-                    </React.Fragment>
+                    </div>
                   );
                 })}
               </tbody>
@@ -1001,7 +1001,7 @@ export default function ExcretionList() {
                       
                       const residentId = resident.id;
                       return (
-                        <React.Fragment key={`${residentId}-summary`}>
+                        <div key={`${residentId}-summary`}>
                           {/* 便の行 */}
                           <tr key={`${residentId}-stool`}>
                             <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center bg-gray-100 sticky left-0 z-10 w-16" rowSpan={2}>
@@ -1073,7 +1073,7 @@ export default function ExcretionList() {
                               <span className="text-xs font-bold">{resident.diaperType || ''}</span>
                             </td>
                           </tr>
-                        </React.Fragment>
+                        </div>
                       );
                     })}
                   </tbody>
