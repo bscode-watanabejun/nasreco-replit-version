@@ -222,6 +222,9 @@ function ExcretionDialog({
       <DialogContent className="sm:max-w-md [&>button]:hidden">
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>
+            排泄記録の詳細を入力してください。
+          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4 py-4">
           {/* 左上：便状態 */}
@@ -312,6 +315,9 @@ function NotesDialog({
       <DialogContent className="sm:max-w-md [&>button]:hidden">
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>
+            記録内容を入力してください。
+          </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <div className="space-y-2">
@@ -768,7 +774,7 @@ export default function ExcretionList() {
                         <div className="text-xs text-gray-600 leading-tight font-bold">
                           {resident.name.includes(' ') ? 
                             resident.name.split(' ').map((part, index) => (
-                              <div key={index}>{part}</div>
+                              <div key={`${resident.id}-name-${index}`}>{part}</div>
                             )) : 
                             <div>{resident.name}</div>
                           }
@@ -908,7 +914,7 @@ export default function ExcretionList() {
                       }).length;
                       
                       // 最終便の時間を取得
-                      const lastStoolHour = hours.reverse().find(hour => {
+                      const lastStoolHour = [...hours].reverse().find(hour => {
                         const data = getCellData(resident.id, hour);
                         return data.stoolState || data.stoolAmount;
                       });
