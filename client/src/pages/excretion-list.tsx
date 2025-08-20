@@ -222,9 +222,6 @@ function ExcretionDialog({
       <DialogContent className="sm:max-w-md [&>button]:hidden">
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
-          <DialogDescription>
-            排泄記録の詳細情報を入力してください
-          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4 py-4">
           {/* 左上：便状態 */}
@@ -315,9 +312,6 @@ function NotesDialog({
       <DialogContent className="sm:max-w-md [&>button]:hidden">
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
-          <DialogDescription>
-            記録内容を自由に入力してください
-          </DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <div className="space-y-2">
@@ -343,7 +337,15 @@ export default function ExcretionList() {
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), 'yyyy-MM-dd'));
-  const [selectedFloor, setSelectedFloor] = useState(urlParams.get('floor') || 'all');
+  const [selectedFloor, setSelectedFloor] = useState(() => {
+    const floorParam = urlParams.get('floor');
+    if (floorParam) {
+      // 古いフォーマット（all, 1F, 2Fなど）を新しいフォーマット（全階, 1階, 2階など）に変換
+      if (floorParam === 'all') return '全階';
+      if (floorParam.endsWith('F')) return floorParam.replace('F', '階');
+    }
+    return '全階';
+  });
   
   // ダイアログ状態管理
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -354,6 +356,10 @@ export default function ExcretionList() {
   // セルデータ管理
   const [cellData, setCellData] = useState<Record<string, ExcretionData>>({});
   const [notesData, setNotesData] = useState<Record<string, string>>({});
+  const [assistanceData, setAssistanceData] = useState<Record<string, { stool: string; urine: string }>>({});
+  
+  // タブ管理
+  const [activeTab, setActiveTab] = useState<'record' | 'summary'>('record');
   
   // 今日の日付を取得（日本語表示）
   const displayDate = format(new Date(selectedDate), 'M月d日', { locale: ja });
@@ -363,22 +369,117 @@ export default function ExcretionList() {
     queryKey: ['/api/residents'],
   });
 
-  // フィルタリングされた利用者リスト
-  const filteredResidents = allResidents.filter((resident: Resident) => {
-    if (selectedFloor === 'all') return true;
-    // 数値と文字列（"1F", "2F"など）の両方に対応
-    return resident.floor === selectedFloor || 
-           resident.floor === `${selectedFloor}F` ||
-           resident.floor === selectedFloor.toString();
-  });
-
-  // 排泄記録データを取得（将来的に実装）
+  // 排泄記録データを取得
   const { data: excretionRecords } = useQuery({
     queryKey: ['/api/excretion-records', selectedDate, selectedFloor],
     queryFn: async () => {
-      // 将来的にAPIエンドポイントを実装
-      return [];
+      const startDate = new Date(selectedDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(selectedDate);
+      endDate.setHours(23, 59, 59, 999);
+      
+      const response = await fetch(`/api/excretion-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch excretion records');
+      }
+      return response.json();
     }
+  });
+
+  // 日付や階数が変更されたときにローカル状態をリセット
+  useEffect(() => {
+    setCellData({});
+    setNotesData({});
+    setAssistanceData({});
+  }, [selectedDate, selectedFloor]);
+
+  // APIから取得したデータをローカル状態に反映
+  useEffect(() => {
+    if (!excretionRecords || !Array.isArray(excretionRecords)) return;
+
+    const newCellData: Record<string, ExcretionData> = {};
+    const newNotesData: Record<string, string> = {};
+    const newAssistanceData: Record<string, { stool: string; urine: string }> = {};
+
+    excretionRecords.forEach((record: any) => {
+      const key = `${record.residentId}--1`; // -1は自立列用
+
+      // 自立列のデータ（assistanceフィールドを使用）
+      if (record.assistance) {
+        if (!newAssistanceData[key]) {
+          newAssistanceData[key] = { stool: "", urine: "" };
+        }
+        if (record.type === 'bowel_movement') {
+          newAssistanceData[key].stool = record.assistance;
+        } else if (record.type === 'urination') {
+          newAssistanceData[key].urine = record.assistance;
+        }
+      }
+
+      // 記録から時間を抽出する簡易的な方法
+      if (record.notes && record.notes.includes('時の')) {
+        const hourMatch = record.notes.match(/(\d+)時の/);
+        if (hourMatch) {
+          const extractedHour = parseInt(hourMatch[1]);
+          const extractedKey = `${record.residentId}-${extractedHour}`;
+
+          if (record.type === 'bowel_movement') {
+            if (!newCellData[extractedKey]) {
+              newCellData[extractedKey] = { stoolState: "", stoolAmount: "", urineCC: "", urineAmount: "" };
+            }
+            newCellData[extractedKey].stoolState = record.consistency || "";
+            newCellData[extractedKey].stoolAmount = record.amount || "";
+          } else if (record.type === 'urination') {
+            if (!newCellData[extractedKey]) {
+              newCellData[extractedKey] = { stoolState: "", stoolAmount: "", urineCC: "", urineAmount: "" };
+            }
+            newCellData[extractedKey].urineAmount = record.amount || "";
+            // CCを抽出
+            const ccMatch = record.notes?.match(/\((\d+)CC\)/);
+            if (ccMatch) {
+              newCellData[extractedKey].urineCC = ccMatch[1];
+            }
+          } else if (record.type === 'general_note') {
+            const noteMatch = record.notes?.match(/\d+時の記録: (.+)/);
+            if (noteMatch) {
+              newNotesData[extractedKey] = noteMatch[1];
+            }
+          }
+        }
+      }
+    });
+
+    // データを置き換える（蓄積しない）
+    setCellData(newCellData);
+    setNotesData(newNotesData);
+    setAssistanceData(newAssistanceData);
+  }, [excretionRecords]);
+
+  // フィルタリングされた利用者リスト
+  const filteredResidents = allResidents.filter((resident: Resident) => {
+    if (selectedFloor === 'all' || selectedFloor === '全階') return true;
+    
+    const residentFloor = resident.floor;
+    if (!residentFloor) return false; // null/undefinedをフィルタアウト
+    
+    // 複数のフォーマットに対応した比較
+    const selectedFloorNumber = selectedFloor.replace("階", "").replace("F", "");
+    
+    // "1階" 形式との比較
+    if (residentFloor === selectedFloor) return true;
+    
+    // "1F" 形式との比較
+    if (residentFloor === `${selectedFloorNumber}F`) return true;
+    
+    // "1" 形式との比較
+    if (residentFloor === selectedFloorNumber) return true;
+    
+    return false;
+  }).sort((a: Resident, b: Resident) => {
+    // 居室番号で昇順ソート
+    const roomA = parseInt(a.roomNumber || "0");
+    const roomB = parseInt(b.roomNumber || "0");
+    return roomA - roomB;
   });
 
   // 時間セル用のオプション
@@ -397,10 +498,26 @@ export default function ExcretionList() {
   // 時間配列を生成（0-23時）
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // セルのクリックハンドラー（将来的に実装）
-  const handleCellClick = (residentId: string, hour: number, type: 'urine' | 'stool', field: string, value: string) => {
+  // セルのクリックハンドラー
+  const handleCellClick = async (residentId: string, hour: number, type: 'urine' | 'stool', field: string, value: string) => {
     console.log('Cell clicked:', { residentId, hour, type, field, value });
-    // 将来的にAPIを通じてデータを保存
+    
+    if (!residentId || !value.trim()) return;
+    
+    try {
+      const recordData = {
+        residentId,
+        recordDate: new Date(selectedDate).toISOString(),
+        type: type === 'stool' ? 'bowel_movement' : 'urination',
+        assistance: value,
+        notes: `${hour}時の${type === 'stool' ? '便' : '尿'}記録`
+      };
+      
+      await apiRequest('/api/excretion-records', 'POST', recordData);
+      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records'] });
+    } catch (error) {
+      console.error('Error saving excretion record:', error);
+    }
   };
 
   // 時間セルのクリックハンドラー
@@ -410,25 +527,72 @@ export default function ExcretionList() {
   };
 
   // データ保存ハンドラー
-  const handleSaveExcretionData = (residentId: string, hour: number, data: ExcretionData) => {
+  const handleSaveExcretionData = async (residentId: string, hour: number, data: ExcretionData) => {
     const key = `${residentId}-${hour}`;
     setCellData(prev => ({
       ...prev,
       [key]: data
     }));
     console.log('Excretion data saved:', { residentId, hour, data });
-    // 将来的にAPIを通じてデータを保存
+    
+    if (!residentId) return;
+    
+    try {
+      // 便記録の保存
+      if (data.stoolState || data.stoolAmount) {
+        const stoolRecord = {
+          residentId,
+          recordDate: new Date(selectedDate).toISOString(),
+          type: 'bowel_movement',
+          consistency: data.stoolState || null,
+          amount: data.stoolAmount || null,
+          notes: `${hour}時の便記録`
+        };
+        await apiRequest('/api/excretion-records', 'POST', stoolRecord);
+      }
+      
+      // 尿記録の保存
+      if (data.urineCC || data.urineAmount) {
+        const urineRecord = {
+          residentId,
+          recordDate: new Date(selectedDate).toISOString(),
+          type: 'urination',
+          amount: data.urineAmount || null,
+          notes: `${hour}時の尿記録${data.urineCC ? ` (${data.urineCC}CC)` : ''}`
+        };
+        await apiRequest('/api/excretion-records', 'POST', urineRecord);
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records'] });
+    } catch (error) {
+      console.error('Error saving excretion record:', error);
+    }
   };
 
   // 記録データ保存ハンドラー
-  const handleSaveNotesData = (residentId: string, hour: number, notes: string) => {
+  const handleSaveNotesData = async (residentId: string, hour: number, notes: string) => {
     const key = `${residentId}-${hour}`;
     setNotesData(prev => ({
       ...prev,
       [key]: notes
     }));
     console.log('Notes data saved:', { residentId, hour, notes });
-    // 将来的にAPIを通じてデータを保存
+    
+    if (!residentId || !notes.trim()) return;
+    
+    try {
+      const recordData = {
+        residentId,
+        recordDate: new Date(selectedDate).toISOString(),
+        type: 'general_note',
+        notes: `${hour}時の記録: ${notes}`
+      };
+      
+      await apiRequest('/api/excretion-records', 'POST', recordData);
+      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records'] });
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    }
   };
 
   // 記録セルクリックハンドラー
@@ -452,6 +616,12 @@ export default function ExcretionList() {
   const getNotesData = (residentId: string, hour: number): string => {
     const key = `${residentId}-${hour}`;
     return notesData[key] || "";
+  };
+
+  // 自立データ取得
+  const getAssistanceData = (residentId: string, type: 'stool' | 'urine'): string => {
+    const key = `${residentId}--1`;
+    return assistanceData[key]?.[type] || "";
   };
 
   // セル表示用の文字取得関数
@@ -516,42 +686,71 @@ export default function ExcretionList() {
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <Select value={selectedFloor} onValueChange={setSelectedFloor}>
-                <SelectTrigger className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1" data-testid="select-floor">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全階</SelectItem>
-                  <SelectItem value="1F">1階</SelectItem>
-                  <SelectItem value="2F">2階</SelectItem>
-                  <SelectItem value="3F">3階</SelectItem>
-                  <SelectItem value="4F">4階</SelectItem>
-                  <SelectItem value="5F">5階</SelectItem>
-                </SelectContent>
-              </Select>
+              <InputWithDropdown
+                value={selectedFloor}
+                options={[
+                  { value: "全階", label: "全階" },
+                  { value: "1階", label: "1階" },
+                  { value: "2階", label: "2階" },
+                  { value: "3階", label: "3階" },
+                  { value: "4階", label: "4階" },
+                  { value: "5階", label: "5階" },
+                ]}
+                onSave={(value) => setSelectedFloor(value)}
+                placeholder="フロア選択"
+                className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* 排泄記録テーブル */}
-      <div className="p-4">
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+      {/* タブナビゲーション */}
+      <div className="px-1">
+        <div className="flex bg-white rounded-t-lg border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('record')}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === 'record'
+                ? 'border-blue-500 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            記録
+          </button>
+          <button
+            onClick={() => setActiveTab('summary')}
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
+              activeTab === 'summary'
+                ? 'border-blue-500 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            合計
+          </button>
+        </div>
+      </div>
+
+      {/* コンテンツ - タブごとに異なる */}
+      <div className="px-1 py-2">
+        {activeTab === 'record' ? (
+          /* 記録タブ - 既存の排泄記録テーブル */
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs table-fixed">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border-r border-b border-gray-200 px-2 py-1 text-center w-20">
+                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-12 bg-gray-100 sticky left-0 z-20">
                     {/* 空白 */}
                   </th>
-                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center min-w-[35px]">
+                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden bg-gray-100 sticky left-12 z-20">
                     {/* 空白 */}
                   </th>
-                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center min-w-[35px]">自立</th>
-                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center min-w-[35px]">記録</th>
+                  <th className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden">自立</th>
+                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-[40px] text-xs overflow-hidden">記録</th>
                   {hours.map(hour => (
-                    <th key={hour} className="border-r border-b border-gray-200 px-1 py-1 text-center min-w-[35px]">
+                    <th key={hour} className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden border-solid">
                       {hour}
                     </th>
                   ))}
@@ -564,26 +763,41 @@ export default function ExcretionList() {
                     <>
                       {/* 便の行 */}
                       <tr key={`${residentId}-stool`}>
-                      <td className="border-r border-b border-gray-200 px-2 py-1 text-center" rowSpan={2}>
-                        <div className="text-[11px] font-medium">{resident.roomNumber}</div>
-                        <div className="text-[10px] text-gray-600 leading-tight">{resident.name}</div>
+                      <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10" rowSpan={2}>
+                        <div className="text-xs font-bold">{resident.roomNumber}</div>
+                        <div className="text-xs text-gray-600 leading-tight font-bold">
+                          {resident.name.includes(' ') ? 
+                            resident.name.split(' ').map((part, index) => (
+                              <div key={index}>{part}</div>
+                            )) : 
+                            <div>{resident.name}</div>
+                          }
+                        </div>
                       </td>
-                      <td className="border-r border-b border-gray-200 px-1 py-1 text-center">便</td>
-                      <td className="border-r border-b border-gray-200 px-1 py-1 text-center">
+                      <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">便</td>
+                      <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-0 py-1 text-center w-[28px] text-xs overflow-hidden">
                         <input
                           type="text"
-                          onChange={(e) => handleCellClick(resident.id, -1, 'stool', 'status', e.target.value)}
-                          placeholder=""
-                          className="w-full h-6 text-xs text-center border-0 bg-transparent focus:outline-none font-bold"
+                          value={getAssistanceData(resident.id, 'stool')}
+                          onChange={(e) => {
+                            const key = `${resident.id}--1`;
+                            setAssistanceData(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], stool: e.target.value }
+                            }));
+                            handleCellClick(resident.id, -1, 'stool', 'status', e.target.value);
+                          }}
+                          placeholder="入力"
+                          className="w-full h-6 text-xs text-center border border-dashed border-gray-300 bg-blue-50 hover:bg-blue-100 focus:bg-white focus:border-blue-500 focus:outline-none font-bold rounded cursor-text transition-colors px-0.5"
                         />
                       </td>
                       <td 
-                        className="border-r border-b border-gray-200 px-1 py-1 text-center cursor-pointer hover:bg-blue-50" 
+                        className="border-r border-b border-gray-200 px-1 py-1 text-center cursor-pointer hover:bg-blue-100 w-[40px] text-xs overflow-hidden bg-blue-50 transition-colors" 
                         rowSpan={2}
                         onClick={() => handleNotesClick(resident.id, -1)}
                       >
                         <div className="text-xs leading-tight">
-                          {getNotesData(resident.id, -1).substring(0, 6)}
+                          {getNotesData(resident.id, -1).substring(0, 3) || "記録"}
                         </div>
                       </td>
                       {hours.map(hour => {
@@ -592,7 +806,7 @@ export default function ExcretionList() {
                         return (
                           <td 
                             key={hour} 
-                            className="border-r border-b border-gray-200 px-1 py-1 text-center cursor-pointer hover:bg-blue-50"
+                            className="border-r border-gray-200 border-b border-dashed px-0 py-1 text-center cursor-pointer hover:bg-blue-50 w-[28px] text-xs overflow-hidden border-r-solid"
                             onClick={() => handleTimesCellClick(resident.id, hour)}
                           >
                             <div className="text-xs whitespace-pre-line leading-tight">
@@ -604,13 +818,21 @@ export default function ExcretionList() {
                     </tr>
                       {/* 記録の行 */}
                       <tr key={`${residentId}-urine`}>
-                      <td className="border-r border-b border-gray-200 px-1 py-1 text-center">尿</td>
-                      <td className="border-r border-b border-gray-200 px-1 py-1 text-center">
+                      <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">尿</td>
+                      <td className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden">
                         <input
                           type="text"
-                          onChange={(e) => handleCellClick(resident.id, -1, 'urine', 'status', e.target.value)}
-                          placeholder=""
-                          className="w-full h-6 text-xs text-center border-0 bg-transparent focus:outline-none font-bold"
+                          value={getAssistanceData(resident.id, 'urine')}
+                          onChange={(e) => {
+                            const key = `${resident.id}--1`;
+                            setAssistanceData(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], urine: e.target.value }
+                            }));
+                            handleCellClick(resident.id, -1, 'urine', 'status', e.target.value);
+                          }}
+                          placeholder="入力"
+                          className="w-full h-6 text-xs text-center border border-dashed border-gray-300 bg-blue-50 hover:bg-blue-100 focus:bg-white focus:border-blue-500 focus:outline-none font-bold rounded cursor-text transition-colors px-0.5"
                         />
                       </td>
                       {/* 記録列は上の行でrowSpan={2}でマージされているため、ここにはセルなし */}
@@ -620,7 +842,7 @@ export default function ExcretionList() {
                         return (
                           <td 
                             key={`${hour}-record`} 
-                            className="border-r border-b border-gray-200 px-1 py-1 text-center cursor-pointer hover:bg-blue-50"
+                            className="border-r border-b border-gray-200 px-0 py-1 text-center cursor-pointer hover:bg-blue-50 w-[28px] text-xs overflow-hidden border-r-solid"
                             onClick={() => handleTimesCellClick(resident.id, hour)}
                           >
                             <div className="text-xs leading-tight">
@@ -635,9 +857,104 @@ export default function ExcretionList() {
                 })}
               </tbody>
             </table>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          /* 合計タブ - 新しい合計テーブル */
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs table-fixed">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-20 bg-gray-100 sticky left-0 z-20">
+                        居室番号
+                      </th>
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-24 bg-gray-100 sticky left-20 z-20">
+                        利用者名
+                      </th>
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
+                        便計
+                      </th>
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
+                        尿計
+                      </th>
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-20">
+                        最終便
+                      </th>
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-20">
+                        尿量計
+                      </th>
+                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
+                        サイズ
+                      </th>
+                      <th className="border-b border-gray-200 px-2 py-2 text-center w-16">
+                        コース
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredResidents.map((resident: Resident) => {
+                      // 合計データの計算
+                      const stoolCount = hours.filter(hour => {
+                        const data = getCellData(resident.id, hour);
+                        return data.stoolState || data.stoolAmount;
+                      }).length;
+                      
+                      const urineCount = hours.filter(hour => {
+                        const data = getCellData(resident.id, hour);
+                        return data.urineCC || data.urineAmount;
+                      }).length;
+                      
+                      // 最終便の時間を取得
+                      const lastStoolHour = hours.reverse().find(hour => {
+                        const data = getCellData(resident.id, hour);
+                        return data.stoolState || data.stoolAmount;
+                      });
+                      
+                      // 尿量計の合計を計算
+                      const totalUrineCC = hours.reduce((total, hour) => {
+                        const data = getCellData(resident.id, hour);
+                        const cc = parseInt(data.urineCC) || 0;
+                        return total + cc;
+                      }, 0);
+                      
+                      return (
+                        <tr key={resident.id}>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center bg-gray-100 sticky left-0 z-10 font-bold">
+                            {resident.roomNumber}
+                          </td>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center bg-gray-100 sticky left-20 z-10 font-bold">
+                            {resident.name}
+                          </td>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            {stoolCount > 0 ? stoolCount : ''}
+                          </td>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            {urineCount > 0 ? urineCount : ''}
+                          </td>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            {lastStoolHour !== undefined ? `${lastStoolHour}時` : ''}
+                          </td>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            {totalUrineCC > 0 ? `${totalUrineCC}CC` : ''}
+                          </td>
+                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                            {/* サイズ欄 - 後で実装 */}
+                          </td>
+                          <td className="border-b border-gray-200 px-2 py-2 text-center">
+                            {/* コース欄 - 後で実装 */}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* 排泄記録ダイアログ */}
