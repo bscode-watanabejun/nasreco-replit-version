@@ -379,10 +379,11 @@ export default function ExcretionList() {
   const { data: excretionRecords } = useQuery({
     queryKey: ['/api/excretion-records', selectedDate, selectedFloor],
     queryFn: async () => {
-      const startDate = new Date(selectedDate);
-      startDate.setHours(0, 0, 0, 0);
       const endDate = new Date(selectedDate);
       endDate.setHours(23, 59, 59, 999);
+      const startDate = new Date(selectedDate);
+      startDate.setDate(endDate.getDate() - 6);
+      startDate.setHours(0, 0, 0, 0);
       
       const response = await fetch(`/api/excretion-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
       if (!response.ok) {
@@ -406,8 +407,12 @@ export default function ExcretionList() {
     const newCellData: Record<string, ExcretionData> = {};
     const newNotesData: Record<string, string> = {};
     const newAssistanceData: Record<string, { stool: string; urine: string }> = {};
+    
+    const selectedDayStart = startOfDay(new Date(selectedDate));
 
-    excretionRecords.forEach((record: any) => {
+    excretionRecords
+      .filter((record: any) => startOfDay(new Date(record.recordDate)).getTime() === selectedDayStart.getTime())
+      .forEach((record: any) => {
       const key = `${record.residentId}--1`; // -1は自立列用
 
       // 自立列のデータ（assistanceフィールドを使用）
@@ -459,7 +464,7 @@ export default function ExcretionList() {
     setCellData(newCellData);
     setNotesData(newNotesData);
     setAssistanceData(newAssistanceData);
-  }, [excretionRecords]);
+  }, [excretionRecords, selectedDate]);
 
   // フィルタリングされた利用者リスト
   const filteredResidents = allResidents.filter((resident: Resident) => {
@@ -716,8 +721,7 @@ export default function ExcretionList() {
         <div className="flex bg-white rounded-t-lg border-b border-gray-200">
           <button
             onClick={() => setActiveTab('record')}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-              activeTab === 'record'
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'record'
                 ? 'border-blue-500 text-blue-600 bg-blue-50'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
@@ -726,8 +730,7 @@ export default function ExcretionList() {
           </button>
           <button
             onClick={() => setActiveTab('summary')}
-            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
-              activeTab === 'summary'
+            className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${activeTab === 'summary'
                 ? 'border-blue-500 text-blue-600 bg-blue-50'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
@@ -798,7 +801,7 @@ export default function ExcretionList() {
                         />
                       </td>
                       <td 
-                        className="border-r border-b border-gray-200 px-1 py-1 text-center cursor-pointer hover:bg-blue-100 w-[40px] text-xs overflow-hidden bg-blue-50 transition-colors" 
+                        className="border-r border-b border-gray-200 px-1 py-1 text-center cursor-pointer hover:bg-blue-100 w-[40px] text-xs overflow-hidden bg-blue-50 transition-colors"
                         rowSpan={2}
                         onClick={() => handleNotesClick(resident.id, -1)}
                       >
@@ -872,34 +875,6 @@ export default function ExcretionList() {
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs table-fixed">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-20 bg-gray-100 sticky left-0 z-20">
-                        居室番号
-                      </th>
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-24 bg-gray-100 sticky left-20 z-20">
-                        利用者名
-                      </th>
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
-                        便計
-                      </th>
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
-                        尿計
-                      </th>
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-20">
-                        最終便
-                      </th>
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-20">
-                        尿量計
-                      </th>
-                      <th className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
-                        サイズ
-                      </th>
-                      <th className="border-b border-gray-200 px-2 py-2 text-center w-16">
-                        コース
-                      </th>
-                    </tr>
-                  </thead>
                   <tbody>
                     {filteredResidents.map((resident: Resident) => {
                       // 合計データの計算
@@ -913,11 +888,23 @@ export default function ExcretionList() {
                         return data.urineCC || data.urineAmount;
                       }).length;
                       
-                      // 最終便の時間を取得
-                      const lastStoolHour = [...hours].reverse().find(hour => {
-                        const data = getCellData(resident.id, hour);
-                        return data.stoolState || data.stoolAmount;
-                      });
+                      // 最終便からの経過日数を計算
+                      const today = new Date(selectedDate);
+                      let daysSinceLastStool = '';
+                      if (excretionRecords) {
+                        const residentStoolRecords = excretionRecords
+                          .filter((r: any) => r.residentId === resident.id && r.type === 'bowel_movement')
+                          .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime());
+
+                        if (residentStoolRecords.length > 0) {
+                          const lastStoolDate = new Date(residentStoolRecords[0].recordDate);
+                          const diffTime = today.getTime() - lastStoolDate.getTime();
+                          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                          daysSinceLastStool = `${diffDays}日`;
+                        } else {
+                          daysSinceLastStool = '-';
+                        }
+                      }
                       
                       // 尿量計の合計を計算
                       const totalUrineCC = hours.reduce((total, hour) => {
@@ -925,34 +912,112 @@ export default function ExcretionList() {
                         const cc = parseInt(data.urineCC) || 0;
                         return total + cc;
                       }, 0);
+
+                      // AI分析の生成（簡易実装）
+                      const generateAIAnalysis = (residentId: string, records: any[]) => {
+                        if (!records) {
+                          return "分析中...";
+                        }
+                        const residentRecords = records.filter(r => r.residentId === residentId);
+                        
+                        if (residentRecords.length === 0) {
+                          return "傾向：過去1週間の記録がありません。
+注意：記録漏れの可能性があります。";
+                        }
+
+                        const stoolRecords = residentRecords.filter(r => r.type === 'bowel_movement');
+                        const urineRecords = residentRecords.filter(r => r.type === 'urination');
+
+                        let trend = `傾向：過去1週間で${stoolRecords.length}回の排便、${urineRecords.length}回の排尿がありました。`;
+                        let attention = "注意：";
+
+                        if (stoolRecords.length === 0) {
+                          attention += "1週間排便がありません。便秘の可能性があります。";
+                        } else {
+                          const wateryStool = stoolRecords.some(r => r.consistency === '水様便');
+                          if (wateryStool) {
+                            trend += "水様便が見られます。";
+                            attention += "下剤の影響や感染症の可能性も考えられます。";
+                          }
+                        }
+
+                        if (urineRecords.length < 7) {
+                            attention += "尿の回数が少ないようです。水分摂取量を確認してください。";
+                        }
+                        
+                        if (attention === "注意：") {
+                          attention += "特記事項はありません。";
+                        }
+
+                        return trend + "\n" + attention;
+                      };
+
+                      const aiAnalysis = generateAIAnalysis(resident.id, excretionRecords);
                       
+                      const residentId = resident.id;
                       return (
-                        <tr key={resident.id}>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center bg-gray-100 sticky left-0 z-10 font-bold">
-                            {resident.roomNumber}
-                          </td>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center bg-gray-100 sticky left-20 z-10 font-bold">
-                            {resident.name}
-                          </td>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
-                            {stoolCount > 0 ? stoolCount : ''}
-                          </td>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
-                            {urineCount > 0 ? urineCount : ''}
-                          </td>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
-                            {lastStoolHour !== undefined ? `${lastStoolHour}時` : ''}
-                          </td>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
-                            {totalUrineCC > 0 ? `${totalUrineCC}CC` : ''}
-                          </td>
-                          <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
-                            {/* サイズ欄 - 後で実装 */}
-                          </td>
-                          <td className="border-b border-gray-200 px-2 py-2 text-center">
-                            {/* コース欄 - 後で実装 */}
-                          </td>
-                        </tr>
+                        <>
+                          {/* 便の行 */}
+                          <tr key={`${residentId}-stool`}> 
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10" rowSpan={2}>
+                              <div className="text-xs font-bold">{resident.roomNumber}</div>
+                              <div className="text-xs text-gray-600 leading-tight font-bold">
+                                {resident.name.includes(' ') ? 
+                                  resident.name.split(' ').map((part, index) => (
+                                    <div key={`${resident.id}-name-${index}`}>{part}</div>
+                                  )) : 
+                                  <div>{resident.name}</div>
+                                }
+                              </div>
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100">
+                              便計
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed">
+                              <span className="text-xs font-bold">{stoolCount > 0 ? stoolCount : ''}</span>
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100">
+                              最終便
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed">
+                              <span className="text-xs font-bold">{daysSinceLastStool}</span>
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100">
+                              サイズ
+                            </td>
+                            <td className="border-b border-gray-200 px-2 py-2 text-center border-b-dashed">
+                              <span className="text-xs font-bold">{resident.diaperSize || ''}</span>
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center" rowSpan={2}>
+                              <textarea
+                                readOnly
+                                value={aiAnalysis}
+                                className="w-full h-24 text-xs p-1 border border-gray-300 rounded bg-gray-50 resize-none"
+                              />
+                            </td>
+                          </tr>
+                          {/* 尿の行 */}
+                          <tr key={`${residentId}-urine`}> 
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100">
+                              尿計
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                              <span className="text-xs font-bold">{urineCount > 0 ? urineCount : ''}</span>
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100">
+                              尿量計
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center">
+                              <span className="text-xs font-bold">{totalUrineCC > 0 ? `${totalUrineCC}cc` : ''}</span>
+                            </td>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100">
+                              コース
+                            </td>
+                            <td className="border-b border-gray-200 px-2 py-2 text-center">
+                              <span className="text-xs font-bold">{resident.diaperType || ''}</span>
+                            </td>
+                          </tr>
+                        </>
                       );
                     })}
                   </tbody>
