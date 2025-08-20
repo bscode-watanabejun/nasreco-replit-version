@@ -704,41 +704,43 @@ export default function ExcretionList() {
             排泄一覧
           </h1>
         </div>
+      </div>
 
-        {/* 日付とフロア選択 */}
+      {/* フィルタ条件 */}
+      <div className="px-4">
         <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
-            {/* 日付選択 */}
-            <div className="flex items-center space-x-1">
-              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
-                data-testid="input-date"
-              />
-            </div>
-            
-            {/* フロア選択 */}
-            <div className="flex items-center space-x-1">
-              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <InputWithDropdown
-                value={selectedFloor}
-                options={[
-                  { value: "全階", label: "全階" },
-                  { value: "1階", label: "1階" },
-                  { value: "2階", label: "2階" },
-                  { value: "3階", label: "3階" },
-                  { value: "4階", label: "4階" },
-                  { value: "5階", label: "5階" },
-                ]}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="フロア選択"
-                className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+        <div className="flex gap-2 sm:gap-4 items-center justify-center">
+          {/* 日付選択 */}
+          <div className="flex items-center space-x-1">
+            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+              data-testid="input-date"
+            />
           </div>
+          
+          {/* フロア選択 */}
+          <div className="flex items-center space-x-1">
+            <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <InputWithDropdown
+              value={selectedFloor}
+              options={[
+                { value: "全階", label: "全階" },
+                { value: "1階", label: "1階" },
+                { value: "2階", label: "2階" },
+                { value: "3階", label: "3階" },
+                { value: "4階", label: "4階" },
+                { value: "5階", label: "5階" },
+              ]}
+              onSave={(value) => setSelectedFloor(value)}
+              placeholder="フロア選択"
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
         </div>
       </div>
 
@@ -909,10 +911,25 @@ export default function ExcretionList() {
                         return data.stoolState || data.stoolAmount;
                       }).length;
                       
-                      const urineCount = hours.filter(hour => {
+                      const urineCount = hours.reduce((total, hour) => {
                         const data = getCellData(resident.id, hour);
-                        return data.urineCC || data.urineAmount;
-                      }).length;
+                        if (!data.urineAmount) return total;
+                        
+                        // 尿量の値に応じて回数を計算
+                        switch (data.urineAmount) {
+                          case "○": return total + 1;
+                          case "×": return total + 0;
+                          case "2": return total + 2;
+                          case "3": return total + 3;
+                          case "4": return total + 4;
+                          case "5": return total + 5;
+                          case "6": return total + 6;
+                          default:
+                            // 数値の場合は parseInt で処理
+                            const numValue = parseInt(data.urineAmount);
+                            return total + (isNaN(numValue) ? 0 : numValue);
+                        }
+                      }, 0);
                       
                       // 最終便からの経過日数を計算
                       const today = new Date(selectedDate);
@@ -987,7 +1004,7 @@ export default function ExcretionList() {
                         <React.Fragment key={`${residentId}-summary`}>
                           {/* 便の行 */}
                           <tr key={`${residentId}-stool`}>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10 w-16" rowSpan={2}>
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center bg-gray-100 sticky left-0 z-10 w-16" rowSpan={2}>
                               <div className="text-xs font-bold">{resident.roomNumber}</div>
                               <div className="text-xs text-gray-600 leading-tight font-bold">
                                 {resident.name.includes(' ') ? 
@@ -998,25 +1015,25 @@ export default function ExcretionList() {
                                 }
                               </div>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
                               便計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed w-10">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed w-10">
                               <span className="text-xs font-bold">{stoolCount > 0 ? stoolCount : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
                               最終便
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center border-b-dashed w-16">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed w-16">
                               <span className="text-xs font-bold">{daysSinceLastStool}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
                               サイズ
                             </td>
-                            <td className="border-b border-gray-200 px-2 py-2 text-center border-b-dashed w-24">
+                            <td className="border-b border-gray-200 px-1 py-1 text-center border-b-dashed w-16">
                               <span className="text-xs font-bold">{resident.diaperSize || ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center w-64" rowSpan={2}>
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-64" rowSpan={2}>
                               <textarea
                                 value={currentAiAnalysis}
                                 onChange={(e) => {
@@ -1037,22 +1054,22 @@ export default function ExcretionList() {
                           </tr>
                           {/* 尿の行 */}
                           <tr key={`${residentId}-urine`}> 
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               尿計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center w-10">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-10">
                               <span className="text-xs font-bold">{urineCount > 0 ? urineCount : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               尿量計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-2 py-2 text-center w-16">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-16">
                               <span className="text-xs font-bold">{totalUrineCC > 0 ? `${totalUrineCC}cc` : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               コース
                             </td>
-                            <td className="border-b border-gray-200 px-2 py-2 text-center w-24">
+                            <td className="border-b border-gray-200 px-1 py-1 text-center w-16">
                               <span className="text-xs font-bold">{resident.diaperType || ''}</span>
                             </td>
                           </tr>
