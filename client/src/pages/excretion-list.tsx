@@ -918,15 +918,14 @@ export default function ExcretionList() {
                         if (!records) {
                           return "分析中...";
                         }
-                        const residentRecords = records.filter(r => r.residentId === residentId);
+                        const residentRecords = records.filter((r: any) => r.residentId === residentId);
                         
                         if (residentRecords.length === 0) {
-                          return "傾向：過去1週間の記録がありません。
-注意：記録漏れの可能性があります。";
+                          return "傾向：過去1週間の記録がありません。\n注意：記録漏れの可能性があります。";
                         }
 
-                        const stoolRecords = residentRecords.filter(r => r.type === 'bowel_movement');
-                        const urineRecords = residentRecords.filter(r => r.type === 'urination');
+                        const stoolRecords = residentRecords.filter((r: any) => r.type === 'bowel_movement');
+                        const urineRecords = residentRecords.filter((r: any) => r.type === 'urination');
 
                         let trend = `傾向：過去1週間で${stoolRecords.length}回の排便、${urineRecords.length}回の排尿がありました。`;
                         let attention = "注意：";
@@ -934,7 +933,7 @@ export default function ExcretionList() {
                         if (stoolRecords.length === 0) {
                           attention += "1週間排便がありません。便秘の可能性があります。";
                         } else {
-                          const wateryStool = stoolRecords.some(r => r.consistency === '水様便');
+                          const wateryStool = stoolRecords.some((r: any) => r.consistency === '水様便');
                           if (wateryStool) {
                             trend += "水様便が見られます。";
                             attention += "下剤の影響や感染症の可能性も考えられます。";
