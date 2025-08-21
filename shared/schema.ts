@@ -700,3 +700,30 @@ export const updateStaffManagementSchema = insertStaffManagementSchema.partial()
 export type StaffManagement = typeof staffManagement.$inferSelect;
 export type InsertStaffManagement = z.infer<typeof insertStaffManagementSchema>;
 export type UpdateStaffManagement = z.infer<typeof updateStaffManagementSchema>;
+
+// Resident Attachments table
+export const residentAttachments = pgTable("resident_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  residentId: varchar("resident_id").notNull().references(() => residents.id),
+  fileName: varchar("file_name").notNull(), // 元のファイル名
+  filePath: varchar("file_path").notNull(), // サーバー上のファイルパス
+  fileSize: integer("file_size").notNull(), // ファイルサイズ（バイト）
+  mimeType: varchar("mime_type").notNull(), // ファイルタイプ
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id), // アップロードしたユーザー
+  description: text("description"), // ファイルの説明
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Resident Attachments insert schema
+export const insertResidentAttachmentSchema = createInsertSchema(residentAttachments, {
+  fileName: z.string().min(1, "ファイル名は必須です"),
+  filePath: z.string().min(1, "ファイルパスは必須です"),
+  fileSize: z.coerce.number().int().min(1, "ファイルサイズは必須です"),
+  mimeType: z.string().min(1, "ファイルタイプは必須です"),
+  uploadedBy: z.string().min(1, "アップロードユーザーは必須です"),
+  description: z.string().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type ResidentAttachment = typeof residentAttachments.$inferSelect;
+export type InsertResidentAttachment = z.infer<typeof insertResidentAttachmentSchema>;

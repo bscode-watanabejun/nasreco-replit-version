@@ -784,7 +784,7 @@ export default function ExcretionList() {
                   <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden bg-gray-100 sticky left-12 z-20">
                     {/* 空白 */}
                   </th>
-                  <th className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden">自立</th>
+                  <th className="border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">自立</th>
                   <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-[40px] text-xs overflow-hidden">記録</th>
                   {hours.map(hour => (
                     <th key={hour} className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden border-solid">
@@ -812,7 +812,7 @@ export default function ExcretionList() {
                         </div>
                       </td>
                       <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">便</td>
-                      <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-0 py-1 text-center w-[28px] text-xs overflow-hidden">
+                      <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
                         <input
                           type="text"
                           value={getAssistanceData(resident.id, 'stool')}
@@ -856,7 +856,7 @@ export default function ExcretionList() {
                       {/* 記録の行 */}
                       <tr key={`${residentId}-urine`}>
                       <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">尿</td>
-                      <td className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden">
+                      <td className="border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
                         <input
                           type="text"
                           value={getAssistanceData(resident.id, 'urine')}

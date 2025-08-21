@@ -19,10 +19,13 @@ export async function apiRequest(
   method: string = 'GET',
   data?: unknown | undefined,
 ): Promise<any> {
+  // FormDataの場合は、Content-Typeヘッダーを設定しない（ブラウザが自動設定）
+  const isFormData = data instanceof FormData;
+  
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: data && !isFormData ? { "Content-Type": "application/json" } : {},
+    body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
 

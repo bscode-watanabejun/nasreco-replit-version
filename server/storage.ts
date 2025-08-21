@@ -17,6 +17,7 @@ import {
   staffNoticeReadStatus,
   cleaningLinenRecords,
   staffManagement,
+  residentAttachments,
   type User,
   type UpsertUser,
   type Resident,
@@ -54,6 +55,8 @@ import {
   type StaffManagement,
   type InsertStaffManagement,
   type UpdateStaffManagement,
+  type ResidentAttachment,
+  type InsertResidentAttachment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, isNull } from "drizzle-orm";
@@ -152,6 +155,10 @@ export interface IStorage {
   getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]>;
   createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication>;
   updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication>;
+  // Resident Attachment operations
+  getResidentAttachments(residentId: string): Promise<ResidentAttachment[]>;
+  createResidentAttachment(attachment: InsertResidentAttachment): Promise<ResidentAttachment>;
+  deleteResidentAttachment(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -992,6 +999,32 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedRecord;
+  }
+
+  // Resident Attachment operations
+  async getResidentAttachments(residentId: string): Promise<ResidentAttachment[]> {
+    return await db
+      .select()
+      .from(residentAttachments)
+      .where(eq(residentAttachments.residentId, residentId))
+      .orderBy(desc(residentAttachments.createdAt));
+  }
+
+  async createResidentAttachment(attachment: InsertResidentAttachment): Promise<ResidentAttachment> {
+    const [newAttachment] = await db
+      .insert(residentAttachments)
+      .values(attachment)
+      .returning();
+    
+    if (!newAttachment) {
+      throw new Error("Failed to create resident attachment");
+    }
+    
+    return newAttachment;
+  }
+
+  async deleteResidentAttachment(id: string): Promise<void> {
+    await db.delete(residentAttachments).where(eq(residentAttachments.id, id));
   }
 }
 

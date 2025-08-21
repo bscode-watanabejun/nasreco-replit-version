@@ -1,5 +1,9 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
@@ -21,11 +25,48 @@ import {
   insertCleaningLinenRecordSchema,
   insertStaffManagementSchema,
   updateStaffManagementSchema,
+  insertResidentAttachmentSchema,
 } from "@shared/schema";
+
+// ファイルアップロード設定
+const uploadDir = path.join(process.cwd(), 'attached_assets');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB制限
+  },
+  fileFilter: (req, file, cb) => {
+    // 許可するファイルタイプ
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|txt/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('許可されていないファイル形式です'));
+    }
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
+  
+  // 静的ファイル配信
+  app.use('/uploads', express.static(uploadDir));
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -933,6 +974,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error locking staff account:", error);
       res.status(400).json({ message: "アカウントロックに失敗しました" });
+    }
+  });
+
+  // Resident Attachments routes
+  app.get('/api/residents/:residentId/attachments', isAuthenticated, async (req, res) => {
+    try {
+      const { residentId } = req.params;
+      const attachments = await storage.getResidentAttachments(residentId);
+      res.json(attachments);
+    } catch (error: any) {
+      console.error("Error fetching resident attachments:", error);
+      res.status(500).json({ message: "添付ファイルの取得に失敗しました" });
+    }
+  });
+
+  app.post('/api/residents/:residentId/attachments', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const { residentId } = req.params;
+      const userId = req.user.claims.sub;
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ message: "ファイルが選択されていません" });
+      }
+      
+      const validatedData = insertResidentAttachmentSchema.parse({
+        residentId,
+        uploadedBy: userId,
+        fileName: file.originalname,
+        filePath: file.filename,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        description: req.body.description || "",
+      });
+      
+      const attachment = await storage.createResidentAttachment(validatedData);
+      res.json(attachment);
+    } catch (error: any) {
+      console.error("Error creating resident attachment:", error);
+      res.status(400).json({ message: "添付ファイルの作成に失敗しました" });
+    }
+  });
+
+  app.delete('/api/residents/attachments/:attachmentId', isAuthenticated, async (req, res) => {
+    try {
+      const { attachmentId } = req.params;
+      await storage.deleteResidentAttachment(attachmentId);
+      res.json({ message: "添付ファイルが削除されました" });
+    } catch (error: any) {
+      console.error("Error deleting resident attachment:", error);
+      res.status(500).json({ message: "添付ファイルの削除に失敗しました" });
     }
   });
 

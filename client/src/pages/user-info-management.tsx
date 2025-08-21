@@ -17,6 +17,7 @@ import { Plus, Users, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import ResidentAttachments from "@/components/ResidentAttachments";
 import type { InsertResident, Resident } from "@shared/schema";
 
 // 年齢計算関数
@@ -1551,6 +1552,15 @@ export default function UserInfoManagement() {
                     </CardContent>
                   </Card>
 
+                  {/* Attachment Note */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-3">添付ファイル</h3>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border">
+                        <p>添付ファイルは利用者登録後、編集画面から追加できます。</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                   {/* Notes */}
                   <Card>
                     <CardContent className="p-4">
@@ -2889,6 +2899,11 @@ export default function UserInfoManagement() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Attachments */}
+              {editingResident && (
+                <ResidentAttachments residentId={editingResident.id} />
+              )}
 
               {/* Notes */}
               <Card>
