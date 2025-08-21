@@ -1648,10 +1648,104 @@ export default function NursingRecordsList() {
                             vital.temperature && vital.bloodPressure && vital.pulse && vital.spo2
                           );
                           
-                          // 表示する値を決定
-                          const displayValue = hasCompleteVitals ? (bathingChecks[resident.id] || "") : "入浴チェック";
-                          
-                          if (displayValue === "入浴チェック") {
+                          // バイタル全項目入力済みの場合
+                          if (hasCompleteVitals) {
+                            const bathingValue = bathingChecks[resident.id] || "";
+                            if (bathingValue) {
+                              // 入浴チェック値が入力されている場合は表示（ダイアログなし）
+                              return (
+                                <input
+                                  type="text"
+                                  value={bathingValue}
+                                  placeholder="入浴バイタル"
+                                  className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  readOnly
+                                />
+                              );
+                            } else {
+                              // 入浴チェック値が未入力の場合は「入浴チェック」表示でダイアログ開く
+                              return (
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <input
+                                      type="text"
+                                      value="入浴チェック"
+                                      placeholder="入浴バイタル"
+                                      className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                      readOnly
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
+                                      <DialogDescription>
+                                        入浴に関する情報を入力してください。
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                      <Textarea
+                                        value={bathingChecks[resident.id] || ""}
+                                        onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
+                                        placeholder="入浴チェック内容を入力"
+                                        rows={4}
+                                      />
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              );
+                            }
+                          } else {
+                            // バイタル未入力の場合は「入浴バイタル」プレースホルダー表示（ダイアログなし）
+                            return (
+                              <input
+                                type="text"
+                                value=""
+                                placeholder="入浴バイタル"
+                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                                readOnly
+                              />
+                            );
+                          }
+                        })()}
+                      </div>
+                      
+                      {/* 看チェックボックス */}
+                      <div className="flex items-center flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={nursingChecks[resident.id] || false}
+                          onChange={(e) => setNursingChecks(prev => ({ ...prev, [resident.id]: e.target.checked }))}
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                        />
+                        <label className="text-sm sm:text-base font-medium text-gray-700 ml-0.5">看</label>
+                      </div>
+                      
+                      {/* 記録ボタン */}
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex items-center gap-0.5 px-1.5 sm:px-3 text-xs sm:text-sm flex-shrink-0"
+                        onClick={() => {
+                          setSelectedResident(resident);
+                          setView('detail');
+                          form.setValue('residentId', resident.id);
+                        }}
+                      >
+                        <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">記録</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
                             // 「入浴チェック」表示時のみポップアップを開く
                             return (
                               <Dialog>
