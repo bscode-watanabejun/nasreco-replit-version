@@ -682,13 +682,13 @@ export default function NursingRecordsList() {
   };
 
   const { data: vitals = [] } = useQuery({
-    queryKey: ["/api/vitals", selectedResident?.id],
+    queryKey: ["/api/vital-signs", selectedResident?.id],
     enabled: !!selectedResident,
   });
 
   // 全利用者のバイタル情報（入浴チェック判定用）
   const { data: allVitals = [] } = useQuery({
-    queryKey: ["/api/vitals"],
+    queryKey: ["/api/vital-signs"],
   });
 
   const { data: mealRecords = [] } = useQuery({

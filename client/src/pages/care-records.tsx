@@ -677,7 +677,7 @@ export default function CareRecords() {
   };
 
   const { data: vitals = [] } = useQuery({
-    queryKey: ["/api/vitals", selectedResident?.id],
+    queryKey: ["/api/vital-signs", selectedResident?.id],
     enabled: !!selectedResident,
   });
 
