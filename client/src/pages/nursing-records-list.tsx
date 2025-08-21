@@ -1728,6 +1728,9 @@ export default function NursingRecordsList() {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* 記録ボタン */}
+                    <div className="flex justify-end mt-2 sm:mt-0 sm:flex-shrink-0">
                       <Button 
                         size="sm" 
                         variant="outline" 
