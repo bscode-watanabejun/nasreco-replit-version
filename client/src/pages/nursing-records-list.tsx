@@ -1727,7 +1727,7 @@ export default function NursingRecordsList() {
                             console.log("住民ID:", resident.id);
                             console.log("該当日の入浴記録数:", residentBathingForDate.length);
                             console.log("バイタル完了判定:", hasCompleteVitals);
-                            console.log("入浴チェック値:", bathingChecks[resident.id]);
+                            // console.log("入浴チェック値:", bathingChecks[resident.id]); // Removed - bathingChecks is not defined
                             
                             // 各レコードのバイタル詳細チェック
                             residentBathingForDate.forEach((bathing, index) => {
