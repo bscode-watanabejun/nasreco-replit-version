@@ -595,7 +595,9 @@ function BathingCard({
               value={record.rejectionReason || ""}
               disabled
               placeholder="--"
-              className={`w-12 sm:w-16 ${inputBaseClass} px-1 bg-gray-100 cursor-not-allowed flex-shrink-0`}
+              className={`w-12 sm:w-16 ${inputBaseClass} px-1 bg-gray-100 cursor-not-allowed flex-shrink-0 ${
+                record.rejectionReason ? 'text-red-600 font-bold' : ''
+              }`}
             />
           </div>
 
