@@ -691,6 +691,16 @@ export default function BathingList() {
   // 利用者データの取得
   const { data: residents } = useQuery({
     queryKey: ["/api/residents"],
+    queryFn: async () => {
+      try {
+        const data = await apiRequest("/api/residents", "GET");
+        console.log("Residents API response:", data);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Failed to fetch residents:", error);
+        return [];
+      }
+    },
   });
 
   // 現在のユーザー情報を取得
@@ -1290,10 +1300,21 @@ export default function BathingList() {
   };
 
   const filteredBathingRecords = useMemo(() => {
+    console.log("Filtering bathing records:", {
+      residents: residents?.length || 0,
+      bathingRecords: bathingRecords?.length || 0,
+      selectedDate,
+      selectedFloor,
+      residentsArray: Array.isArray(residents),
+      bathingRecordsArray: Array.isArray(bathingRecords)
+    });
+    
     if (!residents || !Array.isArray(residents) || !Array.isArray(bathingRecords)) {
+      console.log("Early return due to missing data");
       return [];
     }
-    return getFilteredBathingRecords().sort((a: any, b: any) => {
+    
+    const filtered = getFilteredBathingRecords().sort((a: any, b: any) => {
       const residentA = (residents as any[]).find(
         (r: any) => r.id === a.residentId,
       );
@@ -1304,6 +1325,9 @@ export default function BathingList() {
       const roomB = parseInt(residentB?.roomNumber || "0");
       return roomA - roomB;
     });
+    
+    console.log("Filtered bathing records:", filtered.length);
+    return filtered;
   }, [residents, bathingRecords, selectedDate, selectedFloor]);
 
   // 共通のスタイル
