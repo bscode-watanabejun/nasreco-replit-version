@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
@@ -329,6 +330,21 @@ export default function NursingRecordsList() {
   // 入浴チェックと看護チェック用の状態
   const [bathingChecks, setBathingChecks] = useState<Record<string, string>>({});
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
+  // 差戻チェック用の状態
+  const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
+
+  // 入浴記録から差戻状態を初期化
+  useEffect(() => {
+    if (allBathingRecords.length > 0) {
+      const rejections: Record<string, boolean> = {};
+      allBathingRecords.forEach((record: any) => {
+        if (record.rejectionReason) {
+          rejections[record.residentId] = true;
+        }
+      });
+      setRejectionChecks(rejections);
+    }
+  }, [allBathingRecords]);
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -693,12 +709,34 @@ export default function NursingRecordsList() {
 
   // 全利用者の入浴記録データ（入浴チェック判定用）
   const { data: allBathingRecords = [] } = useQuery({
-    queryKey: ["/api/bathing-records"],
+    queryKey: ["/api/bathing-records", selectedDate],
+    staleTime: 0, // 常に最新データを取得
+    refetchOnMount: true, // マウント時に再取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
 
   const { data: mealRecords = [] } = useQuery({
     queryKey: ["/api/meal-records", selectedResident?.id],
     enabled: !!selectedResident,
+  });
+
+  // 入浴記録更新用のmutation
+  const updateBathingRecordMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => 
+      apiRequest(`/api/bathing-records/${id}`, "PATCH", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+      toast({
+        description: "入浴記録を更新しました",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "エラー",
+        description: "入浴記録の更新に失敗しました",
+        variant: "destructive",
+      });
+    },
   });
 
   // 記録内容全文表示用のstate
@@ -1686,14 +1724,19 @@ export default function NursingRecordsList() {
                             bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
                           );
                           
-                          // デバッグ用：鈴木みどりのバイタル判定結果
-                          if (resident.name === "鈴木 みどり") {
+                          // デバッグ用：特定住民のバイタル判定結果
+                          if (resident.name === "鈴木 みどり" || resident.name === "堀口 健一") {
+                            console.log(`=== ${resident.name}の詳細調査 ===`);
+                            console.log("選択日付:", selectedDate);
+                            console.log("住民ID:", resident.id);
+                            console.log("該当日の入浴記録数:", residentBathingForDate.length);
                             console.log("バイタル完了判定:", hasCompleteVitals);
                             console.log("入浴チェック値:", bathingChecks[resident.id]);
                             
                             // 各レコードのバイタル詳細チェック
                             residentBathingForDate.forEach((bathing, index) => {
                               console.log(`レコード${index + 1}の詳細チェック:`, {
+                                recordDate: bathing.recordDate,
                                 temperature: { value: bathing.temperature, hasValue: !!bathing.temperature },
                                 bloodPressureSystolic: { value: bathing.bloodPressureSystolic, hasValue: !!bathing.bloodPressureSystolic },
                                 pulseRate: { value: bathing.pulseRate, hasValue: !!bathing.pulseRate },
@@ -1726,25 +1769,121 @@ export default function NursingRecordsList() {
                                       type="text"
                                       value="入浴チェック"
                                       placeholder="入浴バイタル"
-                                      className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                      className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer text-red-600 font-bold"
                                       readOnly
                                       onClick={(e) => e.stopPropagation()}
                                     />
                                   </DialogTrigger>
-                                  <DialogContent>
+                                  <DialogContent className="max-w-2xl">
                                     <DialogHeader>
                                       <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
                                       <DialogDescription>
-                                        入浴に関する情報を入力してください。
+                                        入浴記録の確認と入浴チェック内容を入力してください。
                                       </DialogDescription>
                                     </DialogHeader>
-                                    <div className="space-y-4">
-                                      <Textarea
-                                        value={bathingChecks[resident.id] || ""}
-                                        onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
-                                        placeholder="入浴チェック内容を入力"
-                                        rows={4}
-                                      />
+                                    <div className="space-y-6">
+                                      {(() => {
+                                        // 該当日の入浴記録データを取得
+                                        const bathingRecordForResident = residentBathingForDate.find((bathing: any) => 
+                                          bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
+                                        );
+
+                                        if (!bathingRecordForResident) {
+                                          return <div className="text-gray-500">入浴記録が見つかりません</div>;
+                                        }
+
+                                        return (
+                                          <>
+                                            {/* バイタルサイン表示（編集不可） */}
+                                            <div className="bg-gray-50 p-4 rounded-lg">
+                                              <h3 className="text-sm font-semibold text-gray-700 mb-3">バイタルサイン（入浴一覧より）</h3>
+                                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                                <div>
+                                                  <label className="text-gray-600">体温</label>
+                                                  <div className="font-medium">{bathingRecordForResident.temperature}℃</div>
+                                                </div>
+                                                <div>
+                                                  <label className="text-gray-600">血圧</label>
+                                                  <div className="font-medium">
+                                                    {bathingRecordForResident.bloodPressureSystolic}/{bathingRecordForResident.bloodPressureDiastolic || '-'}mmHg
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <label className="text-gray-600">脈拍</label>
+                                                  <div className="font-medium">{bathingRecordForResident.pulseRate}bpm</div>
+                                                </div>
+                                                <div>
+                                                  <label className="text-gray-600">SpO₂</label>
+                                                  <div className="font-medium">{bathingRecordForResident.oxygenSaturation}%</div>
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            {/* 記録内容（編集可能） */}
+                                            <div className="space-y-2">
+                                              <label className="text-sm font-semibold text-gray-700">記録内容</label>
+                                              <Textarea
+                                                value={bathingRecordForResident.notes || ""}
+                                                onChange={(e) => {
+                                                  // 楽観的更新：即座にUIを更新
+                                                  queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+                                                    return old?.map((record: any) => 
+                                                      record.id === bathingRecordForResident.id 
+                                                        ? { ...record, notes: e.target.value }
+                                                        : record
+                                                    );
+                                                  });
+                                                }}
+                                                onBlur={(e) => {
+                                                  // フォーカス離脱時にサーバーに保存
+                                                  updateBathingRecordMutation.mutate({
+                                                    id: bathingRecordForResident.id,
+                                                    data: { notes: e.target.value }
+                                                  });
+                                                }}
+                                                placeholder="記録内容を入力してください"
+                                                rows={4}
+                                                className="resize-none"
+                                              />
+                                              <p className="text-xs text-gray-500">※入浴一覧画面と相互編集されます</p>
+                                            </div>
+
+                                            {/* 差戻チェックボックス */}
+                                            <div className="flex items-center space-x-2">
+                                              <Checkbox
+                                                id={`rejection-${resident.id}`}
+                                                checked={rejectionChecks[resident.id] || false}
+                                                onCheckedChange={(checked) => {
+                                                  setRejectionChecks(prev => ({ ...prev, [resident.id]: !!checked }));
+                                                  // 差戻状態も入浴記録に保存
+                                                  updateBathingRecordMutation.mutate({
+                                                    id: bathingRecordForResident.id,
+                                                    data: { rejectionReason: checked ? "差戻" : "" }
+                                                  });
+                                                }}
+                                              />
+                                              <label 
+                                                htmlFor={`rejection-${resident.id}`}
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                              >
+                                                差戻
+                                              </label>
+                                            </div>
+
+                                            {/* 入浴チェック内容 */}
+                                            <div className="space-y-2">
+                                              <label className="text-sm font-semibold text-gray-700">入浴チェック内容</label>
+                                              <Textarea
+                                                value={bathingChecks[resident.id] || ""}
+                                                onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
+                                                placeholder="入浴チェック内容を入力してください"
+                                                rows={3}
+                                                className="resize-none"
+                                              />
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
                                     </div>
                                   </DialogContent>
                                 </Dialog>
@@ -1767,13 +1906,39 @@ export default function NursingRecordsList() {
                       
                       {/* 看チェックボックス */}
                       <div className="flex items-center flex-shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={nursingChecks[resident.id] || false}
-                          onChange={(e) => setNursingChecks(prev => ({ ...prev, [resident.id]: e.target.checked }))}
-                          className="w-4 h-4 sm:w-5 sm:h-5"
-                        />
-                        <label className="text-sm sm:text-base font-medium text-gray-700 ml-0.5">看</label>
+                        {(() => {
+                          // 選択された日付の利用者の入浴記録を取得（入浴チェック表示条件と同じロジック）
+                          const residentBathingForDate = (allBathingRecords as any[]).filter((bathing: any) => {
+                            if (bathing.residentId !== resident.id) return false;
+                            const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
+                            return bathingDate === selectedDate;
+                          });
+
+                          const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
+                            bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
+                          );
+
+                          const bathingValue = bathingChecks[resident.id] || "";
+                          
+                          // 「入浴チェック」が表示される条件：バイタル完了済み かつ 入浴チェック値未入力
+                          const showsBathingCheck = hasCompleteVitals && !bathingValue;
+                          
+                          // 「入浴チェック」が表示されていない場合は看護チェックを非活性化
+                          const isNursingCheckDisabled = !showsBathingCheck;
+
+                          return (
+                            <>
+                              <input
+                                type="checkbox"
+                                checked={nursingChecks[resident.id] || false}
+                                onChange={(e) => setNursingChecks(prev => ({ ...prev, [resident.id]: e.target.checked }))}
+                                className={`w-4 h-4 sm:w-5 sm:h-5 ${isNursingCheckDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                disabled={isNursingCheckDisabled}
+                              />
+                              <label className={`text-sm sm:text-base font-medium ml-0.5 ${isNursingCheckDisabled ? 'text-gray-400' : 'text-gray-700'}`}>看</label>
+                            </>
+                          );
+                        })()}
                       </div>
                       
                       {/* 記録ボタン */}

@@ -1052,6 +1052,26 @@ export default function BathingList() {
   });
 
   // 承認者入力補助機能
+  // 現在時刻に最も近いプルダウン項目を取得する関数
+  const getCurrentTimeOptions = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    // 時刻のオプション（0-23時、0-59分）
+    const hourOptions = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+    const minuteOptions = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
+    
+    // 現在時刻に最も近い値を見つける
+    const nearestHour = hourOptions.find(h => parseInt(h) === currentHour) || currentHour.toString().padStart(2, '0');
+    
+    // 分は5分単位で丸める（例：13分→15分、17分→15分、23分→25分）
+    const roundedMinute = Math.round(currentMinute / 5) * 5;
+    const nearestMinute = Math.min(roundedMinute, 59).toString().padStart(2, '0');
+    
+    return { hour: nearestHour, minute: nearestMinute };
+  };
+
   const handleStaffStamp = async (recordId: string, residentId?: string) => {
     const user = currentUser as any;
     const staffName = user?.firstName && user?.lastName
@@ -1064,16 +1084,75 @@ export default function BathingList() {
     
     const currentStaffName = record.staffName || "";
     
-    // 承認者名の入力補助
-    // 承認者名が空の場合は現在のユーザー名を入力、入力済みの場合はクリア
-    const newStaffName = currentStaffName ? "" : staffName;
-    
-    updateMutation.mutate({
-      id: recordId,
-      field: "staffName",
-      value: newStaffName,
-      residentId: residentId || record.residentId,
-    });
+    if (currentStaffName) {
+      // 承認者名が入力済みの場合：承認者名、時、分をクリア
+      try {
+        // 各フィールドを順次クリア（短い間隔で実行）
+        await new Promise(resolve => {
+          updateMutation.mutate({
+            id: recordId,
+            field: "staffName",
+            value: "",
+            residentId: residentId || record.residentId,
+          });
+          setTimeout(resolve, 100);
+        });
+        
+        await new Promise(resolve => {
+          updateMutation.mutate({
+            id: recordId,
+            field: "hour",
+            value: "",
+            residentId: residentId || record.residentId,
+          });
+          setTimeout(resolve, 100);
+        });
+        
+        updateMutation.mutate({
+          id: recordId,
+          field: "minute",
+          value: "",
+          residentId: residentId || record.residentId,
+        });
+      } catch (error) {
+        console.error("Error clearing fields:", error);
+      }
+    } else {
+      // 承認者名が空の場合：承認者名と現在時刻を自動入力
+      const currentTime = getCurrentTimeOptions();
+      
+      try {
+        // 各フィールドを順次入力（短い間隔で実行）
+        await new Promise(resolve => {
+          updateMutation.mutate({
+            id: recordId,
+            field: "staffName",
+            value: staffName,
+            residentId: residentId || record.residentId,
+          });
+          setTimeout(resolve, 100);
+        });
+        
+        await new Promise(resolve => {
+          updateMutation.mutate({
+            id: recordId,
+            field: "hour",
+            value: currentTime.hour,
+            residentId: residentId || record.residentId,
+          });
+          setTimeout(resolve, 100);
+        });
+        
+        updateMutation.mutate({
+          id: recordId,
+          field: "minute",
+          value: currentTime.minute,
+          residentId: residentId || record.residentId,
+        });
+      } catch (error) {
+        console.error("Error setting fields:", error);
+      }
+    }
   };
 
   // 新規記録追加（空のカードを最下部に追加）
