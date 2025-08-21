@@ -1612,68 +1612,70 @@ export default function NursingRecordsList() {
                   key={resident.id} 
                   className="hover:shadow-md transition-shadow"
                 >
-                  <CardContent className="p-1.5 sm:p-2">
-                    <div className="flex items-center justify-between gap-2 sm:gap-4">
-                      <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-                        <div className="text-center min-w-[40px] sm:min-w-[50px]">
-                          <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-gray-100">
-                            {resident.roomNumber || "未設定"}
-                          </div>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className={`font-semibold text-sm sm:text-base truncate ${getResidentNameColor(resident)}`}>{resident.name}</div>
-                        </div>
-                        
-                        {/* 入浴チェックテキストボックス - 6文字程度表示 */}
-                        <div className="min-w-[60px] sm:min-w-[80px]">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <input
-                                type="text"
-                                value={bathingChecks[resident.id] || ""}
-                                placeholder="入浴"
-                                className="w-full h-6 sm:h-8 px-1 sm:px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
-                                readOnly
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
-                                <DialogDescription>
-                                  入浴に関する情報を入力してください。
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <Textarea
-                                  value={bathingChecks[resident.id] || ""}
-                                  onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
-                                  placeholder="入浴チェック内容を入力"
-                                  rows={4}
-                                />
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                        
-                        {/* 看チェックボックス - 小さくする */}
-                        <div className="flex items-center">
-                          <Checkbox
-                            checked={nursingChecks[resident.id] || false}
-                            onCheckedChange={(checked) => setNursingChecks(prev => ({ ...prev, [resident.id]: !!checked }))}
-                            className="w-3 h-3 sm:w-4 sm:h-4 mr-1"
-                          />
-                          <label className="text-xs sm:text-sm font-medium text-gray-700">看</label>
+                  <CardContent className="p-1 sm:p-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      {/* 居室番号 */}
+                      <div className="text-center w-[40px] sm:w-[50px] flex-shrink-0">
+                        <div className="text-sm sm:text-base font-bold text-gray-900 dark:text-gray-100">
+                          {resident.roomNumber || "未設定"}
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* 記録ボタン */}
-                    <div className="flex justify-end mt-2 sm:mt-0 sm:flex-shrink-0">
+                      
+                      {/* 利用者名 */}
+                      <div className="flex-1 min-w-0 w-0">
+                        <div className={`font-semibold text-sm sm:text-base truncate ${getResidentNameColor(resident)}`}>{resident.name}</div>
+                      </div>
+
+                      <div className="flex-auto" />
+                      
+                      {/* 入浴チェックテキストボックス */}
+                      <div className="w-[80px] sm:w-[140px] flex-shrink-0">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <input
+                              type="text"
+                              value={bathingChecks[resident.id] || ""}
+                              placeholder="入浴チェック"
+                              className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                              readOnly
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
+                              <DialogDescription>
+                                入浴に関する情報を入力してください。
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <Textarea
+                                value={bathingChecks[resident.id] || ""}
+                                onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
+                                placeholder="入浴チェック内容を入力"
+                                rows={4}
+                              />
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                      
+                      {/* 看チェックボックス */}
+                      <div className="flex items-center flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={nursingChecks[resident.id] || false}
+                          onChange={(e) => setNursingChecks(prev => ({ ...prev, [resident.id]: e.target.checked }))}
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                        />
+                        <label className="text-sm sm:text-base font-medium text-gray-700 ml-0.5">看</label>
+                      </div>
+                      
+                      {/* 記録ボタン */}
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="flex items-center gap-1 px-2 sm:px-3 text-xs sm:text-sm"
+                        className="flex items-center gap-0.5 px-1.5 sm:px-3 text-xs sm:text-sm flex-shrink-0"
                         onClick={() => {
                           setSelectedResident(resident);
                           setView('detail');
