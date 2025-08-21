@@ -199,10 +199,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateResident(id: string, updates: Partial<InsertResident>): Promise<Resident> {
-    console.log("🔧 サーバー受信データ:", updates);
-    console.log("🔧 受信した退居日:", updates.retirementDate);
-    console.log("🔧 退居日の型:", typeof updates.retirementDate);
-    
     // null値をデータベースに明示的に設定するため、undefined値や空文字列もnullに変換
     const processedUpdates = Object.keys(updates).reduce((acc: any, key) => {
       const value = (updates as any)[key];
@@ -215,16 +211,12 @@ export class DatabaseStorage implements IStorage {
       return acc;
     }, {});
     
-    console.log("🔧 処理後のサーバーデータ:", processedUpdates);
-    console.log("🔧 処理後の退居日:", processedUpdates.retirementDate);
-    
     const [updatedResident] = await db
       .update(residents)
       .set({ ...processedUpdates, updatedAt: new Date() })
       .where(eq(residents.id, id))
       .returning();
       
-    console.log("🔧 DB更新結果:", updatedResident);
     return updatedResident;
   }
 

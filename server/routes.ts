@@ -181,13 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/residents/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      console.log("🚀 ルートハンドラー受信データ:", req.body);
-      console.log("🚀 受信した退居日:", req.body.retirementDate);
-      
       const validatedData = insertResidentSchema.parse(req.body);
-      console.log("🚀 バリデーション後のデータ:", validatedData);
-      console.log("🚀 バリデーション後の退居日:", validatedData.retirementDate);
-      
       const resident = await storage.updateResident(id, validatedData);
       if (!resident) {
         return res.status(404).json({ message: "Resident not found" });
