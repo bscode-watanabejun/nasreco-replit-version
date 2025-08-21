@@ -212,10 +212,6 @@ export default function UserInfoManagement() {
   };
 
   const onEditSubmit = (data: InsertResident) => {
-    console.log("🔍 編集フォーム送信データ:", data);
-    console.log("🔍 退居日フィールド値:", data.retirementDate);
-    console.log("🔍 退居日フィールドの型:", typeof data.retirementDate);
-    
     // 日付フィールドが空文字列の場合はnullに変換
     const processedData = {
       ...data,
@@ -225,9 +221,6 @@ export default function UserInfoManagement() {
       careAuthorizationPeriodStart: data.careAuthorizationPeriodStart === "" ? null : data.careAuthorizationPeriodStart,
       careAuthorizationPeriodEnd: data.careAuthorizationPeriodEnd === "" ? null : data.careAuthorizationPeriodEnd,
     } as any;
-    
-    console.log("🔍 処理後のデータ:", processedData);
-    console.log("🔍 処理後の退居日:", processedData.retirementDate);
     
     if (editingResident) {
       updateResidentMutation.mutate({ id: editingResident.id, data: processedData });

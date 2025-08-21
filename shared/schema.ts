@@ -302,11 +302,26 @@ export const staffNoticeReadStatus = pgTable("staff_notice_read_status", {
 
 // Insert schemas
 export const insertResidentSchema = createInsertSchema(residents, {
-  dateOfBirth: z.string().optional().transform((str) => str ? str : undefined),
-  admissionDate: z.string().optional().transform((str) => str ? str : undefined),
-  retirementDate: z.string().optional().transform((str) => str ? str : undefined),
-  careAuthorizationPeriodStart: z.string().optional().transform((str) => str ? str : undefined),
-  careAuthorizationPeriodEnd: z.string().optional().transform((str) => str ? str : undefined),
+  dateOfBirth: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return val;
+  }),
+  admissionDate: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return val;
+  }),
+  retirementDate: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return val;
+  }),
+  careAuthorizationPeriodStart: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return val;
+  }),
+  careAuthorizationPeriodEnd: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    return val;
+  }),
   age: z.union([z.string(), z.number()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return undefined;
     return typeof val === 'number' ? val : parseInt(val, 10);
