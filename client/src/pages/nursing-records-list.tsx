@@ -313,7 +313,7 @@ function InlineEditableField({
   );
 }
 
-export default function CareRecords() {
+export default function NursingRecordsList() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
