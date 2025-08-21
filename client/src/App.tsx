@@ -7,7 +7,6 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import CareRecords from "@/pages/care-records";
-import NursingRecords from "@/pages/nursing-records";
 import Vitals from "@/pages/vitals";
 import MealsMedication from "@/pages/meals-medication";
 import MedicationList from "@/pages/medication-list";
@@ -54,7 +53,6 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/care-records" component={CareRecords} />
-          <Route path="/nursing-records" component={NursingRecords} />
           <Route path="/vitals" component={Vitals} />
           <Route path="/meals-medication" component={MealsMedication} />
           <Route path="/medication-list" component={MedicationList} />

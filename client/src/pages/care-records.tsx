@@ -341,12 +341,26 @@ export default function CareRecords() {
     resolver: zodResolver(careRecordSchema),
     defaultValues: {
       residentId: selectedResident?.id || "",
-      recordDate: new Date().toISOString().slice(0, 16),
+      recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
       category: "",
       description: "",
       notes: "",
     },
   });
+
+  // selectedDateが変更された時にフォームのデフォルト値を更新
+  useEffect(() => {
+    const currentTime = new Date().toTimeString().slice(0, 8);
+    const newRecordDate = new Date(selectedDate + "T" + currentTime).toISOString().slice(0, 16);
+    
+    form.reset({
+      residentId: selectedResident?.id || "",
+      recordDate: newRecordDate,
+      category: "",
+      description: "",
+      notes: "",
+    });
+  }, [selectedDate, selectedResident?.id, form]);
 
   const createMutation = useMutation({
     mutationFn: async (data: CareRecordForm) => {
@@ -362,7 +376,7 @@ export default function CareRecords() {
       }
       form.reset({
         residentId: selectedResident?.id || "",
-        recordDate: new Date().toISOString().slice(0, 16),
+        recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
         category: "",
         description: "",
         notes: "",
@@ -494,8 +508,8 @@ export default function CareRecords() {
       return Math.abs(curr - currentMinute) < Math.abs(prev - currentMinute) ? curr : prev;
     });
     
-    // 現在時刻に基づいてrecordDateを設定
-    const recordDate = new Date();
+    // 選択された日付に現在時刻を設定してrecordDateを作成
+    const recordDate = new Date(selectedDate);
     recordDate.setHours(currentHour);
     recordDate.setMinutes(closestMinute);
     recordDate.setSeconds(0);
@@ -638,6 +652,29 @@ export default function CareRecords() {
     const roomB = parseInt(b.roomNumber || '999999');
     return roomA - roomB;
   });
+
+  // 選択された日付の利用者の介護記録数を取得
+  const getResidentCareRecordCountForDate = (residentId: string) => {
+    return (careRecords as any[]).filter((record: any) => {
+      if (record.residentId !== residentId) return false;
+      const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+      return recordDate === selectedDate;
+    }).length;
+  };
+
+  // 利用者名のフォント色を決定
+  const getResidentNameColor = (resident: any) => {
+    // 入院中の場合は青字（優先）
+    if (resident.isAdmitted) {
+      return "text-blue-600";
+    }
+    // その日の介護記録が1件もない場合は赤字
+    if (getResidentCareRecordCountForDate(resident.id) === 0) {
+      return "text-red-600";
+    }
+    // デフォルト
+    return "text-gray-900 dark:text-gray-100";
+  };
 
   const { data: vitals = [] } = useQuery({
     queryKey: ["/api/vitals", selectedResident?.id],
@@ -1579,7 +1616,7 @@ export default function CareRecords() {
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-sm sm:text-base truncate">{resident.name}</div>
+                          <div className={`font-semibold text-sm sm:text-base truncate ${getResidentNameColor(resident)}`}>{resident.name}</div>
                         </div>
                         <div className="text-center min-w-[60px] sm:min-w-[80px]">
                           <div className="text-xs sm:text-sm font-medium text-slate-700">

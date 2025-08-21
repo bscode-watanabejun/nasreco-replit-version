@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ArrowLeft, Users, Info, Calendar, Building } from "lucide-react";
+import ResidentAttachmentsView from "@/components/ResidentAttachmentsView";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import type { Resident } from "@shared/schema";
@@ -698,6 +699,16 @@ export default function UserInfoView() {
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{selectedResident.diaperType || "未設定"}</p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* 添付ファイル */}
+              <Card>
+                <CardContent className="p-4">
+                  <ResidentAttachmentsView 
+                    residentId={selectedResident.id} 
+                    title="添付ファイル"
+                  />
                 </CardContent>
               </Card>
 
