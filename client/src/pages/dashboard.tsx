@@ -399,7 +399,7 @@ export default function Dashboard() {
                   onClick={() => handleModuleClick(module.path)}
                   compact={true}
                   badge={module.path === "/communications" && unreadCount > 0 ? unreadCount : 
-                         module.path === "/nursing-records" && hasUncheckedNursingRecords ? "未" : null}
+                         module.path === "/nursing-records" && hasUncheckedNursingRecords ? 1 : null}
                 />
               ))}
             </div>
