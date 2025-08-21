@@ -326,8 +326,7 @@ export default function NursingRecordsList() {
   const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
   
-  // 入浴チェックと看護チェック用の状態
-  const [bathingChecks, setBathingChecks] = useState<Record<string, string>>({});
+  // 看護チェック用の状態
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
   // 差戻チェック用の状態
   const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
@@ -725,9 +724,7 @@ export default function NursingRecordsList() {
       apiRequest(`/api/bathing-records/${id}`, "PATCH", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      toast({
-        description: "入浴記録を更新しました",
-      });
+      // 正常更新のメッセージは表示しない
     },
     onError: () => {
       toast({
@@ -1747,21 +1744,8 @@ export default function NursingRecordsList() {
                           
                           // バイタル全項目入力済みの場合
                           if (hasCompleteVitals) {
-                            const bathingValue = bathingChecks[resident.id] || "";
-                            if (bathingValue) {
-                              // 入浴チェック値が入力されている場合は表示（ダイアログなし）
-                              return (
-                                <input
-                                  type="text"
-                                  value={bathingValue}
-                                  placeholder="入浴バイタル"
-                                  className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                                  readOnly
-                                />
-                              );
-                            } else {
-                              // 入浴チェック値が未入力の場合は「入浴チェック」表示でダイアログ開く
-                              return (
+                            // 「入浴チェック」表示でダイアログ開く
+                            return (
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     <input
@@ -1777,7 +1761,7 @@ export default function NursingRecordsList() {
                                     <DialogHeader>
                                       <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
                                       <DialogDescription>
-                                        入浴記録の確認と入浴チェック内容を入力してください。
+                                        入浴記録の確認と編集を行ってください。
                                       </DialogDescription>
                                     </DialogHeader>
                                     <div className="space-y-6">
@@ -1869,25 +1853,13 @@ export default function NursingRecordsList() {
                                               </label>
                                             </div>
 
-                                            {/* 入浴チェック内容 */}
-                                            <div className="space-y-2">
-                                              <label className="text-sm font-semibold text-gray-700">入浴チェック内容</label>
-                                              <Textarea
-                                                value={bathingChecks[resident.id] || ""}
-                                                onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
-                                                placeholder="入浴チェック内容を入力してください"
-                                                rows={3}
-                                                className="resize-none"
-                                              />
-                                            </div>
                                           </>
                                         );
                                       })()}
                                     </div>
                                   </DialogContent>
                                 </Dialog>
-                              );
-                            }
+                            );
                           } else {
                             // バイタル未入力の場合は「入浴バイタル」プレースホルダー表示（ダイアログなし）
                             return (
@@ -1917,10 +1889,8 @@ export default function NursingRecordsList() {
                             bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
                           );
 
-                          const bathingValue = bathingChecks[resident.id] || "";
-                          
-                          // 「入浴チェック」が表示される条件：バイタル完了済み かつ 入浴チェック値未入力
-                          const showsBathingCheck = hasCompleteVitals && !bathingValue;
+                          // 「入浴チェック」が表示される条件：バイタル完了済み
+                          const showsBathingCheck = hasCompleteVitals;
                           
                           // 「入浴チェック」が表示されていない場合は看護チェックを非活性化
                           const isNursingCheckDisabled = !showsBathingCheck;
