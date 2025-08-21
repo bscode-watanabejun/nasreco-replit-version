@@ -215,19 +215,21 @@ export default function UserInfoManagement() {
     console.log("📝 フォームから送信されたデータ:", data);
     console.log("📝 退居日の値:", data.retirementDate);
     console.log("📝 退居日の型:", typeof data.retirementDate);
+    console.log("📝 retirementDateフィールドが存在するか:", 'retirementDate' in data);
     
-    // 日付フィールドが空文字列の場合はnullに変換
+    // 日付フィールドが空文字列やundefinedの場合は明示的にnullに変換
     const processedData = {
       ...data,
-      dateOfBirth: data.dateOfBirth === "" ? null : data.dateOfBirth,
-      admissionDate: data.admissionDate === "" ? null : data.admissionDate,
-      retirementDate: data.retirementDate === "" ? null : data.retirementDate,
-      careAuthorizationPeriodStart: data.careAuthorizationPeriodStart === "" ? null : data.careAuthorizationPeriodStart,
-      careAuthorizationPeriodEnd: data.careAuthorizationPeriodEnd === "" ? null : data.careAuthorizationPeriodEnd,
+      dateOfBirth: data.dateOfBirth === "" || data.dateOfBirth === undefined ? null : data.dateOfBirth,
+      admissionDate: data.admissionDate === "" || data.admissionDate === undefined ? null : data.admissionDate,
+      retirementDate: data.retirementDate === "" || data.retirementDate === undefined || data.retirementDate === null ? null : data.retirementDate,
+      careAuthorizationPeriodStart: data.careAuthorizationPeriodStart === "" || data.careAuthorizationPeriodStart === undefined ? null : data.careAuthorizationPeriodStart,
+      careAuthorizationPeriodEnd: data.careAuthorizationPeriodEnd === "" || data.careAuthorizationPeriodEnd === undefined ? null : data.careAuthorizationPeriodEnd,
     } as any;
     
     console.log("📝 処理後のデータ:", processedData);
     console.log("📝 処理後の退居日:", processedData.retirementDate);
+    console.log("📝 処理後のretirementDateフィールドが存在するか:", 'retirementDate' in processedData);
     
     if (editingResident) {
       updateResidentMutation.mutate({ id: editingResident.id, data: processedData });
