@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Upload, FileText, Download, Trash2, Plus } from "lucide-react";
+import { Upload, FileText, Download, Trash2, Plus, Image } from "lucide-react";
 import type { ResidentAttachment } from "@shared/schema";
 
 interface ResidentAttachmentsProps {
@@ -110,6 +110,12 @@ export default function ResidentAttachments({ residentId }: ResidentAttachmentsP
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const isImageFile = (fileName: string) => {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    return imageExtensions.includes(extension);
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -185,61 +191,81 @@ export default function ResidentAttachments({ residentId }: ResidentAttachmentsP
             <p>添付ファイルはありません</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {attachment.fileName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatFileSize(attachment.fileSize)} • {new Date(attachment.createdAt).toLocaleDateString('ja-JP')}
-                    </p>
-                    {attachment.description && (
-                      <p className="text-xs text-gray-600 mt-1">{attachment.description}</p>
-                    )}
+          <div className="space-y-4">
+            {attachments.map((attachment) => {
+              const isImage = isImageFile(attachment.fileName);
+              
+              return (
+                <div key={attachment.id} className="border rounded-lg overflow-hidden">
+                  {/* 画像の場合はプレビューを表示 */}
+                  {isImage && (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800">
+                      <img
+                        src={`/uploads/${attachment.filePath}`}
+                        alt={attachment.fileName}
+                        className="max-w-full h-auto max-h-64 mx-auto rounded-md shadow-sm"
+                        style={{ objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* ファイル情報と操作ボタン */}
+                  <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      {isImage ? (
+                        <Image className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {attachment.fileName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(attachment.fileSize)} • {new Date(attachment.createdAt).toLocaleDateString('ja-JP')}
+                        </p>
+                        {attachment.description && (
+                          <p className="text-xs text-gray-600 mt-1">{attachment.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDownload(attachment)}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>ファイルを削除しますか？</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              この操作は取り消せません。ファイル「{attachment.fileName}」を完全に削除します。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteMutation.mutate(attachment.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              削除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDownload(attachment)}
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>ファイルを削除しますか？</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          この操作は取り消せません。ファイル「{attachment.fileName}」を完全に削除します。
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(attachment.id)}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          削除
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
