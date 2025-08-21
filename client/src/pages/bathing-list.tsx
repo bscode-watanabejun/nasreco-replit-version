@@ -699,20 +699,23 @@ export default function BathingList() {
   });
 
   // 入浴記録データの取得
-  const { data: bathingRecords, isLoading } = useQuery({
+  const { data: bathingRecords = [], isLoading } = useQuery({
     queryKey: ["/api/bathing-records", selectedDate],
     queryFn: async () => {
-      const startDate = new Date(selectedDate);
-      const endDate = new Date(selectedDate);
-      endDate.setHours(23, 59, 59, 999);
-      const response = await fetch(
-        `/api/bathing-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
-      );
-      if (!response.ok) {
-        throw new Error('Failed to fetch bathing records');
+      try {
+        const startDate = new Date(selectedDate);
+        const endDate = new Date(selectedDate);
+        endDate.setHours(23, 59, 59, 999);
+        const data = await apiRequest(
+          `/api/bathing-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`,
+          "GET"
+        );
+        console.log("Bathing records API response:", data);
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Failed to fetch bathing records:", error);
+        return [];
       }
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -741,7 +744,7 @@ export default function BathingList() {
       // 一時的レコードで利用者IDが未設定の場合は事前チェック
       if (id && typeof id === 'string' && id.startsWith("temp-")) {
         const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
-        const currentRecord = currentData?.find((record: any) => record.id === id);
+        const currentRecord = Array.isArray(currentData) ? currentData.find((record: any) => record.id === id) : null;
         
         if (currentRecord) {
           const finalResidentId = residentId || currentRecord.residentId;
@@ -764,7 +767,7 @@ export default function BathingList() {
       if (id && typeof id === 'string' && id.startsWith("temp-")) {
         // 新規作成の場合：完全なレコードデータを構築
         const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
-        const currentRecord = currentData?.find((record: any) => record.id === id);
+        const currentRecord = Array.isArray(currentData) ? currentData.find((record: any) => record.id === id) : null;
         
         if (!currentRecord) {
           console.error("一時的レコードが見つかりません", { id, currentData, selectedDate });
@@ -832,7 +835,7 @@ export default function BathingList() {
       // 一時的レコードで利用者IDが未設定の場合は楽観的更新を完全にスキップ
       if (id && typeof id === 'string' && id.startsWith("temp-")) {
         const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
-        const currentRecord = currentData?.find((record: any) => record.id === id);
+        const currentRecord = Array.isArray(currentData) ? currentData.find((record: any) => record.id === id) : null;
         
         if (currentRecord) {
           const finalResidentId = residentId || currentRecord.residentId;
@@ -966,7 +969,7 @@ export default function BathingList() {
       if (recordId && typeof recordId === 'string' && recordId.startsWith("temp-")) {
         // 新規作成の場合：完全なレコードデータを構築
         const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
-        const currentRecord = currentData?.find((record: any) => record.id === recordId);
+        const currentRecord = Array.isArray(currentData) ? currentData.find((record: any) => record.id === recordId) : null;
         
         if (!currentRecord) {
           throw new Error("一時的レコードが見つかりません");
@@ -1287,7 +1290,7 @@ export default function BathingList() {
   };
 
   const filteredBathingRecords = useMemo(() => {
-    if (!residents || !Array.isArray(residents)) {
+    if (!residents || !Array.isArray(residents) || !Array.isArray(bathingRecords)) {
       return [];
     }
     return getFilteredBathingRecords().sort((a: any, b: any) => {

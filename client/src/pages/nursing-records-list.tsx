@@ -700,12 +700,15 @@ export default function NursingRecordsList() {
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
 
+  // allBathingRecords が配列であることを保証
+  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
+
   // 入浴記録から看護チェック状態を初期化（差戻状態はリアルタイムで判定）
   useEffect(() => {
-    if ((allBathingRecords as any[]).length > 0) {
+    if (bathingRecordsArray.length > 0) {
       const nursings: Record<string, boolean> = {};
       
-      (allBathingRecords as any[]).forEach((record: any) => {
+      bathingRecordsArray.forEach((record: any) => {
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
         if (recordDate === selectedDate) {
           // バイタル完了済みの記録のみ対象
@@ -721,7 +724,7 @@ export default function NursingRecordsList() {
       
       setNursingChecks(nursings);
     }
-  }, [allBathingRecords, selectedDate]);
+  }, [bathingRecordsArray, selectedDate]);
 
   const { data: mealRecords = [] } = useQuery({
     queryKey: ["/api/meal-records", selectedResident?.id],
@@ -1686,7 +1689,7 @@ export default function NursingRecordsList() {
                       <div className="w-[80px] sm:w-[140px] flex-shrink-0">
                         {(() => {
                           // 選択された日付の利用者の入浴記録を取得
-                          const residentBathingForDate = (allBathingRecords as any[]).filter((bathing: any) => {
+                          const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
                             if (bathing.residentId !== resident.id) return false;
                             const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
                             return bathingDate === selectedDate;
@@ -1698,10 +1701,10 @@ export default function NursingRecordsList() {
                             console.log("選択日付:", selectedDate);
                             console.log("利用者ID:", resident.id);
                             console.log("利用者名:", resident.name);
-                            console.log("全入浴記録:", allBathingRecords);
+                            console.log("全入浴記録:", bathingRecordsArray);
                             
                             // 鈴木みどりの全入浴記録（日付フィルターなし）
-                            const allBathingForResident = (allBathingRecords as any[]).filter((bathing: any) => {
+                            const allBathingForResident = bathingRecordsArray.filter((bathing: any) => {
                               return bathing.residentId === resident.id;
                             });
                             console.log("鈴木みどりの全入浴記録:", allBathingForResident);
@@ -1927,7 +1930,7 @@ export default function NursingRecordsList() {
                       <div className="flex items-center flex-shrink-0">
                         {(() => {
                           // 選択された日付の利用者の入浴記録を取得（入浴チェック表示条件と同じロジック）
-                          const residentBathingForDate = (allBathingRecords as any[]).filter((bathing: any) => {
+                          const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
                             if (bathing.residentId !== resident.id) return false;
                             const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
                             return bathingDate === selectedDate;
