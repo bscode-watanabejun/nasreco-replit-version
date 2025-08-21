@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
@@ -324,6 +325,10 @@ export default function NursingRecordsList() {
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
+  
+  // 入浴チェックと看護チェック用の状態
+  const [bathingChecks, setBathingChecks] = useState<Record<string, string>>({});
+  const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -664,9 +669,9 @@ export default function NursingRecordsList() {
 
   // 利用者名のフォント色を決定
   const getResidentNameColor = (resident: any) => {
-    // 入院中の場合は青字（優先）
+    // 入院中の場合は水色（優先）
     if (resident.isAdmitted) {
-      return "text-green-600";
+      return "text-blue-600";
     }
     // その日の介護記録が1件もない場合は赤字
     if (getResidentCareRecordCountForDate(resident.id) === 0) {
@@ -1543,7 +1548,7 @@ export default function NursingRecordsList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4">
         <div className="flex items-center gap-2 mb-4">
           <Button
             variant="ghost"
@@ -1607,23 +1612,122 @@ export default function NursingRecordsList() {
                   key={resident.id} 
                   className="hover:shadow-md transition-shadow"
                 >
-                  <CardContent className="p-1.5 sm:p-2">
-                    <div className="flex items-center justify-between gap-2 sm:gap-4">
-                      <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-                        <div className="text-center min-w-[40px] sm:min-w-[50px]">
-                          <div className="text-sm sm:text-lg font-bold text-green-600">
+                  <CardContent className="p-2 sm:p-3">
+                    {/* デスクトップ表示（sm以上） */}
+                    <div className="hidden sm:flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="text-center min-w-[50px]">
+                          <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
                             {resident.roomNumber || "未設定"}
                           </div>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className={`font-semibold text-sm sm:text-base truncate ${getResidentNameColor(resident)}`}>{resident.name}</div>
+                          <div className={`font-semibold text-base truncate ${getResidentNameColor(resident)}`}>{resident.name}</div>
                         </div>
-                        <div className="text-center min-w-[60px] sm:min-w-[80px]">
-                          <div className="text-xs sm:text-sm font-medium text-slate-700">
-                            {resident.careLevel || "未設定"}
-                          </div>
+                        
+                        {/* 入浴チェックテキストボックス */}
+                        <div className="min-w-[100px] mr-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <input
+                                type="text"
+                                value={bathingChecks[resident.id] || ""}
+                                placeholder="入浴チェック"
+                                className="w-full h-8 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                readOnly
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
+                                <DialogDescription>
+                                  入浴に関する情報を入力してください。
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <Textarea
+                                  value={bathingChecks[resident.id] || ""}
+                                  onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
+                                  placeholder="入浴チェック内容を入力"
+                                  rows={4}
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                        
+                        {/* 看チェックボックス */}
+                        <div className="flex items-center mr-2">
+                          <Checkbox
+                            checked={nursingChecks[resident.id] || false}
+                            onCheckedChange={(checked) => setNursingChecks(prev => ({ ...prev, [resident.id]: !!checked }))}
+                            className="mr-1"
+                          />
+                          <label className="text-sm font-medium text-gray-700">看</label>
                         </div>
                       </div>
+                    </div>
+
+                    {/* スマホ表示（smより小さい） */}
+                    <div className="sm:hidden space-y-2">
+                      {/* 1行目: 居室番号と利用者名 */}
+                      <div className="flex items-center gap-3">
+                        <div className="text-center min-w-[40px]">
+                          <div className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                            {resident.roomNumber || "未設定"}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <div className={`font-semibold text-sm ${getResidentNameColor(resident)}`}>{resident.name}</div>
+                        </div>
+                      </div>
+                      
+                      {/* 2行目: 入浴チェックと看チェック */}
+                      <div className="flex items-center gap-2 pl-[52px]">
+                        {/* 入浴チェックテキストボックス */}
+                        <div className="flex-1">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <input
+                                type="text"
+                                value={bathingChecks[resident.id] || ""}
+                                placeholder="入浴チェック"
+                                className="w-full h-7 px-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                readOnly
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
+                                <DialogDescription>
+                                  入浴に関する情報を入力してください。
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <Textarea
+                                  value={bathingChecks[resident.id] || ""}
+                                  onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
+                                  placeholder="入浴チェック内容を入力"
+                                  rows={4}
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                        
+                        {/* 看チェックボックス */}
+                        <div className="flex items-center">
+                          <Checkbox
+                            checked={nursingChecks[resident.id] || false}
+                            onCheckedChange={(checked) => setNursingChecks(prev => ({ ...prev, [resident.id]: !!checked }))}
+                            className="mr-1"
+                          />
+                          <label className="text-xs font-medium text-gray-700">看</label>
+                        </div>
+                      </div>
+                    </div>
                       <Button 
                         size="sm" 
                         variant="outline" 
