@@ -1666,6 +1666,7 @@ export default function NursingRecordsList() {
                           <label className="text-xs sm:text-sm font-medium text-gray-700">看</label>
                         </div>
                       </div>
+                    </div>
                     
                     {/* 記録ボタン */}
                     <div className="flex justify-end mt-2 sm:mt-0 sm:flex-shrink-0">
