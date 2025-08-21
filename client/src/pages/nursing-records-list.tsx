@@ -686,6 +686,11 @@ export default function NursingRecordsList() {
     enabled: !!selectedResident,
   });
 
+  // 全利用者のバイタル情報（入浴チェック判定用）
+  const { data: allVitals = [] } = useQuery({
+    queryKey: ["/api/vitals"],
+  });
+
   const { data: mealRecords = [] } = useQuery({
     queryKey: ["/api/meal-records", selectedResident?.id],
     enabled: !!selectedResident,
@@ -1630,34 +1635,67 @@ export default function NursingRecordsList() {
                       
                       {/* 入浴チェックテキストボックス */}
                       <div className="w-[80px] sm:w-[140px] flex-shrink-0">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <input
-                              type="text"
-                              value={bathingChecks[resident.id] || ""}
-                              placeholder="入浴チェック"
-                              className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
-                              readOnly
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
-                              <DialogDescription>
-                                入浴に関する情報を入力してください。
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <Textarea
-                                value={bathingChecks[resident.id] || ""}
-                                onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
-                                placeholder="入浴チェック内容を入力"
-                                rows={4}
+                        {(() => {
+                          // 選択された日付の利用者のバイタル情報を取得
+                          const residentVitalsForDate = (allVitals as any[]).filter((vital: any) => {
+                            if (vital.residentId !== resident.id) return false;
+                            const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
+                            return vitalDate === selectedDate;
+                          });
+                          
+                          // バイタルが全項目入力されているかチェック
+                          const hasCompleteVitals = residentVitalsForDate.some((vital: any) => 
+                            vital.temperature && vital.bloodPressure && vital.pulse && vital.spo2
+                          );
+                          
+                          // 表示する値を決定
+                          const displayValue = hasCompleteVitals ? (bathingChecks[resident.id] || "") : "入浴チェック";
+                          
+                          if (displayValue === "入浴チェック") {
+                            // 「入浴チェック」表示時のみポップアップを開く
+                            return (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <input
+                                    type="text"
+                                    value={displayValue}
+                                    placeholder="入浴バイタル"
+                                    className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                    readOnly
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
+                                    <DialogDescription>
+                                      入浴に関する情報を入力してください。
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <Textarea
+                                      value={bathingChecks[resident.id] || ""}
+                                      onChange={(e) => setBathingChecks(prev => ({ ...prev, [resident.id]: e.target.value }))}
+                                      placeholder="入浴チェック内容を入力"
+                                      rows={4}
+                                    />
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            );
+                          } else {
+                            // バイタル全項目入力済みの場合は入浴チェック値を表示（ダイアログなし）
+                            return (
+                              <input
+                                type="text"
+                                value={displayValue}
+                                placeholder="入浴バイタル"
+                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                                readOnly
                               />
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                            );
+                          }
+                        })()}
                       </div>
                       
                       {/* 看チェックボックス */}
