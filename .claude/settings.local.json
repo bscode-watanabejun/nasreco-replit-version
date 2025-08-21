@@ -19,7 +19,8 @@
       "Bash(PORT=5001 npm run dev)",
       "Bash(npm install:*)",
       "Bash(chmod:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(cp:*)"
     ],
     "deny": [],
     "ask": [],

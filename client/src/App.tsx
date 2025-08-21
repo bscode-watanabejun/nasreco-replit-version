@@ -24,7 +24,7 @@ import WeightList from "@/pages/weight-list";
 import ExcretionList from "@/pages/excretion-list";
 import StaffManagement from "@/pages/staff-management";
 import StaffLogin from "@/pages/staff-login";
-import NursingRecords from "@/pages/nursing-records";
+import NursingRecordsList from "@/pages/nursing-records-list";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -68,7 +68,7 @@ function Router() {
           <Route path="/bathing-list" component={BathingList} />
           <Route path="/weight-list" component={WeightList} />
           <Route path="/excretion" component={ExcretionList} />
-          <Route path="/nursing-records" component={NursingRecords} />
+          <Route path="/nursing-records" component={NursingRecordsList} />
           <Route path="/staff-management" component={StaffManagement} />
           <Route component={NotFound} />
         </>
