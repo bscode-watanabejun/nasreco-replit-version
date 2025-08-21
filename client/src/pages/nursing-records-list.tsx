@@ -31,7 +31,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
@@ -332,19 +331,6 @@ export default function NursingRecordsList() {
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
   // 差戻チェック用の状態
   const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
-
-  // 入浴記録から差戻状態を初期化
-  useEffect(() => {
-    if (allBathingRecords.length > 0) {
-      const rejections: Record<string, boolean> = {};
-      allBathingRecords.forEach((record: any) => {
-        if (record.rejectionReason) {
-          rejections[record.residentId] = true;
-        }
-      });
-      setRejectionChecks(rejections);
-    }
-  }, [allBathingRecords]);
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -714,6 +700,19 @@ export default function NursingRecordsList() {
     refetchOnMount: true, // マウント時に再取得
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
+
+  // 入浴記録から差戻状態を初期化
+  useEffect(() => {
+    if ((allBathingRecords as any[]).length > 0) {
+      const rejections: Record<string, boolean> = {};
+      (allBathingRecords as any[]).forEach((record: any) => {
+        if (record.rejectionReason) {
+          rejections[record.residentId] = true;
+        }
+      });
+      setRejectionChecks(rejections);
+    }
+  }, [allBathingRecords]);
 
   const { data: mealRecords = [] } = useQuery({
     queryKey: ["/api/meal-records", selectedResident?.id],
