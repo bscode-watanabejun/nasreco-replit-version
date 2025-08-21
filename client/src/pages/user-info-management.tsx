@@ -212,8 +212,25 @@ export default function UserInfoManagement() {
   };
 
   const onEditSubmit = (data: InsertResident) => {
+    console.log("🔍 編集フォーム送信データ:", data);
+    console.log("🔍 退居日フィールド値:", data.retirementDate);
+    console.log("🔍 退居日フィールドの型:", typeof data.retirementDate);
+    
+    // 日付フィールドが空文字列の場合はnullに変換
+    const processedData = {
+      ...data,
+      dateOfBirth: data.dateOfBirth === "" ? null : data.dateOfBirth,
+      admissionDate: data.admissionDate === "" ? null : data.admissionDate,
+      retirementDate: data.retirementDate === "" ? null : data.retirementDate,
+      careAuthorizationPeriodStart: data.careAuthorizationPeriodStart === "" ? null : data.careAuthorizationPeriodStart,
+      careAuthorizationPeriodEnd: data.careAuthorizationPeriodEnd === "" ? null : data.careAuthorizationPeriodEnd,
+    } as any;
+    
+    console.log("🔍 処理後のデータ:", processedData);
+    console.log("🔍 処理後の退居日:", processedData.retirementDate);
+    
     if (editingResident) {
-      updateResidentMutation.mutate({ id: editingResident.id, data });
+      updateResidentMutation.mutate({ id: editingResident.id, data: processedData });
     }
   };
 
@@ -1809,7 +1826,7 @@ export default function UserInfoManagement() {
                         <FormItem>
                           <FormLabel>退居日</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <Input type="date" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

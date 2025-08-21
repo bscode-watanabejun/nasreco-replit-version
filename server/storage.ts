@@ -199,11 +199,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateResident(id: string, updates: Partial<InsertResident>): Promise<Resident> {
+    console.log("🔍 住民更新データ:", updates);
+    console.log("🔍 退居日フィールド:", updates.retirementDate);
+    
+    // null値をデータベースに明示的に設定するため、undefined値もnullに変換
+    const processedUpdates = Object.keys(updates).reduce((acc: any, key) => {
+      const value = (updates as any)[key];
+      // 日付フィールドでundefinedまたはnullの場合は明示的にnullに設定
+      if (['dateOfBirth', 'admissionDate', 'retirementDate', 'careAuthorizationPeriodStart', 'careAuthorizationPeriodEnd'].includes(key)) {
+        acc[key] = value === undefined || value === null ? null : value;
+      } else {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+    
+    console.log("🔍 処理後の更新データ:", processedUpdates);
+    
     const [updatedResident] = await db
       .update(residents)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...processedUpdates, updatedAt: new Date() })
       .where(eq(residents.id, id))
       .returning();
+    console.log("🔍 更新後の住民データ:", updatedResident);
     return updatedResident;
   }
 

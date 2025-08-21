@@ -691,6 +691,11 @@ export default function NursingRecordsList() {
     queryKey: ["/api/vital-signs"],
   });
 
+  // 全利用者の入浴記録データ（入浴チェック判定用）
+  const { data: allBathingRecords = [] } = useQuery({
+    queryKey: ["/api/bathing-records"],
+  });
+
   const { data: mealRecords = [] } = useQuery({
     queryKey: ["/api/meal-records", selectedResident?.id],
     enabled: !!selectedResident,
@@ -1636,17 +1641,67 @@ export default function NursingRecordsList() {
                       {/* 入浴チェックテキストボックス */}
                       <div className="w-[80px] sm:w-[140px] flex-shrink-0">
                         {(() => {
-                          // 選択された日付の利用者のバイタル情報を取得
-                          const residentVitalsForDate = (allVitals as any[]).filter((vital: any) => {
-                            if (vital.residentId !== resident.id) return false;
-                            const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
-                            return vitalDate === selectedDate;
+                          // 選択された日付の利用者の入浴記録を取得
+                          const residentBathingForDate = (allBathingRecords as any[]).filter((bathing: any) => {
+                            if (bathing.residentId !== resident.id) return false;
+                            const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
+                            return bathingDate === selectedDate;
                           });
                           
-                          // バイタルが全項目入力されているかチェック
-                          const hasCompleteVitals = residentVitalsForDate.some((vital: any) => 
-                            vital.temperature && vital.bloodPressure && vital.pulse && vital.spo2
+                          // デバッグ用：鈴木みどりのデータを詳細調査
+                          if (resident.name === "鈴木 みどり") {
+                            console.log("=== 鈴木みどりの詳細調査 ===");
+                            console.log("選択日付:", selectedDate);
+                            console.log("利用者ID:", resident.id);
+                            console.log("利用者名:", resident.name);
+                            console.log("全入浴記録:", allBathingRecords);
+                            
+                            // 鈴木みどりの全入浴記録（日付フィルターなし）
+                            const allBathingForResident = (allBathingRecords as any[]).filter((bathing: any) => {
+                              return bathing.residentId === resident.id;
+                            });
+                            console.log("鈴木みどりの全入浴記録:", allBathingForResident);
+                            
+                            console.log("選択日付の入浴記録:", residentBathingForDate);
+                            console.log("入浴記録数:", residentBathingForDate.length);
+                            
+                            residentBathingForDate.forEach((bathing, index) => {
+                              console.log(`入浴記録${index + 1}:`, {
+                                id: bathing.id,
+                                temperature: bathing.temperature,
+                                bloodPressureSystolic: bathing.bloodPressureSystolic,
+                                bloodPressureDiastolic: bathing.bloodPressureDiastolic,
+                                pulseRate: bathing.pulseRate,
+                                oxygenSaturation: bathing.oxygenSaturation,
+                                recordDate: bathing.recordDate,
+                                residentId: bathing.residentId,
+                                hasCompleteVitals: !!(bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation),
+                                allFields: bathing
+                              });
+                            });
+                          }
+                          
+                          // バイタルが全項目入力されているかチェック（入浴記録のバイタル項目）
+                          const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
+                            bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
                           );
+                          
+                          // デバッグ用：鈴木みどりのバイタル判定結果
+                          if (resident.name === "鈴木 みどり") {
+                            console.log("バイタル完了判定:", hasCompleteVitals);
+                            console.log("入浴チェック値:", bathingChecks[resident.id]);
+                            
+                            // 各レコードのバイタル詳細チェック
+                            residentBathingForDate.forEach((bathing, index) => {
+                              console.log(`レコード${index + 1}の詳細チェック:`, {
+                                temperature: { value: bathing.temperature, hasValue: !!bathing.temperature },
+                                bloodPressureSystolic: { value: bathing.bloodPressureSystolic, hasValue: !!bathing.bloodPressureSystolic },
+                                pulseRate: { value: bathing.pulseRate, hasValue: !!bathing.pulseRate },
+                                oxygenSaturation: { value: bathing.oxygenSaturation, hasValue: !!bathing.oxygenSaturation },
+                                allComplete: !!(bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation)
+                              });
+                            });
+                          }
                           
                           // バイタル全項目入力済みの場合
                           if (hasCompleteVitals) {

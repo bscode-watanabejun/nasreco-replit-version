@@ -31,8 +31,25 @@ export async function apiRequest(
 
   await throwIfResNotOk(res);
   
-  const responseData = await res.json();
-  return responseData;
+  // 204 No Content の場合は空のレスポンスを返す
+  if (res.status === 204) {
+    return null;
+  }
+  
+  // レスポンスボディが空の場合はJSONパースをスキップ
+  const contentLength = res.headers.get('content-length');
+  if (contentLength === '0') {
+    return null;
+  }
+  
+  try {
+    const responseData = await res.json();
+    return responseData;
+  } catch (error) {
+    // JSONパースに失敗した場合は空のレスポンスとして扱う
+    console.warn('JSONパースに失敗しました。空のレスポンスとして処理します。', error);
+    return null;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
