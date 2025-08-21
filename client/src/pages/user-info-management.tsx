@@ -1819,7 +1819,15 @@ export default function UserInfoManagement() {
                         <FormItem>
                           <FormLabel>退居日</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} value={field.value || ""} />
+                            <Input 
+                              type="date" 
+                              {...field} 
+                              value={field.value || ""} 
+                              onChange={(e) => {
+                                // 空の値の場合は空文字列を設定
+                                field.onChange(e.target.value === "" ? "" : e.target.value);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
