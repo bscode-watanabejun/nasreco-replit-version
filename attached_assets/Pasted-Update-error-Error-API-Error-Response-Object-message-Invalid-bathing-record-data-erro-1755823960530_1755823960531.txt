@@ -1,0 +1,66 @@
+Update error: 
+Error {}
+
+❌ API Error Response: 
+Object {message: "Invalid bathing record data", errors: Array(1)}
+
+Update error: 
+Error {}
+
+❌ API Error Response: 
+Object {message: "Invalid bathing record data", errors: Array(1)}
+
+Update error: 
+Error {}
+
+Updating existing bathing record: 
+Object {id: "87bd76fe-eb15-4001-a3f0-6a759033ba3f", field: "temperature", value: "35.1", updateData: {…}}
+Updating existing bathing record: 
+Object {id: "87bd76fe-eb15-4001-a3f0-6a759033ba3f", field: "temperature", value: "35.3", updateData: {…}}
+Updating existing bathing record: 
+Object {id: "87bd76fe-eb15-4001-a3f0-6a759033ba3f", field: "temperature", value: "35.3", updateData: {…}}
+Updating existing bathing record: 
+Object {id: "87bd76fe-eb15-4001-a3f0-6a759033ba3f", field: "bloodPressureSystolic", value: "81", updateData: {…}}
+❌ API Error Response: 
+Object {message: "Invalid bathing record data", errors: Array(1)}
+
+Update error: 
+Error {}
+
+❌ API Error Response: 
+Object {message: "Invalid bathing record data", errors: Array(1)}
+
+Update error: 
+Error {}
+
+at t.value (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+❌ API Error Response: 
+Object {message: "Invalid bathing record data", errors: Array(1)}
+
+at t.value (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Update error: 
+Error {}
+
+❌ API Error Response: 
+Object {message: "Invalid bathing record data", errors: Array(1)}
+
+Update error: 
+Error {}
+
+ダッシュボード - 全入浴記録: 
+(27) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+ダッシュボード - 全入浴記録数: 27
+ダッシュボード - 選択日付の入浴記録数: 4
+ダッシュボード - 記録ID: ad6541dd-f3a7-4912-8751-f08b380410b7, 利用者ID: test-006, バイタル完了: 85, 看護チェック: false
+ダッシュボード - 記録ID: 5f720165-2b78-43d5-b57e-1b0d2f02e26c, 利用者ID: test-002, バイタル完了: , 看護チェック: false
+ダッシュボード - 記録ID: 87bd76fe-eb15-4001-a3f0-6a759033ba3f, 利用者ID: fc32a27d-9559-4700-9e02-b0dac899c851, バイタル完了: null, 看護チェック: false
+ダッシュボード - 記録ID: 28d11ac2-618f-4d11-9288-ab323d8d1f9e, 利用者ID: 840ec91b-9ec1-4a69-9374-0d3441b5a6b1, バイタル完了: , 看護チェック: false
+ダッシュボード - 未チェック看護記録数: 1
+Updating existing bathing record: 
+Object {id: "87bd76fe-eb15-4001-a3f0-6a759033ba3f", field: "temperature", value: "", updateData: {…}}

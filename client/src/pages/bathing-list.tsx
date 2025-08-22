@@ -786,8 +786,8 @@ export default function BathingList() {
         } else if (
           ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
         ) {
-          // 数値フィールドも文字列として送信（空文字列の場合はnullに変換）
-          newRecordData[field] = value === "" ? null : String(value);
+          // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
+          newRecordData[field] = value === "" ? undefined : String(value);
         } else if (field === "nursingCheck") {
           newRecordData[field] = value === "true" || value === true;
         }
@@ -805,8 +805,8 @@ export default function BathingList() {
         } else if (
           ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
         ) {
-          // 数値フィールドも文字列として送信（空文字列の場合はnullに変換）
-          updateData[field] = value === "" ? null : String(value);
+          // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
+          updateData[field] = value === "" ? undefined : String(value);
         } else if (field === "nursingCheck") {
           updateData[field] = value === "true" || value === true;
         }
