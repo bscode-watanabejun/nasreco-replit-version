@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Building } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Building, FileText, Trash2, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -217,6 +217,8 @@ export default function NursingRecords() {
   const [editedDescription, setEditedDescription] = useState("");
   const [editedInterventions, setEditedInterventions] = useState("");
   const [editedOutcomes, setEditedOutcomes] = useState("");
+
+  const [recordAttachments, setRecordAttachments] = useState<Record<string, Array<{ name: string; url: string; type: string }>>>({});
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -587,6 +589,49 @@ export default function NursingRecords() {
   const [selectedRecordContent, setSelectedRecordContent] = useState<string>("");
   const [contentDialogOpen, setContentDialogOpen] = useState(false);
 
+  // 介護記録詳細画面用のファイル管理（利用者別）
+  const getDetailAttachments = () => {
+    const recordId = selectedRecordForDetail?.id || 'new';
+    const residentKey = selectedResident ? `${selectedResident.id}-${recordId}` : recordId;
+    return recordAttachments[residentKey] || [];
+  };
+
+  const setDetailAttachments = (files: Array<{ name: string; url: string; type: string }>) => {
+    const recordId = selectedRecordForDetail?.id || 'new';
+    const residentKey = selectedResident ? `${selectedResident.id}-${recordId}` : recordId;
+    setRecordAttachments(prev => ({
+      ...prev,
+      [residentKey]: files
+    }));
+  };
+
+  // ファイルアップロード処理（介護記録詳細画面用）
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const currentFiles = getDetailAttachments();
+      const newFiles: Array<{ name: string; url: string; type: string }> = [];
+      
+      Array.from(files).forEach(file => {
+        // 最大3つまでの制限をチェック
+        if (currentFiles.length + newFiles.length < 3) {
+          const url = URL.createObjectURL(file);
+          newFiles.push({
+            name: file.name,
+            url: url,
+            type: file.type
+          });
+        }
+      });
+      
+      if (newFiles.length > 0) {
+        setDetailAttachments([...currentFiles, ...newFiles]);
+      }
+    }
+    // ファイル選択をリセット
+    event.target.value = '';
+  };
+
   // 詳細画面表示の条件分岐
   if (showRecordDetail && selectedResident) {
     const currentRecord = selectedRecordForDetail || {
@@ -788,6 +833,60 @@ export default function NursingRecords() {
               style={{ imeMode: 'auto' }}
             />
           </div>
+
+          {/* ファイル添付エリア */}
+          <div className="bg-white border border-slate-200 p-4 shadow-sm">
+            <h3 className="text-lg font-medium text-slate-800 mb-4">添付ファイル</h3>
+            
+            {/* アップロードされたファイル表示 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {getDetailAttachments().map((file, index) => (
+                <div key={index} className="border border-slate-200 p-4 rounded-lg bg-slate-50 relative">
+                  {file.type.startsWith('image/') ? (
+                    <img src={file.url} alt={file.name} className="w-full h-32 object-contain rounded mb-2" />
+                  ) : (
+                    <div className="w-full h-32 bg-slate-200 rounded mb-2 flex items-center justify-center">
+                      <FileText className="w-8 h-8 text-slate-500" />
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-600 truncate">{file.name}</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-2 right-2 text-red-500 hover:bg-red-50"
+                    onClick={() => {
+                      const newFiles = getDetailAttachments().filter((_, i) => i !== index);
+                      setDetailAttachments(newFiles);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              
+              {/* ファイルアップロードエリア */}
+              {getDetailAttachments().length < 3 && (
+                <label className="border-2 border-dashed border-slate-300 p-4 rounded-lg bg-slate-50 cursor-pointer hover:bg-slate-100 flex flex-col items-center justify-center h-32">
+                  <Paperclip className="w-8 h-8 text-slate-400 mb-2" />
+                  <span className="text-sm text-slate-600">ファイルを追加</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* ページングドット */}
+            <div className="flex justify-center space-x-2 mb-4">
+              <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+              <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
+              <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
+            </div>
+          </div>
         </main>
 
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
@@ -965,7 +1064,7 @@ export default function NursingRecords() {
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
 
             {/* 既存の記録 */}
             {sortedNursingRecords
