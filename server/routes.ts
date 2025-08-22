@@ -421,11 +421,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/bathing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
+      console.log("=== PATCH /api/bathing-records Debug ===");
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      console.log("Request body keys:", Object.keys(req.body));
+      console.log("Request body types:", Object.keys(req.body).map(key => `${key}: ${typeof req.body[key]} (${req.body[key]})`));
+      
       const validatedData = insertBathingRecordSchema.partial().parse(req.body);
+      console.log("Validation successful:", validatedData);
       const record = await storage.updateBathingRecord(id, validatedData);
       res.json(record);
     } catch (error: any) {
+      console.error("=== PATCH Validation Error ===");
       console.error("Error updating bathing record:", error);
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
       if (error.errors) {
         console.error("Validation errors:", error.errors);
         res.status(400).json({ 
@@ -433,6 +442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           errors: error.errors 
         });
       } else {
+        console.error("No error.errors property found");
         res.status(400).json({ message: "Invalid bathing record data" });
       }
     }
