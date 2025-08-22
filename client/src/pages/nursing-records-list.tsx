@@ -644,8 +644,12 @@ export default function NursingRecordsList() {
       .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
   ];
 
-  // フィルター適用済みの利用者一覧
-  const filteredResidents = (residents as any[]).filter((resident: any) => {
+  // フィルター適用済みの利用者一覧（useMemoで依存関係を明確化）
+  const filteredResidents = useMemo(() => {
+    // allBathingRecords が配列であることを保証
+    const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
+    
+    return (residents as any[]).filter((resident: any) => {
     // 階数フィルター
     if (selectedFloor !== "全階") {
       const residentFloor = resident.floor?.toString();
