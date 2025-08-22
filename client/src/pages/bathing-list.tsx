@@ -780,17 +780,14 @@ export default function BathingList() {
         
         console.log("Creating new bathing record:", newRecordData);
 
-        // データ型を適切に変換
+        // データ型を適切に変換（文字列として送信）
         if (field === "recordDate") {
           newRecordData[field] = value; // ISO文字列として送信
         } else if (
-          ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation"].includes(field)
+          ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
         ) {
-          const numValue = parseFloat(value);
-          newRecordData[field] = isNaN(numValue) ? null : numValue;
-        } else if (field === "temperature") {
-          const numValue = parseFloat(value);
-          newRecordData[field] = isNaN(numValue) ? null : numValue;
+          // 数値フィールドも文字列として送信（空文字列の場合はnullに変換）
+          newRecordData[field] = value === "" ? null : String(value);
         } else if (field === "nursingCheck") {
           newRecordData[field] = value === "true" || value === true;
         }
@@ -802,17 +799,14 @@ export default function BathingList() {
 
         console.log("Updating existing bathing record:", { id, field, value, updateData });
         
-        // データ型を適切に変換
+        // データ型を適切に変換（文字列として送信）
         if (field === "recordDate") {
           updateData[field] = value; // ISO文字列として送信
         } else if (
-          ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation"].includes(field)
+          ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
         ) {
-          const numValue = parseFloat(value);
-          updateData[field] = isNaN(numValue) ? null : numValue;
-        } else if (field === "temperature") {
-          const numValue = parseFloat(value);
-          updateData[field] = isNaN(numValue) ? null : numValue;
+          // 数値フィールドも文字列として送信（空文字列の場合はnullに変換）
+          updateData[field] = value === "" ? null : String(value);
         } else if (field === "nursingCheck") {
           updateData[field] = value === "true" || value === true;
         }
