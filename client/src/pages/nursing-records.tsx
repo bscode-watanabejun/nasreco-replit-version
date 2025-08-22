@@ -196,10 +196,6 @@ function InputWithDropdown({
 }
 
 export default function NursingRecords() {
-  console.log("NursingRecords コンポーネントがレンダリングされました");
-  console.log("現在のURL:", window.location.href);
-  console.log("URLパラメータ:", window.location.search);
-  
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
@@ -212,6 +208,16 @@ export default function NursingRecords() {
   const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
   const residentIdFromUrl = urlParams.get('residentId');
 
+  // 記録詳細画面用のstate
+  const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<any>(null);
+  const [showRecordDetail, setShowRecordDetail] = useState(false);
+
+  // 詳細画面の編集用状態
+  const [editedDate, setEditedDate] = useState(new Date());
+  const [editedDescription, setEditedDescription] = useState("");
+  const [editedInterventions, setEditedInterventions] = useState("");
+  const [editedOutcomes, setEditedOutcomes] = useState("");
+
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
   });
@@ -223,10 +229,13 @@ export default function NursingRecords() {
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
 
-  // useEffectでデータ取得状況をログ出力
+  // データ取得完了の確認
   useEffect(() => {
     if (nursingRecords && Array.isArray(nursingRecords)) {
-      console.log("看護記録データを取得:", nursingRecords);
+      // 開発時のみログ出力
+      if (process.env.NODE_ENV === 'development') {
+        console.log("看護記録データを取得:", nursingRecords.length, "件");
+      }
     }
   }, [nursingRecords]);
 
@@ -273,6 +282,16 @@ export default function NursingRecords() {
     }
   }, [residentIdFromUrl, residents, form]);
 
+  // 選択された記録が変更されたら、編集用のstateを初期化
+  useEffect(() => {
+    if (selectedRecordForDetail) {
+      setEditedDescription(selectedRecordForDetail.description || "");
+      setEditedInterventions(selectedRecordForDetail.interventions || "");
+      setEditedOutcomes(selectedRecordForDetail.outcomes || "");
+      setEditedDate(selectedRecordForDetail.recordDate ? new Date(selectedRecordForDetail.recordDate) : new Date());
+    }
+  }, [selectedRecordForDetail]);
+
   const createMutation = useMutation({
     mutationFn: async (data: NursingRecordForm) => {
       await apiRequest("/api/nursing-records", "POST", {
@@ -312,15 +331,13 @@ export default function NursingRecords() {
       if (field === 'recordDate') {
         updateData[field] = new Date(value);
       }
-      console.log("看護記録を更新中:", { id, field, value, updateData });
+      if (process.env.NODE_ENV === 'development') {
+        console.log("看護記録を更新中:", { id, field, value, updateData });
+      }
       return apiRequest(`/api/nursing-records/${id}`, "PATCH", updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
-      toast({
-        title: "成功",
-        description: "看護記録を更新しました",
-      });
     },
     onError: (error) => {
       toast({
@@ -328,6 +345,20 @@ export default function NursingRecords() {
         description: "記録の更新に失敗しました",
         variant: "destructive",
       });
+    },
+  });
+
+  // 詳細更新用ミューテーション
+  const updateDetailMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
+      const updateData: any = { [field]: value };
+      if (field === 'recordDate') {
+        updateData[field] = new Date(value);
+      }
+      return apiRequest(`/api/nursing-records/${id}`, "PATCH", updateData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
     },
   });
 
@@ -409,7 +440,9 @@ export default function NursingRecords() {
         outcomes: updatedBlock.outcomes || "",
       };
       
-      console.log("看護記録を保存中:", submitData);
+      if (process.env.NODE_ENV === 'development') {
+        console.log("看護記録を保存中:", submitData);
+      }
       createMutation.mutate(submitData);
       // 保存後にブロックを削除
       setNewRecordBlocks(prev => prev.filter(block => block.id !== blockId));
@@ -440,33 +473,47 @@ export default function NursingRecords() {
     selectedResident ? block.residentId === selectedResident.id : false
   );
 
-  // ソート済みの既存記録（初期処理と日付変更時のみソート）
-  const sortedNursingRecords = useMemo(() => {
-    console.log("看護記録フィルタリング開始:", {
-      nursingRecords: nursingRecords,
-      selectedResident: selectedResident,
-      selectedDate: selectedDate
-    });
-    
+  // ソートされた看護記録のstate（初期表示と日付変更時のみ更新）
+  const [sortedNursingRecords, setSortedNursingRecords] = useState<any[]>([]);
+
+  // 初期表示と日付・利用者変更時のみソート処理を実行
+  useEffect(() => {
     const filtered = (nursingRecords as any[])
       .filter((record: any) => {
         if (!selectedResident || record.residentId !== selectedResident.id) {
-          console.log("利用者IDでフィルタ除外:", record);
           return false;
         }
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-        console.log("日付比較:", {
-          recordDate: recordDate,
-          selectedDate: selectedDate,
-          match: recordDate === selectedDate
-        });
         return recordDate === selectedDate;
       })
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
     
-    console.log("フィルタリング結果:", filtered);
-    return filtered;
-  }, [nursingRecords, selectedResident, selectedDate]);
+    setSortedNursingRecords(filtered);
+    
+    // 開発時のみデバッグ情報を出力
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`看護記録ソート: ${filtered.length}件 (${selectedDate})`);
+    }
+  }, [nursingRecords, selectedDate, selectedResident?.id]);
+
+  // 新規データ追加時のみ記録を追加（ソートは行わない）
+  useEffect(() => {
+    if (!selectedResident) return;
+    
+    const newRecords = (nursingRecords as any[])
+      .filter((record: any) => {
+        if (record.residentId !== selectedResident.id) return false;
+        const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+        return recordDate === selectedDate;
+      })
+      .filter((record: any) => 
+        !sortedNursingRecords.some(existing => existing.id === record.id)
+      );
+    
+    if (newRecords.length > 0) {
+      setSortedNursingRecords(prev => [...prev, ...newRecords]);
+    }
+  }, [nursingRecords, selectedResident?.id, selectedDate, sortedNursingRecords]);
 
   // 階数のオプションを生成（利用者データから）
   const floorOptions = [
@@ -539,6 +586,228 @@ export default function NursingRecords() {
   // 記録内容全文表示用のstate
   const [selectedRecordContent, setSelectedRecordContent] = useState<string>("");
   const [contentDialogOpen, setContentDialogOpen] = useState(false);
+
+  // 詳細画面表示の条件分岐
+  if (showRecordDetail && selectedResident) {
+    const currentRecord = selectedRecordForDetail || {
+      id: 'new',
+      recordDate: new Date().toISOString(),
+      description: '',
+      interventions: '',
+      outcomes: ''
+    };
+
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-100 p-4">
+          <div className="text-center mb-3">
+            <h1 className="text-xl font-bold text-slate-800">看護記録詳細</h1>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-medium text-slate-800">
+              {selectedResident?.roomNumber || "未設定"}: {selectedResident?.name}　　
+              <span className="text-sm font-normal">
+                {selectedResident?.gender === 'male' ? '男性' : selectedResident?.gender === 'female' ? '女性' : '未設定'} {selectedResident?.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident?.careLevel || '未設定'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <main className="max-w-4xl mx-auto px-4 py-4">
+          {/* 記録情報カード */}
+          <div className="bg-white border border-slate-200 p-2 shadow-sm mb-4">
+            <div className="flex items-center gap-2 h-20">
+              {/* 左側：時間、カテゴリ、記録者を縦並び */}
+              <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
+                {/* 時間 */}
+                <div className="flex items-center gap-0.5">
+                  <InputWithDropdown
+                    value={format(editedDate, "HH", { locale: ja })}
+                    options={hourOptions}
+                    onSave={(value) => {
+                      const newDate = new Date(editedDate);
+                      newDate.setHours(parseInt(value));
+                      setEditedDate(newDate);
+
+                      if (currentRecord.id !== 'new') {
+                        updateDetailMutation.mutate(
+                          { id: currentRecord.id, field: 'recordDate', value: newDate.toISOString() },
+                          {
+                            onSuccess: () => {
+                              setSelectedRecordForDetail((prev: any) => ({ ...prev, recordDate: newDate.toISOString() }));
+                            }
+                          }
+                        );
+                      }
+                    }}
+                    placeholder="--"
+                    className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-xs">:</span>
+                  <InputWithDropdown
+                    value={format(editedDate, "mm", { locale: ja })}
+                    options={minuteOptions}
+                    onSave={(value) => {
+                      const newDate = new Date(editedDate);
+                      newDate.setMinutes(parseInt(value));
+                      setEditedDate(newDate);
+
+                      if (currentRecord.id !== 'new') {
+                        updateDetailMutation.mutate(
+                          { id: currentRecord.id, field: 'recordDate', value: newDate.toISOString() },
+                          {
+                            onSuccess: () => {
+                              setSelectedRecordForDetail((prev: any) => ({ ...prev, recordDate: newDate.toISOString() }));
+                            }
+                          }
+                        );
+                      }
+                    }}
+                    placeholder="--"
+                    className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                {/* カテゴリ */}
+                <div>
+                  <input
+                    type="text"
+                    value="看護記録"
+                    readOnly
+                    className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                  />
+                </div>
+                
+                {/* 記録者 */}
+                <div>
+                  <input
+                    type="text"
+                    value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                    readOnly
+                    className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                  />
+                </div>
+              </div>
+
+              {/* 記録内容 */}
+              <div className="flex-1">
+                <textarea
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  onBlur={(e) => {
+                    const originalDescription = selectedRecordForDetail?.description || "";
+                    if (e.target.value !== originalDescription) {
+                      if (currentRecord.id !== 'new') {
+                        updateDetailMutation.mutate(
+                          { id: currentRecord.id, field: 'description', value: e.target.value },
+                          {
+                            onSuccess: () => {
+                              setSelectedRecordForDetail((prev: any) => ({
+                                ...prev,
+                                description: e.target.value
+                              }));
+                            }
+                          }
+                        );
+                      }
+                    }
+                  }}
+                  className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 resize-none"
+                  placeholder="記録内容を入力..."
+                  rows={4}
+                  autoComplete="off"
+                  spellCheck="false"
+                  style={{ imeMode: 'auto' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 介入内容カード */}
+          <div className="bg-white border border-slate-200 p-3 shadow-sm mb-4">
+            <h3 className="text-sm font-medium text-slate-700 mb-2">介入内容</h3>
+            <textarea
+              value={editedInterventions}
+              onChange={(e) => setEditedInterventions(e.target.value)}
+              onBlur={(e) => {
+                const originalInterventions = selectedRecordForDetail?.interventions || "";
+                if (e.target.value !== originalInterventions) {
+                  if (currentRecord.id !== 'new') {
+                    updateDetailMutation.mutate(
+                      { id: currentRecord.id, field: 'interventions', value: e.target.value },
+                      {
+                        onSuccess: () => {
+                          setSelectedRecordForDetail((prev: any) => ({
+                            ...prev,
+                            interventions: e.target.value
+                          }));
+                        }
+                      }
+                    );
+                  }
+                }
+              }}
+              className="h-20 text-sm w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 resize-none"
+              placeholder="介入内容を入力..."
+              rows={4}
+              autoComplete="off"
+              spellCheck="false"
+              style={{ imeMode: 'auto' }}
+            />
+          </div>
+
+          {/* 結果カード */}
+          <div className="bg-white border border-slate-200 p-3 shadow-sm mb-4">
+            <h3 className="text-sm font-medium text-slate-700 mb-2">結果・アウトカム</h3>
+            <textarea
+              value={editedOutcomes}
+              onChange={(e) => setEditedOutcomes(e.target.value)}
+              onBlur={(e) => {
+                const originalOutcomes = selectedRecordForDetail?.outcomes || "";
+                if (e.target.value !== originalOutcomes) {
+                  if (currentRecord.id !== 'new') {
+                    updateDetailMutation.mutate(
+                      { id: currentRecord.id, field: 'outcomes', value: e.target.value },
+                      {
+                        onSuccess: () => {
+                          setSelectedRecordForDetail((prev: any) => ({
+                            ...prev,
+                            outcomes: e.target.value
+                          }));
+                        }
+                      }
+                    );
+                  }
+                }
+              }}
+              className="h-20 text-sm w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 resize-none"
+              placeholder="結果・アウトカムを入力..."
+              rows={4}
+              autoComplete="off"
+              spellCheck="false"
+              style={{ imeMode: 'auto' }}
+            />
+          </div>
+        </main>
+
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+          <div className="flex items-center justify-center max-w-lg mx-auto">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowRecordDetail(false);
+                setSelectedRecordForDetail(null);
+              }}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              戻る
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'detail' && selectedResident) {
     return (
@@ -654,11 +923,33 @@ export default function NursingRecords() {
                         placeholder="記録内容を入力してください"
                         className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
                         rows={4}
+                        autoComplete="off"
+                        spellCheck="false"
+                        style={{ imeMode: 'auto' }}
                       />
                     </div>
 
                     {/* アイコンボタン */}
                     <div className="flex flex-col justify-center gap-1 flex-shrink-0">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-green-600 hover:bg-green-50 p-1 h-6 w-6"
+                        onClick={() => {
+                          setSelectedRecordForDetail({
+                            id: 'new',
+                            residentId: selectedResident.id,
+                            category: "看護記録",
+                            description: block.description,
+                            interventions: block.interventions || "",
+                            outcomes: block.outcomes || "",
+                            recordDate: block.recordDate
+                          });
+                          setShowRecordDetail(true);
+                        }}
+                      >
+                        <Info className="w-3 h-3" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="sm" 
@@ -674,7 +965,7 @@ export default function NursingRecords() {
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
 
             {/* 既存の記録 */}
             {sortedNursingRecords
@@ -749,7 +1040,10 @@ export default function NursingRecords() {
                           <textarea
                             value={record.description}
                             onChange={(e) => {
-                              // 楽観的更新
+                              // 楽観的更新（ローカル状態も更新）
+                              setSortedNursingRecords(prev => 
+                                prev.map(r => r.id === record.id ? { ...r, description: e.target.value } : r)
+                              );
                               queryClient.setQueryData(["/api/nursing-records"], (old: any[] | undefined) => {
                                 if (!old) return [];
                                 return old.map(r => r.id === record.id ? { ...r, description: e.target.value } : r);
@@ -761,11 +1055,25 @@ export default function NursingRecords() {
                             className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
                             placeholder="記録を入力..."
                             rows={4}
+                            autoComplete="off"
+                            spellCheck="false"
+                            style={{ imeMode: 'auto' }}
                           />
                         </div>
 
                         {/* アイコンボタン */}
                         <div className="flex flex-col justify-center gap-1 flex-shrink-0">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-green-600 hover:bg-green-50 p-1 h-6 w-6"
+                            onClick={() => {
+                              setSelectedRecordForDetail(record);
+                              setShowRecordDetail(true);
+                            }}
+                          >
+                            <Info className="w-3 h-3" />
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 

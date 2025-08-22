@@ -266,14 +266,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/nursing-records', isAuthenticated, async (req: any, res) => {
     try {
-      console.log("看護記録作成リクエスト:", req.body);
       const validatedData = insertNursingRecordSchema.parse({
         ...req.body,
         nurseId: req.user.claims.sub,
       });
-      console.log("バリデーション後のデータ:", validatedData);
       const record = await storage.createNursingRecord(validatedData);
-      console.log("作成された看護記録:", record);
       res.status(201).json(record);
     } catch (error: any) {
       console.error("Error creating nursing record:", error);
@@ -283,32 +280,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/nursing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
-      console.log("=== 看護記録更新リクエスト開始 ===");
-      console.log("ID:", req.params.id);
-      console.log("Body:", JSON.stringify(req.body, null, 2));
-      console.log("User:", req.user?.claims?.sub);
-      
       const record = await storage.updateNursingRecord(req.params.id, req.body);
-      console.log("更新された看護記録:", record);
-      console.log("=== 看護記録更新リクエスト完了 ===");
       res.json(record);
     } catch (error: any) {
-      console.error("=== 看護記録更新エラー ===");
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
-      console.error("Error object:", error);
+      console.error("Error updating nursing record:", error);
       res.status(500).json({ message: "Failed to update nursing record", error: error.message });
     }
   });
 
   app.get('/api/nursing-records/:id', isAuthenticated, async (req, res) => {
     try {
-      console.log("看護記録個別取得リクエスト:", req.params.id);
       const record = await storage.getNursingRecordById(req.params.id);
       if (!record) {
         return res.status(404).json({ message: "Nursing record not found" });
       }
-      console.log("取得された看護記録:", record);
       res.json(record);
     } catch (error: any) {
       console.error("Error fetching nursing record:", error);

@@ -315,10 +315,6 @@ function InlineEditableField({
 }
 
 export default function NursingRecordsList() {
-  console.log("NursingRecordsList コンポーネントがレンダリングされました");
-  console.log("現在のURL:", window.location.href);
-  console.log("URLパラメータ:", window.location.search);
-  
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
