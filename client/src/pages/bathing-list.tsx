@@ -863,12 +863,16 @@ export default function BathingList() {
     },
     onMutate: async (id: string) => {
       // 楽観的更新：即座にローカルから削除
-      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records", selectedDate] });
+      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records"] });
       
-      const previousData = queryClient.getQueryData(["/api/bathing-records", selectedDate]);
+      const previousData = queryClient.getQueryData(["/api/bathing-records"]);
       
-      queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
-        if (!old) return old;
+      queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
+        // oldが配列でない場合は何もしない
+        if (!old || !Array.isArray(old)) {
+          console.warn("キャッシュデータが配列ではありません:", old);
+          return old;
+        }
         return old.filter((record: any) => record.id !== id);
       });
       
@@ -887,7 +891,7 @@ export default function BathingList() {
     onError: (error: any, id, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
-        queryClient.setQueryData(["/api/bathing-records", selectedDate], context.previousData);
+        queryClient.setQueryData(["/api/bathing-records"], context.previousData);
       }
       
       // より詳細なエラー情報をログ出力

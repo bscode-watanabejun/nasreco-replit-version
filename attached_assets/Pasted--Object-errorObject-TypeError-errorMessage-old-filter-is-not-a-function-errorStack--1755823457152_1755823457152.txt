@@ -1,0 +1,35 @@
+削除エラー詳細: 
+Object {errorObject: TypeError, errorMessage: "old.filter is not a function", errorStack: "TypeError: old.filter is not a function↵    at…", recordId: "cc345660-ca13-480e-b1ed-f354f31dca30", timestamp: "2025-08-22T00:43:40.517Z"}
+errorMessage: "old.filter is not a function"
+errorObject: Error
+message: "old.filter is not a function"
+stack: "TypeError: old.filter is not a function↵ at https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/src/pages/bathing-list.tsx:1071:20↵ at functionalUpdate (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=259bc214:45:42)↵ at _a8.setQueryData (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=259bc214:1657:18)↵ at Object.onMutate (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/src/pages/bathing-list.tsx:1069:19)↵ at async _a6.execute (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=259bc214:1215:25)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object
+errorStack: "TypeError: old.filter is not a function↵ at https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/src/pages/bathing-list.tsx:1071:20↵ at functionalUpdate (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=259bc214:45:42)↵ at _a8.setQueryData (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=259bc214:1657:18)↵ at Object.onMutate (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/src/pages/bathing-list.tsx:1069:19)↵ at async _a6.execute (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=259bc214:1215:25)"
+recordId: "cc345660-ca13-480e-b1ed-f354f31dca30"
+timestamp: "2025-08-22T00:43:40.517Z"
+[[Prototype]]: Object
+constructor: ƒ Object()
+hasOwnProperty: ƒ hasOwnProperty()
+isPrototypeOf: ƒ isPrototypeOf()
+propertyIsEnumerable: ƒ propertyIsEnumerable()
+toLocaleString: ƒ toLocaleString()
+toString: ƒ toString()
+length: 0
+name: "toString"
+[[Prototype]]: ƒ ()
+valueOf: ƒ valueOf()
+__defineGetter__: ƒ __defineGetter__()
+__defineSetter__: ƒ __defineSetter__()
+__lookupGetter__: ƒ __lookupGetter__()
+__lookupSetter__: ƒ __lookupSetter__()
+__proto__: Object
+get __proto__: ƒ get __proto__()
+set __proto__: ƒ set __proto__()
+
+at t.value (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://30a5df58-21d5-43fa-b1f0-e37075c9fd90-00-j0zqvm32bzxj.janeway.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
