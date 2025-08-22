@@ -164,6 +164,7 @@ export const nursingRecords = pgTable("nursing_records", {
   recordDate: timestamp("record_date").notNull(),
   category: varchar("category").notNull(), // assessment, intervention, evaluation
   description: text("description").notNull(),
+  notes: text("notes"), // 処置部位などの追加情報
   interventions: text("interventions"),
   outcomes: text("outcomes"),
   createdAt: timestamp("created_at").defaultNow(),

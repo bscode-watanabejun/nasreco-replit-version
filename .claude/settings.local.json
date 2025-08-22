@@ -21,7 +21,9 @@
       "Bash(chmod:*)",
       "Bash(bash:*)",
       "Bash(cp:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "Bash(python3:*)",
+      "Bash(psql:*)"
     ],
     "deny": [],
     "ask": [],
