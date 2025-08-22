@@ -644,9 +644,6 @@ export default function NursingRecordsList() {
       .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
   ];
 
-  // allBathingRecords が配列であることを保証
-  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
-
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // 階数フィルター
@@ -751,6 +748,9 @@ export default function NursingRecordsList() {
     refetchOnMount: true, // マウント時に再取得
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
+
+  // allBathingRecords が配列であることを保証
+  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
 
   // 入浴記録から看護チェック状態を初期化（差戻状態はリアルタイムで判定）
   useEffect(() => {

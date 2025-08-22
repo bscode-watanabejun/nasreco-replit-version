@@ -255,7 +255,7 @@ export default function NursingRecords() {
   const { data: attachments = [] } = useQuery({
     queryKey: [`/api/residents/${selectedResident?.id}/attachments`],
     enabled: !!selectedResident?.id,
-  });
+  }) as { data: any[] };
 
   const form = useForm<NursingRecordForm>({
     resolver: zodResolver(nursingRecordSchema),
