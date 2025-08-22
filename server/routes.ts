@@ -281,6 +281,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/nursing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
       const validatedData = insertNursingRecordSchema.partial().parse(req.body);
+      
+      // Check if there are any fields to update
+      const fieldsToUpdate = Object.keys(validatedData).filter(key => validatedData[key as keyof typeof validatedData] !== undefined);
+      if (fieldsToUpdate.length === 0) {
+        return res.status(400).json({ message: "No valid fields provided for update" });
+      }
+      
       const record = await storage.updateNursingRecord(req.params.id, validatedData);
       res.json(record);
     } catch (error: any) {
