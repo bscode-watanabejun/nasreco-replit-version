@@ -2,15 +2,26 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    let errorMessage = `${res.status}: ${res.statusText}`;
+    
     try {
-      const errorData = await res.json();
-      console.error("❌ API Error Response:", errorData);
-      throw new Error(errorData.message || `${res.status}: ${res.statusText}`);
-    } catch (jsonError) {
-      const text = await res.text() || res.statusText;
-      console.error("❌ API Error (text):", text);
-      throw new Error(`${res.status}: ${text}`);
+      // Response bodyを一度だけ読み取る
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await res.json();
+        console.error("❌ API Error Response:", errorData);
+        errorMessage = errorData.message || errorMessage;
+      } else {
+        const text = await res.text();
+        console.error("❌ API Error (text):", text);
+        errorMessage = text || errorMessage;
+      }
+    } catch (parseError) {
+      console.error("❌ Error parsing response:", parseError);
+      // パースエラーの場合はデフォルトメッセージを使用
     }
+    
+    throw new Error(errorMessage);
   }
 }
 
