@@ -789,7 +789,7 @@ export default function BathingList() {
           // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
           newRecordData[field] = value === "" ? undefined : String(value);
         } else if (field === "nursingCheck") {
-          newRecordData[field] = value === "true" || value === true;
+          newRecordData[field] = value === "true" || value === "on";
         }
 
         return await apiRequest("/api/bathing-records", "POST", newRecordData);
@@ -806,7 +806,7 @@ export default function BathingList() {
           // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
           processedValue = value === "" ? undefined : String(value);
         } else if (field === "nursingCheck") {
-          processedValue = value === "true" || value === true;
+          processedValue = value === "true" || value === "on";
         }
 
         const updateData: any = { [field]: processedValue };
@@ -845,7 +845,7 @@ export default function BathingList() {
           console.log("削除API呼び出し成功:", { recordId: id, result });
           return result;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("削除処理中にエラー発生:", {
           recordId: id,
           error: error,
@@ -1298,12 +1298,12 @@ export default function BathingList() {
       console.log(`曜日フィルタ適用後の表示対象: ${recordsWithEmpty.length}件`);
       
       // 重複チェック
-      const idCounts = {};
+      const idCounts: Record<string, number> = {};
       recordsWithEmpty.forEach(record => {
         idCounts[record.id] = (idCounts[record.id] || 0) + 1;
       });
       
-      const duplicates = Object.entries(idCounts).filter(([id, count]) => count > 1);
+      const duplicates = Object.entries(idCounts).filter(([id, count]) => (count as number) > 1);
       if (duplicates.length > 0) {
         console.error(`重複したレコードID検出:`, duplicates);
         duplicates.forEach(([id, count]) => {
