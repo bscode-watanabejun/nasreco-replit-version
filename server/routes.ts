@@ -280,7 +280,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/nursing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const record = await storage.updateNursingRecord(req.params.id, req.body);
+      const updateData = { ...req.body };
+      if (updateData.recordDate) {
+        updateData.recordDate = new Date(updateData.recordDate);
+      }
+      const record = await storage.updateNursingRecord(req.params.id, updateData);
       res.json(record);
     } catch (error: any) {
       console.error("Error updating nursing record:", error);
@@ -298,6 +302,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error fetching nursing record:", error);
       res.status(500).json({ message: "Failed to fetch nursing record", error: error.message });
+    }
+  });
+
+  app.delete('/api/nursing-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteNursingRecord(req.params.id);
+      res.json({ message: "Nursing record deleted successfully" });
+    } catch (error: any) {
+      console.error("Error deleting nursing record:", error);
+      res.status(500).json({ message: "Failed to delete nursing record", error: error.message });
     }
   });
 
