@@ -280,11 +280,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/nursing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const updateData = { ...req.body };
-      if (updateData.recordDate) {
-        updateData.recordDate = new Date(updateData.recordDate);
-      }
-      const record = await storage.updateNursingRecord(req.params.id, updateData);
+      const validatedData = insertNursingRecordSchema.partial().parse(req.body);
+      const record = await storage.updateNursingRecord(req.params.id, validatedData);
       res.json(record);
     } catch (error: any) {
       console.error("Error updating nursing record:", error);
