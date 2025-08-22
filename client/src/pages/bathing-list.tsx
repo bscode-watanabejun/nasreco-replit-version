@@ -795,21 +795,22 @@ export default function BathingList() {
         return await apiRequest("/api/bathing-records", "POST", newRecordData);
       } else {
         // 既存レコードの更新
-        const updateData: any = { [field]: value };
-
-        console.log("Updating existing bathing record:", { id, field, value, updateData });
+        // データ型を適切に変換してからupdateDataを作成
+        let processedValue: any = value;
         
-        // データ型を適切に変換（文字列として送信）
         if (field === "recordDate") {
-          updateData[field] = value; // ISO文字列として送信
+          processedValue = value; // ISO文字列として送信
         } else if (
           ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
         ) {
           // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
-          updateData[field] = value === "" ? undefined : String(value);
+          processedValue = value === "" ? undefined : String(value);
         } else if (field === "nursingCheck") {
-          updateData[field] = value === "true" || value === true;
+          processedValue = value === "true" || value === true;
         }
+
+        const updateData: any = { [field]: processedValue };
+        console.log("Updating existing bathing record:", { id, field, value, processedValue, updateData });
 
         return await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
       }
