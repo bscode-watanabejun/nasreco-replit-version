@@ -836,14 +836,29 @@ export default function BathingList() {
   // 入浴記録の削除
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // 一時的レコード（temp-）の場合は、サーバーAPIを呼ばずローカルデータのみ削除
-      if (id && typeof id === 'string' && id.startsWith("temp-")) {
-        console.log("一時的レコードをローカルから削除:", id);
-        return { success: true, isTemporary: true };
-      } else {
-        // 既存レコードの場合は通常の削除API
-        console.log("既存レコードをサーバーから削除:", id);
-        return await apiRequest(`/api/bathing-records/${id}`, "DELETE");
+      console.log("削除処理開始:", { recordId: id, timestamp: new Date().toISOString() });
+      
+      try {
+        // 一時的レコード（temp-）の場合は、サーバーAPIを呼ばずローカルデータのみ削除
+        if (id && typeof id === 'string' && id.startsWith("temp-")) {
+          console.log("一時的レコードをローカルから削除:", id);
+          return { success: true, isTemporary: true };
+        } else {
+          // 既存レコードの場合は通常の削除API
+          console.log("既存レコードをサーバーから削除:", id);
+          const result = await apiRequest(`/api/bathing-records/${id}`, "DELETE");
+          console.log("削除API呼び出し成功:", { recordId: id, result });
+          return result;
+        }
+      } catch (error) {
+        console.error("削除処理中にエラー発生:", {
+          recordId: id,
+          error: error,
+          errorMessage: error?.message,
+          errorStack: error?.stack,
+          timestamp: new Date().toISOString()
+        });
+        throw error; // エラーを再スローして onError ハンドラーに渡す
       }
     },
     onMutate: async (id: string) => {
@@ -875,10 +890,26 @@ export default function BathingList() {
         queryClient.setQueryData(["/api/bathing-records", selectedDate], context.previousData);
       }
       
-      console.error('削除エラー:', error);
+      // より詳細なエラー情報をログ出力
+      console.error('削除エラー詳細:', {
+        errorObject: error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+        recordId: id,
+        timestamp: new Date().toISOString()
+      });
+      
+      // エラーメッセージをより詳細に
+      let errorMessage = "入浴記録の削除に失敗しました。";
+      if (error?.message) {
+        errorMessage = `削除エラー: ${error.message}`;
+      } else if (typeof error === 'string') {
+        errorMessage = `削除エラー: ${error}`;
+      }
+      
       toast({
         title: "エラー",
-        description: error.message || "入浴記録の削除に失敗しました。",
+        description: errorMessage,
         variant: "destructive",
       });
     },
