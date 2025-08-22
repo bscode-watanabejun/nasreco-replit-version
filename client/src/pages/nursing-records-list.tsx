@@ -348,6 +348,10 @@ export default function NursingRecordsList() {
   const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
   // 入浴チェックのみフィルタの状態
   const [showBathingOnly, setShowBathingOnly] = useState(false);
+  // ローカル記録日時の状態
+  const [localRecordDates, setLocalRecordDates] = useState<Record<string, string>>({});
+  // ローカル記録内容の状態
+  const [localRecordDescriptions, setLocalRecordDescriptions] = useState<Record<string, string>>({});
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -360,6 +364,17 @@ export default function NursingRecordsList() {
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/user"],
   });
+
+  // 全利用者の入浴記録データ（入浴チェック判定用）
+  const { data: allBathingRecords = [] } = useQuery({
+    queryKey: ["/api/bathing-records"],
+    staleTime: 0, // 常に最新データを取得
+    refetchOnMount: true, // マウント時に再取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
+  });
+
+  // allBathingRecords が配列であることを保証
+  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
 
   const form = useForm<CareRecordForm>({
     resolver: zodResolver(careRecordSchema),
@@ -646,9 +661,6 @@ export default function NursingRecordsList() {
 
   // フィルター適用済みの利用者一覧（useMemoで依存関係を明確化）
   const filteredResidents = useMemo(() => {
-    // allBathingRecords が配列であることを保証
-    const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
-    
     return (residents as any[]).filter((resident: any) => {
     // 階数フィルター
     if (selectedFloor !== "全階") {
@@ -711,6 +723,7 @@ export default function NursingRecordsList() {
     const roomB = parseInt(b.roomNumber || '999999');
     return roomA - roomB;
   });
+  }, [residents, selectedFloor, selectedDate, bathingRecordsArray, showBathingOnly]);
 
   // 選択された日付の利用者の介護記録数を取得
   const getResidentCareRecordCountForDate = (residentId: string) => {
@@ -744,17 +757,6 @@ export default function NursingRecordsList() {
   const { data: allVitals = [] } = useQuery({
     queryKey: ["/api/vital-signs"],
   });
-
-  // 全利用者の入浴記録データ（入浴チェック判定用）
-  const { data: allBathingRecords = [] } = useQuery({
-    queryKey: ["/api/bathing-records"],
-    staleTime: 0, // 常に最新データを取得
-    refetchOnMount: true, // マウント時に再取得
-    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
-  });
-
-  // allBathingRecords が配列であることを保証
-  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
 
   // 入浴記録から看護チェック状態を初期化（差戻状態はリアルタイムで判定）
   useEffect(() => {
@@ -814,9 +816,7 @@ export default function NursingRecordsList() {
   const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<any>(null);
   const [showRecordDetail, setShowRecordDetail] = useState(false);
   
-  // 既存記録の編集用ローカル状態
-  const [localRecordDescriptions, setLocalRecordDescriptions] = useState<Record<string, string>>({});
-  const [localRecordDates, setLocalRecordDates] = useState<Record<string, string>>({});
+  // 既存記録の編集用ローカル状態（上部で定義済みのため削除）
   
   // 新規記録ブロックの編集用ローカル状態
   const [localNewBlockDescriptions, setLocalNewBlockDescriptions] = useState<Record<string, string>>({});
