@@ -1696,24 +1696,24 @@ export default function NursingRecordsList() {
                 options={floorOptions}
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
-                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 enableAutoFocus={false}
               />
             </div>
 
             {/* 入浴チェックのみフィルタ */}
-            <div className="flex items-center space-x-1">
-              <Checkbox
-                id="bathing-only-filter"
-                checked={showBathingOnly}
-                onCheckedChange={(checked) => setShowBathingOnly(!!checked)}
-                className="h-4 w-4"
-              />
-              <label 
-                htmlFor="bathing-only-filter"
-                className="text-xs sm:text-sm text-slate-700 cursor-pointer"
-              >
-                入浴チェックのみ
+            <div className="flex items-center">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="bathing-only-filter"
+                  checked={showBathingOnly}
+                  onChange={(e) => setShowBathingOnly(e.target.checked)}
+                  className="h-4 w-4 sm:h-5 sm:w-5"
+                />
+                <span className="ml-1 text-[10px] sm:text-sm text-slate-700">
+                  入浴チェックのみ
+                </span>
               </label>
             </div>
           </div>

@@ -293,7 +293,7 @@ export default function Dashboard() {
       title: "処置一覧",
       description: "医療処置記録",
       color: "green",
-      path: "/treatments"
+      path: "/treatment-list"
     }
   ];
 
