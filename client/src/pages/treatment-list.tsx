@@ -364,7 +364,7 @@ export default function TreatmentList() {
                         </div>
                       </div>
                 )
-            }))
+            })
           )}
         </div>
       </main>
