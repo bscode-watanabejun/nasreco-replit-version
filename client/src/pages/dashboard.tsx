@@ -286,7 +286,7 @@ export default function Dashboard() {
       title: "看護記録",
       description: "看護ケア記録",
       color: "green",
-      path: "/nursing-records"
+      path: "/nursing-records-list"
     },
     {
       icon: Package,

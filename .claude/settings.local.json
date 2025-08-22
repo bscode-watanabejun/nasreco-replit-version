@@ -20,7 +20,8 @@
       "Bash(npm install:*)",
       "Bash(chmod:*)",
       "Bash(bash:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": [],

@@ -80,7 +80,9 @@ export interface IStorage {
 
   // Nursing record operations
   getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<NursingRecord[]>;
+  getNursingRecordById(id: string): Promise<NursingRecord | null>;
   createNursingRecord(record: InsertNursingRecord): Promise<NursingRecord>;
+  updateNursingRecord(id: string, record: Partial<InsertNursingRecord>): Promise<NursingRecord>;
 
   // Vital signs operations
   getVitalSigns(residentId?: string, startDate?: Date, endDate?: Date): Promise<VitalSigns[]>;
@@ -283,9 +285,27 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(nursingRecords.recordDate));
   }
 
+  async getNursingRecordById(id: string): Promise<NursingRecord | null> {
+    const record = await db
+      .select()
+      .from(nursingRecords)
+      .where(eq(nursingRecords.id, id))
+      .limit(1);
+    return record[0] || null;
+  }
+
   async createNursingRecord(record: InsertNursingRecord): Promise<NursingRecord> {
     const [newRecord] = await db.insert(nursingRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateNursingRecord(id: string, record: Partial<InsertNursingRecord>): Promise<NursingRecord> {
+    const [updatedRecord] = await db
+      .update(nursingRecords)
+      .set(record)
+      .where(eq(nursingRecords.id, id))
+      .returning();
+    return updatedRecord;
   }
 
   // Vital signs operations

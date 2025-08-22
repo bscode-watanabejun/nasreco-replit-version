@@ -315,6 +315,10 @@ function InlineEditableField({
 }
 
 export default function NursingRecordsList() {
+  console.log("NursingRecordsList コンポーネントがレンダリングされました");
+  console.log("現在のURL:", window.location.href);
+  console.log("URLパラメータ:", window.location.search);
+  
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
@@ -694,7 +698,7 @@ export default function NursingRecordsList() {
 
   // 全利用者の入浴記録データ（入浴チェック判定用）
   const { data: allBathingRecords = [] } = useQuery({
-    queryKey: ["/api/bathing-records", selectedDate],
+    queryKey: ["/api/bathing-records"],
     staleTime: 0, // 常に最新データを取得
     refetchOnMount: true, // マウント時に再取得
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
@@ -1851,7 +1855,7 @@ export default function NursingRecordsList() {
                                                   // フォーカス離脱時にサーバーに保存と楽観的更新
                                                   const newValue = e.target.value;
                                                   // 楽観的更新
-                                                  queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+                                                  queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
                                                     return old?.map((record: any) => 
                                                       record.id === bathingRecordForResident.id 
                                                         ? { ...record, notes: newValue }
@@ -1881,7 +1885,7 @@ export default function NursingRecordsList() {
                                                   const rejectionValue = checked ? "差戻" : "";
                                                   
                                                   // 楽観的更新
-                                                  queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+                                                  queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
                                                     return old?.map((record: any) => 
                                                       record.id === bathingRecordForResident.id 
                                                         ? { ...record, rejectionReason: rejectionValue }
@@ -1963,7 +1967,7 @@ export default function NursingRecordsList() {
                                   
                                   if (bathingRecord) {
                                     // 楽観的更新
-                                    queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+                                    queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
                                       return old?.map((record: any) => 
                                         record.id === bathingRecord.id 
                                           ? { ...record, nursingCheck: isChecked }
@@ -1993,13 +1997,11 @@ export default function NursingRecordsList() {
                         variant="outline" 
                         className="flex items-center gap-0.5 px-1.5 sm:px-3 text-xs sm:text-sm flex-shrink-0"
                         onClick={() => {
-                          setSelectedResident(resident);
-                          setView('detail');
-                          form.setValue('residentId', resident.id);
+                          setLocation(`/nursing-records?residentId=${resident.id}&date=${selectedDate}&floor=${selectedFloor}`);
                         }}
                       >
                         <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="hidden sm:inline">記録</span>
+                        <span className="hidden sm:inline">看護記録</span>
                       </Button>
                     </div>
                   </CardContent>
