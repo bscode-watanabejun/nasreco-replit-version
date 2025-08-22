@@ -160,6 +160,7 @@ export interface IStorage {
   updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication>;
   // Resident Attachment operations
   getResidentAttachments(residentId: string): Promise<ResidentAttachment[]>;
+  getResidentAttachment(id: string): Promise<ResidentAttachment | null>;
   createResidentAttachment(attachment: InsertResidentAttachment): Promise<ResidentAttachment>;
   deleteResidentAttachment(id: string): Promise<void>;
 }
@@ -1064,6 +1065,14 @@ export class DatabaseStorage implements IStorage {
       .from(residentAttachments)
       .where(eq(residentAttachments.residentId, residentId))
       .orderBy(desc(residentAttachments.createdAt));
+  }
+
+  async getResidentAttachment(id: string): Promise<ResidentAttachment | null> {
+    const [attachment] = await db
+      .select()
+      .from(residentAttachments)
+      .where(eq(residentAttachments.id, id));
+    return attachment || null;
   }
 
   async createResidentAttachment(attachment: InsertResidentAttachment): Promise<ResidentAttachment> {

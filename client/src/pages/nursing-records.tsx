@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, User, Edit, ClipboardList, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Building, FileText, Trash2, Paperclip } from "lucide-react";
+import { Plus, Calendar, User, Edit, ClipboardList, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Building, FileText, Trash2, Paperclip, Download, Eye, File, Image } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -249,6 +249,12 @@ export default function NursingRecords() {
 
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/user"],
+  });
+
+  // 利用者の添付ファイルを取得
+  const { data: attachments = [] } = useQuery({
+    queryKey: [`/api/residents/${selectedResident?.id}/attachments`],
+    enabled: !!selectedResident?.id,
   });
 
   const form = useForm<NursingRecordForm>({
@@ -1016,7 +1022,15 @@ export default function NursingRecords() {
                 <div>
                   <input
                     type="text"
-                    value={currentRecord.category || "看護記録"}
+                    value={
+                      currentRecord.category === "医療記録" ? "医療記録" :
+                      currentRecord.category === "処置" ? "処置" :
+                      currentRecord.category === "assessment" ? "看護記録" :
+                      currentRecord.category === "intervention" ? "看護記録" :
+                      currentRecord.category === "evaluation" ? "看護記録" :
+                      currentRecord.category === "observation" ? "看護記録" :
+                      "看護記録"
+                    }
                     readOnly
                     className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                   />
@@ -2192,8 +2206,111 @@ export default function NursingRecords() {
               )}
             </TabsContent>
             <TabsContent value="attachments">
-              <div className="text-center py-8 text-slate-600">
-                <p>添付は今後開発予定です。</p>
+              <div className="space-y-4 mt-4">
+                {attachments.length === 0 ? (
+                  <div className="text-center py-8 text-slate-600">
+                    <Paperclip className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                    <p>この利用者の添付ファイルはありません</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {attachments.map((attachment: any) => {
+                      const isImageFile = (fileName: string, mimeType: string) => {
+                        // mimeTypeでの判定
+                        if (mimeType && mimeType.startsWith('image/')) return true;
+                        
+                        // 拡張子での判定（フォールバック）
+                        const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+                        const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+                        return imageExtensions.includes(extension);
+                      };
+
+                      const getFileIcon = (mimeType: string) => {
+                        if (mimeType.startsWith('image/')) return Image;
+                        if (mimeType === 'application/pdf') return FileText;
+                        return File;
+                      };
+
+                      const formatFileSize = (bytes: number) => {
+                        if (bytes === 0) return '0 Bytes';
+                        const k = 1024;
+                        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                      };
+
+                      const isImage = isImageFile(attachment.fileName, attachment.mimeType);
+                      const FileIcon = getFileIcon(attachment.mimeType);
+
+                      return (
+                        <div key={attachment.id} className="bg-white border rounded-lg overflow-hidden">
+                          {/* 画像ファイルの場合は直接表示 */}
+                          {isImage ? (
+                            <div className="space-y-3">
+                              <div className="aspect-video bg-slate-100 flex items-center justify-center">
+                                <img
+                                  src={`/uploads/${attachment.filePath}`}
+                                  alt={attachment.fileName}
+                                  className="max-w-full max-h-full object-contain rounded"
+                                  style={{ maxHeight: '300px' }}
+                                />
+                              </div>
+                              <div className="p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-slate-900 truncate">
+                                      {attachment.fileName}
+                                    </div>
+                                    <div className="text-sm text-slate-500 space-y-1">
+                                      <div>{formatFileSize(attachment.fileSize)}</div>
+                                      {attachment.description && (
+                                        <div className="text-slate-600">{attachment.description}</div>
+                                      )}
+                                      <div className="text-xs text-slate-400">
+                                        {format(new Date(attachment.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => window.open(`/uploads/${attachment.filePath}`, '_blank')}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* 画像以外のファイルは従来通りの表示 */
+                            <div className="flex items-center gap-3 p-3 hover:bg-slate-50">
+                              <div className="flex-shrink-0">
+                                <FileIcon className="w-8 h-8 text-slate-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-slate-900 truncate">
+                                  {attachment.fileName}
+                                </div>
+                                <div className="text-sm text-slate-500 space-y-1">
+                                  <div>{formatFileSize(attachment.fileSize)}</div>
+                                  {attachment.description && (
+                                    <div className="text-slate-600">{attachment.description}</div>
+                                  )}
+                                  <div className="text-xs text-slate-400">
+                                    {format(new Date(attachment.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </TabsContent>
             <TabsContent value="treatment-settings">

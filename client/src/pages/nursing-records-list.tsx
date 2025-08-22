@@ -55,6 +55,7 @@ function InputWithDropdown({
   placeholder,
   className,
   disabled = false,
+  enableAutoFocus = true,
 }: {
   id?: string;
   value: string;
@@ -63,6 +64,7 @@ function InputWithDropdown({
   placeholder: string;
   className?: string;
   disabled?: boolean;
+  enableAutoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -106,33 +108,36 @@ function InputWithDropdown({
     onSave(selectedValue);
     setOpen(false);
 
-    // 特定の遅延後にフォーカス移動を実行
-    setTimeout(() => {
-      if (inputRef.current) {
-        const allInputs = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            el !== inputRef.current &&
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+    // enableAutoFocusがtrueの場合のみ自動フォーカス移動を実行
+    if (enableAutoFocus) {
+      // 特定の遅延後にフォーカス移動を実行
+      setTimeout(() => {
+        if (inputRef.current) {
+          const allInputs = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              el !== inputRef.current &&
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentElement = inputRef.current;
-        const allElements = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+          const currentElement = inputRef.current;
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentIndex = allElements.indexOf(currentElement);
-        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-          allElements[currentIndex + 1].focus();
+          const currentIndex = allElements.indexOf(currentElement);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            allElements[currentIndex + 1].focus();
+          }
         }
-      }
-    }, 200);
+      }, 200);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,12 +329,25 @@ export default function NursingRecordsList() {
   // URLパラメータから日付とフロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
-  const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
+  const [selectedFloor, setSelectedFloor] = useState<string>(() => {
+    // URLパラメータから階数を取得
+    const floorParam = urlParams.get("floor");
+    if (floorParam) {
+      if (floorParam === "all") {
+        return "全階";
+      } else {
+        return `${floorParam}階`;
+      }
+    }
+    return "全階";
+  });
   
   // 看護チェック用の状態
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
   // 差戻チェック用の状態（ポップアップ内でのみ使用）
   const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
+  // 入浴チェックのみフィルタの状態
+  const [showBathingOnly, setShowBathingOnly] = useState(false);
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -616,25 +634,39 @@ export default function NursingRecordsList() {
 
   // 階数のオプションを生成（利用者データから）
   const floorOptions = [
-    { value: "all", label: "全階" },
+    { value: "全階", label: "全階" },
     ...Array.from(new Set((residents as any[]).map(r => {
       // "1F", "2F" などのF文字を除去して数値のみ取得
       const floor = r.floor?.toString().replace('F', '');
       return floor ? parseInt(floor) : null;
     }).filter(Boolean)))
       .sort((a, b) => (a || 0) - (b || 0))
-      .map(floor => ({ value: floor?.toString() || '', label: `${floor}階` }))
+      .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
   ];
+
+  // allBathingRecords が配列であることを保証
+  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
 
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // 階数フィルター
-    if (selectedFloor !== "all") {
-      // 利用者のfloor値も正規化（"1F" → "1"）
-      const residentFloor = resident.floor?.toString().replace('F', '');
-      if (residentFloor !== selectedFloor) {
-        return false;
-      }
+    if (selectedFloor !== "全階") {
+      const residentFloor = resident.floor?.toString();
+      if (!residentFloor) return false;
+      
+      // 複数のフォーマットに対応した比較
+      const selectedFloorNumber = selectedFloor.replace("階", "");
+      
+      // "1階" 形式との比較
+      if (residentFloor === selectedFloor) return true;
+      
+      // "1" 形式との比較
+      if (residentFloor === selectedFloorNumber) return true;
+      
+      // "1F" 形式との比較
+      if (residentFloor.replace('F', '') === selectedFloorNumber) return true;
+      
+      return false;
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）
@@ -650,6 +682,26 @@ export default function NursingRecordsList() {
     // 退所日がある場合、選択した日付が退所日以前である必要がある
     if (retirementDate && filterDate > retirementDate) {
       return false;
+    }
+    
+    // 入浴チェックのみフィルタ
+    if (showBathingOnly) {
+      // 選択された日付の利用者の入浴記録を確認
+      const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
+        if (bathing.residentId !== resident.id) return false;
+        const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
+        return bathingDate === selectedDate;
+      });
+      
+      // バイタルが全項目入力されているかチェック（入浴チェック表示条件）
+      const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
+        bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
+      );
+      
+      // 入浴チェック表示条件を満たさない場合は除外
+      if (!hasCompleteVitals) {
+        return false;
+      }
     }
     
     return true;
@@ -699,9 +751,6 @@ export default function NursingRecordsList() {
     refetchOnMount: true, // マウント時に再取得
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
-
-  // allBathingRecords が配列であることを保証
-  const bathingRecordsArray = Array.isArray(allBathingRecords) ? allBathingRecords : [];
 
   // 入浴記録から看護チェック状態を初期化（差戻状態はリアルタイムで判定）
   useEffect(() => {
@@ -1639,15 +1688,29 @@ export default function NursingRecordsList() {
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
               <InputWithDropdown
-                value={(() => {
-                  const option = floorOptions.find(opt => opt.value === selectedFloor);
-                  return option ? option.label : "全階";
-                })()}
+                value={selectedFloor}
                 options={floorOptions}
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
                 className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                enableAutoFocus={false}
               />
+            </div>
+
+            {/* 入浴チェックのみフィルタ */}
+            <div className="flex items-center space-x-1">
+              <Checkbox
+                id="bathing-only-filter"
+                checked={showBathingOnly}
+                onCheckedChange={(checked) => setShowBathingOnly(!!checked)}
+                className="h-4 w-4"
+              />
+              <label 
+                htmlFor="bathing-only-filter"
+                className="text-xs sm:text-sm text-slate-700 cursor-pointer"
+              >
+                入浴チェックのみ
+              </label>
             </div>
           </div>
         </div>
@@ -1993,7 +2056,8 @@ export default function NursingRecordsList() {
                         variant="outline" 
                         className="flex items-center gap-0.5 px-1.5 sm:px-3 text-xs sm:text-sm flex-shrink-0"
                         onClick={() => {
-                          setLocation(`/nursing-records?residentId=${resident.id}&date=${selectedDate}&floor=${selectedFloor}`);
+                          const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
+                          setLocation(`/nursing-records?residentId=${resident.id}&date=${selectedDate}&floor=${floorParam}`);
                         }}
                       >
                         <FileText className="w-3 h-3 sm:w-4 sm:h-4" />

@@ -1109,6 +1109,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 添付ファイルのダウンロード
+  app.get('/api/attachments/:attachmentId/download', isAuthenticated, async (req, res) => {
+    try {
+      const { attachmentId } = req.params;
+      const attachment = await storage.getResidentAttachment(attachmentId);
+      
+      if (!attachment) {
+        return res.status(404).json({ message: "添付ファイルが見つかりません" });
+      }
+
+      const filePath = path.join(process.cwd(), attachment.filePath);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: "ファイルが見つかりません" });
+      }
+
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
+      res.setHeader('Content-Type', attachment.mimeType);
+      res.sendFile(filePath);
+    } catch (error: any) {
+      console.error("Error downloading attachment:", error);
+      res.status(500).json({ message: "ファイルのダウンロードに失敗しました" });
+    }
+  });
+
+  // 添付ファイルの表示（画像など）
+  app.get('/api/attachments/:attachmentId/view', isAuthenticated, async (req, res) => {
+    try {
+      const { attachmentId } = req.params;
+      const attachment = await storage.getResidentAttachment(attachmentId);
+      
+      if (!attachment) {
+        return res.status(404).json({ message: "添付ファイルが見つかりません" });
+      }
+
+      const filePath = path.join(process.cwd(), attachment.filePath);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: "ファイルが見つかりません" });
+      }
+
+      res.setHeader('Content-Type', attachment.mimeType);
+      res.sendFile(filePath);
+    } catch (error: any) {
+      console.error("Error viewing attachment:", error);
+      res.status(500).json({ message: "ファイルの表示に失敗しました" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
