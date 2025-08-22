@@ -1064,7 +1064,7 @@ export default function NursingRecords() {
                   </div>
                 </div>
               </div>
-            )))}
+            ))}
 
             {/* 既存の記録 */}
             {sortedNursingRecords

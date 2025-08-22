@@ -346,6 +346,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(vitalSigns).where(eq(vitalSigns.id, id));
   }
 
+  async getVitalSignsById(id: string): Promise<VitalSigns | undefined> {
+    const [record] = await db.select()
+      .from(vitalSigns)
+      .where(eq(vitalSigns.id, id))
+      .limit(1);
+    return record;
+  }
+
   // Meals and medication operations
   async getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]> {
     const conditions = [];
@@ -378,6 +386,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(mealsAndMedication.id, id))
       .returning();
     return updatedRecord;
+  }
+
+  async getMealRecordById(id: string): Promise<MealsAndMedication | undefined> {
+    const [record] = await db.select()
+      .from(mealsAndMedication)
+      .where(eq(mealsAndMedication.id, id))
+      .limit(1);
+    return record;
   }
 
   // Bathing record operations

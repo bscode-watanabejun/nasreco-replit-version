@@ -301,6 +301,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get vital signs by ID
+  app.get('/api/vital-signs/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const vitals = await storage.getVitalSignsById(id);
+      if (!vitals) {
+        return res.status(404).json({ message: "Vital signs not found" });
+      }
+      res.json(vitals);
+    } catch (error: any) {
+      console.error("Error fetching vital signs:", error);
+      res.status(500).json({ message: "Failed to fetch vital signs" });
+    }
+  });
+
+  // Meal records routes (alias for meals-medication for backward compatibility)
+  app.get('/api/meal-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const record = await storage.getMealRecordById(id);
+      if (!record) {
+        return res.status(404).json({ message: "Meal record not found" });
+      }
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error fetching meal record:", error);
+      res.status(500).json({ message: "Failed to fetch meal record" });
+    }
+  });
+
   // Vital signs routes
   app.get('/api/vital-signs', isAuthenticated, async (req, res) => {
     try {
