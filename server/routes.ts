@@ -475,23 +475,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const dataToValidate = {
         ...req.body,
-        staffId: req.user.claims.sub,
+        // staffIdはomitされているため、バリデーションに含めない
       };
       console.log("Data to validate:", JSON.stringify(dataToValidate, null, 2));
       
       const validatedData = insertBathingRecordSchema.parse(dataToValidate);
       console.log("Validation successful:", JSON.stringify(validatedData, null, 2));
       
-      // residentIdが必要な場合は、リクエストから取得するか適切なデフォルト値を使用
-      if (!req.body.residentId) {
-        return res.status(400).json({ 
-          message: "residentId is required for creating bathing records" 
-        });
-      }
-      
+      // residentIdとstaffIdはvalidationから除外されているため、手動で追加
       const recordData = {
         ...validatedData,
-        residentId: req.body.residentId,
+        residentId: null,  // 新規作成時は常にnull（空カード）
+        staffId: req.user.claims.sub,  // 現在のユーザーIDを設定
       };
       
       const record = await storage.createBathingRecord(recordData);
