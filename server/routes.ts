@@ -473,7 +473,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         staffId: req.user.claims.sub,
       });
-      const record = await storage.createBathingRecord(validatedData);
+      
+      // residentIdがnullまたはundefinedの場合は空カードとして扱う
+      const recordData = {
+        ...validatedData,
+        residentId: req.body.residentId || null,
+      };
+      
+      const record = await storage.createBathingRecord(recordData);
       res.status(201).json(record);
     } catch (error: any) {
       console.error("Error creating bathing record:", error);

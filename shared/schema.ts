@@ -413,7 +413,6 @@ export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
-  residentId: z.string().nullable().optional(),
   timing: z.string().optional(),
   hour: z.string().optional(),
   minute: z.string().optional(),
@@ -429,6 +428,7 @@ export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
   nursingCheck: z.boolean().optional(),
 }).omit({
   id: true,
+  residentId: true,
   createdAt: true,
   updatedAt: true,
 });
