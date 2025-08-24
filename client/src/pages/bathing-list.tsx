@@ -1112,58 +1112,43 @@ export default function BathingList() {
     }
   };
 
-  // 新規記録追加（空のカードを最下部に追加）
+  // 新規入浴記録追加機能
   const addNewRecord = () => {
-    const residentList = residents as any[];
-    if (!residentList || residentList.length === 0) {
-      toast({
-        title: "エラー",
-        description: "利用者情報が見つかりません",
-        variant: "destructive",
-      });
-      return;
-    }
+    // 現在時刻を取得
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
     
-    // 一時的なIDを生成（タイムスタンプベース）
-    const tempId = `temp-new-${Date.now()}`;
+    // 分のオプション（0, 15, 30, 45）から最も近いものを選択
+    const minuteOptions = [0, 15, 30, 45];
+    const closestMinute = minuteOptions.reduce((prev, curr) => 
+      Math.abs(curr - currentMinute) < Math.abs(prev - currentMinute) ? curr : prev
+    );
     
-    // 楽観的更新で空のカードを即座に追加
-    queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
-      if (!old) return old;
-      
-      // 同じIDが既に存在しないかチェック
-      const existingRecord = old.find((record: any) => record.id === tempId);
-      if (existingRecord) {
-        console.warn(`重複したIDの新規記録作成を防止: ${tempId}`);
-        return old;
-      }
-      
-      // 新しい空のレコードを作成
-      const newEmptyRecord = {
-        id: tempId,
-        residentId: "", // 空の状態に設定
-        recordDate: selectedDate,
-        timing: "午前",
-        hour: "",
-        minute: "",
-        staffName: "",
-        bathType: "",
-        temperature: "",
-        bloodPressureSystolic: "",
-        bloodPressureDiastolic: "",
-        pulseRate: "",
-        oxygenSaturation: "",
-        notes: "",
-        rejectionReason: "",
-        nursingCheck: false,
-        createdAt: null,
-        updatedAt: null,
-        isTemporary: true,
-      };
-      
-      console.log(`新規空カードを追加: ${tempId}`);
-      return [...old, newEmptyRecord];
-    });
+    // 選択された日付と現在時刻を組み合わせ
+    const recordDate = new Date(selectedDate);
+    recordDate.setHours(currentHour, closestMinute, 0, 0);
+
+    const newRecord = {
+      residentId: null, // 明示的にnullを設定
+      staffId: (currentUser as any)?.id || null,
+      recordDate: recordDate.toISOString(),
+      timing: currentHour < 12 ? "午前" : "午後",
+      hour: currentHour.toString(),
+      minute: closestMinute.toString(),
+      staffName: (currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "",
+      bathType: "",
+      temperature: "",
+      bloodPressureSystolic: "",
+      bloodPressureDiastolic: "",
+      pulseRate: "",
+      oxygenSaturation: "",
+      notes: "",
+      rejectionReason: "",
+      nursingCheck: false,
+    };
+
+    createMutation.mutate(newRecord);
   };
 
   // 選択日付から曜日を取得し、入浴日フィールドを判定

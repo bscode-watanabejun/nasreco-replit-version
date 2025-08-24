@@ -211,7 +211,7 @@ export const mealsAndMedication = pgTable("meals_and_medication", {
 // Bathing records (入浴一覧用)
 export const bathingRecords = pgTable("bathing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  residentId: varchar("resident_id").notNull().references(() => residents.id),
+  residentId: varchar("resident_id").references(() => residents.id),
   staffId: varchar("staff_id").references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
   timing: varchar("timing"), // 午前, 午後, 臨時, 前日
@@ -413,7 +413,7 @@ export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
-  residentId: z.string().min(1, "利用者IDは必須です"),
+  residentId: z.string().nullable().optional(),
   timing: z.string().optional(),
   hour: z.string().optional(),
   minute: z.string().optional(),

@@ -551,15 +551,7 @@ export default function TreatmentList() {
       
       {/* フッダー */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <Button 
-            variant="outline" 
-            onClick={() => setLocation("/")}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            戻る
-          </Button>
+        <div className="flex items-center justify-end max-w-4xl mx-auto">
           <Button
             onClick={addNewTreatment}
             className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
