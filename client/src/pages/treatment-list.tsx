@@ -45,6 +45,7 @@ function InputWithDropdown({
   placeholder,
   className,
   disabled = false,
+  enableAutoFocus = true,
 }: {
   id?: string;
   value: string;
@@ -53,6 +54,7 @@ function InputWithDropdown({
   placeholder: string;
   className?: string;
   disabled?: boolean;
+  enableAutoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -82,30 +84,33 @@ function InputWithDropdown({
     setInputValue(selectedValue);
     onSave(selectedValue);
     setOpen(false);
-    setTimeout(() => {
-      if (inputRef.current) {
-        const allInputs = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            el !== inputRef.current &&
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
-        const currentElement = inputRef.current;
-        const allElements = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
-        const currentIndex = allElements.indexOf(currentElement);
-        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-          allElements[currentIndex + 1].focus();
+
+    if (enableAutoFocus) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          const allInputs = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              el !== inputRef.current &&
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
+          const currentElement = inputRef.current;
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
+          const currentIndex = allElements.indexOf(currentElement);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            allElements[currentIndex + 1].focus();
+          }
         }
-      }
-    }, 200);
+      }, 200);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +221,19 @@ export default function TreatmentList() {
   });
 
   const filteredTreatmentRecords = useMemo(() => {
-    const filteredResidents = residents.filter(r => selectedFloor === 'all' || r.floor === selectedFloor.replace('階',''));
+    const filteredResidents = residents.filter(r => {
+        if (selectedFloor === '全階') return true;
+        const residentFloor = r.floor?.toString();
+        if (!residentFloor) return false;
+        
+        const selectedFloorNumber = selectedFloor.replace("階", "");
+        
+        if (residentFloor === selectedFloor) return true;
+        if (residentFloor === selectedFloorNumber) return true;
+        if (residentFloor.replace('F', '') === selectedFloorNumber) return true;
+        
+        return false;
+    });
     const residentIds = new Set(filteredResidents.map(r => r.id));
 
     return allNursingRecords
@@ -229,8 +246,10 @@ export default function TreatmentList() {
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: i.toString().padStart(2, "0") }));
   const minuteOptions = [0, 15, 30, 45].map((m) => ({ value: m.toString(), label: m.toString().padStart(2, "0") }));
   const floorOptions = [
-    { value: "all", label: "全階" },
-    ...Array.from(new Set(residents.map(r => r.floor).filter(Boolean))).sort().map(f => ({ value: `${f}`, label: `${f}階`}))
+    { value: "全階", label: "全階" },
+    ...Array.from(new Set(residents.map(r => r.floor?.toString().replace('F', '')).filter(Boolean)))
+      .sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0))
+      .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
   ];
 
   return (
@@ -264,6 +283,7 @@ export default function TreatmentList() {
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
                 className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                enableAutoFocus={false}
               />
             </div>
           </div>
