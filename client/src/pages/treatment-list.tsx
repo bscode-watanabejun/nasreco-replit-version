@@ -328,12 +328,12 @@ export default function TreatmentList() {
     recordDate.setHours(currentHour, closestMinute, 0, 0);
 
     const newRecord = {
-      residentId: "", // 空欄で開始（nullではなく空文字列）
+      // residentIdは一旦省略（未選択状態）
       nurseId: (currentUser as any)?.id || "unknown",
       category: "処置",
       recordDate: recordDate.toISOString(),
-      description: "", // 処置内容は空欄
-      notes: "", // 処置部位は空欄
+      description: " ", // 処置内容は空白文字（空文字列ではなく）
+      notes: " ", // 処置部位は空白文字（空文字列ではなく）
     };
 
     addMutation.mutate(newRecord);
@@ -420,7 +420,7 @@ export default function TreatmentList() {
                                   value={resident?.name || (record.residentId ? residentOptions.find(opt => opt.value === record.residentId)?.label || "" : "")}
                                   options={residentOptions}
                                   onSave={(value) => {
-                                    updateMutation.mutate({ id: record.id, field: 'residentId', value: value });
+                                    updateMutation.mutate({ id: record.id, field: 'residentId', value: value || null });
                                   }}
                                   placeholder="利用者選択"
                                   className="h-6 w-16 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -498,7 +498,7 @@ export default function TreatmentList() {
                                   );
                                 }}
                                 onBlur={(e) => {
-                                  updateMutation.mutate({ id: record.id, field: 'notes', value: e.target.value });
+                                  updateMutation.mutate({ id: record.id, field: 'notes', value: e.target.value || "" });
                                 }}
                                 placeholder="処置部位"
                                 className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2"
@@ -511,7 +511,7 @@ export default function TreatmentList() {
                             {/* 下段: 処置内容 */}
                             <div>
                               <textarea
-                                value={record.description}
+                                value={record.description || ""}
                                 onChange={(e) => {
                                   // 楽観的更新（ローカル状態も更新）
                                   setLocalTreatmentRecords(prev => 
@@ -519,7 +519,7 @@ export default function TreatmentList() {
                                   );
                                 }}
                                 onBlur={(e) => {
-                                  updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value });
+                                  updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value || "" });
                                 }}
                                 placeholder="処置内容を入力..."
                                 className="h-12 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 resize-none"

@@ -163,7 +163,7 @@ export const nursingRecords = pgTable("nursing_records", {
   nurseId: varchar("nurse_id").notNull().references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
   category: varchar("category").notNull(), // assessment, intervention, evaluation
-  description: text("description").notNull(),
+  description: text("description"), // notNull()を削除して空白での登録を可能に
   notes: text("notes"), // 処置部位などの追加情報
   interventions: text("interventions"),
   outcomes: text("outcomes"),
@@ -342,6 +342,9 @@ export const insertCareRecordSchema = createInsertSchema(careRecords, {
 
 export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
   recordDate: z.string().transform((str) => new Date(str)),
+  description: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  residentId: z.string().nullable().optional(),
 }).omit({
   id: true,
   createdAt: true,
