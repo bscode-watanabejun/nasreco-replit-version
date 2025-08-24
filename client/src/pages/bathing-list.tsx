@@ -1130,8 +1130,7 @@ export default function BathingList() {
     recordDate.setHours(currentHour, closestMinute, 0, 0);
 
     const newRecord = {
-      residentId: null, // 明示的にnullを設定
-      staffId: (currentUser as any)?.id || null,
+      // residentId は omit されているためサーバー側で処理される
       recordDate: recordDate.toISOString(),
       timing: currentHour < 12 ? "午前" : "午後",
       hour: currentHour.toString(),

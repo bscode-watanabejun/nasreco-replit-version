@@ -469,29 +469,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/bathing-records', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertBathingRecordSchema.parse({
+      console.log("=== POST /api/bathing-records Debug ===");
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      console.log("User ID:", req.user.claims.sub);
+      
+      const dataToValidate = {
         ...req.body,
         staffId: req.user.claims.sub,
-      });
+      };
+      console.log("Data to validate:", JSON.stringify(dataToValidate, null, 2));
       
-      // residentIdがnullまたはundefinedの場合は空カードとして扱う
+      const validatedData = insertBathingRecordSchema.parse(dataToValidate);
+      console.log("Validation successful:", JSON.stringify(validatedData, null, 2));
+      
+      // residentIdはvalidationから除外されているため、空カードとして作成
       const recordData = {
         ...validatedData,
-        residentId: req.body.residentId || null,
+        residentId: null,  // 新規作成時は常にnull（空カード）
       };
       
       const record = await storage.createBathingRecord(recordData);
       res.status(201).json(record);
     } catch (error: any) {
+      console.error("=== POST Validation Error ===");
       console.error("Error creating bathing record:", error);
-      if (error.errors) {
-        console.error("Validation errors:", error.errors);
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      if (error.errors || error.issues) {
+        console.error("Validation errors:", error.errors || error.issues);
         res.status(400).json({ 
           message: "Invalid bathing record data", 
-          errors: error.errors 
+          errors: error.errors || error.issues
         });
       } else {
-        res.status(400).json({ message: "Invalid bathing record data" });
+        console.error("No detailed error information available");
+        res.status(400).json({ 
+          message: "Invalid bathing record data",
+          error: error.message 
+        });
       }
     }
   });
