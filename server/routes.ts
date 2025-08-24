@@ -482,10 +482,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertBathingRecordSchema.parse(dataToValidate);
       console.log("Validation successful:", JSON.stringify(validatedData, null, 2));
       
-      // residentIdはvalidationから除外されているため、空カードとして作成
+      // residentIdが必要な場合は、リクエストから取得するか適切なデフォルト値を使用
+      if (!req.body.residentId) {
+        return res.status(400).json({ 
+          message: "residentId is required for creating bathing records" 
+        });
+      }
+      
       const recordData = {
         ...validatedData,
-        residentId: null,  // 新規作成時は常にnull（空カード）
+        residentId: req.body.residentId,
       };
       
       const record = await storage.createBathingRecord(recordData);
