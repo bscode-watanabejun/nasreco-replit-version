@@ -159,7 +159,7 @@ export const careRecords = pgTable("care_records", {
 // Nursing records
 export const nursingRecords = pgTable("nursing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  residentId: varchar("resident_id").notNull().references(() => residents.id),
+  residentId: varchar("resident_id").references(() => residents.id), // notNull()を削除してオプショナルに
   nurseId: varchar("nurse_id").notNull().references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
   category: varchar("category").notNull(), // assessment, intervention, evaluation

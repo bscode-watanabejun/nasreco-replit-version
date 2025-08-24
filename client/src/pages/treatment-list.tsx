@@ -179,9 +179,18 @@ export default function TreatmentList() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new URLSearchParams(window.location.search).get("date") || format(new Date(), "yyyy-MM-dd"),
   );
-  const [selectedFloor, setSelectedFloor] = useState<string>(
-    new URLSearchParams(window.location.search).get("floor") || "all",
-  );
+  const [selectedFloor, setSelectedFloor] = useState<string>(() => {
+    // URLパラメータから階数を取得
+    const floorParam = new URLSearchParams(window.location.search).get("floor");
+    if (floorParam) {
+      if (floorParam === "all") {
+        return "全階";
+      } else {
+        return `${floorParam}階`;
+      }
+    }
+    return "全階";
+  });
 
   const { data: residents = [] } = useQuery<any[]>({
     queryKey: ["/api/residents"],
@@ -193,18 +202,61 @@ export default function TreatmentList() {
 
   const { data: currentUser } = useQuery({ queryKey: ["/api/auth/user"] });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
-      const updateData = { [field]: value };
-      if (field === 'recordDate') {
-        updateData[field] = new Date(value);
-      }
-      return apiRequest(`/api/nursing-records/${id}`, "PATCH", updateData);
+  // ローカル状態でフィルタされた処置記録を管理
+  const [localTreatmentRecords, setLocalTreatmentRecords] = useState<any[]>([]);
+
+  // 新規追加用のミューテーション
+  const addMutation = useMutation({
+    mutationFn: async (newRecord: any) => {
+      return apiRequest("/api/nursing-records", "POST", newRecord);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
     },
     onError: () => {
+      toast({ title: "エラー", description: "処置記録の追加に失敗しました", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
+      const updateData: any = { [field]: value };
+      if (field === 'recordDate') {
+        updateData[field] = new Date(value);
+      }
+      return apiRequest(`/api/nursing-records/${id}`, "PATCH", updateData);
+    },
+    onMutate: async (newData: { id: string; field: string; value: any }) => {
+      // recordDateの更新時は楽観的更新によるキャッシュ操作を行わない
+      if (newData.field === 'recordDate') {
+        return;
+      }
+      // クエリのキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/nursing-records'] });
+
+      // 現在のデータを保存
+      const previousData = queryClient.getQueryData(['/api/nursing-records']);
+
+      // 楽観的更新
+      queryClient.setQueryData(['/api/nursing-records'], (old: any[]) => {
+        if (!old) return old;
+        return old.map((record: any) => 
+          record.id === newData.id 
+            ? { ...record, [newData.field]: newData.value }
+            : record
+        );
+      });
+
+      return { previousData };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
+    },
+    onError: (err, newData, context) => {
+      // エラー時は前の状態に復元
+      if (context?.previousData) {
+        queryClient.setQueryData(['/api/nursing-records'], context.previousData);
+      }
       toast({ title: "エラー", description: "更新に失敗しました", variant: "destructive" });
     },
   });
@@ -213,7 +265,6 @@ export default function TreatmentList() {
     mutationFn: (id: string) => apiRequest(`/api/nursing-records/${id}`, "DELETE"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
-      toast({ description: "記録を削除しました" });
     },
     onError: () => {
       toast({ title: "エラー", description: "記録の削除に失敗しました。", variant: "destructive" });
@@ -221,34 +272,90 @@ export default function TreatmentList() {
   });
 
   const filteredTreatmentRecords = useMemo(() => {
-    const filteredResidents = residents.filter(r => {
-        if (selectedFloor === '全階') return true;
-        const residentFloor = r.floor?.toString();
+    const filteredResidents = residents.filter((resident: any) => {
+      // 階数フィルター
+      if (selectedFloor !== "全階") {
+        const residentFloor = resident.floor?.toString();
         if (!residentFloor) return false;
         
+        // 複数のフォーマットに対応した比較
         const selectedFloorNumber = selectedFloor.replace("階", "");
         
+        // "1階" 形式との比較
         if (residentFloor === selectedFloor) return true;
+        
+        // "1" 形式との比較
         if (residentFloor === selectedFloorNumber) return true;
+        
+        // "1F" 形式との比較
         if (residentFloor.replace('F', '') === selectedFloorNumber) return true;
         
         return false;
+      }
+      return true;
     });
     const residentIds = new Set(filteredResidents.map(r => r.id));
 
-    return allNursingRecords
+    const filtered = allNursingRecords
       .filter(record => record.category === '処置')
       .filter(record => format(new Date(record.recordDate), "yyyy-MM-dd") === selectedDate)
       .filter(record => residentIds.has(record.residentId))
       .sort((a, b) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
+    
+    return filtered;
   }, [residents, allNursingRecords, selectedDate, selectedFloor]);
+
+  // ローカル状態を filteredTreatmentRecords で同期
+  useEffect(() => {
+    setLocalTreatmentRecords(filteredTreatmentRecords);
+  }, [filteredTreatmentRecords]);
+
+  // 新規処置追加機能
+  const addNewTreatment = () => {
+    // 現在時刻を取得
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    // 分のオプション（0, 15, 30, 45）から最も近いものを選択
+    const minuteOptions = [0, 15, 30, 45];
+    const closestMinute = minuteOptions.reduce((prev, curr) => 
+      Math.abs(curr - currentMinute) < Math.abs(prev - currentMinute) ? curr : prev
+    );
+    
+    // 選択された日付と現在時刻を組み合わせ
+    const recordDate = new Date(selectedDate);
+    recordDate.setHours(currentHour, closestMinute, 0, 0);
+
+    const newRecord = {
+      residentId: "", // 空欄で開始（nullではなく空文字列）
+      nurseId: (currentUser as any)?.id || "unknown",
+      category: "処置",
+      recordDate: recordDate.toISOString(),
+      description: "", // 処置内容は空欄
+      notes: "", // 処置部位は空欄
+    };
+
+    addMutation.mutate(newRecord);
+  };
 
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: i.toString().padStart(2, "0") }));
   const minuteOptions = [0, 15, 30, 45].map((m) => ({ value: m.toString(), label: m.toString().padStart(2, "0") }));
+  
+  // 利用者オプション（空欄含む）
+  const residentOptions = [
+    { value: "", label: "利用者を選択" },
+    ...residents.map((r: any) => ({ value: r.id, label: r.name }))
+  ];
+  
   const floorOptions = [
     { value: "全階", label: "全階" },
-    ...Array.from(new Set(residents.map(r => r.floor?.toString().replace('F', '')).filter(Boolean)))
-      .sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0))
+    ...Array.from(new Set((residents as any[]).map(r => {
+      // "1F", "2F" などのF文字を除去して数値のみ取得
+      const floor = r.floor?.toString().replace('F', '');
+      return floor ? parseInt(floor) : null;
+    }).filter(Boolean)))
+      .sort((a, b) => (a || 0) - (b || 0))
       .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
   ];
 
@@ -288,97 +395,139 @@ export default function TreatmentList() {
             </div>
           </div>
         </div>
-      <main className="max-w-4xl mx-auto px-4 py-4 pb-20">
+      <main className="max-w-4xl mx-auto px-4 py-4 pb-24">
         <div className="space-y-0 border rounded-lg overflow-hidden">
-          {filteredTreatmentRecords.length === 0 ? (
+          {localTreatmentRecords.length === 0 ? (
             <div className="text-center py-8 text-slate-600">
               <p>選択した条件の記録がありません</p>
             </div>
           ) : (
-            filteredTreatmentRecords.map((record: any, index: number) => {
+            localTreatmentRecords.map((record: any, index: number) => {
                 const resident = residents.find(r => r.id === record.residentId);
                 return (
                     <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
                         <div className="p-2">
-                          <div className="flex items-center gap-2 h-20">
-                            <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
-                              <div className="flex items-center gap-0.5">
-                                <InputWithDropdown
-                                  value={format(new Date(record.recordDate), "HH", { locale: ja })}
-                                  options={hourOptions}
-                                  onSave={(value) => {
-                                    const newDate = new Date(record.recordDate);
-                                    newDate.setHours(parseInt(value));
-                                    updateMutation.mutate({ id: record.id, field: 'recordDate', value: newDate.toISOString() });
-                                  }}
-                                  placeholder="--"
-                                  className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                />
-                                <span className="text-xs">:</span>
-                                <InputWithDropdown
-                                  value={format(new Date(record.recordDate), "mm", { locale: ja })}
-                                  options={minuteOptions}
-                                  onSave={(value) => {
-                                    const newDate = new Date(record.recordDate);
-                                    newDate.setMinutes(parseInt(value));
-                                    updateMutation.mutate({ id: record.id, field: 'recordDate', value: newDate.toISOString() });
-                                  }}
-                                  placeholder="--"
-                                  className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                                />
-                              </div>
-                              <div>
-                                <div className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600 flex items-center justify-center">
-                                    {resident?.name || ''}
+                          <div className="flex flex-col gap-2">
+                            {/* 上段: 左から居室番号、利用者名、時分、入力者 */}
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                {/* 居室番号 */}
+                                <div className="h-6 px-2 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600 flex items-center">
+                                  {resident?.roomNumber || ''}
                                 </div>
-                              </div>
-                              <div>
+                                {/* 利用者名 */}
+                                <InputWithDropdown
+                                  value={resident?.name || (record.residentId ? residentOptions.find(opt => opt.value === record.residentId)?.label || "" : "")}
+                                  options={residentOptions}
+                                  onSave={(value) => {
+                                    updateMutation.mutate({ id: record.id, field: 'residentId', value: value });
+                                  }}
+                                  placeholder="利用者選択"
+                                  className="h-6 w-16 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  enableAutoFocus={false}
+                                />
+                                {/* 時分 */}
+                                <div className="flex items-center gap-0.5">
+                                  <InputWithDropdown
+                                    value={format(new Date(record.recordDate), "HH", { locale: ja })}
+                                    options={hourOptions}
+                                    onSave={(value) => {
+                                      const newDate = new Date(record.recordDate);
+                                      newDate.setHours(parseInt(value));
+                                      updateMutation.mutate({ id: record.id, field: 'recordDate', value: newDate.toISOString() });
+                                    }}
+                                    placeholder="--"
+                                    className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  />
+                                  <span className="text-xs">:</span>
+                                  <InputWithDropdown
+                                    value={format(new Date(record.recordDate), "mm", { locale: ja })}
+                                    options={minuteOptions}
+                                    onSave={(value) => {
+                                      const newDate = new Date(record.recordDate);
+                                      newDate.setMinutes(parseInt(value));
+                                      updateMutation.mutate({ id: record.id, field: 'recordDate', value: newDate.toISOString() });
+                                    }}
+                                    placeholder="--"
+                                    className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  />
+                                </div>
+                                {/* 入力者 */}
                                 <input
                                   type="text"
                                   value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
                                   readOnly
-                                  className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                                  className="h-6 w-16 px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                                 />
                               </div>
+                              <div className="flex items-center">
+                                {/* 削除ボタン */}
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 p-1 h-6 w-6">
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        この処置記録を削除してもよろしいですか？
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => deleteMutation.mutate(record.id)}>
+                                        削除
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </div>
-                            <div className="flex-1 flex flex-col gap-1">
+                            
+                            {/* 中段: 処置部位 */}
+                            <div>
                               <input
                                 type="text"
                                 value={record.notes || ""}
-                                onBlur={(e) => updateMutation.mutate({ id: record.id, field: 'notes', value: e.target.value })}
+                                onChange={(e) => {
+                                  // 楽観的更新（ローカル状態も更新）
+                                  setLocalTreatmentRecords(prev => 
+                                    prev.map(r => r.id === record.id ? { ...r, notes: e.target.value } : r)
+                                  );
+                                }}
+                                onBlur={(e) => {
+                                  updateMutation.mutate({ id: record.id, field: 'notes', value: e.target.value });
+                                }}
                                 placeholder="処置部位"
-                                className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
-                              />
-                              <textarea
-                                value={record.description}
-                                onBlur={(e) => updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value })}
-                                placeholder="処置内容を入力..."
-                                className="h-12 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
-                                rows={2}
+                                className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2"
+                                autoComplete="off"
+                                spellCheck="false"
+                                style={{ imeMode: 'auto' }}
                               />
                             </div>
-                            <div className="flex flex-col justify-center gap-1 flex-shrink-0">
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 p-1 h-6 w-6">
-                                        <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        この処置記録を削除してもよろしいですか？
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => deleteMutation.mutate(record.id)}>
-                                        削除
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                            
+                            {/* 下段: 処置内容 */}
+                            <div>
+                              <textarea
+                                value={record.description}
+                                onChange={(e) => {
+                                  // 楽観的更新（ローカル状態も更新）
+                                  setLocalTreatmentRecords(prev => 
+                                    prev.map(r => r.id === record.id ? { ...r, description: e.target.value } : r)
+                                  );
+                                }}
+                                onBlur={(e) => {
+                                  updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value });
+                                }}
+                                placeholder="処置内容を入力..."
+                                className="h-12 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 resize-none"
+                                rows={2}
+                                autoComplete="off"
+                                spellCheck="false"
+                                style={{ imeMode: 'auto' }}
+                              />
                             </div>
                           </div>
                         </div>
@@ -388,6 +537,27 @@ export default function TreatmentList() {
           )}
         </div>
       </main>
+      
+      {/* フッダー */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className="flex items-center justify-between max-w-4xl mx-auto">
+          <Button 
+            variant="outline" 
+            onClick={() => setLocation("/")}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            戻る
+          </Button>
+          <Button
+            onClick={addNewTreatment}
+            className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
+            title="処置を追加"
+          >
+            <Plus className="w-6 h-6" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
