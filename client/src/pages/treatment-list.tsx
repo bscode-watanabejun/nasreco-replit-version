@@ -81,8 +81,11 @@ function InputWithDropdown({
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
-    setInputValue(selectedValue);
-    onSave(selectedValue);
+    // selectedValueはoption.valueなので、対応するlabelを取得
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    const displayValue = selectedOption ? selectedOption.label : selectedValue;
+    setInputValue(displayValue);
+    onSave(displayValue);
     setOpen(false);
 
     if (enableAutoFocus) {
@@ -332,8 +335,8 @@ export default function TreatmentList() {
       nurseId: (currentUser as any)?.id || "unknown",
       category: "処置",
       recordDate: recordDate.toISOString(),
-      description: " ", // 処置内容は空白文字（空文字列ではなく）
-      notes: " ", // 処置部位は空白文字（空文字列ではなく）
+      description: "", // 処置内容は空文字列（プレースホルダー表示のため）
+      notes: "", // 処置部位は空文字列（プレースホルダー表示のため）
     };
 
     addMutation.mutate(newRecord);
@@ -342,9 +345,8 @@ export default function TreatmentList() {
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: i.toString().padStart(2, "0") }));
   const minuteOptions = [0, 15, 30, 45].map((m) => ({ value: m.toString(), label: m.toString().padStart(2, "0") }));
   
-  // 利用者オプション（空欄含む）
+  // 利用者オプション
   const residentOptions = [
-    { value: "", label: "利用者を選択" },
     ...residents.map((r: any) => ({ value: r.id, label: r.name }))
   ];
   
@@ -412,18 +414,27 @@ export default function TreatmentList() {
                             <div className="flex justify-between items-center">
                               <div className="flex items-center gap-2">
                                 {/* 居室番号 */}
-                                <div className="h-6 px-2 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600 flex items-center">
+                                <div className="h-6 w-12 px-2 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600 flex items-center justify-center">
                                   {resident?.roomNumber || ''}
                                 </div>
                                 {/* 利用者名 */}
                                 <InputWithDropdown
-                                  value={resident?.name || (record.residentId ? residentOptions.find(opt => opt.value === record.residentId)?.label || "" : "")}
+                                  value={resident?.name || (record.residentId ? residents.find(r => r.id === record.residentId)?.name || "" : "")}
                                   options={residentOptions}
                                   onSave={(value) => {
-                                    updateMutation.mutate({ id: record.id, field: 'residentId', value: value || null });
+                                    // 選択された利用者名から利用者IDを取得
+                                    const selectedResident = residents.find(r => r.name === value);
+                                    const residentId = selectedResident ? selectedResident.id : null;
+                                    
+                                    // ローカル状態を楽観的更新
+                                    setLocalTreatmentRecords(prev => 
+                                      prev.map(r => r.id === record.id ? { ...r, residentId: residentId } : r)
+                                    );
+                                    
+                                    updateMutation.mutate({ id: record.id, field: 'residentId', value: residentId });
                                   }}
                                   placeholder="利用者選択"
-                                  className="h-6 w-16 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                  className="h-6 w-24 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                                   enableAutoFocus={false}
                                 />
                                 {/* 時分 */}
@@ -521,7 +532,7 @@ export default function TreatmentList() {
                                 onBlur={(e) => {
                                   updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value || "" });
                                 }}
-                                placeholder="処置内容を入力..."
+                                placeholder="処置内容を入力してください"
                                 className="h-12 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-2 py-1 resize-none"
                                 rows={2}
                                 autoComplete="off"
