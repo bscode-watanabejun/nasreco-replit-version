@@ -299,7 +299,7 @@ export default function TreatmentList() {
     const filtered = allNursingRecords
       .filter(record => record.category === '処置')
       .filter(record => format(new Date(record.recordDate), "yyyy-MM-dd") === selectedDate)
-      .filter(record => residentIds.has(record.residentId))
+      .filter(record => !record.residentId || residentIds.has(record.residentId)) // residentIdがnullの記録も含める
       .sort((a, b) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
     
     return filtered;
