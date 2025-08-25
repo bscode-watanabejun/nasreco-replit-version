@@ -87,10 +87,14 @@ export interface IStorage {
 
   // Vital signs operations
   getVitalSigns(residentId?: string, startDate?: Date, endDate?: Date): Promise<VitalSigns[]>;
+  getVitalSignsById(id: string): Promise<VitalSigns | undefined>;
   createVitalSigns(vitals: InsertVitalSigns): Promise<VitalSigns>;
+  updateVitalSigns(id: string, data: Partial<InsertVitalSigns>): Promise<VitalSigns>;
+  deleteVitalSigns(id: string): Promise<void>;
 
   // Meals and medication operations
   getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]>;
+  getMealRecordById(id: string): Promise<MealsAndMedication | undefined>;
   createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication>;
   updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication>;
 
@@ -154,10 +158,15 @@ export interface IStorage {
   // Staff authentication
   authenticateStaff(staffId: string, password: string): Promise<StaffManagement | null>;
 
-  // Meals Medication operations (新スキーマ)
-  getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]>;
-  createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication>;
-  updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication>;
+  // Staff Management operations
+  getStaffManagement(): Promise<StaffManagement[]>;
+  getStaffManagementById(id: string): Promise<StaffManagement | null>;
+  createStaffManagement(staff: InsertStaffManagement): Promise<StaffManagement>;
+  updateStaffManagement(staff: UpdateStaffManagement): Promise<StaffManagement>;
+  deleteStaffManagement(id: string): Promise<void>;
+  unlockStaffAccount(id: string, password: string): Promise<StaffManagement>;
+  lockStaffAccount(id: string): Promise<StaffManagement>;
+
   // Resident Attachment operations
   getResidentAttachments(residentId: string): Promise<ResidentAttachment[]>;
   getResidentAttachment(id: string): Promise<ResidentAttachment | null>;
