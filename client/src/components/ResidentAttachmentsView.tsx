@@ -59,9 +59,7 @@ export default function ResidentAttachmentsView({
 
   const deleteMutation = useMutation({
     mutationFn: async (attachmentId: string) => {
-      return apiRequest(`/api/residents/attachments/${attachmentId}`, {
-        method: "DELETE",
-      });
+      return apiRequest(`/api/residents/attachments/${attachmentId}`, "DELETE");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/residents/${residentId}/attachments`] });
@@ -229,7 +227,7 @@ export default function ResidentAttachmentsView({
                         {attachment.fileName}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {formatFileSize(attachment.fileSize)} • {new Date(attachment.createdAt).toLocaleDateString('ja-JP')}
+                        {formatFileSize(attachment.fileSize)} • {attachment.createdAt ? new Date(attachment.createdAt).toLocaleDateString('ja-JP') : '不明'}
                       </p>
                       {attachment.description && (
                         <p className="text-xs text-gray-600 mt-1 line-clamp-2">{attachment.description}</p>
