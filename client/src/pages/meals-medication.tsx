@@ -24,6 +24,55 @@ interface MealsMedicationWithResident extends MealsMedication {
   floor: string;
 }
 
+// 記録内容用のIME対応textareaコンポーネント
+function NotesInput({
+  residentId,
+  initialValue,
+  onSave,
+}: {
+  residentId: string;
+  initialValue: string;
+  onSave: (value: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const [isComposing, setIsComposing] = useState(false);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+    // IME入力中でない場合のみ保存
+    if (!isComposing) {
+      onSave(e.target.value);
+    }
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+    setValue(e.currentTarget.value);
+    onSave(e.currentTarget.value);
+  };
+
+  return (
+    <textarea
+      value={value}
+      onChange={handleChange}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      placeholder="記録内容"
+      className="min-h-[24px] text-xs w-full px-1 py-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+      rows={1}
+    />
+  );
+}
+
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
   value,
@@ -323,18 +372,6 @@ export default function MealsMedicationPage() {
     "イノラス 187.5ml",
     "ラコールＮＦ半固形剤 300g"
   ];
-  
-  // 量の選択肢（水分と同様）
-  const amountOptions = ["empty", "300", "250", "200", "150", "100", "50", "0"];
-  
-  // 合計値を計算するヘルパー関数
-  const calculateTotal = (water: string, amount1: string, amount2: string): string => {
-    const waterNum = parseFloat(water) || 0;
-    const amount1Num = parseFloat(amount1) || 0;
-    const amount2Num = parseFloat(amount2) || 0;
-    const total = waterNum + amount1Num + amount2Num;
-    return total > 0 ? total.toString() : '';
-  };
 
   const handleSaveRecord = (residentId: string, field: string, value: string) => {
     // 自動で記入者情報を設定
@@ -355,10 +392,6 @@ export default function MealsMedicationPage() {
       sideAmount: existingRecord?.sideAmount || '',
       waterIntake: existingRecord?.waterIntake || '',
       supplement1: existingRecord?.supplement1 || '',
-      amount1: existingRecord?.amount1 || '',
-      supplement2: existingRecord?.supplement2 || '',
-      amount2: existingRecord?.amount2 || '',
-      totalAmount: existingRecord?.totalAmount || '',
       staffName: existingRecord?.staffName || staffName,
       notes: existingRecord?.notes || '',
       createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
@@ -373,22 +406,10 @@ export default function MealsMedicationPage() {
       recordData.waterIntake = value === "empty" ? "" : value;
     } else if (field === 'supplement1') {
       recordData.supplement1 = value === "empty" ? "" : value;
-    } else if (field === 'amount1') {
-      recordData.amount1 = value === "empty" ? "" : value;
-    } else if (field === 'supplement2') {
-      recordData.supplement2 = value === "empty" ? "" : value;
-    } else if (field === 'amount2') {
-      recordData.amount2 = value === "empty" ? "" : value;
     } else if (field === 'staffName') {
       recordData.staffName = value;
-    }
-    
-    // 水分、量1、量2の値が変更されたら合計を再計算
-    if (['water', 'amount1', 'amount2'].includes(field)) {
-      const waterValue = field === 'water' ? (value === 'empty' ? '' : value) : recordData.waterIntake;
-      const amount1Value = field === 'amount1' ? (value === 'empty' ? '' : value) : recordData.amount1;
-      const amount2Value = field === 'amount2' ? (value === 'empty' ? '' : value) : recordData.amount2;
-      recordData.totalAmount = calculateTotal(waterValue || '', amount1Value || '', amount2Value || '');
+    } else if (field === 'notes') {
+      recordData.notes = value;
     }
 
     // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
@@ -412,14 +433,8 @@ export default function MealsMedicationPage() {
       return record.waterIntake === "" || record.waterIntake === null || record.waterIntake === undefined ? "empty" : record.waterIntake;
     } else if (category === 'supplement1') {
       return record.supplement1 === "" || record.supplement1 === null || record.supplement1 === undefined ? "empty" : record.supplement1;
-    } else if (category === 'amount1') {
-      return record.amount1 === "" || record.amount1 === null || record.amount1 === undefined ? "empty" : record.amount1;
-    } else if (category === 'supplement2') {
-      return record.supplement2 === "" || record.supplement2 === null || record.supplement2 === undefined ? "empty" : record.supplement2;
-    } else if (category === 'amount2') {
-      return record.amount2 === "" || record.amount2 === null || record.amount2 === undefined ? "empty" : record.amount2;
-    } else if (category === 'total') {
-      return record.totalAmount === "" || record.totalAmount === null || record.totalAmount === undefined ? "" : record.totalAmount;
+    } else if (category === 'notes') {
+      return record.notes === "" || record.notes === null || record.notes === undefined ? "" : record.notes;
     }
     
     return "empty";
@@ -481,10 +496,6 @@ export default function MealsMedicationPage() {
         sideAmount: '',
         waterIntake: '',
         supplement1: '',
-        amount1: '',
-        supplement2: '',
-        amount2: '',
-        totalAmount: '',
         staffName: (user as any)?.firstName || 'スタッフ',
         notes: '',
         createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
@@ -612,7 +623,7 @@ export default function MealsMedicationPage() {
           return (
             <div key={resident.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
               <div className="p-1 space-y-1">
-                {/* 1行目：部屋番号 + 主/副/水分 + 記入者 */}
+                {/* 1段目：部屋番号 + 主/副/水分 + 記入者 + 記入者アイコン */}
                 <div className="flex items-center gap-1">
                   {/* 部屋番号 */}
                   <div className="w-10 text-center flex-shrink-0">
@@ -672,23 +683,6 @@ export default function MealsMedicationPage() {
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  
-                  {/* 合計ラベル */}
-                  <div className="text-xs text-gray-600 flex-shrink-0 writing-mode-vertical-rl text-orientation-mixed" style={{writingMode: 'vertical-rl'}}>合計</div>
-                  
-                  {/* 合計 */}
-                  <div className="w-12 flex-shrink-0">
-                    <input
-                      type="text"
-                      value={(() => {
-                        const totalValue = getMealCategoryValue(existingRecord, 'total');
-                        return totalValue === "empty" ? "" : totalValue;
-                      })()}
-                      readOnly
-                      placeholder="合計"
-                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-gray-100 focus:outline-none cursor-not-allowed"
-                    />
-                  </div>
 
                   {/* 記入者 */}
                   <div className="w-20 flex-shrink-0 flex items-center gap-1">
@@ -730,7 +724,7 @@ export default function MealsMedicationPage() {
                   </div>
                 </div>
 
-                {/* 2行目：利用者名 + その他1 + 量1 */}
+                {/* 2段目：利用者名 + その他 */}
                 <div className="flex items-center gap-1">
                   <div className="w-10 text-center flex-shrink-0">
                     <div className="text-xs font-medium whitespace-pre-line leading-tight">
@@ -738,7 +732,7 @@ export default function MealsMedicationPage() {
                     </div>
                   </div>
                   
-                  {/* その他1 */}
+                  {/* その他 */}
                   <div className="flex-1">
                     <InputWithDropdown
                       value={(() => {
@@ -750,65 +744,26 @@ export default function MealsMedicationPage() {
                         label: option === "empty" ? "" : option
                       }))}
                       onSave={(value) => handleSaveRecord(resident.id, 'supplement1', value)}
-                      placeholder="その他1"
+                      placeholder="その他"
                       className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  {/* 量1 */}
-                  <div className="w-12 flex-shrink-0">
-                    <InputWithDropdown
-                      value={(() => {
-                        const value = getMealCategoryValue(existingRecord, 'amount1');
-                        return value === "empty" ? "" : value;
-                      })()}
-                      options={amountOptions.filter(option => option !== "").map(option => ({
-                        value: option,
-                        label: option === "empty" ? "" : option
-                      }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'amount1', value)}
-                      placeholder="量1"
-                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
                 
-                {/* 3行目：その他2 + 量2 */}
+                {/* 3段目：記録内容 */}
                 <div className="flex items-center gap-1">
                   <div className="w-10 text-center flex-shrink-0">
                   </div>
                   
-                  {/* その他2 */}
+                  {/* 記録内容 */}
                   <div className="flex-1">
-                    <InputWithDropdown
-                      value={(() => {
-                        const value = getMealCategoryValue(existingRecord, 'supplement2');
+                    <NotesInput
+                      residentId={resident.id}
+                      initialValue={(() => {
+                        const value = getMealCategoryValue(existingRecord, 'notes');
                         return value === "empty" ? "" : value;
                       })()}
-                      options={supplementOptions.filter(option => option !== "").map(option => ({
-                        value: option,
-                        label: option === "empty" ? "" : option
-                      }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'supplement2', value)}
-                      placeholder="その他2"
-                      className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  
-                  {/* 量2 */}
-                  <div className="w-12 flex-shrink-0">
-                    <InputWithDropdown
-                      value={(() => {
-                        const value = getMealCategoryValue(existingRecord, 'amount2');
-                        return value === "empty" ? "" : value;
-                      })()}
-                      options={amountOptions.filter(option => option !== "").map(option => ({
-                        value: option,
-                        label: option === "empty" ? "" : option
-                      }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'amount2', value)}
-                      placeholder="量2"
-                      className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onSave={(value) => handleSaveRecord(resident.id, 'notes', value)}
                     />
                   </div>
                 </div>

@@ -744,7 +744,7 @@ export default function BathingList() {
         // residentIdの検証（一時的レコードの場合のみ）
         if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null' || residentIdFromTemp === '') {
           // 利用者が未選択の場合でも、値の更新は許可する
-          residentIdFromTemp = null;
+          residentIdFromTemp = undefined;
         }
 
         const newRecordData: any = {

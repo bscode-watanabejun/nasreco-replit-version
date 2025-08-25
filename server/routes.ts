@@ -1191,6 +1191,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 今日の記録一覧取得API
+  app.get('/api/daily-records', isAuthenticated, async (req, res) => {
+    try {
+      const { date, recordTypes } = req.query;
+      
+      if (!date || typeof date !== 'string') {
+        return res.status(400).json({ message: '日付パラメータが必要です' });
+      }
+
+      // recordTypesがクエリパラメータで渡された場合は配列に変換
+      let recordTypesArray: string[] | undefined;
+      if (recordTypes) {
+        if (typeof recordTypes === 'string') {
+          recordTypesArray = recordTypes.split(',');
+        } else if (Array.isArray(recordTypes)) {
+          recordTypesArray = recordTypes as string[];
+        }
+      }
+
+      const records = await storage.getDailyRecords(date, recordTypesArray);
+      res.json(records);
+    } catch (error: any) {
+      console.error("Error fetching daily records:", error);
+      res.status(500).json({ message: "今日の記録一覧の取得に失敗しました" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -172,6 +172,9 @@ export interface IStorage {
   getResidentAttachment(id: string): Promise<ResidentAttachment | null>;
   createResidentAttachment(attachment: InsertResidentAttachment): Promise<ResidentAttachment>;
   deleteResidentAttachment(id: string): Promise<void>;
+
+  // Daily Records operations  
+  getDailyRecords(date: string, recordTypes?: string[]): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1028,10 +1031,6 @@ export class DatabaseStorage implements IStorage {
         sideAmount: mealsMedication.sideAmount,
         waterIntake: mealsMedication.waterIntake,
         supplement1: mealsMedication.supplement1,
-        amount1: mealsMedication.amount1,
-        supplement2: mealsMedication.supplement2,
-        amount2: mealsMedication.amount2,
-        totalAmount: mealsMedication.totalAmount,
         staffName: mealsMedication.staffName,
         notes: mealsMedication.notes,
         createdBy: mealsMedication.createdBy,
@@ -1099,6 +1098,369 @@ export class DatabaseStorage implements IStorage {
 
   async deleteResidentAttachment(id: string): Promise<void> {
     await db.delete(residentAttachments).where(eq(residentAttachments.id, id));
+  }
+
+  // Daily Records operations - 統合記録取得
+  async getDailyRecords(date: string, recordTypes?: string[]): Promise<any[]> {
+    const allRecords: any[] = [];
+    const targetDate = new Date(date);
+    const startDate = new Date(targetDate);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(targetDate);
+    endDate.setHours(23, 59, 59, 999);
+
+    // residentデータを先に取得してキャッシュ
+    const residentsData = await this.getResidents();
+    const residentsMap = new Map(residentsData.map(r => [r.id, r]));
+
+    // 介護記録
+    if (!recordTypes || recordTypes.includes('様子')) {
+      try {
+        const careRecordsData = await db
+          .select({
+            id: careRecords.id,
+            residentId: careRecords.residentId,
+            staffId: careRecords.staffId,
+            recordDate: careRecords.recordDate,
+            description: careRecords.description,
+            notes: careRecords.notes,
+            createdAt: careRecords.createdAt
+          })
+          .from(careRecords)
+          .where(and(
+            gte(careRecords.recordDate, startDate),
+            lte(careRecords.recordDate, endDate)
+          ));
+
+        careRecordsData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            allRecords.push({
+              id: record.id,
+              recordType: '様子',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: record.recordDate,
+              content: record.description,
+              staffName: record.staffId,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('介護記録の取得でエラー:', error);
+      }
+    }
+
+    // 食事記録
+    if (!recordTypes || recordTypes.includes('食事')) {
+      try {
+        const mealsData = await db
+          .select()
+          .from(mealsMedication)
+          .where(eq(mealsMedication.recordDate, date));
+
+        mealsData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            let content = `${record.mealTime}:`;
+            if (record.mainAmount) content += ` 主食${record.mainAmount}`;
+            if (record.sideAmount) content += ` 副食${record.sideAmount}`;  
+            if (record.waterIntake) content += ` 水分${record.waterIntake}ml`;
+            if (record.notes) content += ` (${record.notes})`;
+
+            allRecords.push({
+              id: record.id,
+              recordType: '食事',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
+              content,
+              staffName: record.staffName,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('食事記録の取得でエラー:', error);
+      }
+    }
+
+    // 服薬記録
+    if (!recordTypes || recordTypes.includes('服薬')) {
+      try {
+        const medicationData = await db
+          .select()
+          .from(medicationRecords)
+          .where(eq(medicationRecords.recordDate, date));
+
+        medicationData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            let content = `${record.timing} ${record.type}`;
+            if (record.result) content += ` 結果:${record.result}`;
+            if (record.notes) content += ` (${record.notes})`;
+
+            allRecords.push({
+              id: record.id,
+              recordType: '服薬',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
+              content,
+              staffName: record.confirmer1 || record.confirmer2,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('服薬記録の取得でエラー:', error);
+      }
+    }
+
+    // バイタル記録
+    if (!recordTypes || recordTypes.includes('バイタル')) {
+      try {
+        const vitalData = await db
+          .select()
+          .from(vitalSigns)
+          .where(and(
+            gte(vitalSigns.recordDate, startDate),
+            lte(vitalSigns.recordDate, endDate)
+          ));
+
+        vitalData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            let content = '';
+            if (record.temperature) content += `体温:${record.temperature}℃ `;
+            if (record.bloodPressureSystolic && record.bloodPressureDiastolic) {
+              content += `血圧:${record.bloodPressureSystolic}/${record.bloodPressureDiastolic} `;
+            }
+            if (record.pulseRate) content += `脈拍:${record.pulseRate} `;
+            if (record.oxygenSaturation) content += `SpO₂:${record.oxygenSaturation}% `;
+
+            allRecords.push({
+              id: record.id,
+              recordType: 'バイタル',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: record.recordDate,
+              content: content.trim(),
+              staffName: record.staffName,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('バイタル記録の取得でエラー:', error);
+      }
+    }
+
+    // 排泄記録
+    if (!recordTypes || recordTypes.includes('排泄')) {
+      try {
+        const excretionData = await db
+          .select()
+          .from(excretionRecords)
+          .where(and(
+            gte(excretionRecords.recordDate, startDate),
+            lte(excretionRecords.recordDate, endDate)
+          ));
+
+        excretionData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            let content = `${record.type === 'urination' ? '排尿' : '排便'}`;
+            if (record.consistency) content += ` 性状:${record.consistency}`;
+            if (record.amount) content += ` 量:${record.amount}`;
+            if (record.notes) content += ` (${record.notes})`;
+
+            allRecords.push({
+              id: record.id,
+              recordType: '排泄',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: record.recordDate,
+              content,
+              staffName: record.staffId,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('排泄記録の取得でエラー:', error);
+      }
+    }
+
+    // 清掃リネン記録
+    if (!recordTypes || recordTypes.includes('清掃リネン')) {
+      try {
+        const cleaningData = await db
+          .select()
+          .from(cleaningLinenRecords)
+          .where(eq(cleaningLinenRecords.recordDate, date));
+
+        cleaningData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            let content = '';
+            if (record.cleaningValue) content += `清掃:${record.cleaningValue} `;
+            if (record.linenValue) content += `リネン:${record.linenValue} `;
+            if (record.recordNote) content += `(${record.recordNote})`;
+
+            allRecords.push({
+              id: record.id,
+              recordType: '清掃リネン',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
+              content: content.trim(),
+              staffName: record.staffId || '',
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('清掃リネン記録の取得でエラー:', error);
+      }
+    }
+
+    // 入浴記録
+    if (!recordTypes || recordTypes.includes('入浴')) {
+      try {
+        const bathingData = await db
+          .select()
+          .from(bathingRecords)
+          .where(and(
+            gte(bathingRecords.recordDate, startDate),
+            lte(bathingRecords.recordDate, endDate)
+          ));
+
+        bathingData.forEach(record => {
+          const resident = record.residentId ? residentsMap.get(record.residentId) : null;
+          if (resident) {
+            let content = '';
+            if (record.bathType) content += `区分:${record.bathType} `;
+            if (record.temperature) content += `体温:${record.temperature}℃ `;
+            if (record.notes) content += `(${record.notes})`;
+
+            allRecords.push({
+              id: record.id,
+              recordType: '入浴',
+              residentId: record.residentId || '',
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: record.recordDate,
+              content: content.trim(),
+              staffName: record.staffName,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('入浴記録の取得でエラー:', error);
+      }
+    }
+
+    // 体重記録
+    if (!recordTypes || recordTypes.includes('体重')) {
+      try {
+        const weightData = await db
+          .select()
+          .from(weightRecords)
+          .where(and(
+            gte(weightRecords.recordDate, startDate),
+            lte(weightRecords.recordDate, endDate)
+          ));
+
+        weightData.forEach(record => {
+          const resident = residentsMap.get(record.residentId);
+          if (resident) {
+            let content = '';
+            if (record.weight) content += `体重:${record.weight}kg`;
+            if (record.notes) content += ` (${record.notes})`;
+
+            allRecords.push({
+              id: record.id,
+              recordType: '体重',
+              residentId: record.residentId,
+              roomNumber: resident.roomNumber,
+              residentName: resident.name,
+              recordTime: record.recordDate,
+              content: content.trim(),
+              staffName: record.staffName,
+              createdAt: record.createdAt,
+              originalData: record
+            });
+          }
+        });
+      } catch (error) {
+        console.error('体重記録の取得でエラー:', error);
+      }
+    }
+
+    // 看護記録
+    if (!recordTypes || recordTypes.includes('看護記録') || recordTypes.includes('医療記録') || recordTypes.includes('処置')) {
+      try {
+        const nursingData = await db
+          .select()
+          .from(nursingRecords)
+          .where(and(
+            gte(nursingRecords.recordDate, startDate),
+            lte(nursingRecords.recordDate, endDate)
+          ));
+
+        nursingData.forEach(record => {
+          const resident = record.residentId ? residentsMap.get(record.residentId) : null;
+          
+          let recordType = '看護記録';
+          if (record.category === 'intervention') recordType = '医療記録';
+          if (record.category === 'treatment') recordType = '処置';
+
+          // フィルタリングに該当しない場合はスキップ
+          if (recordTypes && !recordTypes.includes(recordType)) return;
+
+          let content = '';
+          if (record.description) content += record.description;
+          if (record.notes) content += ` ${record.notes}`;
+          if (record.interventions) content += ` 介入:${record.interventions}`;
+
+          allRecords.push({
+            id: record.id,
+            recordType,
+            residentId: record.residentId,
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '全体',
+            recordTime: record.recordDate,
+            content: content.trim(),
+            staffName: record.nurseId,
+            createdAt: record.createdAt,
+            originalData: record
+          });
+        });
+      } catch (error) {
+        console.error('看護記録の取得でエラー:', error);
+      }
+    }
+
+    // 記録時間順にソート
+    allRecords.sort((a, b) => new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime());
+
+    return allRecords;
   }
 }
 
