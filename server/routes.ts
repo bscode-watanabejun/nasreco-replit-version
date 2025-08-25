@@ -485,7 +485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // residentIdとstaffIdはvalidationから除外されているため、手動で追加
       const recordData = {
         ...validatedData,
-        residentId: null,  // 新規作成時は常にnull（空カード）
+        residentId: req.query.residentId || null,  // クエリパラメータから取得、なければnull（空カード）
         staffId: req.user.claims.sub,  // 現在のユーザーIDを設定
       };
       
@@ -520,9 +520,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Request body keys:", Object.keys(req.body));
       console.log("Request body types:", Object.keys(req.body).map(key => `${key}: ${typeof req.body[key]} (${req.body[key]})`));
       
-      const validatedData = insertBathingRecordSchema.partial().parse(req.body);
+      // residentIdが含まれている場合は別途処理
+      const { residentId, ...bodyWithoutResidentId } = req.body;
+      const validatedData = insertBathingRecordSchema.partial().parse(bodyWithoutResidentId);
       console.log("Validation successful:", validatedData);
-      const record = await storage.updateBathingRecord(id, validatedData);
+      
+      // residentIdがある場合は手動で追加（空文字列も含む）
+      const updateData = {
+        ...validatedData,
+        ...(residentId !== undefined && { residentId }),
+      };
+      console.log("Final update data:", updateData);
+      
+      const record = await storage.updateBathingRecord(id, updateData);
       res.json(record);
     } catch (error: any) {
       console.error("=== PATCH Validation Error ===");

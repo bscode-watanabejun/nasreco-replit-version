@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -40,93 +40,82 @@ import {
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
-// インライン編集用のコンポーネント
+// インライン編集用のコンポーネント（処置一覧と同じ実装）
 function InputWithDropdown({
+  id,
   value,
   options,
   onSave,
-  placeholder = "",
-  className = "",
+  placeholder,
+  className,
   disabled = false,
+  enableAutoFocus = true,
 }: {
+  id?: string;
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
-  placeholder?: string;
+  placeholder: string;
   className?: string;
   disabled?: boolean;
+  enableAutoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 値が外部から変更された場合に同期
   useEffect(() => {
     setInputValue(value);
   }, [value]);
 
-  // アクティブ要素を監視してフォーカス状態を更新
   useEffect(() => {
     const checkFocus = () => {
       if (inputRef.current) {
         setIsFocused(document.activeElement === inputRef.current);
       }
     };
-
-    // 初回チェック
-    checkFocus();
-
-    // フォーカス変更を監視
-    const handleFocusChange = () => {
-      checkFocus();
-    };
-
-    // document全体でfocus/blurイベントを監視
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', handleFocusChange);
-
+    document.addEventListener('focusin', checkFocus);
+    document.addEventListener('focusout', checkFocus);
     return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusChange);
+      document.removeEventListener('focusin', checkFocus);
+      document.removeEventListener('focusout', checkFocus);
     };
   }, []);
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
+    // 入浴一覧では実際の値（option.value）を送信する
     setInputValue(selectedValue);
     onSave(selectedValue);
     setOpen(false);
 
-    // 特定の遅延後にフォーカス移動を実行
-    setTimeout(() => {
-      if (inputRef.current) {
-        const allInputs = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            el !== inputRef.current &&
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
-
-        const currentElement = inputRef.current;
-        const allElements = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
-
-        const currentIndex = allElements.indexOf(currentElement);
-        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-          // フォーカス移動前に現在のプルダウンを確実に閉じる
-          setOpen(false);
-          allElements[currentIndex + 1].focus();
+    if (enableAutoFocus) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          const allInputs = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              el !== inputRef.current &&
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
+          const currentElement = inputRef.current;
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
+          const currentIndex = allElements.indexOf(currentElement);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            allElements[currentIndex + 1].focus();
+          }
         }
-      }
-    }, 200);
+      }, 200);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,38 +144,29 @@ function InputWithDropdown({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <input
+            id={id}
             ref={inputRef}
             type="text"
             value={inputValue}
             onChange={handleInputChange}
-            onFocus={() => {
-              if (!disabled) {
-                setOpen(true);
-                setIsFocused(true);
-              }
-            }}
-            onBlur={(e) => {
-              // プルダウンが開いている場合はフォーカスを維持
-              if (!open) {
-                setTimeout(() => setIsFocused(false), 50);
-              }
-              handleInputBlur();
-            }}
+            onBlur={handleInputBlur}
             onKeyDown={handleKeyDown}
-            onClick={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.preventDefault();
+              setOpen(!open);
+            }}
             placeholder={placeholder}
-            className={`${className} ${disabled ? 'cursor-not-allowed' : ''} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
+            className={className}
             disabled={disabled}
           />
         </PopoverTrigger>
         <PopoverContent className="w-32 p-0.5" align="center">
           <div className="space-y-0 max-h-40 overflow-y-auto">
-            {(options || []).map((option, index) => (
+            {options.map((option) => (
               <button
-                key={index}
-                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem] border-0 bg-transparent"
+                key={option.value}
                 onClick={() => handleSelect(option.value)}
-                data-testid={`option-${option.value}`}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
               >
                 {option.label}
               </button>
@@ -365,7 +345,6 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
-              disabled={!record.residentId}
             />
             <span className="text-xs">:</span>
             <InputWithDropdown
@@ -381,7 +360,6 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
-              disabled={!record.residentId}
             />
           </div>
           
@@ -400,7 +378,6 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-16 ${inputBaseClass}`}
-              disabled={!record.residentId}
             />
           </div>
           
@@ -461,7 +438,6 @@ function BathingCard({
               }
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
-              disabled={!record.residentId}
             />
           </div>
 
@@ -482,8 +458,7 @@ function BathingCard({
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
-                disabled={!record.residentId}
-              />
+                />
               <span className="text-xs">/</span>
               <InputWithDropdown
                 value={record.bloodPressureDiastolic?.toString() || ""}
@@ -498,8 +473,7 @@ function BathingCard({
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
-                disabled={!record.residentId}
-              />
+                />
             </div>
           </div>
 
@@ -735,10 +709,6 @@ export default function BathingList() {
     mutationFn: (data: any) => apiRequest("/api/bathing-records", "POST", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      toast({
-        title: "入浴記録を作成しました",
-        description: "新しい入浴記録が追加されました。",
-      });
     },
     onError: () => {
       toast({
@@ -764,16 +734,22 @@ export default function BathingList() {
     }) => {
       // 一時的なレコード（IDがtempで始まる）の場合は新規作成
       if (id.startsWith("temp-")) {
-        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{date}から抽出
+        let residentIdFromTemp = residentId;
         
-        // residentIdの検証
-        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
-          throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
+        // temp-{residentId}-{date}形式の場合はIDから抽出
+        if (id.includes("-") && !id.startsWith("temp-new-")) {
+          residentIdFromTemp = residentId || id.split("-")[1];
+        }
+        
+        // residentIdの検証（一時的レコードの場合のみ）
+        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null' || residentIdFromTemp === '') {
+          // 利用者が未選択の場合でも、値の更新は許可する
+          residentIdFromTemp = null;
         }
 
         const newRecordData: any = {
           residentId: residentIdFromTemp,
-          recordDate: selectedDate, // ISO文字列として送信
+          recordDate: new Date(selectedDate).toISOString(), // 確実にISO文字列として送信
           timing: "午前",
           [field]: value,
         };
@@ -920,7 +896,7 @@ export default function BathingList() {
       // 一時的レコード（新規作成）かどうかを判定
       if (recordId && typeof recordId === 'string' && recordId.startsWith("temp-")) {
         // 新規作成の場合：完全なレコードデータを構築
-        const currentData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
+        const currentData = queryClient.getQueryData(["/api/bathing-records"]) as any[];
         const currentRecord = Array.isArray(currentData) ? currentData.find((record: any) => record.id === recordId) : null;
         
         if (!currentRecord) {
@@ -928,24 +904,24 @@ export default function BathingList() {
         }
         
         const createData = {
-          residentId: newResidentId,
-          recordDate: selectedDate,
+          // residentIdはサーバー側で処理されるため送信しない
+          recordDate: new Date(selectedDate).toISOString(),
           timing: currentRecord.timing || "午前",
-          hour: currentRecord.hour || "",
-          minute: currentRecord.minute || "",
-          staffName: currentRecord.staffName || "",
-          bathType: currentRecord.bathType || "",
-          temperature: currentRecord.temperature || "",
-          bloodPressureSystolic: currentRecord.bloodPressureSystolic || "",
-          bloodPressureDiastolic: currentRecord.bloodPressureDiastolic || "",
-          pulseRate: currentRecord.pulseRate || "",
-          oxygenSaturation: currentRecord.oxygenSaturation || "",
-          notes: currentRecord.notes || "",
-          rejectionReason: currentRecord.rejectionReason || "",
+          ...(currentRecord.hour && { hour: currentRecord.hour }),
+          ...(currentRecord.minute && { minute: currentRecord.minute }),
+          ...(currentRecord.staffName && { staffName: currentRecord.staffName }),
+          ...(currentRecord.bathType && { bathType: currentRecord.bathType }),
+          ...(currentRecord.temperature && { temperature: currentRecord.temperature }),
+          ...(currentRecord.bloodPressureSystolic && { bloodPressureSystolic: currentRecord.bloodPressureSystolic }),
+          ...(currentRecord.bloodPressureDiastolic && { bloodPressureDiastolic: currentRecord.bloodPressureDiastolic }),
+          ...(currentRecord.pulseRate && { pulseRate: currentRecord.pulseRate }),
+          ...(currentRecord.oxygenSaturation && { oxygenSaturation: currentRecord.oxygenSaturation }),
+          ...(currentRecord.notes && { notes: currentRecord.notes }),
+          ...(currentRecord.rejectionReason && { rejectionReason: currentRecord.rejectionReason }),
           nursingCheck: currentRecord.nursingCheck || false,
         };
         
-        await apiRequest("/api/bathing-records", "POST", createData);
+        await apiRequest(`/api/bathing-records?residentId=${encodeURIComponent(newResidentId)}`, "POST", createData);
       } else {
         // 既存レコードの更新
         await apiRequest(`/api/bathing-records/${recordId}`, "PATCH", {
@@ -956,22 +932,20 @@ export default function BathingList() {
     // 楽観的更新で即座にUIを更新
     onMutate: async ({ recordId, newResidentId }) => {
       // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records", selectedDate] });
+      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records"] });
       
       // 現在のデータのスナップショットを取得
-      const previousBathingRecords = queryClient.getQueryData(["/api/bathing-records", selectedDate]);
+      const previousBathingRecords = queryClient.getQueryData(["/api/bathing-records"]);
       
       // 楽観的に更新（利用者変更）
-      queryClient.setQueryData(["/api/bathing-records", selectedDate], (old: any) => {
+      queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
         if (!old) return old;
         
         return old.map((record: any) => {
           if (record.id === recordId) {
             return { 
               ...record, 
-              residentId: newResidentId,
-              // 一時的レコードの場合はisTemporaryフラグを保持
-              isTemporary: record.id.startsWith("temp-") ? true : record.isTemporary
+              residentId: newResidentId
             };
           }
           return record;
@@ -984,7 +958,7 @@ export default function BathingList() {
     onError: (error: any, variables, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousBathingRecords) {
-        queryClient.setQueryData(["/api/bathing-records", selectedDate], context.previousBathingRecords);
+        queryClient.setQueryData(["/api/bathing-records"], context.previousBathingRecords);
       }
       
       console.error('Change resident error:', error);
@@ -998,13 +972,8 @@ export default function BathingList() {
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
     onSuccess: (data, { recordId }) => {
-      // 一時的レコードの場合は新規作成なので、選択日付のデータのみ更新
-      if (recordId && typeof recordId === 'string' && recordId.startsWith("temp-")) {
-        queryClient.invalidateQueries({ queryKey: ["/api/bathing-records", selectedDate] });
-      } else {
-        // 既存レコードの場合は全体を更新
-        queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      }
+      // 成功時は全体を更新
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
   });
 
@@ -1130,7 +1099,7 @@ export default function BathingList() {
     recordDate.setHours(currentHour, closestMinute, 0, 0);
 
     const newRecord = {
-      // residentId は omit されているためサーバー側で処理される
+      // residentIdは省略（未選択状態）
       recordDate: recordDate.toISOString(),
       timing: currentHour < 12 ? "午前" : "午後",
       hour: currentHour.toString(),
@@ -1302,7 +1271,7 @@ export default function BathingList() {
         console.log(`一時的レコードをキャッシュに保存: ${tempRecords.length}件`);
         
         // 現在のキャッシュデータを取得
-        const currentCacheData = queryClient.getQueryData(["/api/bathing-records", selectedDate]) as any[];
+        const currentCacheData = queryClient.getQueryData(["/api/bathing-records"]) as any[];
         const currentCache = Array.isArray(currentCacheData) ? currentCacheData : [];
         
         // 重複を避けてマージ
@@ -1315,7 +1284,7 @@ export default function BathingList() {
         });
         
         console.log(`キャッシュ更新: ${currentCache.length}件 → ${mergedData.length}件`);
-        queryClient.setQueryData(["/api/bathing-records", selectedDate], mergedData);
+        queryClient.setQueryData(["/api/bathing-records"], mergedData);
       }
       
       return recordsWithEmpty;
@@ -1324,8 +1293,8 @@ export default function BathingList() {
     return existingRecords;
   };
 
-  // フィルタリングロジック（バイタル一覧と同じシンプルな実装）
-  const filteredBathingRecords = useMemo(() => {
+  // フィルタリングロジック（ソートなし）
+  const getFilteredRecords = useCallback(() => {
     if (!residents || !Array.isArray(residents) || !bathingRecords || !Array.isArray(bathingRecords)) {
       return [];
     }
@@ -1349,53 +1318,78 @@ export default function BathingList() {
       return resident[bathDayField] === true;
     });
 
-    // 既存の入浴記録（選択日付 + フィルタ済み利用者）
+    // 既存の入浴記録（選択日付でフィルタ）
     const existingRecords = bathingRecords.filter((record: any) => {
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
       if (recordDate !== selectedDate) return false;
 
-      // 利用者が曜日フィルタに含まれているかチェック
-      const resident = filteredResidents.find((r: any) => r.id === record.residentId);
-      return !!resident;
-    });
-
-    // 一時的レコードを追加（既存レコードがない利用者）
-    const allRecords = [...existingRecords];
-    filteredResidents.forEach((resident: any) => {
-      const hasRecord = existingRecords.some((record: any) => record.residentId === resident.id);
-      if (!hasRecord) {
-        allRecords.push({
-          id: `temp-${resident.id}-${selectedDate}`,
-          residentId: resident.id,
-          recordDate: selectedDate,
-          timing: "午前",
-          hour: null,
-          minute: null,
-          staffName: null,
-          bathType: null,
-          temperature: null,
-          bloodPressureSystolic: null,
-          bloodPressureDiastolic: null,
-          pulseRate: null,
-          oxygenSaturation: null,
-          notes: null,
-          rejectionReason: null,
-          nursingCheck: false,
-          createdAt: null,
-          updatedAt: null,
-        });
+      // 既存レコード（利用者が設定されている場合も含む）は基本的に表示
+      // ただし、フロアフィルタは適用する
+      if (record.residentId && record.residentId !== '') {
+        const resident = residents.find((r: any) => r.id === record.residentId);
+        if (!resident) return false; // 利用者が見つからない場合は非表示
+        
+        // フロアフィルタのチェック
+        if (selectedFloor !== "全階") {
+          const residentFloor = resident.floor;
+          if (!residentFloor) return false;
+          
+          const selectedFloorNumber = selectedFloor.replace("階", "");
+          if (residentFloor !== selectedFloor && residentFloor !== selectedFloorNumber) {
+            return false;
+          }
+        }
+        return true; // フロア条件を満たす既存レコードは表示
       }
+
+      // residentIdがnullまたは空の場合は表示する（空カード）
+      return true;
     });
 
-    // 居室番号順にソート
-    return allRecords.sort((a: any, b: any) => {
+    // 既存レコードのみを返す（一時的レコードの自動生成は行わない）
+    return existingRecords;
+  }, [residents, bathingRecords, selectedDate, selectedFloor]);
+
+  // レコードをソートする関数（居室番号の若い順）
+  const sortRecords = useCallback((records: any[]) => {
+    if (!residents || !Array.isArray(residents)) return records;
+    
+    return [...records].sort((a: any, b: any) => {
       const residentA = residents.find((r: any) => r.id === a.residentId);
       const residentB = residents.find((r: any) => r.id === b.residentId);
-      const roomA = parseInt(residentA?.roomNumber || "0");
-      const roomB = parseInt(residentB?.roomNumber || "0");
-      return roomA - roomB;
+      
+      // 利用者が見つからない場合は最後に配置
+      if (!residentA && !residentB) return 0;
+      if (!residentA) return 1;
+      if (!residentB) return -1;
+      
+      const roomA = residentA.roomNumber || "0";
+      const roomB = residentB.roomNumber || "0";
+      
+      // 数値として変換を試行
+      const numA = parseInt(roomA.toString().replace(/[^\d]/g, ''), 10);
+      const numB = parseInt(roomB.toString().replace(/[^\d]/g, ''), 10);
+      
+      // 両方とも有効な数値の場合
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      
+      // 片方が数値でない場合は文字列として比較
+      return roomA.toString().localeCompare(roomB.toString(), undefined, { numeric: true });
     });
-  }, [residents, bathingRecords, selectedDate, selectedFloor]);
+  }, [residents]);
+
+  // フィルタリングされたレコード（処置一覧風のシンプルな実装）
+  const filteredBathingRecords = useMemo(() => {
+    if (!residents || !Array.isArray(residents) || !bathingRecords || !Array.isArray(bathingRecords)) {
+      return [];
+    }
+
+    const filtered = getFilteredRecords();
+    const sorted = sortRecords(filtered);
+    return sorted;
+  }, [residents, bathingRecords, selectedDate, selectedFloor, getFilteredRecords, sortRecords]);
 
   // 共通のスタイル
   const inputBaseClass = "text-center border rounded px-1 py-1 text-xs h-8 transition-colors focus:border-blue-500 focus:outline-none";
