@@ -2,10 +2,9 @@ import { useState, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import Header from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Calendar, Filter } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -88,7 +87,7 @@ export default function DailyRecords() {
   }
 
   const handleBack = () => {
-    navigate('/dashboard');
+    navigate('/');
   };
 
   const formatTime = (dateString: string) => {
@@ -111,68 +110,52 @@ export default function DailyRecords() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header />
-      
-      <main className="max-w-4xl mx-auto px-2 sm:px-4 py-2">
-        {/* ヘッダー */}
-        <div className="flex items-center mb-4">
-          <Button 
-            variant="ghost" 
+      {/* ヘッダー */}
+      <div className="bg-gradient-to-br from-blue-50 to-cyan-100 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
             size="sm"
             onClick={handleBack}
-            className="mr-2"
+            className="p-2"
           >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            戻る
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-800">
-            今日の記録一覧
-          </h1>
+          <h1 className="text-2xl font-bold">今日の記録一覧</h1>
         </div>
+      </div>
 
-        {/* フィルタ */}
-        <Card className="mb-4">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <Filter className="w-4 h-4 mr-2" />
-              フィルタ条件
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex flex-col sm:flex-row gap-3">
-              {/* 日付選択 */}
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-slate-600" />
-                <label className="text-sm font-medium text-slate-700">
-                  日付:
-                </label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="h-8 px-2 text-sm border border-slate-300 rounded-md"
-                />
-              </div>
-
-              {/* 記録種別選択 */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium text-slate-700">
-                  記録種別:
-                </label>
-                <Select value={selectedRecordType} onValueChange={setSelectedRecordType}>
-                  <SelectTrigger className="w-32 h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全て</SelectItem>
-                    <SelectItem value="日中">日中</SelectItem>
-                    <SelectItem value="看護">看護</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      <div className="max-w-full mx-auto p-2">
+        {/* Filter Controls */}
+        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+            {/* 日付選択 */}
+            <div className="flex items-center space-x-1">
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+              />
             </div>
-          </CardContent>
-        </Card>
+
+            {/* 記録種別選択 */}
+            <div className="flex items-center space-x-1">
+              <Filter className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+              <Select value={selectedRecordType} onValueChange={setSelectedRecordType}>
+                <SelectTrigger className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全て</SelectItem>
+                  <SelectItem value="日中">日中</SelectItem>
+                  <SelectItem value="看護">看護</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
 
         {/* 記録一覧 */}
         <div className="space-y-3">
@@ -253,7 +236,7 @@ export default function DailyRecords() {
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
