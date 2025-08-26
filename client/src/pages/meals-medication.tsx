@@ -202,7 +202,14 @@ export default function MealsMedicationPage() {
   const [, setLocation] = useLocation();
   
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedMealTime, setSelectedMealTime] = useState("朝");
+  const [selectedMealTime, setSelectedMealTime] = useState(() => {
+    const currentHour = new Date().getHours();
+    if (currentHour < 9) return "朝";
+    if (currentHour < 12) return "10時";
+    if (currentHour < 15) return "昼";
+    if (currentHour < 17) return "15時";
+    return "夕";
+  });
   const [selectedFloor, setSelectedFloor] = useState("all");
 
   // URLパラメータからstate復元

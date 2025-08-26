@@ -189,7 +189,17 @@ export default function MedicationList() {
   
   // フィルタ状態
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [selectedTiming, setSelectedTiming] = useState("朝後");
+  const [selectedTiming, setSelectedTiming] = useState(() => {
+    const currentHour = new Date().getHours();
+    if (currentHour < 7) return "起床後";
+    if (currentHour < 9) return "朝前";
+    if (currentHour < 11) return "朝後";
+    if (currentHour < 13) return "昼前";
+    if (currentHour < 16) return "昼後";
+    if (currentHour < 19) return "夕前";
+    if (currentHour < 21) return "夕後";
+    return "眠前";
+  });
   const [selectedFloor, setSelectedFloor] = useState("all");
   
   // ローカル状態管理（編集中のメモ）

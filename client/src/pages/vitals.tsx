@@ -723,23 +723,26 @@ function VitalCard({
                     residentId: vital.residentId,
                   });
                 }
-                // ローカル状態をクリア
-                setLocalNotes((prev) => {
-                  const updated = { ...prev };
-                  delete updated[vital.id];
-                  return updated;
-                });
               }}
               onKeyDown={(e) => {
+                // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  // Escapeキー：変更を破棄して元の値に戻す
+                  setLocalNotes((prev) => {
+                    const updated = { ...prev };
+                    delete updated[vital.id];
+                    return updated;
+                  });
                   e.currentTarget.blur();
                 }
               }}
               placeholder="記録内容"
-              className={`w-24 ${inputBaseClass} px-2 resize-none ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none`}
               rows={1}
-              style={{ minHeight: "32px", maxHeight: "64px" }}
+              style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
               disabled={!isResidentSelected}
             />
             <AlertDialog>
@@ -804,7 +807,7 @@ export default function Vitals() {
     urlParams.get("date") || format(new Date(), "yyyy-MM-dd"),
   );
   const [selectedTiming, setSelectedTiming] = useState(
-    urlParams.get("timing") || "午前",
+    urlParams.get("timing") || (new Date().getHours() < 12 ? "午前" : "午後"),
   );
   const [selectedFloor, setSelectedFloor] = useState(() => {
     // URLパラメータから階数を取得
@@ -836,7 +839,19 @@ export default function Vitals() {
   });
 
   const { data: vitalSigns = [] } = useQuery({
-    queryKey: ["/api/vital-signs"],
+    queryKey: ["/api/vital-signs", selectedDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedDate) {
+        const date = new Date(selectedDate);
+        const startDate = new Date(date.setHours(0, 0, 0, 0)).toISOString();
+        const endDate = new Date(date.setHours(23, 59, 59, 999)).toISOString();
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
+      }
+      return await apiRequest(`/api/vital-signs?${params.toString()}`);
+    },
+    enabled: !!selectedDate,
   });
 
   const { data: currentUser } = useQuery({
@@ -844,7 +859,7 @@ export default function Vitals() {
   });
 
 
-  // 記録更新用ミューテーション（楽観的更新対応）
+  // 記録更新用ミューテーション（シンプル版）
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -859,148 +874,50 @@ export default function Vitals() {
     }) => {
       // 一時的なレコード（IDがtempで始まる）の場合は新規作成
       if (id.startsWith("temp-")) {
-        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{date}-{timing}から抽出
-        
-        // residentIdの検証
+        const residentIdFromTemp = residentId || id.split("-")[1];
         if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
           throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
         }
-
         const newRecordData: any = {
           residentId: residentIdFromTemp,
           recordDate: new Date(selectedDate),
           timing: selectedTiming,
           [field]: value,
         };
-
-        // データ型を適切に変換
-        if (field === "recordDate") {
-          newRecordData[field] = new Date(value);
-        } else if (
-          [
-            "temperature",
-            "bloodPressureSystolic",
-            "bloodPressureDiastolic",
-            "pulseRate",
-            "respirationRate",
-            "oxygenSaturation",
-          ].includes(field)
-        ) {
-          if (value && value.trim() !== "") {
-            const numValue = parseFloat(value);
-            if (!isNaN(numValue)) {
-              newRecordData[field] = numValue;
-            }
-          }
-          // 空の値の場合はフィールドを送信しない（削除）
-        } else if (["hour", "minute"].includes(field)) {
-          if (value && value.trim() !== "") {
-            const intValue = parseInt(value);
-            if (!isNaN(intValue)) {
-              newRecordData[field] = intValue;
-            }
-          }
-          // 空の値の場合はフィールドを送信しない（削除）
-        } else {
-          // その他のフィールド（bloodSugar, notes, staffName等）はそのまま設定
-          newRecordData[field] = value;
-        }
-
         await apiRequest("/api/vital-signs", "POST", newRecordData);
       } else {
         // 既存レコードの更新
         const updateData: any = { [field]: value };
-        if (field === "recordDate") {
-          updateData[field] = new Date(value);
-        } else if (
-          [
-            "temperature",
-            "bloodPressureSystolic",
-            "bloodPressureDiastolic",
-            "pulseRate",
-            "respirationRate",
-            "oxygenSaturation",
-          ].includes(field)
-        ) {
-          if (value && value.trim() !== "") {
-            const numValue = parseFloat(value);
-            if (!isNaN(numValue)) {
-              updateData[field] = numValue;
-            }
-          } else {
-            updateData[field] = null;
-          }
-        } else if (["hour", "minute"].includes(field)) {
-          if (value && value.trim() !== "") {
-            const intValue = parseInt(value);
-            if (!isNaN(intValue)) {
-              updateData[field] = intValue;
-            }
-          } else {
-            updateData[field] = null;
-          }
-        }
-        // その他のフィールド（bloodSugar, notes, staffName等）は最初の { [field]: value } でそのまま設定される
-
         await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
       }
     },
-    // 楽観的更新の実装
-    onMutate: async ({ id, field, value }) => {
-      // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
-      
-      // 現在のデータのスナップショットを取得
-      const previousVitalSigns = queryClient.getQueryData(["/api/vital-signs"]);
-      
-      // 楽観的に更新
-      queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
-        if (!old) return old;
-        
-        if (id.startsWith("temp-")) {
-          // 新規作成の場合：一時的なレコードを更新
-          return old.map((vital: any) => {
-            if (vital.id === id) {
-              return { ...vital, [field]: value };
-            }
-            return vital;
-          });
-        } else {
-          // 既存レコード更新の場合
-          return old.map((vital: any) => {
-            if (vital.id === id) {
-              return { ...vital, [field]: value };
-            }
-            return vital;
-          });
-        }
-      });
-      
-      // ロールバック用のコンテキストを返す
-      return { previousVitalSigns };
-    },
-    onError: (error: any, _, context) => {
-      // エラー時に前の状態に戻す
-      if (context?.previousVitalSigns) {
-        queryClient.setQueryData(["/api/vital-signs"], context.previousVitalSigns);
+    onSuccess: (_, variables) => {
+      // Always invalidate the query on success to get fresh data from the server
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs", selectedDate] });
+
+      // Clear the local state for the field that was just updated
+      if (variables.field === 'notes') {
+        setLocalNotes(prev => {
+          const newState = { ...prev };
+          delete newState[variables.id];
+          return newState;
+        });
       }
-      
+      if (variables.field === 'bloodSugar') {
+        setLocalBloodSugar(prev => {
+          const newState = { ...prev };
+          delete newState[variables.id];
+          return newState;
+        });
+      }
+    },
+    onError: (error: any) => {
       console.error('Update error:', error);
       toast({
         title: "エラー",
-        description: error.message || "バイタルサインの更新に失敗しました。変更を元に戻しました。",
+        description: error.message || "更新に失敗しました。",
         variant: "destructive",
       });
-      
-      // エラー時のみサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-    },
-    onSuccess: (_, variables) => {
-      // 新規作成の場合のみinvalidateを実行（一時的IDを実際のIDに置き換えるため）
-      if (variables.id.startsWith("temp-")) {
-        queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      }
-      // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
     },
   });
 
@@ -1078,7 +995,7 @@ export default function Vitals() {
   const timingOptions = [
     { value: "午前", label: "午前" },
     { value: "午後", label: "午後" },
-    { value: "夜間", label: "夜間" },
+    { value: "臨時", label: "臨時" },
   ];
 
   const floorOptions = [

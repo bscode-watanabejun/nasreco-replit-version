@@ -241,8 +241,8 @@ export default function Rounds() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-2">
+        <div className="flex items-center gap-2 mb-2">
           <Button
             variant="ghost"
             size="sm"
@@ -256,10 +256,10 @@ export default function Rounds() {
         </div>
       </div>
       
-      <div className="max-w-full mx-auto p-2">
+      <div className="max-w-full mx-auto p-1">
 
         {/* 日付とフロア選択 */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+        <div className="bg-white rounded-lg p-1 mb-2 shadow-sm">
           <div className="flex gap-2 sm:gap-4 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
@@ -313,14 +313,14 @@ export default function Rounds() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="sticky left-0 bg-gray-100 border-r border-gray-200 p-1 text-left min-w-[80px] z-20">
-                      <div className="text-[10px] text-gray-600">部屋</div>
-                      <div className="text-[10px] text-gray-600">名前</div>
+                    <th className="sticky left-0 bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 text-left min-w-[70px] z-20">
+                      <div className="text-[9px] text-gray-600">部屋</div>
+                      <div className="text-[9px] text-gray-600">名前</div>
                     </th>
-                    <th className="sticky left-[80px] bg-gray-100 border-r border-gray-200 p-1 min-w-[35px] z-10"></th>
+                    <th className="sticky left-[70px] bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 min-w-[30px] z-10"></th>
                     {hours.map(hour => (
-                      <th key={hour} className="border-r border-gray-200 p-1 min-w-[35px]">
-                        <div className="text-[10px] text-gray-600">{hour}</div>
+                      <th key={hour} className="border-r border-gray-200 px-0.5 py-0.5 min-w-[30px]">
+                        <div className="text-[9px] text-gray-600">{hour}</div>
                       </th>
                     ))}
                   </tr>
@@ -329,11 +329,11 @@ export default function Rounds() {
                   {residents.map(resident => [
                       /* 巡回行 */
                       <tr key={`${resident.id}-patrol`} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="sticky left-0 bg-white border-r border-gray-200 p-1 z-20">
-                          <div className="text-[11px] font-medium">{resident.roomNumber}</div>
-                          <div className="text-[10px] text-gray-600 leading-tight">{resident.name?.split(' ')[0]} {resident.name?.split(' ')[1]}</div>
+                        <td className="sticky left-0 bg-white border-r border-gray-200 px-0.5 py-0.5 z-20">
+                          <div className="text-[10px] font-medium">{resident.roomNumber}</div>
+                          <div className="text-[9px] text-gray-600 leading-tight">{resident.name?.split(' ')[0]} {resident.name?.split(' ')[1]}</div>
                         </td>
-                        <td className="sticky left-[80px] bg-blue-50 border-r border-gray-200 p-1 z-10">
+                        <td className="sticky left-[70px] bg-blue-50 border-r border-gray-200 px-0.5 py-0.5 z-10">
                           <div className="text-[10px] text-blue-700 font-medium">巡回</div>
                         </td>
                         {hours.map(hour => {
@@ -341,11 +341,11 @@ export default function Rounds() {
                           return (
                             <td
                               key={hour}
-                              className="border-r border-gray-200 p-1 text-center cursor-pointer hover:bg-blue-50"
+                              className="border-r border-gray-200 px-0.5 py-0.5 text-center cursor-pointer hover:bg-blue-50"
                               onClick={() => handlePatrolClick(resident.id, hour)}
                             >
                               {patrolRecord && (
-                                <span className="text-[10px] font-bold text-blue-700">
+                                <span className="text-lg font-bold text-blue-700">
                                   {patrolRecord.staffName}
                                 </span>
                               )}
@@ -356,8 +356,8 @@ export default function Rounds() {
                       
                       /* 体位交換行 */
                       <tr key={`${resident.id}-position`} className="border-b-2 border-gray-300 hover:bg-gray-50">
-                        <td className="sticky left-0 bg-white border-r border-gray-200 p-1 z-20"></td>
-                        <td className="sticky left-[80px] bg-green-50 border-r border-gray-200 p-1 z-10">
+                        <td className="sticky left-0 bg-white border-r border-gray-200 px-0.5 py-0.5 z-20"></td>
+                        <td className="sticky left-[70px] bg-green-50 border-r border-gray-200 px-0.5 py-0.5 z-10">
                           <div className="text-[10px] text-green-700 font-medium">体交</div>
                         </td>
                         {hours.map(hour => {
@@ -365,11 +365,11 @@ export default function Rounds() {
                           return (
                             <td
                               key={hour}
-                              className="border-r border-gray-200 p-1 text-center relative group"
+                              className="border-r border-gray-200 px-0.5 py-0.5 text-center relative group"
                             >
                               {positionRecord ? (
                                 <span
-                                  className="text-[10px] font-bold text-green-700 cursor-pointer"
+                                  className="text-lg font-bold text-green-700 cursor-pointer"
                                   onClick={() => handlePositionClick(resident.id, hour)}
                                 >
                                   {positionRecord.positionValue}
@@ -377,7 +377,7 @@ export default function Rounds() {
                               ) : (
                                 <div className="opacity-0 group-hover:opacity-100">
                                   <Select onValueChange={(value) => handlePositionClick(resident.id, hour, value)}>
-                                    <SelectTrigger className="h-5 w-8 border-none p-0 text-[10px]">
+                                    <SelectTrigger className="h-4 w-6 border-none p-0 text-lg"
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -400,7 +400,7 @@ export default function Rounds() {
         </Card>
 
         {/* 説明 */}
-        <div className="mt-4 text-xs text-gray-600 space-y-1">
+        <div className="mt-2 text-[10px] text-gray-600 space-y-0.5">
           <div>• 巡回：セルをクリックするとスタッフ名がスタンプされます</div>
           <div>• 体交：セルをホバーして体位（右/左/仰）を選択してください</div>
           <div>• 記録をクリックすると削除されます</div>

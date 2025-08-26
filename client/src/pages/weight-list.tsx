@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -499,33 +499,40 @@ function WeightCard({
                     residentId: weight.residentId,
                   });
                 }
-                // ローカル状態をクリア
-                setLocalNotes((prev) => {
-                  const updated = { ...prev };
-                  delete updated[weight.id];
-                  return updated;
-                });
+                // 保存処理完了後にローカル状態をクリア（少し遅延）
+                setTimeout(() => {
+                  setLocalNotes((prev) => {
+                    const updated = { ...prev };
+                    delete updated[weight.id];
+                    return updated;
+                  });
+                }, 100);
               }}
               onKeyDown={(e) => {
+                // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  // Escapeキー：変更を破棄して元の値に戻す
+                  setLocalNotes((prev) => {
+                    const updated = { ...prev };
+                    delete updated[weight.id];
+                    return updated;
+                  });
                   e.currentTarget.blur();
                 }
               }}
               placeholder="記録内容"
-              className={`flex-1 ${inputBaseClass} px-2 resize-none ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               rows={1}
-              style={{ minHeight: "32px", maxHeight: "64px" }}
+              style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
               disabled={!isResidentSelected}
             />
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button
-                  className={`ml-1 rounded text-xs flex items-center justify-center ${
-                    isResidentSelected
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-slate-300 text-slate-500 cursor-not-allowed"
-                  }`}
+                  className="ml-1 rounded text-xs flex items-center justify-center bg-red-500 hover:bg-red-600 text-white"
                   style={{
                     height: "32px",
                     width: "32px",
@@ -534,7 +541,7 @@ function WeightCard({
                     maxHeight: "32px",
                     maxWidth: "32px",
                   }}
-                  disabled={!isResidentSelected}
+                  disabled={false}
                   data-testid={`button-delete-${weight.id}`}
                 >
                   <Trash2 className="w-3 h-3" />
@@ -752,13 +759,20 @@ export default function WeightList() {
   // 記録削除用ミューテーション
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      console.log(`[体重記録削除] 削除開始: id=${id}`);
       await apiRequest(`/api/weight-records/${id}`, "DELETE");
+      console.log(`[体重記録削除] 削除完了: id=${id}`);
+      return id;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
+    onSuccess: async (deletedId) => {
+      console.log(`[体重記録削除] 成功: id=${deletedId}`);
+      // キャッシュを完全にクリアして強制的に再取得
+      queryClient.removeQueries({ queryKey: ["/api/weight-records"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/weight-records"] });
+      console.log(`[体重記録削除] データ再取得完了: id=${deletedId}`);
     },
-    onError: (error: any) => {
-      console.error('Delete error:', error);
+    onError: (error: any, id) => {
+      console.error(`[体重記録削除] エラー: id=${id}`, error);
       toast({
         title: "エラー",
         description: error.message || "記録の削除に失敗しました",
@@ -1030,17 +1044,19 @@ export default function WeightList() {
     return uniqueWeights;
   };
 
-  const filteredWeightRecords = getFilteredWeightRecords().sort((a: any, b: any) => {
-    const residentA = (residents as any[]).find(
-      (r: any) => r.id === a.residentId,
-    );
-    const residentB = (residents as any[]).find(
-      (r: any) => r.id === b.residentId,
-    );
-    const roomA = parseInt(residentA?.roomNumber || "0");
-    const roomB = parseInt(residentB?.roomNumber || "0");
-    return roomA - roomB;
-  });
+  const filteredWeightRecords = useMemo(() => {
+    return getFilteredWeightRecords().sort((a: any, b: any) => {
+      const residentA = (residents as any[]).find(
+        (r: any) => r.id === a.residentId,
+      );
+      const residentB = (residents as any[]).find(
+        (r: any) => r.id === b.residentId,
+      );
+      const roomA = parseInt(residentA?.roomNumber || "0");
+      const roomB = parseInt(residentB?.roomNumber || "0");
+      return roomA - roomB;
+    });
+  }, [residents, weightRecords, selectedMonth, selectedFloor]);
 
   // 年月選択肢を生成（過去1年から未来6ヶ月）
   const generateMonthOptions = () => {

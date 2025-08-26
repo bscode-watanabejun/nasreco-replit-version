@@ -85,9 +85,14 @@ function InputWithDropdown({
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
-    // 選択した値をローカル状態にセットするが、まだ保存しない
+    // 選択した値をローカル状態にセットし、即座に保存
     setInputValue(selectedValue);
     setOpen(false);
+    
+    // 階数フィルタなど即座に実行が必要な場合のため、選択時に即座にonSaveを呼ぶ
+    if (selectedValue !== value) {
+      onSave(selectedValue);
+    }
 
     if (enableAutoFocus) {
       setTimeout(() => {
@@ -1266,14 +1271,15 @@ export default function BathingList() {
         // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
         const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
         
-        console.log(`フロアフィルタ詳細: 利用者=${resident.name}, residentFloor="${residentFloor}" -> "${residentFloorNumber}", selectedFloor="${selectedFloor}" -> "${selectedFloorNumber}", 一致=${selectedFloorNumber === residentFloorNumber}`);
+        console.log(`[階数フィルタ] 利用者=${resident.name}, residentFloor="${residentFloor}" (type:${typeof residentFloor}) -> "${residentFloorNumber}", selectedFloor="${selectedFloor}" -> "${selectedFloorNumber}", 一致=${selectedFloorNumber === residentFloorNumber}`);
         
-        if (selectedFloorNumber !== residentFloorNumber) {
-          console.log(`利用者 ${resident.name} はフロア不一致のためフィルタアウト`);
+        // 数字部分が空の場合も除外
+        if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
+          console.log(`[階数フィルタ] 利用者 ${resident.name} は階数不一致のためフィルタアウト (resident:"${residentFloorNumber}", selected:"${selectedFloorNumber}")`);
           return false;
         }
         
-        console.log(`利用者 ${resident.name} はフロア一致のため採用`);
+        console.log(`[階数フィルタ] 利用者 ${resident.name} は階数一致のため採用`);
       }
       
       // 入浴日フィルタ（該当曜日にチェックONの利用者のみ）
@@ -1308,6 +1314,32 @@ export default function BathingList() {
           return false;
         } else {
           console.log(`既存記録として採用: recordId=${record.id}, resident=${resident.roomNumber} ${resident.name}`);
+          
+          // 階数フィルタのチェック（既存レコード用）
+          if (selectedFloor !== "全階") {
+            const residentFloor = resident.floor;
+            console.log(`[既存レコード階数チェック] 利用者=${resident.name}, residentFloor="${residentFloor}", selectedFloor="${selectedFloor}"`);
+            
+            if (!residentFloor) {
+              console.log(`[既存レコード階数チェック] 利用者 ${resident.name} はfloorがnull/undefinedのためフィルタアウト`);
+              return false;
+            }
+            
+            // 選択された階数から数字部分を抽出（例：「1階」→「1」）
+            const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+            
+            // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
+            const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
+            
+            console.log(`[既存レコード階数チェック] 階数比較: 利用者階数="${residentFloorNumber}", 選択階数="${selectedFloorNumber}"`);
+            
+            if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
+              console.log(`[既存レコード階数チェック] 利用者 ${resident.name} は階数不一致のためフィルタアウト`);
+              return false;
+            }
+            
+            console.log(`[既存レコード階数チェック] 利用者 ${resident.name} は階数一致のため採用`);
+          }
         }
       } else {
         // residentId=nullの空カード（新規追加されたもの）も表示対象に含める
@@ -1376,6 +1408,18 @@ export default function BathingList() {
       });
 
       console.log(`曜日フィルタ適用後の表示対象: ${recordsWithEmpty.length}件`);
+    
+    // 現在表示対象の利用者を詳細ログ出力
+    recordsWithEmpty.forEach((record: any) => {
+      if (record.residentId) {
+        const resident = residents.find((r: any) => r.id === record.residentId);
+        if (resident) {
+          console.log(`[表示対象レコード] 利用者=${resident.name}, 居室=${resident.roomNumber}, floor="${resident.floor}"`);
+        }
+      } else {
+        console.log(`[表示対象レコード] 空カード（利用者未選択）`);
+      }
+    });
       
       // 重複チェック
       const idCounts: Record<string, number> = {};
@@ -1441,7 +1485,7 @@ export default function BathingList() {
         // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
         const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
         
-        if (selectedFloorNumber !== residentFloorNumber) {
+        if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
           return false;
         }
       }
@@ -1461,10 +1505,15 @@ export default function BathingList() {
         const resident = residents.find((r: any) => r.id === record.residentId);
         if (!resident) return false; // 利用者が見つからない場合は非表示
         
-        // フロアフィルタのチェック
+        // フロアフィルタのチェック（既存レコード用）
         if (selectedFloor !== "全階") {
           const residentFloor = resident.floor;
-          if (!residentFloor) return false;
+          console.log(`[既存レコード階数チェック] 利用者=${resident.name}, residentFloor="${residentFloor}", selectedFloor="${selectedFloor}"`);
+          
+          if (!residentFloor) {
+            console.log(`[既存レコード階数チェック] 利用者 ${resident.name} はfloorがnull/undefinedのためフィルタアウト`);
+            return false;
+          }
           
           // 選択された階数から数字部分を抽出（例：「1階」→「1」）
           const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
@@ -1472,9 +1521,14 @@ export default function BathingList() {
           // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
           const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
           
-          if (selectedFloorNumber !== residentFloorNumber) {
+          console.log(`[既存レコード階数チェック] 階数比較: 利用者階数="${residentFloorNumber}", 選択階数="${selectedFloorNumber}"`);
+          
+          if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
+            console.log(`[既存レコード階数チェック] 利用者 ${resident.name} は階数不一致のためフィルタアウト`);
             return false;
           }
+          
+          console.log(`[既存レコード階数チェック] 利用者 ${resident.name} は階数一致のため採用`);
         }
         return true; // フロア条件を満たす既存レコードは表示
       }
@@ -1491,14 +1545,25 @@ export default function BathingList() {
   const sortRecords = useCallback((records: any[]) => {
     if (!residents || !Array.isArray(residents)) return records;
     
-    return [...records].sort((a: any, b: any) => {
+    console.log(`[ソート処理開始] ソート対象レコード数: ${records.length}`);
+    
+    const sorted = [...records].sort((a: any, b: any) => {
       const residentA = residents.find((r: any) => r.id === a.residentId);
       const residentB = residents.find((r: any) => r.id === b.residentId);
       
+      console.log(`[ソート比較] A: id=${a.id}, residentId=${a.residentId}, resident=${residentA ? `${residentA.roomNumber} ${residentA.name}` : 'null'}`);
+      console.log(`[ソート比較] B: id=${b.id}, residentId=${b.residentId}, resident=${residentB ? `${residentB.roomNumber} ${residentB.name}` : 'null'}`);
+      
       // 利用者が見つからない場合は最後に配置
       if (!residentA && !residentB) return 0;
-      if (!residentA) return 1;
-      if (!residentB) return -1;
+      if (!residentA) {
+        console.log(`[ソート結果] A=利用者なし → 後に配置`);
+        return 1;
+      }
+      if (!residentB) {
+        console.log(`[ソート結果] B=利用者なし → 前に配置`);
+        return -1;
+      }
       
       const roomA = residentA.roomNumber || "0";
       const roomB = residentB.roomNumber || "0";
@@ -1509,12 +1574,24 @@ export default function BathingList() {
       
       // 両方とも有効な数値の場合
       if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
+        const result = numA - numB;
+        console.log(`[ソート結果] 居室番号比較: ${roomA}(${numA}) vs ${roomB}(${numB}) → ${result}`);
+        return result;
       }
       
       // 片方が数値でない場合は文字列として比較
-      return roomA.toString().localeCompare(roomB.toString(), undefined, { numeric: true });
+      const result = roomA.toString().localeCompare(roomB.toString(), undefined, { numeric: true });
+      console.log(`[ソート結果] 文字列比較: ${roomA} vs ${roomB} → ${result}`);
+      return result;
     });
+    
+    console.log(`[ソート処理完了] ソート後の順序:`);
+    sorted.forEach((record, index) => {
+      const resident = residents.find((r: any) => r.id === record.residentId);
+      console.log(`${index + 1}. ${record.id} → ${resident ? `${resident.roomNumber} ${resident.name}` : '利用者なし'}`);
+    });
+    
+    return sorted;
   }, [residents]);
 
   // ソート順序を保持するための参照（初回とフィルター変更時のみ更新）
@@ -1522,13 +1599,16 @@ export default function BathingList() {
   
   // ソート順序の更新（初回とフィルター条件変更時のみ）
   const sortedOrderMap = useMemo(() => {
-    console.log("ソート順序更新 実行開始");
+    console.log(`[ソート順序更新] 実行開始: selectedDate="${selectedDate}", selectedFloor="${selectedFloor}"`);
     if (!residents || !Array.isArray(residents) || !bathingRecords || !Array.isArray(bathingRecords)) {
+      console.log("[ソート順序更新] データ不十分のため早期リターン");
       return {};
     }
 
     const filtered = getFilteredBathingRecords();
     const sorted = sortRecords(filtered);
+    
+    console.log(`[ソート順序更新] フィルタ結果: ${filtered.length}件, ソート結果: ${sorted.length}件`);
     
     // ソート順序をマップに記録
     const orderMap: {[key: string]: number} = {};
@@ -1537,7 +1617,7 @@ export default function BathingList() {
     });
     
     sortOrderRef.current = orderMap;
-    console.log("ソート順序更新完了:", Object.keys(orderMap).length, "件");
+    console.log("[ソート順序更新] 完了:", Object.keys(orderMap).length, "件");
     return orderMap;
   }, [residents, selectedDate, selectedFloor]);
 
@@ -1551,14 +1631,78 @@ export default function BathingList() {
 
     const filtered = getFilteredBathingRecords();
     
-    // 既存のソート順序を使用してソート（再計算なし）
-    const sorted = [...filtered].sort((a, b) => {
+    // 新しいレコードにはソート順序を設定しない（空のレコードは最下部に表示するため）
+    // 利用者が設定されたレコードのみソート順序を設定
+    filtered.forEach((record) => {
+      if (!(record.id in sortOrderRef.current) && record.residentId && record.residentId !== "") {
+        // 利用者が設定された新しいレコードのみソート順序を設定
+        const maxOrder = Math.max(...Object.values(sortOrderRef.current), -1);
+        sortOrderRef.current[record.id] = maxOrder + 1;
+        console.log(`[新規レコードソート順序設定] recordId=${record.id}, order=${maxOrder + 1}`);
+      }
+    });
+    
+    // 利用者が設定されたレコードと空のレコードを分離
+    const recordsWithResident = filtered.filter(record => record.residentId && record.residentId !== "");
+    const emptyRecords = filtered.filter(record => !record.residentId || record.residentId === "");
+    
+    // 利用者が設定されたレコードは既存のソート順序を使用してソート（順序は固定）
+    const sortedRecordsWithResident = [...recordsWithResident].sort((a, b) => {
+      const orderA = sortOrderRef.current[a.id];
+      const orderB = sortOrderRef.current[b.id];
+      
+      // ソート順序が設定されているレコード同士の比較
+      if (orderA !== undefined && orderB !== undefined) {
+        return orderA - orderB;
+      }
+      
+      // ソート順序が設定されていないレコードは利用者の居室番号でソート
+      if (orderA === undefined && orderB === undefined) {
+        const residentA = residents?.find((r: any) => r.id === a.residentId);
+        const residentB = residents?.find((r: any) => r.id === b.residentId);
+        
+        if (!residentA && !residentB) return 0;
+        if (!residentA) return 1;
+        if (!residentB) return -1;
+        
+        const roomA = parseInt(residentA.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+        const roomB = parseInt(residentB.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+        
+        return roomA - roomB;
+      }
+      
+      // 片方のみソート順序が設定されている場合
+      if (orderA === undefined) return 1;
+      if (orderB === undefined) return -1;
+      
+      return 0;
+    });
+    
+    // 空のレコードは作成順（ID順）でソート
+    const sortedEmptyRecords = [...emptyRecords].sort((a, b) => {
+      // temp- で始まるIDは作成順、通常のIDは既存のソート順
+      if (a.id.startsWith("temp-") && b.id.startsWith("temp-")) {
+        return a.id.localeCompare(b.id);
+      }
       const orderA = sortOrderRef.current[a.id] ?? 999999;
       const orderB = sortOrderRef.current[b.id] ?? 999999;
       return orderA - orderB;
     });
     
+    // 利用者設定済みレコードを先に、空のレコードを後に配置
+    const sorted = [...sortedRecordsWithResident, ...sortedEmptyRecords];
+    
+    console.log(`[ソート結果] 利用者設定済み: ${sortedRecordsWithResident.length}件, 空カード: ${sortedEmptyRecords.length}件`);
+    
     console.log("useMemo: filtered結果:", filtered.length, "件, sorted結果:", sorted.length, "件");
+    
+    // 最終的な表示順序をログ出力
+    console.log("[最終表示順序]:");
+    sorted.forEach((record, index) => {
+      const resident = residents?.find((r: any) => r.id === record.residentId);
+      console.log(`${index + 1}. ${record.id} → ${resident ? `居室${resident.roomNumber} ${resident.name}` : '利用者なし'}`);
+    });
+    
     return sorted;
   }, [residents, bathingRecords, selectedDate, selectedFloor, sortedOrderMap]);
 
@@ -1720,6 +1864,7 @@ export default function BathingList() {
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
                 className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                enableAutoFocus={false}
               />
             </div>
           </div>
@@ -1735,7 +1880,7 @@ export default function BathingList() {
           ) : (
             filteredBathingRecords.map((record: any, index: number) => (
               <BathingCard
-                key={`${record.id}-${record.residentId || 'no-resident'}-${index}`}
+                key={record.id}
                 record={record}
                 residents={residents as any[]}
                 inputBaseClass={inputBaseClass}

@@ -9,7 +9,7 @@ interface ModuleCardProps {
   onClick: () => void;
   span?: number;
   compact?: boolean;
-  badge?: number | null;
+  badge?: number | string | null;
 }
 
 export default function ModuleCard({
@@ -49,9 +49,9 @@ export default function ModuleCard({
             )}>
               <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
             </div>
-            {badge !== null && badge > 0 && (
-              <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg border-2 border-white z-10 animate-pulse">
-                {badge > 99 ? "99+" : badge}
+            {badge !== null && badge !== 0 && (
+              <div className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 shadow-lg border-2 border-white z-10">
+                {typeof badge === 'number' ? (badge > 99 ? "99+" : badge) : badge}
               </div>
             )}
           </div>
@@ -70,9 +70,9 @@ export default function ModuleCard({
             <div className="w-12 h-12 rounded-lg flex items-center justify-center module-icon transition-colors">
               <Icon className="w-6 h-6" />
             </div>
-            {badge !== null && badge > 0 && (
-              <div className="absolute -top-2 -right-2 bg-red-600 text-white text-sm font-bold rounded-full min-w-[22px] h-6 flex items-center justify-center px-1 shadow-lg border-2 border-white z-10 animate-pulse">
-                {badge > 99 ? "99+" : badge}
+            {badge !== null && badge !== 0 && (
+              <div className="absolute -top-2 -right-2 bg-red-600 text-white text-sm font-bold rounded-full min-w-[22px] h-6 flex items-center justify-center px-1 shadow-lg border-2 border-white z-10">
+                {typeof badge === 'number' ? (badge > 99 ? "99+" : badge) : badge}
               </div>
             )}
           </div>
