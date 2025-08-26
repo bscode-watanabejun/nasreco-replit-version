@@ -726,7 +726,7 @@ export default function BathingList() {
         const data = await apiRequest("/api/residents", "GET");
         console.log("Residents API response:", data);
         
-        // 入浴日設定をデバッグログ出力
+        // 入浴日設定と階数情報をデバッグログ出力
         if (Array.isArray(data)) {
           data.forEach((resident: any) => {
             const bathDays = [];
@@ -738,7 +738,7 @@ export default function BathingList() {
             if (resident.bathFriday) bathDays.push('金');
             if (resident.bathSaturday) bathDays.push('土');
             
-            console.log(`利用者 ${resident.roomNumber} ${resident.name}: 入浴日=[${bathDays.join(',')}]`);
+            console.log(`利用者 ${resident.roomNumber} ${resident.name}: 入浴日=[${bathDays.join(',')}], floor="${resident.floor}" (type: ${typeof resident.floor})`);
           });
         }
         
@@ -1239,7 +1239,7 @@ export default function BathingList() {
     console.log("residents:", residents);
     console.log("bathingRecords:", bathingRecords);
     console.log("selectedDate:", selectedDate);
-    console.log("selectedFloor:", selectedFloor);
+    console.log("selectedFloor:", selectedFloor, `(type: ${typeof selectedFloor})`);
     
     if (!residents || !Array.isArray(residents)) {
       console.log("residents が存在しないか配列ではないため早期リターン");
@@ -1260,10 +1260,20 @@ export default function BathingList() {
           return false;
         }
         
-        const selectedFloorNumber = selectedFloor.replace("階", "");
-        if (residentFloor !== selectedFloor && residentFloor !== selectedFloorNumber) {
-          console.log(`利用者 ${resident.name} はフロア不一致のためフィルタアウト: residentFloor=${residentFloor}, selectedFloor=${selectedFloor}, selectedFloorNumber=${selectedFloorNumber}`);
+        // 選択された階数から数字部分を抽出（例：「1階」→「1」）
+        const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+        
+        // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
+        const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
+        
+        console.log(`フロアフィルタ詳細: 利用者=${resident.name}, residentFloor="${residentFloor}" -> "${residentFloorNumber}", selectedFloor="${selectedFloor}" -> "${selectedFloorNumber}", 一致=${selectedFloorNumber === residentFloorNumber}`);
+        
+        if (selectedFloorNumber !== residentFloorNumber) {
+          console.log(`利用者 ${resident.name} はフロア不一致のためフィルタアウト`);
           return false;
+        }
+        
+        console.log(`利用者 ${resident.name} はフロア一致のため採用`);
         }
       }
       
@@ -1426,8 +1436,13 @@ export default function BathingList() {
         const residentFloor = resident.floor;
         if (!residentFloor) return false;
         
-        const selectedFloorNumber = selectedFloor.replace("階", "");
-        if (residentFloor !== selectedFloor && residentFloor !== selectedFloorNumber) {
+        // 選択された階数から数字部分を抽出（例：「1階」→「1」）
+        const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+        
+        // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
+        const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
+        
+        if (selectedFloorNumber !== residentFloorNumber) {
           return false;
         }
       }
@@ -1452,8 +1467,13 @@ export default function BathingList() {
           const residentFloor = resident.floor;
           if (!residentFloor) return false;
           
-          const selectedFloorNumber = selectedFloor.replace("階", "");
-          if (residentFloor !== selectedFloor && residentFloor !== selectedFloorNumber) {
+          // 選択された階数から数字部分を抽出（例：「1階」→「1」）
+          const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+          
+          // 利用者の階数から数字部分を抽出（「1」「1階」「1F」など全て対応）
+          const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
+          
+          if (selectedFloorNumber !== residentFloorNumber) {
             return false;
           }
         }
