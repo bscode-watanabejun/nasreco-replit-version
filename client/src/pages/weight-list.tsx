@@ -383,9 +383,8 @@ function WeightCard({
         </div>
 
         {/* 中段：計測日、時、分、承認者、承認アイコン */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center mb-3">
           <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-blue-600">計測日</span>
             <input
               type="date"
               value={weight.measurementDate || ""}
@@ -401,8 +400,7 @@ function WeightCard({
               disabled={!isResidentSelected}
             />
           </div>
-          <div className="flex items-center gap-1 text-sm">
-            <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 ml-2 mr-2">
               <InputWithDropdown
                 value={weight.hour?.toString() || ""}
                 options={hourOptions}
@@ -435,6 +433,7 @@ function WeightCard({
                 disabled={!isResidentSelected}
               />
             </div>
+          <div className="flex items-center gap-1 text-sm ml-auto">
             <input
               type="text"
               value={weight.staffName || ""}
@@ -447,7 +446,7 @@ function WeightCard({
                 })
               }
               placeholder="承認者"
-              className={`w-12 ${inputBaseClass} px-1 ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              className={`w-20 ${inputBaseClass} px-1 ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
             />
             <button
@@ -478,7 +477,6 @@ function WeightCard({
         {/* 下段：記録、削除 */}
         <div className="flex gap-1 items-center">
           <div className="flex items-center gap-1 flex-1">
-            <span className="text-xs font-medium text-blue-600">記録</span>
             <textarea
               value={
                 localNotes[weight.id] !== undefined
@@ -1129,7 +1127,7 @@ export default function WeightList() {
       </div>
 
       {/* 記録一覧 */}
-      <main className="max-w-4xl mx-auto px-4 py-4 pb-24 space-y-4">
+      <main className="max-w-4xl mx-auto px-2 pt-2 pb-24 space-y-2">
         {filteredWeightRecords.length === 0 ? (
           <div className="text-center py-8 text-slate-600">
             <p>選択した条件の記録がありません</p>

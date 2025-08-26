@@ -252,7 +252,7 @@ export default function Rounds() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">ラウンド一覧</h1>
+          <h1 className="text-xl font-bold text-slate-800">ラウンド一覧</h1>
         </div>
       </div>
       

@@ -1415,7 +1415,7 @@ export default function Vitals() {
       </div>
 
       {/* 記録一覧 */}
-      <main className="max-w-4xl mx-auto px-4 py-4 pb-24 space-y-4">
+      <main className="max-w-4xl mx-auto px-2 pt-2 pb-24 space-y-2">
         {filteredVitalSigns.length === 0 ? (
           <div className="text-center py-8 text-slate-600">
             <p>選択した条件の記録がありません</p>

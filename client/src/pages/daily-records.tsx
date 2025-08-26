@@ -1,15 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ArrowLeft, Calendar, Filter } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface DailyRecord {
   id: string;
@@ -38,13 +43,225 @@ const recordTypeColors = {
   '処置': 'bg-violet-50 border-violet-200',
 };
 
+// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
+function InputWithDropdown({
+  id,
+  value,
+  options,
+  onSave,
+  placeholder,
+  className,
+  disabled = false,
+  enableAutoFocus = true,
+}: {
+  id?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  className?: string;
+  disabled?: boolean;
+  enableAutoFocus?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  // アクティブ要素を監視してフォーカス状態を更新
+  useEffect(() => {
+    const checkFocus = () => {
+      if (inputRef.current) {
+        setIsFocused(document.activeElement === inputRef.current);
+      }
+    };
+
+    // 初回チェック
+    checkFocus();
+
+    // フォーカス変更を監視
+    const handleFocusChange = () => {
+      checkFocus();
+    };
+
+    // document全体でfocus/blurイベントを監視
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusChange);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusChange);
+    };
+  }, []);
+
+  const handleSelect = (selectedValue: string) => {
+    if (disabled) return;
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    if (disabled) return;
+    onSave(inputValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+    if (e.key === "Enter") {
+      onSave(inputValue);
+      setOpen(false);
+    } else if (e.key === "Escape") {
+      setInputValue(value);
+      setOpen(false);
+    }
+  };
+
+  // クリックによるフォーカスかどうかを追跡
+  const [isClickFocus, setIsClickFocus] = useState(false);
+
+  const handleFocus = () => {
+    if (disabled || isClickFocus) return;
+  };
+
+  return (
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <input
+            id={id}
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            onClick={(e) => {
+              e.preventDefault();
+              setIsClickFocus(true);
+              setOpen(!open);
+              // フラグをリセット
+              setTimeout(() => {
+                setIsClickFocus(false);
+              }, 200);
+            }}
+            placeholder={placeholder}
+            className={className}
+            disabled={disabled}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="w-32 p-0.5" align="center">
+          <div className="space-y-0 max-h-40 overflow-y-auto">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export default function DailyRecords() {
   const { isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
   
   // フィルタ状態
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedRecordType, setSelectedRecordType] = useState("all");
+
+  // ローカル編集状態
+  const [editingContent, setEditingContent] = useState<Record<string, string>>({});
+
+  // 記録更新用のmutation
+  const updateRecordMutation = useMutation({
+    mutationFn: async ({ id, recordType, content }: { id: string; recordType: string; content: string }) => {
+      // 記録タイプに応じたAPIエンドポイントを決定
+      let endpoint = '';
+      let updateData: any = {};
+
+      switch (recordType) {
+        case '介護記録':
+        case '様子':
+          endpoint = `/api/care-records/${id}`;
+          updateData = { description: content };
+          break;
+        case '食事':
+          endpoint = `/api/meals-medication/${id}`;
+          updateData = { notes: content };
+          break;
+        case '服薬':
+          endpoint = `/api/medication-records/${id}`;
+          updateData = { notes: content };
+          break;
+        case 'バイタル':
+          endpoint = `/api/vital-signs/${id}`;
+          updateData = { notes: content };
+          break;
+        case '排泄':
+          endpoint = `/api/excretion-records/${id}`;
+          updateData = { notes: content };
+          break;
+        case '清掃リネン':
+          endpoint = `/api/cleaning-linen-records/${id}`;
+          updateData = { notes: content };
+          break;
+        case '入浴':
+          endpoint = `/api/bathing-records/${id}`;
+          updateData = { notes: content };
+          break;
+        case '体重':
+          endpoint = `/api/weight-records/${id}`;
+          updateData = { notes: content };
+          break;
+        case '看護記録':
+        case '医療記録':
+        case '処置':
+          endpoint = `/api/nursing-records/${id}`;
+          updateData = { description: content };
+          break;
+        default:
+          throw new Error(`未対応の記録タイプ: ${recordType}`);
+      }
+
+      return await apiRequest(endpoint, 'PATCH', updateData);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-records"] });
+      // 編集状態をクリア
+      setEditingContent(prev => {
+        const newState = { ...prev };
+        delete newState[variables.id];
+        return newState;
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "更新に失敗しました", 
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
 
   // 記録データを取得
   const { data: records = [], isLoading, error } = useQuery({
@@ -70,7 +287,7 @@ export default function DailyRecords() {
     if (selectedRecordType !== "all") {
       const recordTypeMapping = {
         "日中": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"],
-        "看護": ["看護記録", "医療記録", "処置", "バイタル"]
+        "看護": ["看護記録", "医療記録", "処置", "バイタル", "入浴"]
       };
 
       const targetTypes = recordTypeMapping[selectedRecordType as keyof typeof recordTypeMapping];
@@ -111,17 +328,17 @@ export default function DailyRecords() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-cyan-100 p-4">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-slate-800 text-white p-4">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={handleBack}
-            className="p-2"
+            className="text-white hover:bg-blue-700 p-1"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-2xl font-bold">今日の記録一覧</h1>
+          <h1 className="text-lg font-semibold">今日の記録一覧</h1>
         </div>
       </div>
 
@@ -143,16 +360,25 @@ export default function DailyRecords() {
             {/* 記録種別選択 */}
             <div className="flex items-center space-x-1">
               <Filter className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <Select value={selectedRecordType} onValueChange={setSelectedRecordType}>
-                <SelectTrigger className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全て</SelectItem>
-                  <SelectItem value="日中">日中</SelectItem>
-                  <SelectItem value="看護">看護</SelectItem>
-                </SelectContent>
-              </Select>
+              <InputWithDropdown
+                value={(() => {
+                  const option = [
+                    { value: "all", label: "全て" },
+                    { value: "日中", label: "日中" },
+                    { value: "看護", label: "看護" }
+                  ].find(opt => opt.value === selectedRecordType);
+                  return option ? option.label : "全て";
+                })()}
+                options={[
+                  { value: "all", label: "全て" },
+                  { value: "日中", label: "日中" },
+                  { value: "看護", label: "看護" }
+                ]}
+                onSave={(value) => setSelectedRecordType(value)}
+                placeholder="記録種別"
+                className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                enableAutoFocus={false}
+              />
             </div>
           </div>
         </div>
@@ -181,46 +407,75 @@ export default function DailyRecords() {
                   recordTypeColors[record.recordType as keyof typeof recordTypeColors] || "bg-slate-50 border-slate-200"
                 )}
               >
-                <CardContent className="p-4">
+                <CardContent className="p-2">
                   {/* 上段：居室番号、利用者名、記録時分、記録カテゴリ */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-sm">
-                    <div>
-                      <span className="text-slate-500 text-xs">居室番号:</span>
-                      <div className="font-medium">{record.roomNumber || '-'}</div>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-xs">利用者名:</span>
-                      <div className="font-medium">{record.residentName}</div>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-xs">記録時分:</span>
-                      <div className="font-medium">
-                        {formatDate(record.recordTime)} {formatTime(record.recordTime)}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 text-xs">記録カテゴリ:</span>
-                      <div className="font-medium">
-                        <span className="inline-block px-2 py-1 rounded-full text-xs bg-slate-100">
-                          {record.recordType}
-                        </span>
-                      </div>
+                  <div className="flex gap-2 mb-2 text-sm items-center">
+                    <div className="font-medium text-left w-12 flex-shrink-0">{record.roomNumber || '-'}</div>
+                    <div className="font-medium text-left w-20 flex-shrink-0">{record.residentName}</div>
+                    <div className="font-medium text-left w-16 flex-shrink-0">{formatTime(record.recordTime)}</div>
+                    <div className="flex-1 text-right">
+                      <span className="inline-block px-1.5 py-0.5 rounded-full text-xs bg-slate-100">
+                        {record.recordType}
+                      </span>
                     </div>
                   </div>
 
-                  {/* 中段：記録内容 */}
-                  <div className="mb-3">
-                    <span className="text-slate-500 text-xs">記録内容:</span>
-                    <div className="mt-1 p-2 bg-white rounded border text-sm min-h-[2.5rem]">
-                      {record.content || '-'}
+                  {/* 中段：処置部位（処置の場合のみ）と記録内容 */}
+                  {record.recordType === '処置' && record.originalData?.notes && (
+                    <div className="mb-1">
+                      <div className="p-1.5 bg-slate-50 rounded border text-sm">
+                        {record.originalData.notes}
+                      </div>
                     </div>
+                  )}
+                  <div className="mb-2">
+                    <textarea
+                      className="w-full p-1.5 bg-white rounded border text-sm min-h-[4rem] leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={editingContent[record.id] !== undefined 
+                        ? editingContent[record.id]
+                        : record.recordType === '処置' 
+                          ? (record.originalData?.description || record.originalData?.interventions || '')
+                          : (record.content || '')
+                      }
+                      onChange={(e) => {
+                        setEditingContent(prev => ({
+                          ...prev,
+                          [record.id]: e.target.value
+                        }));
+                      }}
+                      onBlur={(e) => {
+                        const newContent = e.target.value;
+                        const originalContent = record.recordType === '処置' 
+                          ? (record.originalData?.description || record.originalData?.interventions || '')
+                          : (record.content || '');
+                        
+                        if (newContent !== originalContent) {
+                          updateRecordMutation.mutate({
+                            id: record.id,
+                            recordType: record.recordType,
+                            content: newContent
+                          });
+                        } else {
+                          // 変更がない場合は編集状態をクリア
+                          setEditingContent(prev => {
+                            const newState = { ...prev };
+                            delete newState[record.id];
+                            return newState;
+                          });
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.ctrlKey) {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      placeholder="記録内容を入力..."
+                      disabled={updateRecordMutation.isPending}
+                    />
                   </div>
 
                   {/* 下段：記録者 */}
-                  <div>
-                    <span className="text-slate-500 text-xs">記録者:</span>
-                    <div className="font-medium text-sm">{record.staffName || '-'}</div>
-                  </div>
+                  <div className="font-medium text-sm text-right">{record.staffName || '-'}</div>
                 </CardContent>
               </Card>
             ))

@@ -700,7 +700,7 @@ export default function ExcretionList() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
-          <h1 className="text-lg font-bold text-slate-800" data-testid="text-title">
+          <h1 className="text-xl font-bold text-slate-800" data-testid="text-title">
             排泄一覧
           </h1>
         </div>

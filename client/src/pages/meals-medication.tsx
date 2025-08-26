@@ -531,6 +531,8 @@ export default function MealsMedicationPage() {
     return roomA - roomB;
   });
 
+  
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
@@ -545,7 +547,7 @@ export default function MealsMedicationPage() {
           >
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">食事一覧</h1>
+          <h1 className="text-xl font-bold text-slate-800">食事一覧</h1>
         </div>
       </div>
 

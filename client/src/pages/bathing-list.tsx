@@ -556,7 +556,7 @@ function BathingCard({
                 }
               }}
               placeholder="記録内容"
-              className={`flex-1 min-w-0 ${inputBaseClass} px-2 resize-none`}
+              className={`flex-1 min-w-0 ${inputBaseClass} px-2 resize-none text-left`}
               rows={1}
               style={{ minHeight: "32px", maxHeight: "64px" }}
             />
@@ -571,7 +571,7 @@ function BathingCard({
               placeholder="--"
               className={`w-12 sm:w-16 ${inputBaseClass} px-1 bg-gray-100 cursor-not-allowed flex-shrink-0 ${
                 record.rejectionReason ? 'text-red-600 font-bold' : ''
-              }`}
+              } text-center`}
             />
           </div>
 
@@ -749,7 +749,7 @@ export default function BathingList() {
 
         const newRecordData: any = {
           residentId: residentIdFromTemp,
-          recordDate: new Date(selectedDate).toISOString(), // 確実にISO文字列として送信
+          recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
           timing: "午前",
           [field]: value,
         };
@@ -905,7 +905,7 @@ export default function BathingList() {
         
         const createData = {
           // residentIdはサーバー側で処理されるため送信しない
-          recordDate: new Date(selectedDate).toISOString(),
+          recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
           timing: currentRecord.timing || "午前",
           ...(currentRecord.hour && { hour: currentRecord.hour }),
           ...(currentRecord.minute && { minute: currentRecord.minute }),
@@ -1100,7 +1100,7 @@ export default function BathingList() {
 
     const newRecord = {
       // residentIdは省略（未選択状態）
-      recordDate: recordDate.toISOString(),
+      recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
       timing: currentHour < 12 ? "午前" : "午後",
       hour: currentHour.toString(),
       minute: closestMinute.toString(),
@@ -1512,8 +1512,8 @@ export default function BathingList() {
         </div>
 
       {/* メインコンテンツ */}
-      <main className="container mx-auto px-4 py-6 pb-24">
-        <div className="space-y-4">
+      <main className="container mx-auto px-2 pt-2 pb-24">
+        <div className="space-y-2">
           {filteredBathingRecords.length === 0 ? (
             <div className="text-center py-8 text-slate-600">
               <p>選択した条件の記録がありません</p>

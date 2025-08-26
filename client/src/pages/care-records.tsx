@@ -1553,7 +1553,7 @@ export default function CareRecords() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">介護記録　利用者一覧</h1>
+          <h1 className="text-xl font-bold text-slate-800">介護記録　利用者一覧</h1>
         </div>
       </div>
 

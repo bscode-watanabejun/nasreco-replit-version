@@ -1030,7 +1030,7 @@ export class DatabaseStorage implements IStorage {
         mainAmount: mealsMedication.mainAmount,
         sideAmount: mealsMedication.sideAmount,
         waterIntake: mealsMedication.waterIntake,
-        supplement1: mealsMedication.supplement1,
+        supplement1: mealsMedication.supplement,
         staffName: mealsMedication.staffName,
         notes: mealsMedication.notes,
         createdBy: mealsMedication.createdBy,
@@ -1143,7 +1143,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: record.recordDate,
               content: record.description,
-              staffName: record.staffId,
+              staffName: record.staffId, // 介護記録は現在staffIdのみ利用可能
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1201,9 +1201,7 @@ export class DatabaseStorage implements IStorage {
         medicationData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = `${record.timing} ${record.type}`;
-            if (record.result) content += ` 結果:${record.result}`;
-            if (record.notes) content += ` (${record.notes})`;
+            let content = record.notes || '';
 
             allRecords.push({
               id: record.id,
@@ -1292,7 +1290,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: record.recordDate,
               content,
-              staffName: record.staffId,
+              staffName: record.staffId, // 排泄記録は現在staffIdのみ利用可能
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1327,7 +1325,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
               content: content.trim(),
-              staffName: record.staffId || '',
+              staffName: record.staffId || '', // 清掃リネン記録は現在staffIdのみ利用可能
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1352,10 +1350,12 @@ export class DatabaseStorage implements IStorage {
         bathingData.forEach(record => {
           const resident = record.residentId ? residentsMap.get(record.residentId) : null;
           if (resident) {
-            let content = '';
-            if (record.bathType) content += `区分:${record.bathType} `;
-            if (record.temperature) content += `体温:${record.temperature}℃ `;
-            if (record.notes) content += `(${record.notes})`;
+            // 入浴記録の内容は「記録」フィールド（notes）のみを表示
+            // notesフィールドから体温情報を除去（既存データの互換性のため）
+            let content = record.notes || '';
+            
+            // 体温情報のパターンを除去: "体温:XX.X℃ " の形式
+            content = content.replace(/体温:\d+(\.\d+)?℃\s*/g, '').trim();
 
             allRecords.push({
               id: record.id,
@@ -1364,7 +1364,7 @@ export class DatabaseStorage implements IStorage {
               roomNumber: resident.roomNumber,
               residentName: resident.name,
               recordTime: record.recordDate,
-              content: content.trim(),
+              content: content,
               staffName: record.staffName,
               createdAt: record.createdAt,
               originalData: record
@@ -1416,6 +1416,19 @@ export class DatabaseStorage implements IStorage {
     // 看護記録
     if (!recordTypes || recordTypes.includes('看護記録') || recordTypes.includes('医療記録') || recordTypes.includes('処置')) {
       try {
+        console.log(`看護記録処理開始 - 対象recordTypes: ${recordTypes || 'all'}`);
+        console.log(`看護記録処理開始 - 検索期間: ${startDate} - ${endDate}`);
+        
+        // 全ての看護記録のカテゴリを確認
+        const allNursingRecords = await db.select().from(nursingRecords);
+        console.log(`全看護記録数: ${allNursingRecords.length}`);
+        const categoryStats = {};
+        allNursingRecords.forEach(r => {
+          categoryStats[r.category] = (categoryStats[r.category] || 0) + 1;
+        });
+        console.log('カテゴリ統計:', categoryStats);
+        
+        // 看護記録を取得
         const nursingData = await db
           .select()
           .from(nursingRecords)
@@ -1424,20 +1437,92 @@ export class DatabaseStorage implements IStorage {
             lte(nursingRecords.recordDate, endDate)
           ));
 
+        // すべてのユーザー情報を取得（職員名マッピング用）
+        const allUsers = await db.select().from(users);
+        const usersMap = new Map(allUsers.map(user => [user.id, user.firstName || user.email || user.id]));
+        
+        console.log(`看護記録取得結果: ${nursingData.length}件`);
+        
+        // 処置関連の記録を特別にログ出力
+        const treatmentRecords = nursingData.filter(r => 
+          r.category === '処置' || 
+          r.category === 'treatment' ||
+          (r.notes && r.interventions) ||
+          r.description?.includes('処置')
+        );
+        console.log(`処置関連記録数: ${treatmentRecords.length}件`);
+        treatmentRecords.forEach(r => {
+          console.log(`  処置記録: ID=${r.id}, category="${r.category}", notes="${r.notes}", interventions="${r.interventions}"`);
+        });
+
         nursingData.forEach(record => {
           const resident = record.residentId ? residentsMap.get(record.residentId) : null;
           
+          // 職員名をマップから取得
+          const staffName = usersMap.get(record.nurseId) || record.nurseId;
+          
+          // デバッグ用ログ
+          console.log(`看護記録カテゴリデバッグ - ID: ${record.id}`);
+          console.log(`  - category: "${record.category}"`);
+          console.log(`  - notes: "${record.notes}"`);
+          console.log(`  - interventions: "${record.interventions}"`);
+          console.log(`  - description: "${record.description}"`);
+          
+          // カテゴリー判定ロジック：既存データとの互換性を考慮
           let recordType = '看護記録';
-          if (record.category === 'intervention') recordType = '医療記録';
-          if (record.category === 'treatment') recordType = '処置';
+          
+          // 新しいフォーマット（直接的なカテゴリー名）
+          if (record.category === '医療記録') {
+            recordType = '医療記録';
+          } else if (record.category === '処置') {
+            recordType = '処置';
+          } else if (record.category === '看護記録') {
+            recordType = '看護記録';
+          }
+          // 古いフォーマット（英語カテゴリー）との互換性
+          else if (record.category === 'intervention') {
+            recordType = '医療記録';
+          } else if (record.category === 'assessment') {
+            // 処置の判定：notesとinterventionsが両方ある場合は処置として扱う
+            if (record.notes && record.interventions) {
+              recordType = '処置';
+            } else {
+              recordType = '看護記録';
+            }
+          } else if (record.category === 'evaluation') {
+            recordType = '看護記録';
+          } else if (record.category === 'observation') {
+            recordType = '看護記録';
+          }
+          // カテゴリーが設定されていない場合のデフォルト
+          else if (!record.category) {
+            recordType = '看護記録';
+          }
+          // その他のカスタムカテゴリー
+          else {
+            recordType = record.category;
+          }
+
+          // デバッグ用ログ（判定結果）
+          console.log(`  - 判定結果 recordType: "${recordType}"`);
 
           // フィルタリングに該当しない場合はスキップ
           if (recordTypes && !recordTypes.includes(recordType)) return;
 
           let content = '';
-          if (record.description) content += record.description;
-          if (record.notes) content += ` ${record.notes}`;
-          if (record.interventions) content += ` 介入:${record.interventions}`;
+          if (recordType === '処置') {
+            // 処置の場合：処置部位と処置内容を組み合わせて表示
+            if (record.notes) content += record.notes;
+            if (record.description) {
+              if (content) content += ' / ';
+              content += record.description;
+            }
+          } else {
+            // その他の場合：従来通り
+            if (record.description) content += record.description;
+            if (record.notes) content += ` ${record.notes}`;
+            if (record.interventions) content += ` 介入:${record.interventions}`;
+          }
 
           allRecords.push({
             id: record.id,
@@ -1447,7 +1532,7 @@ export class DatabaseStorage implements IStorage {
             residentName: resident?.name || '全体',
             recordTime: record.recordDate,
             content: content.trim(),
-            staffName: record.nurseId,
+            staffName: staffName, // 職員名を表示
             createdAt: record.createdAt,
             originalData: record
           });

@@ -1191,6 +1191,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // テスト用エンドポイント（認証なし）
+  app.get('/api/test-nursing-categories', async (req, res) => {
+    try {
+      const allRecords = await storage.getDailyRecords(new Date().toISOString().split('T')[0]);
+      const nursingRecords = allRecords.filter(r => r.recordType === '看護記録' || r.recordType === '処置' || r.recordType === '医療記録');
+      res.json({
+        total: allRecords.length,
+        nursing: nursingRecords.length,
+        categories: nursingRecords.map(r => ({
+          id: r.id,
+          recordType: r.recordType,
+          originalCategory: r.originalData?.category,
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error testing nursing categories:", error);
+      res.status(500).json({ message: "Failed to test nursing categories" });
+    }
+  });
+
   // 今日の記録一覧取得API
   app.get('/api/daily-records', isAuthenticated, async (req, res) => {
     try {

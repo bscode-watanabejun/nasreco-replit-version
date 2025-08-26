@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import Header from "@/components/layout/header";
+import { ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Users, Edit } from "lucide-react";
+import { useLocation } from "wouter";
 
 const residentSchema = z.object({
   roomNumber: z.string().optional(),
@@ -108,6 +109,7 @@ type ResidentForm = z.infer<typeof residentSchema>;
 
 export default function UserInfo() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   
   const [editOpen, setEditOpen] = useState(false);
@@ -516,8 +518,21 @@ export default function UserInfo() {
   };
 
   return (
-    <div className="min-h-screen bg-orange-50">
-      <Header />
+    <div className="min-h-screen bg-slate-50">
+      {/* ヘッダー */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/")}
+            className="h-8 w-8 p-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-xl font-bold text-slate-800">ご利用者情報</h1>
+        </div>
+      </div>
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between mb-6">
@@ -526,7 +541,6 @@ export default function UserInfo() {
               <Users className="w-5 h-5 text-orange-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">ご利用者情報</h1>
               <p className="text-slate-600">利用者情報の管理</p>
             </div>
           </div>

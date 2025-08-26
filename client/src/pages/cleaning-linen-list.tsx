@@ -359,17 +359,17 @@ export default function CleaningLinenList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-blue-600 text-white p-2 shadow-md">
+      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 shadow-md">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setLocation("/")}
-            className="h-8 w-8 p-0 text-white hover:bg-blue-700"
+            className="h-8 w-8 p-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-lg font-semibold" data-testid="title-cleaning-linen-list">清掃リネン一覧</h1>
+          <h1 className="text-xl font-bold text-slate-800" data-testid="title-cleaning-linen-list">清掃リネン一覧</h1>
         </div>
       </header>
 

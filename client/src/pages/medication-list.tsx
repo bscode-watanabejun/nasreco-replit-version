@@ -282,7 +282,7 @@ export default function MedicationList() {
       queryClient.invalidateQueries({ queryKey: ['/api/medication-records'] });
     },
     onSuccess: () => {
-      // 成功時は楽観的更新のみで完了（invalidateしない）
+      queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
     },
   });
 
@@ -476,44 +476,8 @@ export default function MedicationList() {
         });
       });
       
-      // 既存データを取得
-      const existingData = await fetchExistingDataForResident(value);
-      console.log('Existing data for resident:', existingData);
-      
-      if (existingData) {
-        // 既存データがある場合は再度更新で置き換え
-        queryClient.setQueryData(queryKey, (old: any) => {
-          if (!old) return old;
-          return old.map((record: any) => {
-            if (record.id === recordId) {
-              // APIレスポンス構造を考慮して正しく既存データで置き換え
-              const medicationRecord = existingData.medication_records || existingData;
-              return {
-                ...record, // 元のレコード構造を維持
-                ...medicationRecord, // 既存の薬物記録データで更新
-                id: recordId, // 元のIDを維持
-                residentId: value, // 新しく選択した利用者ID
-                residentName: resident?.name || '',
-                roomNumber: resident?.roomNumber || '',
-                floor: resident?.floor || ''
-              };
-            }
-            return record;
-          });
-        });
-        
-        // 既存レコードの場合は更新、一時的なレコードの場合は新規作成は不要
-        if (!recordId || !recordId.startsWith('temp-')) {
-          updateMutation.mutate({
-            id: recordId,
-            data: { residentId: value }
-          });
-        }
-        return;
-      }
-      
       // 既存レコードがない場合、一時的なIDでない場合は通常更新
-      if (!recordId || !recordId.startsWith('temp-')) {
+      if (recordId && !recordId.startsWith('temp-')) {
         updateMutation.mutate({
           id: recordId,
           data: { residentId: value }
@@ -636,7 +600,7 @@ export default function MedicationList() {
               <ArrowLeftIcon className="h-4 w-4" />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold">服薬一覧</h1>
+          <h1 className="text-xl font-bold text-slate-800">服薬一覧</h1>
         </div>
       </div>
 
