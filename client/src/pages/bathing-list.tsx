@@ -92,15 +92,6 @@ function InputWithDropdown({
     if (enableAutoFocus) {
       setTimeout(() => {
         if (inputRef.current) {
-          const allInputs = Array.from(
-            document.querySelectorAll("input, textarea, select, button"),
-          ).filter(
-            (el) =>
-              el !== inputRef.current &&
-              !el.hasAttribute("disabled") &&
-              (el as HTMLElement).offsetParent !== null,
-          ) as HTMLElement[];
-          const currentElement = inputRef.current;
           const allElements = Array.from(
             document.querySelectorAll("input, textarea, select, button"),
           ).filter(
@@ -108,9 +99,13 @@ function InputWithDropdown({
               !el.hasAttribute("disabled") &&
               (el as HTMLElement).offsetParent !== null,
           ) as HTMLElement[];
-          const currentIndex = allElements.indexOf(currentElement);
+          const currentIndex = allElements.indexOf(inputRef.current);
           if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-            allElements[currentIndex + 1].focus();
+            const nextElement = allElements[currentIndex + 1] as HTMLElement;
+            nextElement.focus();
+            if (nextElement.getAttribute('data-component') === 'input-with-dropdown') {
+              nextElement.click();
+            }
           }
         }
       }, 200);
@@ -163,6 +158,7 @@ function InputWithDropdown({
             placeholder={placeholder}
             className={className}
             disabled={disabled}
+            data-component="input-with-dropdown"
           />
         </PopoverTrigger>
         <PopoverContent className="w-32 p-0.5" align="center">
@@ -587,12 +583,14 @@ function BathingCard({
                     residentId: record.residentId,
                   });
                 }
-                // ローカル状態をクリア
-                setLocalNotes((prev) => {
-                  const updated = { ...prev };
-                  delete updated[record.id];
-                  return updated;
-                });
+                // 保存処理完了後にローカル状態をクリア（少し遅延）
+                setTimeout(() => {
+                  setLocalNotes((prev) => {
+                    const updated = { ...prev };
+                    delete updated[record.id];
+                    return updated;
+                  });
+                }, 100);
               }}
               onKeyDown={(e) => {
                 // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
@@ -600,6 +598,7 @@ function BathingCard({
                   e.preventDefault();
                   e.currentTarget.blur();
                 } else if (e.key === "Escape") {
+                  // Escapeキー：変更を破棄して元の値に戻す
                   setLocalNotes((prev) => {
                     const updated = { ...prev };
                     delete updated[record.id];
@@ -1198,32 +1197,21 @@ export default function BathingList() {
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
     
-    // 分のオプション（0, 15, 30, 45）から最も近いものを選択
-    const minuteOptions = [0, 15, 30, 45];
-    const closestMinute = minuteOptions.reduce((prev, curr) => 
+    // 時間は現在の時刻をそのまま使用
+    const selectedHour = currentHour.toString();
+    
+    // 分は15分刻みの選択肢（0, 15, 30, 45）から最も近いものを選択
+    const minuteChoices = [0, 15, 30, 45];
+    const closestMinute = minuteChoices.reduce((prev, curr) => 
       Math.abs(curr - currentMinute) < Math.abs(prev - currentMinute) ? curr : prev
     );
-    
-    // 選択された日付と現在時刻を組み合わせ
-    const recordDate = new Date(selectedDate);
-    recordDate.setHours(currentHour, closestMinute, 0, 0);
+    const selectedMinute = closestMinute.toString();
 
     const newRecord = {
-      // residentIdは省略（未選択状態）
+      // residentId は省略（サーバー側で null に設定）
       recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
-      timing: currentHour < 12 ? "午前" : "午後",
-      hour: currentHour.toString(),
-      minute: closestMinute.toString(),
-      staffName: (currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "",
-      bathType: "",
-      temperature: "",
-      bloodPressureSystolic: "",
-      bloodPressureDiastolic: "",
-      pulseRate: "",
-      oxygenSaturation: "",
-      notes: "",
-      rejectionReason: "",
-      nursingCheck: false,
+      hour: selectedHour, // 現在の時
+      minute: selectedMinute, // 現在時刻に最も近い15分刻みの分
     };
 
     createMutation.mutate(newRecord);
@@ -1302,21 +1290,19 @@ export default function BathingList() {
         return true;
       }
 
-      // 通常レコードの場合、residentIdが必要
+      // residentIdが設定されている通常レコードの場合、利用者チェック
       if (record.residentId && record.residentId !== "") {
-        const resident = filteredResidents.find(
-          (r: any) => r.id === record.residentId,
-        );
+        // 既存の入浴記録は曜日設定に関係なく常に表示（利用者が存在する場合）
+        const resident = residents?.find((r: any) => r.id === record.residentId);
         if (!resident) {
-          console.log(`利用者が曜日フィルタで除外: recordId=${record.id}, residentId=${record.residentId}`);
+          console.log(`利用者が存在しないため除外: recordId=${record.id}, residentId=${record.residentId}`);
           return false;
         } else {
           console.log(`既存記録として採用: recordId=${record.id}, resident=${resident.roomNumber} ${resident.name}`);
         }
       } else {
-        // residentId=nullの不正レコードは除外
-        console.log(`residentId=nullのため除外: recordId=${record.id}, residentId=${record.residentId}`);
-        return false;
+        // residentId=nullの空カード（新規追加されたもの）も表示対象に含める
+        console.log(`residentId=nullの空カードとして採用: recordId=${record.id}`);
       }
 
       return true;
@@ -1512,7 +1498,31 @@ export default function BathingList() {
     });
   }, [residents]);
 
-  // フィルタリングされたレコード（処置一覧風のシンプルな実装）
+  // ソート順序を保持するための参照（初回とフィルター変更時のみ更新）
+  const sortOrderRef = useRef<{[key: string]: number}>({});
+  
+  // ソート順序の更新（初回とフィルター条件変更時のみ）
+  const sortedOrderMap = useMemo(() => {
+    console.log("ソート順序更新 実行開始");
+    if (!residents || !Array.isArray(residents) || !bathingRecords || !Array.isArray(bathingRecords)) {
+      return {};
+    }
+
+    const filtered = getFilteredBathingRecords();
+    const sorted = sortRecords(filtered);
+    
+    // ソート順序をマップに記録
+    const orderMap: {[key: string]: number} = {};
+    sorted.forEach((record, index) => {
+      orderMap[record.id] = index;
+    });
+    
+    sortOrderRef.current = orderMap;
+    console.log("ソート順序更新完了:", Object.keys(orderMap).length, "件");
+    return orderMap;
+  }, [residents, selectedDate, selectedFloor]);
+
+  // フィルタリングされたレコード（既存のソート順序を維持）
   const filteredBathingRecords = useMemo(() => {
     console.log("filteredBathingRecords useMemo 実行開始");
     if (!residents || !Array.isArray(residents) || !bathingRecords || !Array.isArray(bathingRecords)) {
@@ -1521,10 +1531,17 @@ export default function BathingList() {
     }
 
     const filtered = getFilteredBathingRecords();
-    const sorted = sortRecords(filtered);
+    
+    // 既存のソート順序を使用してソート（再計算なし）
+    const sorted = [...filtered].sort((a, b) => {
+      const orderA = sortOrderRef.current[a.id] ?? 999999;
+      const orderB = sortOrderRef.current[b.id] ?? 999999;
+      return orderA - orderB;
+    });
+    
     console.log("useMemo: filtered結果:", filtered.length, "件, sorted結果:", sorted.length, "件");
     return sorted;
-  }, [residents, bathingRecords, selectedDate, selectedFloor]);
+  }, [residents, bathingRecords, selectedDate, selectedFloor, sortedOrderMap]);
 
   // 共通のスタイル
   const inputBaseClass = "text-center border rounded px-1 py-1 text-xs h-8 transition-colors focus:border-blue-500 focus:outline-none";
