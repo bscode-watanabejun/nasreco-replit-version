@@ -442,6 +442,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateBathingRecord(id: string, record: Partial<InsertBathingRecord>): Promise<BathingRecord> {
+    // Check if there are any fields to update
+    const fieldsToUpdate = Object.keys(record).filter(key => record[key as keyof typeof record] !== undefined);
+    
+    if (fieldsToUpdate.length === 0) {
+      // If no fields to update, just return the existing record
+      const [existingRecord] = await db.select()
+        .from(bathingRecords)
+        .where(eq(bathingRecords.id, id))
+        .limit(1);
+      return existingRecord;
+    }
+
     const [updatedRecord] = await db
       .update(bathingRecords)
       .set(record)
@@ -1030,7 +1042,7 @@ export class DatabaseStorage implements IStorage {
         mainAmount: mealsMedication.mainAmount,
         sideAmount: mealsMedication.sideAmount,
         waterIntake: mealsMedication.waterIntake,
-        supplement1: mealsMedication.supplement,
+        supplement1: mealsMedication.supplement1,
         staffName: mealsMedication.staffName,
         notes: mealsMedication.notes,
         createdBy: mealsMedication.createdBy,
@@ -1422,7 +1434,7 @@ export class DatabaseStorage implements IStorage {
         // 全ての看護記録のカテゴリを確認
         const allNursingRecords = await db.select().from(nursingRecords);
         console.log(`全看護記録数: ${allNursingRecords.length}`);
-        const categoryStats = {};
+        const categoryStats: Record<string, number> = {};
         allNursingRecords.forEach(r => {
           categoryStats[r.category] = (categoryStats[r.category] || 0) + 1;
         });
