@@ -377,7 +377,7 @@ export default function Rounds() {
                               ) : (
                                 <div className="opacity-0 group-hover:opacity-100">
                                   <Select onValueChange={(value) => handlePositionClick(resident.id, hour, value)}>
-                                    <SelectTrigger className="h-4 w-6 border-none p-0 text-lg"
+                                    <SelectTrigger className="h-4 w-6 border-none p-0 text-lg">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
