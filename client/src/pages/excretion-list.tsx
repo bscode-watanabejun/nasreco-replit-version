@@ -90,6 +90,7 @@ function InputWithDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const localInputRef = useRef<HTMLInputElement>(null);
   const refToUse = inputRef || localInputRef;
 
@@ -97,6 +98,32 @@ function InputWithDropdown({
   useEffect(() => {
     setInputValue(value);
   }, [value]);
+
+  // アクティブ要素を監視してフォーカス状態を更新
+  useEffect(() => {
+    const checkFocus = () => {
+      if (refToUse.current) {
+        setIsFocused(document.activeElement === refToUse.current);
+      }
+    };
+
+    // 初回チェック
+    checkFocus();
+
+    // フォーカス変更を監視
+    const handleFocusChange = () => {
+      checkFocus();
+    };
+
+    // document全体でfocus/blurイベントを監視
+    document.addEventListener('focusin', handleFocusChange);
+    document.addEventListener('focusout', handleFocusChange);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocusChange);
+      document.removeEventListener('focusout', handleFocusChange);
+    };
+  }, [refToUse]);
 
   const handleSelect = (selectedValue: string) => {
     const selectedOption = options.find(opt => opt.value === selectedValue);
@@ -110,32 +137,46 @@ function InputWithDropdown({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <input
-          ref={refToUse}
-          type="text"
-          value={inputValue}
-          readOnly
-          onClick={() => setOpen(!open)}
-          placeholder={placeholder}
-          className={className}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-32 p-0.5" align="center">
-        <div className="space-y-0 max-h-40 overflow-y-auto">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleSelect(option.value)}
-              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <input
+            ref={refToUse}
+            type="text"
+            value={inputValue}
+            readOnly
+            onFocus={() => {
+              setOpen(true);
+              setIsFocused(true);
+            }}
+            onBlur={() => {
+              setTimeout(() => setIsFocused(false), 50);
+            }}
+            onClick={() => {
+              if (!open) {
+                setOpen(true);
+                setIsFocused(true);
+              }
+            }}
+            placeholder={placeholder}
+            className={`${className} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="w-32 p-0.5" align="center">
+          <div className="space-y-0 max-h-40 overflow-y-auto">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
@@ -879,8 +920,8 @@ export default function ExcretionList() {
                           }
                         </div>
                       </td>
-                      <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">便</td>
-                      <td className="border-r-solid border-r border-gray-200 border-b border-dashed px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
+                      <td className="border-r border-gray-200 border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">便</td>
+                      <td className="border-r border-gray-200 border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
                         <input
                           type="text"
                           value={getAssistanceData(resident.id, 'stool')}
@@ -911,7 +952,7 @@ export default function ExcretionList() {
                         return (
                           <td 
                             key={hour} 
-                            className="border-r border-gray-200 border-b border-dashed px-0 py-1 text-center cursor-pointer hover:bg-blue-50 w-[28px] text-xs overflow-hidden border-r-solid"
+                            className="border-r border-gray-200 border-b border-gray-200 px-0 py-1 text-center cursor-pointer hover:bg-blue-50 w-[28px] text-xs overflow-hidden"
                             onClick={() => handleTimesCellClick(resident.id, hour)}
                           >
                             <div className="text-xs whitespace-pre-line leading-tight">
@@ -922,7 +963,7 @@ export default function ExcretionList() {
                       })}
                     </tr>
                       {/* 記録の行 */}
-                      <tr key={`${residentId}-urine`}>
+                      <tr key={`${residentId}-urine`} className="border-b-2 border-gray-300">
                       <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">尿</td>
                       <td className="border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
                         <input
@@ -947,7 +988,7 @@ export default function ExcretionList() {
                         return (
                           <td 
                             key={`${hour}-record`} 
-                            className="border-r border-b border-gray-200 px-0 py-1 text-center cursor-pointer hover:bg-blue-50 w-[28px] text-xs overflow-hidden border-r-solid"
+                            className="border-r border-b border-gray-200 px-0 py-1 text-center cursor-pointer hover:bg-blue-50 w-[28px] text-xs overflow-hidden"
                             onClick={() => handleTimesCellClick(resident.id, hour)}
                           >
                             <div className="text-xs leading-tight">
@@ -1083,22 +1124,22 @@ export default function ExcretionList() {
                                 }
                               </div>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               便計
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed w-10">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-10">
                               <span className="text-xs font-bold">{stoolCount > 0 ? stoolCount : ''}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               最終便
                             </td>
-                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center border-b-dashed w-16">
+                            <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-16">
                               <span className="text-xs font-bold">{daysSinceLastStool}</span>
                             </td>
-                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center border-b-dashed text-xs bg-gray-100 w-12">
+                            <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               サイズ
                             </td>
-                            <td className="border-b border-gray-200 px-1 py-1 text-center border-b-dashed w-16">
+                            <td className="border-b border-gray-200 px-1 py-1 text-center w-16">
                               <span className="text-xs font-bold">{resident.diaperSize || ''}</span>
                             </td>
                             <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-64" rowSpan={2}>
@@ -1121,7 +1162,7 @@ export default function ExcretionList() {
                             </td>
                           </tr>
                           {/* 尿の行 */}
-                          <tr key={`${residentId}-urine`}> 
+                          <tr key={`${residentId}-urine`} className="border-b-2 border-gray-300"> 
                             <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               尿計
                             </td>
