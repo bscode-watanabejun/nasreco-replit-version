@@ -27,6 +27,9 @@
     ],
     "deny": [],
     "ask": [],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "/tmp"
+    ]
   }
 }

@@ -471,7 +471,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log("=== POST /api/bathing-records Debug ===");
       console.log("Request body:", JSON.stringify(req.body, null, 2));
+      console.log("Query params:", JSON.stringify(req.query, null, 2));
       console.log("User ID:", req.user.claims.sub);
+      console.log("ResidentId from body:", req.body.residentId);
+      console.log("ResidentId from query:", req.query.residentId);
       
       const dataToValidate = {
         ...req.body,
@@ -485,9 +488,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // residentIdとstaffIdはvalidationから除外されているため、手動で追加
       const recordData = {
         ...validatedData,
-        residentId: req.query.residentId || null,  // クエリパラメータから取得、なければnull（空カード）
+        residentId: req.body.residentId || req.query.residentId || null,  // bodyから優先して取得、なければquery、それでもなければnull
         staffId: req.user.claims.sub,  // 現在のユーザーIDを設定
       };
+      
+      console.log("Final recordData:", JSON.stringify(recordData, null, 2));
       
       const record = await storage.createBathingRecord(recordData);
       res.status(201).json(record);

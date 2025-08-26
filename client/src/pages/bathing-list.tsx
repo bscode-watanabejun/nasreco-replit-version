@@ -85,9 +85,8 @@ function InputWithDropdown({
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
-    // 入浴一覧では実際の値（option.value）を送信する
+    // 選択した値をローカル状態にセットするが、まだ保存しない
     setInputValue(selectedValue);
-    onSave(selectedValue);
     setOpen(false);
 
     if (enableAutoFocus) {
@@ -125,13 +124,19 @@ function InputWithDropdown({
 
   const handleInputBlur = () => {
     if (disabled) return;
-    onSave(inputValue);
+    // 値が変更された場合のみ保存
+    if (inputValue !== value) {
+      onSave(inputValue);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (disabled) return;
     if (e.key === "Enter") {
-      onSave(inputValue);
+      // 値が変更された場合のみ保存
+      if (inputValue !== value) {
+        onSave(inputValue);
+      }
       setOpen(false);
     } else if (e.key === "Escape") {
       setInputValue(value);
@@ -286,6 +291,8 @@ function BathingCard({
   spo2Options,
   localNotes,
   setLocalNotes,
+  localStaffNames,
+  setLocalStaffNames,
   updateMutation,
   handleStaffStamp,
   deleteMutation,
@@ -304,6 +311,8 @@ function BathingCard({
   spo2Options: any[];
   localNotes: Record<string, string>;
   setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  localStaffNames: Record<string, string>;
+  setLocalStaffNames: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   updateMutation: any;
   handleStaffStamp: (recordId: string, residentId?: string) => void;
   deleteMutation: any;
@@ -387,15 +396,47 @@ function BathingCard({
             {/* 承認者 */}
             <input
               type="text"
-              value={record.staffName || ""}
-              onChange={(e) =>
-                updateMutation.mutate({
-                  id: record.id,
-                  field: "staffName",
-                  value: e.target.value,
-                  residentId: record.residentId,
-                })
+              value={
+                localStaffNames[record.id] !== undefined
+                  ? localStaffNames[record.id]
+                  : record.staffName || ""
               }
+              onChange={(e) => {
+                setLocalStaffNames((prev) => ({
+                  ...prev,
+                  [record.id]: e.target.value,
+                }));
+              }}
+              onBlur={(e) => {
+                const newValue = e.target.value;
+                if (newValue !== (record.staffName || "")) {
+                  updateMutation.mutate({
+                    id: record.id,
+                    field: "staffName",
+                    value: newValue,
+                    residentId: record.residentId,
+                  });
+                }
+                // ローカル状態をクリア
+                setLocalStaffNames((prev) => {
+                  const updated = { ...prev };
+                  delete updated[record.id];
+                  return updated;
+                });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setLocalStaffNames((prev) => {
+                    const updated = { ...prev };
+                    delete updated[record.id];
+                    return updated;
+                  });
+                  e.currentTarget.blur();
+                }
+              }}
               placeholder=""
               className={`w-12 ${inputBaseClass} px-1`}
               disabled={!record.residentId}
@@ -521,9 +562,9 @@ function BathingCard({
         </div>
 
         {/* 下段：記録、差し戻し、看護チェックボックス、削除アイコン */}
-        <div className="flex items-start gap-0.5 sm:gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           {/* 記録 */}
-          <div className="flex items-start flex-1">
+          <div className="flex items-center flex-1">
             <textarea
               value={
                 localNotes[record.id] !== undefined
@@ -558,17 +599,24 @@ function BathingCard({
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setLocalNotes((prev) => {
+                    const updated = { ...prev };
+                    delete updated[record.id];
+                    return updated;
+                  });
+                  e.currentTarget.blur();
                 }
               }}
               placeholder="記録内容"
               className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none`}
-              rows={2}
-              style={{ minHeight: "48px", maxHeight: "80px", overflow: "auto" }}
+              rows={1}
+              style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
             />
           </div>
 
           {/* 差し戻し */}
-          <div className="flex items-start pt-2">
+          <div className="flex items-center">
             <input
               type="text"
               value={record.rejectionReason || ""}
@@ -581,7 +629,7 @@ function BathingCard({
           </div>
 
           {/* 看護チェックボックス */}
-          <div className="flex items-start gap-0.5 flex-shrink-0 pt-2">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <input
               type="checkbox"
               checked={record.nursingCheck || false}
@@ -592,7 +640,7 @@ function BathingCard({
           </div>
 
           {/* 削除アイコン */}
-          <div className="flex items-start pt-2">
+          <div className="flex items-center">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button
@@ -668,6 +716,8 @@ export default function BathingList() {
     return "全階";
   });
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  const [localStaffNames, setLocalStaffNames] = useState<Record<string, string>>({});
+
 
   // 利用者データの取得
   const { data: residents } = useQuery({
@@ -726,7 +776,7 @@ export default function BathingList() {
     },
   });
 
-  // 入浴記録の更新（バイタル一覧と同じシンプルな実装）
+  // 入浴記録の更新（体重一覧と同じ楽観的更新対応）
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
@@ -739,75 +789,128 @@ export default function BathingList() {
       value: string;
       residentId?: string;
     }) => {
+      console.log("updateMutation開始:", { id, field, value, residentId });
+      
       // 一時的なレコード（IDがtempで始まる）の場合は新規作成
       if (id.startsWith("temp-")) {
-        let residentIdFromTemp = residentId;
+        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{date}から抽出
         
-        // temp-{residentId}-{date}形式の場合はIDから抽出
-        if (id.includes("-") && !id.startsWith("temp-new-")) {
-          residentIdFromTemp = residentId || id.split("-")[1];
-        }
-        
-        // residentIdの検証（一時的レコードの場合のみ）
-        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null' || residentIdFromTemp === '') {
-          // 利用者が未選択の場合でも、値の更新は許可する
-          residentIdFromTemp = undefined;
+        // residentIdの検証
+        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
+          throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
         }
 
         const newRecordData: any = {
           residentId: residentIdFromTemp,
-          recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
+          recordDate: selectedDate,
           timing: "午前",
           [field]: value,
         };
-        
-        console.log("Creating new bathing record:", newRecordData);
 
-        // データ型を適切に変換（文字列として送信）
+        // データ型を適切に変換
         if (field === "recordDate") {
-          newRecordData[field] = value; // ISO文字列として送信
-        } else if (
-          ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
-        ) {
-          // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
-          newRecordData[field] = value === "" ? undefined : String(value);
+          newRecordData[field] = value;
+        } else if (["hour", "minute"].includes(field)) {
+          if (value && value.trim() !== "") {
+            const intValue = parseInt(value);
+            if (!isNaN(intValue)) {
+              newRecordData[field] = intValue;
+            }
+          }
         } else if (field === "nursingCheck") {
           newRecordData[field] = value === "true" || value === "on";
+        } else {
+          // その他のフィールド（notes, staffName等）はそのまま設定
+          newRecordData[field] = value;
         }
 
-        return await apiRequest("/api/bathing-records", "POST", newRecordData);
+        console.log("POSTリクエスト送信:", newRecordData);
+        const result = await apiRequest("/api/bathing-records", "POST", newRecordData);
+        console.log("POST成功:", result);
+        return result;
       } else {
         // 既存レコードの更新
-        // データ型を適切に変換してからupdateDataを作成
-        let processedValue: any = value;
-        
+        const updateData: any = { [field]: value };
         if (field === "recordDate") {
-          processedValue = value; // ISO文字列として送信
-        } else if (
-          ["hour", "minute", "bloodPressureSystolic", "bloodPressureDiastolic", "pulseRate", "oxygenSaturation", "temperature", "weight"].includes(field)
-        ) {
-          // 数値フィールドも文字列として送信（空文字列の場合はundefinedに変換）
-          processedValue = value === "" ? undefined : String(value);
+          updateData[field] = value;
+        } else if (["hour", "minute"].includes(field)) {
+          if (value && value.trim() !== "") {
+            const intValue = parseInt(value);
+            if (!isNaN(intValue)) {
+              updateData[field] = intValue;
+            }
+          } else {
+            updateData[field] = null;
+          }
         } else if (field === "nursingCheck") {
-          processedValue = value === "true" || value === "on";
+          updateData[field] = value === "true" || value === "on";
         }
+        // その他のフィールド（notes, staffName等）は最初の { [field]: value } でそのまま設定される
 
-        const updateData: any = { [field]: processedValue };
-        console.log("Updating existing bathing record:", { id, field, value, processedValue, updateData });
-
-        return await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
+        console.log("PATCHリクエスト送信:", { id, updateData });
+        const result = await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
+        console.log("PATCH成功:", result);
+        return result;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    // 楽観的更新の実装
+    onMutate: async ({ id, field, value }) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records"] });
+      
+      // 現在のデータのスナップショットを取得
+      const previousBathingRecords = queryClient.getQueryData(["/api/bathing-records"]);
+      
+      // 楽観的に更新
+      queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
+        if (!old) return old;
+        
+        if (id.startsWith("temp-")) {
+          // 新規作成の場合：一時的なレコードを更新
+          return old.map((record: any) => {
+            if (record.id === id) {
+              return { ...record, [field]: value };
+            }
+            return record;
+          });
+        } else {
+          // 既存レコード更新の場合
+          return old.map((record: any) => {
+            if (record.id === id) {
+              return { ...record, [field]: value };
+            }
+            return record;
+          });
+        }
+      });
+      
+      // ロールバック用のコンテキストを返す
+      return { previousBathingRecords };
     },
-    onError: (error: any) => {
-      console.error("Update error:", error);
+    onError: (error: any, _, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousBathingRecords) {
+        queryClient.setQueryData(["/api/bathing-records"], context.previousBathingRecords);
+      }
+      
+      console.error('Update error:', error);
       toast({
         title: "エラー",
-        description: error.message || "更新に失敗しました",
+        description: error.message || "入浴記録の更新に失敗しました。変更を元に戻しました。",
         variant: "destructive",
       });
+      
+      // エラー時のみサーバーから最新データを取得
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    },
+    onSuccess: (_, variables) => {
+      // 一時的レコードの場合は遅延でinvalidateして実際のIDに置き換える
+      if (variables.id.startsWith("temp-")) {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+        }, 100); // 100ms遅延
+      }
+      // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
     },
   });
 
@@ -1138,12 +1241,20 @@ export default function BathingList() {
       'bathFriday',    // 5: 金曜日
       'bathSaturday'   // 6: 土曜日
     ];
+    console.log(`getBathDayField: date=${date}, dayOfWeek=${dayOfWeek}, field=${bathDayFields[dayOfWeek]}`);
     return bathDayFields[dayOfWeek];
   };
 
   // フィルタリングロジック
-  const getFilteredBathingRecords = () => {
+  const getFilteredBathingRecords = useCallback(() => {
+    console.log("getFilteredBathingRecords 実行開始");
+    console.log("residents:", residents);
+    console.log("bathingRecords:", bathingRecords);
+    console.log("selectedDate:", selectedDate);
+    console.log("selectedFloor:", selectedFloor);
+    
     if (!residents || !Array.isArray(residents)) {
+      console.log("residents が存在しないか配列ではないため早期リターン");
       return [];
     }
     
@@ -1151,20 +1262,26 @@ export default function BathingList() {
     console.log(`選択日付: ${selectedDate}, 曜日フィールド: ${bathDayField}`);
     
     const filteredResidents = (residents as any[]).filter((resident: any) => {
+      console.log(`利用者チェック開始: ${resident.roomNumber} ${resident.name}, floor=${resident.floor}, ${bathDayField}=${resident[bathDayField]}`);
+      
       // フロアフィルタ
       if (selectedFloor !== "全階") {
         const residentFloor = resident.floor;
-        if (!residentFloor) return false;
+        if (!residentFloor) {
+          console.log(`利用者 ${resident.name} はfloorがnullのためフィルタアウト`);
+          return false;
+        }
         
         const selectedFloorNumber = selectedFloor.replace("階", "");
         if (residentFloor !== selectedFloor && residentFloor !== selectedFloorNumber) {
+          console.log(`利用者 ${resident.name} はフロア不一致のためフィルタアウト: residentFloor=${residentFloor}, selectedFloor=${selectedFloor}, selectedFloorNumber=${selectedFloorNumber}`);
           return false;
         }
       }
       
       // 入浴日フィルタ（該当曜日にチェックONの利用者のみ）
       if (resident[bathDayField] !== true) {
-        console.log(`利用者 ${resident.name} は ${bathDayField} がfalseのためフィルタアウト`);
+        console.log(`利用者 ${resident.name} は ${bathDayField} が${resident[bathDayField]}のためフィルタアウト`);
         return false;
       }
       
@@ -1179,8 +1296,14 @@ export default function BathingList() {
         return false;
       }
 
-      // フロアと曜日フィルタリング（空のresidentIdの場合は通す）
-      if (record.residentId !== "") {
+      // 一時的レコード（temp-で始まる）の場合は常に表示
+      if (record.id && record.id.startsWith("temp-")) {
+        console.log(`一時的レコードとして採用: recordId=${record.id}`);
+        return true;
+      }
+
+      // 通常レコードの場合、residentIdが必要
+      if (record.residentId && record.residentId !== "") {
         const resident = filteredResidents.find(
           (r: any) => r.id === record.residentId,
         );
@@ -1191,7 +1314,9 @@ export default function BathingList() {
           console.log(`既存記録として採用: recordId=${record.id}, resident=${resident.roomNumber} ${resident.name}`);
         }
       } else {
-        console.log(`空のresidentIdの記録: recordId=${record.id}`);
+        // residentId=nullの不正レコードは除外
+        console.log(`residentId=nullのため除外: recordId=${record.id}, residentId=${record.residentId}`);
+        return false;
       }
 
       return true;
@@ -1272,33 +1397,33 @@ export default function BathingList() {
         });
       }
       
-      // 一時的レコードをクエリキャッシュに保存（重複チェック付き）
-      const tempRecords = recordsWithEmpty.filter(record => record.id.startsWith('temp-'));
-      if (tempRecords.length > 0) {
-        console.log(`一時的レコードをキャッシュに保存: ${tempRecords.length}件`);
-        
-        // 現在のキャッシュデータを取得
-        const currentCacheData = queryClient.getQueryData(["/api/bathing-records"]) as any[];
-        const currentCache = Array.isArray(currentCacheData) ? currentCacheData : [];
-        
-        // 重複を避けてマージ
-        const mergedData = [...currentCache];
-        recordsWithEmpty.forEach(newRecord => {
-          const exists = mergedData.some(existing => existing.id === newRecord.id);
-          if (!exists) {
-            mergedData.push(newRecord);
+      // 体重一覧と同じ重複除去処理を追加
+      const uniqueRecords = recordsWithEmpty.reduce(
+        (acc: any[], current: any) => {
+          const existing = acc.find(
+            (item) => item.residentId === current.residentId,
+          );
+          if (!existing) {
+            acc.push(current);
+          } else {
+            if (existing.isTemporary && !current.isTemporary) {
+              // 一時的レコードがあるが実際のレコードもある場合、実際のレコードを優先
+              const index = acc.findIndex(
+                (item) => item.residentId === current.residentId,
+              );
+              acc[index] = current;
+            }
           }
-        });
-        
-        console.log(`キャッシュ更新: ${currentCache.length}件 → ${mergedData.length}件`);
-        queryClient.setQueryData(["/api/bathing-records"], mergedData);
-      }
+          return acc;
+        },
+        [],
+      );
       
-      return recordsWithEmpty;
+      return uniqueRecords;
     }
 
     return existingRecords;
-  };
+  }, [residents, bathingRecords, selectedDate, selectedFloor]);
 
   // フィルタリングロジック（ソートなし）
   const getFilteredRecords = useCallback(() => {
@@ -1389,14 +1514,17 @@ export default function BathingList() {
 
   // フィルタリングされたレコード（処置一覧風のシンプルな実装）
   const filteredBathingRecords = useMemo(() => {
+    console.log("filteredBathingRecords useMemo 実行開始");
     if (!residents || !Array.isArray(residents) || !bathingRecords || !Array.isArray(bathingRecords)) {
+      console.log("useMemo: データが不十分のため早期リターン");
       return [];
     }
 
-    const filtered = getFilteredRecords();
+    const filtered = getFilteredBathingRecords();
     const sorted = sortRecords(filtered);
+    console.log("useMemo: filtered結果:", filtered.length, "件, sorted結果:", sorted.length, "件");
     return sorted;
-  }, [residents, bathingRecords, selectedDate, selectedFloor, getFilteredRecords, sortRecords]);
+  }, [residents, bathingRecords, selectedDate, selectedFloor]);
 
   // 共通のスタイル
   const inputBaseClass = "text-center border rounded px-1 py-1 text-xs h-8 transition-colors focus:border-blue-500 focus:outline-none";
@@ -1479,7 +1607,50 @@ export default function BathingList() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setLocation("/")}
+              onClick={() => {
+                console.log("戻るボタンクリック: 保存処理開始");
+                
+                // すべての入力フィールドを強制的にブラー
+                const inputs = document.querySelectorAll('input:not([disabled]), textarea:not([disabled])');
+                console.log(`見つかった入力フィールド数: ${inputs.length}`);
+                
+                inputs.forEach((input, index) => {
+                  console.log(`フィールド${index}: tag=${input.tagName}, type=${input.getAttribute('type')}, value=${(input as HTMLInputElement).value}`);
+                  if (input === document.activeElement) {
+                    console.log(`フィールド${index}をブラー中`);
+                    (input as HTMLElement).blur();
+                  }
+                });
+
+                // 少し待ってからローカル状態もチェック
+                setTimeout(() => {
+                  console.log("戻るボタン: localStaffNames", localStaffNames);
+                  console.log("戻るボタン: localNotes", localNotes);
+                  
+                  Object.entries(localStaffNames).forEach(([recordId, staffName]) => {
+                    console.log(`承認者名保存: recordId=${recordId}, staffName=${staffName}`);
+                    updateMutation.mutate({
+                      id: recordId,
+                      field: "staffName",
+                      value: staffName,
+                    });
+                  });
+
+                  Object.entries(localNotes).forEach(([recordId, notes]) => {
+                    console.log(`記録内容保存: recordId=${recordId}, notes=${notes}`);
+                    updateMutation.mutate({
+                      id: recordId,
+                      field: "notes",
+                      value: notes,
+                    });
+                  });
+
+                  // ページ遷移
+                  setTimeout(() => {
+                    setLocation("/");
+                  }, 300);
+                }, 100);
+              }}
               className="h-8 w-8 p-0"
               data-testid="button-back"
             >
@@ -1542,6 +1713,8 @@ export default function BathingList() {
                 spo2Options={spo2Options}
                 localNotes={localNotes}
                 setLocalNotes={setLocalNotes}
+                localStaffNames={localStaffNames}
+                setLocalStaffNames={setLocalStaffNames}
                 updateMutation={updateMutation}
                 handleStaffStamp={handleStaffStamp}
                 deleteMutation={deleteMutation}
