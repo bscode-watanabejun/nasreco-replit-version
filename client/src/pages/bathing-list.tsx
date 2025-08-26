@@ -1274,7 +1274,6 @@ export default function BathingList() {
         }
         
         console.log(`利用者 ${resident.name} はフロア一致のため採用`);
-        }
       }
       
       // 入浴日フィルタ（該当曜日にチェックONの利用者のみ）
