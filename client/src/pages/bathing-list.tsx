@@ -315,56 +315,60 @@ function BathingCard({
     <Card className="bg-white shadow-sm">
       <CardContent className="p-3">
         {/* 上段：居室番号、利用者名、時間、区分、承認者、承認アイコン */}
-        <div className="flex items-center gap-0.5 sm:gap-1 mb-3">
-          {/* 居室番号 */}
-          <div className="text-sm sm:text-lg font-bold text-blue-600 min-w-[35px] sm:min-w-[50px] flex-shrink-0">
-            {resident?.roomNumber || "未設定"}
-          </div>
-          
-          {/* 利用者名 */}
-          <ResidentSelector
-            record={record}
-            residents={residents}
-            onResidentChange={(recordId, residentId) => 
-              changeResidentMutation.mutate({ recordId, newResidentId: residentId })
-            }
-          />
-          
-          {/* 時間 */}
-          <div className="flex items-center gap-0.5">
-            <InputWithDropdown
-              value={record.hour?.toString() || ""}
-              options={hourOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: record.id,
-                  field: "hour",
-                  value,
-                  residentId: record.residentId,
-                })
+        <div className="flex items-center mb-3">
+          {/* 左側：居室番号、利用者名 */}
+          <div className="flex items-center gap-0.5 flex-1">
+            {/* 居室番号 */}
+            <div className="text-sm sm:text-lg font-bold text-blue-600 min-w-[35px] sm:min-w-[50px] flex-shrink-0">
+              {resident?.roomNumber || "未設定"}
+            </div>
+            
+            {/* 利用者名 */}
+            <ResidentSelector
+              record={record}
+              residents={residents}
+              onResidentChange={(recordId, residentId) => 
+                changeResidentMutation.mutate({ recordId, newResidentId: residentId })
               }
-              placeholder="--"
-              className={`w-8 ${inputBaseClass}`}
-            />
-            <span className="text-xs">:</span>
-            <InputWithDropdown
-              value={record.minute?.toString() || ""}
-              options={minuteOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: record.id,
-                  field: "minute",
-                  value,
-                  residentId: record.residentId,
-                })
-              }
-              placeholder="--"
-              className={`w-8 ${inputBaseClass}`}
             />
           </div>
           
-          {/* 区分 */}
-          <div className="flex items-center gap-1">
+          {/* 右側：時間、区分、承認者、承認アイコン */}
+          <div className="flex items-center gap-0.5 sm:gap-1">
+            {/* 時間 */}
+            <div className="flex items-center gap-0.5">
+              <InputWithDropdown
+                value={record.hour?.toString() || ""}
+                options={hourOptions}
+                onSave={(value) =>
+                  updateMutation.mutate({
+                    id: record.id,
+                    field: "hour",
+                    value,
+                    residentId: record.residentId,
+                  })
+                }
+                placeholder="--"
+                className={`w-8 ${inputBaseClass}`}
+              />
+              <span className="text-xs">:</span>
+              <InputWithDropdown
+                value={record.minute?.toString() || ""}
+                options={minuteOptions}
+                onSave={(value) =>
+                  updateMutation.mutate({
+                    id: record.id,
+                    field: "minute",
+                    value,
+                    residentId: record.residentId,
+                  })
+                }
+                placeholder="--"
+                className={`w-8 ${inputBaseClass}`}
+              />
+            </div>
+            
+            {/* 区分 */}
             <InputWithDropdown
               value={record.bathType || ""}
               options={bathTypeOptions}
@@ -379,41 +383,41 @@ function BathingCard({
               placeholder="--"
               className={`w-16 ${inputBaseClass}`}
             />
+            
+            {/* 承認者 */}
+            <input
+              type="text"
+              value={record.staffName || ""}
+              onChange={(e) =>
+                updateMutation.mutate({
+                  id: record.id,
+                  field: "staffName",
+                  value: e.target.value,
+                  residentId: record.residentId,
+                })
+              }
+              placeholder=""
+              className={`w-12 ${inputBaseClass} px-1`}
+              disabled={!record.residentId}
+            />
+            
+            {/* 承認アイコン */}
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
+              style={{
+                height: "32px",
+                width: "32px",
+                minHeight: "32px",
+                minWidth: "32px",
+                maxHeight: "32px",
+                maxWidth: "32px",
+              }}
+              onClick={() => handleStaffStamp(record.id, record.residentId)}
+              data-testid={`button-stamp-${record.id}`}
+            >
+              <User className="w-3 h-3" />
+            </button>
           </div>
-          
-          {/* 承認者 */}
-          <input
-            type="text"
-            value={record.staffName || ""}
-            onChange={(e) =>
-              updateMutation.mutate({
-                id: record.id,
-                field: "staffName",
-                value: e.target.value,
-                residentId: record.residentId,
-              })
-            }
-            placeholder=""
-            className={`w-12 ${inputBaseClass} px-1`}
-            disabled={!record.residentId}
-          />
-          
-          {/* 承認アイコン */}
-          <button
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
-            style={{
-              height: "32px",
-              width: "32px",
-              minHeight: "32px",
-              minWidth: "32px",
-              maxHeight: "32px",
-              maxWidth: "32px",
-            }}
-            onClick={() => handleStaffStamp(record.id, record.residentId)}
-            data-testid={`button-stamp-${record.id}`}
-          >
-            <User className="w-3 h-3" />
-          </button>
         </div>
 
         {/* 中段：体温、血圧、脈拍、SpO2 */}
@@ -517,9 +521,9 @@ function BathingCard({
         </div>
 
         {/* 下段：記録、差し戻し、看護チェックボックス、削除アイコン */}
-        <div className="flex items-center gap-0.5 sm:gap-1">
+        <div className="flex items-start gap-0.5 sm:gap-1">
           {/* 記録 */}
-          <div className="flex items-center flex-1">
+          <div className="flex items-start flex-1">
             <textarea
               value={
                 localNotes[record.id] !== undefined
@@ -550,20 +554,21 @@ function BathingCard({
                 });
               }}
               onKeyDown={(e) => {
+                // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   e.currentTarget.blur();
                 }
               }}
               placeholder="記録内容"
-              className={`flex-1 min-w-0 ${inputBaseClass} px-2 resize-none text-left`}
-              rows={1}
-              style={{ minHeight: "32px", maxHeight: "64px" }}
+              className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none`}
+              rows={2}
+              style={{ minHeight: "48px", maxHeight: "80px", overflow: "auto" }}
             />
           </div>
 
           {/* 差し戻し */}
-          <div className="flex items-center">
+          <div className="flex items-start pt-2">
             <input
               type="text"
               value={record.rejectionReason || ""}
@@ -576,7 +581,7 @@ function BathingCard({
           </div>
 
           {/* 看護チェックボックス */}
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex items-start gap-0.5 flex-shrink-0 pt-2">
             <input
               type="checkbox"
               checked={record.nursingCheck || false}
@@ -587,23 +592,24 @@ function BathingCard({
           </div>
 
           {/* 削除アイコン */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                className="bg-red-500 hover:bg-red-600 text-white ml-1 rounded text-xs flex items-center justify-center"
-                style={{
-                  height: "32px",
-                  width: "32px",
-                  minHeight: "32px",
-                  minWidth: "32px",
-                  maxHeight: "32px",
-                  maxWidth: "32px",
-                }}
-                data-testid={`button-delete-${record.id}`}
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </AlertDialogTrigger>
+          <div className="flex items-start pt-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  className="bg-red-500 hover:bg-red-600 text-white ml-1 rounded text-xs flex items-center justify-center"
+                  style={{
+                    height: "32px",
+                    width: "32px",
+                    minHeight: "32px",
+                    minWidth: "32px",
+                    maxHeight: "32px",
+                    maxWidth: "32px",
+                  }}
+                  data-testid={`button-delete-${record.id}`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
@@ -620,7 +626,8 @@ function BathingCard({
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
-          </AlertDialog>
+            </AlertDialog>
+          </div>
         </div>
       </CardContent>
     </Card>
