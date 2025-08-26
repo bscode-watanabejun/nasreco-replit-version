@@ -462,7 +462,7 @@ function BathingCard({
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
-                />
+              />
               <span className="text-xs">/</span>
               <InputWithDropdown
                 value={record.bloodPressureDiastolic?.toString() || ""}
@@ -477,7 +477,7 @@ function BathingCard({
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
-                />
+              />
             </div>
           </div>
 
