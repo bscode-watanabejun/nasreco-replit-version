@@ -77,16 +77,21 @@ function InputWithDropdown({
   onSave,
   placeholder,
   className,
+  onSelectCallback,
+  inputRef,
 }: {
   value: string;
   options: { value: string; label: string }[];
   onSave: (value: string) => void;
   placeholder: string;
   className?: string;
+  onSelectCallback?: () => void;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
+  const refToUse = inputRef || localInputRef;
 
   // 値が外部から変更された場合に同期
   useEffect(() => {
@@ -98,13 +103,17 @@ function InputWithDropdown({
     setInputValue(selectedOption ? selectedOption.label : selectedValue);
     onSave(selectedValue);
     setOpen(false);
+    // 選択後にコールバックを実行
+    if (onSelectCallback) {
+      setTimeout(() => onSelectCallback(), 100);
+    }
   };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <input
-          ref={inputRef}
+          ref={refToUse}
           type="text"
           value={inputValue}
           readOnly
@@ -153,13 +162,60 @@ function ExcretionDialog({
   const [urineCC, setUrineCC] = useState(initialData.urineCC);
   const [urineAmount, setUrineAmount] = useState(initialData.urineAmount);
 
+  // 各入力フィールドのrefを作成
+  const stoolStateRef = useRef<HTMLInputElement>(null);
+  const stoolAmountRef = useRef<HTMLInputElement>(null);
+  const urineCCRef = useRef<HTMLInputElement>(null);
+  const urineAmountRef = useRef<HTMLInputElement>(null);
+
   // ダイアログが開かれた時に初期データをセット
   useEffect(() => {
     setStoolState(initialData.stoolState);
     setStoolAmount(initialData.stoolAmount);
     setUrineCC(initialData.urineCC);
     setUrineAmount(initialData.urineAmount);
+    
+    // ダイアログが開かれた時に最初のフィールドを自動的に開く
+    if (open) {
+      setTimeout(() => {
+        if (!initialData.stoolState) {
+          stoolStateRef.current?.click();
+        }
+      }, 200);
+    }
   }, [initialData, open]);
+
+  // 次のフィールドに移動する関数
+  const moveToNextField = (currentField: string) => {
+    setTimeout(() => {
+      switch (currentField) {
+        case 'stoolState':
+          if (!stoolAmount) {
+            stoolAmountRef.current?.click();
+          } else if (!urineCC) {
+            urineCCRef.current?.focus();
+          } else if (!urineAmount) {
+            urineAmountRef.current?.click();
+          }
+          break;
+        case 'stoolAmount':
+          if (!urineCC) {
+            urineCCRef.current?.focus();
+          } else if (!urineAmount) {
+            urineAmountRef.current?.click();
+          }
+          break;
+        case 'urineCC':
+          if (!urineAmount) {
+            urineAmountRef.current?.click();
+          }
+          break;
+        case 'urineAmount':
+          // 最後のフィールドなので何もしない
+          break;
+      }
+    }, 150);
+  };
 
   const handleSave = () => {
     onSave(residentId, hour, {
@@ -236,6 +292,8 @@ function ExcretionDialog({
               onSave={setStoolState}
               placeholder="選択してください"
               className="w-full h-8 text-xs px-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              inputRef={stoolStateRef}
+              onSelectCallback={() => moveToNextField('stoolState')}
             />
           </div>
 
@@ -248,6 +306,8 @@ function ExcretionDialog({
               onSave={setStoolAmount}
               placeholder="選択してください"
               className="w-full h-8 text-xs px-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              inputRef={stoolAmountRef}
+              onSelectCallback={() => moveToNextField('stoolAmount')}
             />
           </div>
 
@@ -255,9 +315,15 @@ function ExcretionDialog({
           <div className="space-y-2">
             <label className="text-sm font-medium">尿CC</label>
             <input
+              ref={urineCCRef}
               type="number"
               value={urineCC}
               onChange={(e) => setUrineCC(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && urineCC) {
+                  moveToNextField('urineCC');
+                }
+              }}
               placeholder="数値入力"
               className="w-full h-8 text-xs px-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -272,6 +338,8 @@ function ExcretionDialog({
               onSave={setUrineAmount}
               placeholder="選択してください"
               className="w-full h-8 text-xs px-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              inputRef={urineAmountRef}
+              onSelectCallback={() => moveToNextField('urineAmount')}
             />
           </div>
         </div>

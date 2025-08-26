@@ -328,20 +328,23 @@ export default function Rounds() {
                 <tbody>
                   {residents.map(resident => [
                       /* 巡回行 */
-                      <tr key={`${resident.id}-patrol`} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="sticky left-0 bg-white border-r border-gray-200 px-0.5 py-0.5 z-20">
-                          <div className="text-[10px] font-medium">{resident.roomNumber}</div>
-                          <div className="text-[9px] text-gray-600 leading-tight">{resident.name?.split(' ')[0]} {resident.name?.split(' ')[1]}</div>
+                      <tr key={`${resident.id}-patrol`} className="border-b border-gray-200 hover:bg-gray-50 h-8">
+                        <td rowSpan={2} className="sticky left-0 bg-white border-r border-gray-200 px-0.5 py-0.5 z-20 h-16">
+                          <div className="text-sm font-bold">{resident.roomNumber}</div>
+                          <div className="text-sm text-gray-700 leading-tight font-bold">
+                            <div>{resident.name?.split(' ')[0]}</div>
+                            <div>{resident.name?.split(' ')[1]}</div>
+                          </div>
                         </td>
                         <td className="sticky left-[70px] bg-blue-50 border-r border-gray-200 px-0.5 py-0.5 z-10">
-                          <div className="text-[10px] text-blue-700 font-medium">巡回</div>
+                          <div className="text-[10px] text-blue-700 font-medium h-[32px] flex items-center">巡回</div>
                         </td>
                         {hours.map(hour => {
                           const patrolRecord = gridData[resident.id]?.[hour]?.patrol;
                           return (
                             <td
                               key={hour}
-                              className="border-r border-gray-200 px-0.5 py-0.5 text-center cursor-pointer hover:bg-blue-50"
+                              className="border-r border-gray-200 px-0.5 py-0.5 text-center cursor-pointer hover:bg-blue-50 h-8"
                               onClick={() => handlePatrolClick(resident.id, hour)}
                             >
                               {patrolRecord && (
@@ -355,17 +358,16 @@ export default function Rounds() {
                       </tr>,
                       
                       /* 体位交換行 */
-                      <tr key={`${resident.id}-position`} className="border-b-2 border-gray-300 hover:bg-gray-50">
-                        <td className="sticky left-0 bg-white border-r border-gray-200 px-0.5 py-0.5 z-20"></td>
+                      <tr key={`${resident.id}-position`} className="border-b-2 border-gray-300 hover:bg-gray-50 h-8">
                         <td className="sticky left-[70px] bg-green-50 border-r border-gray-200 px-0.5 py-0.5 z-10">
-                          <div className="text-[10px] text-green-700 font-medium">体交</div>
+                          <div className="text-[10px] text-green-700 font-medium h-[32px] flex items-center">体交</div>
                         </td>
                         {hours.map(hour => {
                           const positionRecord = gridData[resident.id]?.[hour]?.positionChange;
                           return (
                             <td
                               key={hour}
-                              className="border-r border-gray-200 px-0.5 py-0.5 text-center relative group"
+                              className="border-r border-gray-200 px-0.5 py-0.5 text-center relative group h-8"
                             >
                               {positionRecord ? (
                                 <span

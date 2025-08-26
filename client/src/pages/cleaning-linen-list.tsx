@@ -497,9 +497,9 @@ export default function CleaningLinenList() {
                   </tr>,
                   
                   /* 記録行 */
-                  <tr key={`record-${resident.id}`} className="border-b border-gray-200">
+                  <tr key={`record-${resident.id}`} className="border-b-2 border-gray-300">
                     <td 
-                      className="p-0.5 text-center border border-gray-300 text-xs bg-yellow-50 w-4"
+                      className={`p-0.5 text-center border-l border-r border-t border-gray-300 ${residentIndex === sortedResidents.length - 1 ? 'border-b border-gray-300' : 'border-b-2 border-gray-300'} text-xs bg-yellow-50 w-4`}
                       data-testid={`type-record-${resident.id}`}
                     >
                       記録
@@ -523,7 +523,7 @@ export default function CleaningLinenList() {
                         >
                           <PopoverTrigger asChild>
                             <td
-                              className={`p-0.5 text-center border border-gray-300 cursor-pointer hover:bg-gray-100 text-xs ${isLastRow && isLastColumn ? 'rounded-br-lg' : ''}`}
+                              className={`p-0.5 text-center border-l border-r border-t border-gray-300 ${isLastRow ? 'border-b border-gray-300' : 'border-b-2 border-gray-300'} cursor-pointer hover:bg-gray-100 text-xs ${isLastRow && isLastColumn ? 'rounded-br-lg' : ''}`}
                               onClick={() => handleRecordClick(resident.id, date, note)}
                               data-testid={`cell-record-${resident.id}-${index}`}
                             >
