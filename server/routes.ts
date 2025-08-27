@@ -723,29 +723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Meals Medication routes (新仕様)
-  app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
-    try {
-      const { recordDate, mealTime, floor } = req.query;
-      console.log(`🔍 食事一覧 API called with query:`, { recordDate, mealTime, floor });
-      
-      const records = await storage.getMealsMedication(
-        recordDate as string || new Date().toISOString().split('T')[0],
-        mealTime as string || 'all',
-        floor as string || 'all'
-      );
-      
-      console.log(`📊 Returning ${records.length} records`);
-      res.json(records);
-    } catch (error: any) {
-      console.error("Error fetching meals medication:", error);
-      res.status(500).json({ message: "Failed to fetch meals medication" });
-    }
-  });
-
-  // 重複したAPIルートを削除（上の439行目のルートを使用）
-
-  // 重複したPUTルートを削除（上の468行目のルートを使用）
+  // Duplicate routes removed - using the routes defined at lines 424 and 468
 
   // Round Records routes
   app.get('/api/round-records', isAuthenticated, async (req, res) => {
