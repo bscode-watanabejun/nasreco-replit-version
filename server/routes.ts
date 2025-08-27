@@ -785,14 +785,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         createdBy: req.user.claims.sub,
       });
-      console.log('Medication record create request:', validatedData);
+      console.log('Medication record upsert request:', validatedData);
       
-      // 通常の作成操作を実行
-      const record = await storage.createMedicationRecord(validatedData);
-      console.log('Medication record created:', record);
+      // Upsert操作を実行（重複がある場合は更新、ない場合は作成）
+      const record = await storage.upsertMedicationRecord(validatedData);
+      console.log('Medication record upserted:', record);
       res.status(201).json(record);
     } catch (error: any) {
-      console.error("Error creating medication record:", error);
+      console.error("Error upserting medication record:", error);
       res.status(400).json({ message: "Invalid medication record data", error: error.message });
     }
   });

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   index,
+  uniqueIndex,
   jsonb,
   pgTable,
   timestamp,
@@ -536,7 +537,7 @@ export const medicationRecords = pgTable("medication_records", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   // Unique constraint: One medication record per resident per date per timing per type
-  uniqueMedicationRecord: index("unique_medication_record").on(table.residentId, table.recordDate, table.timing, table.type),
+  uniqueMedicationRecord: uniqueIndex("unique_medication_record").on(table.residentId, table.recordDate, table.timing, table.type),
 }));
 
 export const insertMedicationRecordSchema = createInsertSchema(medicationRecords, {
