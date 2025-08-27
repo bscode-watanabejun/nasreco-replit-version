@@ -540,13 +540,13 @@ export default function MedicationList() {
         });
       });
       
-      // 利用者IDが設定されている場合は自動保存
-      const currentData = queryClient.getQueryData(queryKey) as any[];
-      const updatedRecord = currentData?.find((r: any) => r.id === recordId);
-      if (updatedRecord?.residentId && updatedRecord.residentId !== '') {
-        console.log('Auto-saving record with residentId:', updatedRecord.residentId);
-        handleSaveRecord(updatedRecord.residentId, field, value);
-      }
+      // 自動保存は無効化（重複作成を防ぐため）
+      // const currentData = queryClient.getQueryData(queryKey) as any[];
+      // const updatedRecord = currentData?.find((r: any) => r.id === recordId);
+      // if (updatedRecord?.residentId && updatedRecord.residentId !== '') {
+      //   console.log('Auto-saving record with residentId:', updatedRecord.residentId);
+      //   handleSaveRecord(updatedRecord.residentId, field, value);
+      // }
     } else if (recordId && !recordId.startsWith('temp-')) {
       // 実レコードの場合は通常更新
       const updateData = { [field]: value };
