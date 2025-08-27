@@ -645,15 +645,26 @@ export default function WeightList() {
           throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
         }
 
+        // 既存の体重記録から measurementDate を取得
+        const existingWeight = filteredWeightRecords.find((w: any) => w.id === id);
+        const measurementDate = existingWeight?.measurementDate;
+        
+        // measurementDate が設定されていればそれを recordDate に使用、未設定なら月の1日を使用
+        const recordDate = measurementDate ? new Date(measurementDate) : new Date(selectedMonth + "-01");
+
         const newRecordData: any = {
           residentId: residentIdFromTemp,
-          recordDate: new Date(selectedMonth + "-01"),
+          recordDate: recordDate,
           [field]: value,
         };
 
         // データ型を適切に変換
         if (field === "measurementDate") {
           newRecordData[field] = value;
+          // measurementDate が設定された場合は recordDate も同じ日付に更新
+          if (value && value.trim() !== "") {
+            newRecordData.recordDate = new Date(value);
+          }
         } else if (["hour", "minute"].includes(field)) {
           if (value && value.trim() !== "") {
             const intValue = parseInt(value);
@@ -676,6 +687,10 @@ export default function WeightList() {
         const updateData: any = { [field]: value };
         if (field === "measurementDate") {
           updateData[field] = value;
+          // measurementDate が設定された場合は recordDate も同じ日付に更新
+          if (value && value.trim() !== "") {
+            updateData.recordDate = new Date(value);
+          }
         } else if (["hour", "minute"].includes(field)) {
           if (value && value.trim() !== "") {
             const intValue = parseInt(value);

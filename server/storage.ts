@@ -1120,6 +1120,8 @@ export class DatabaseStorage implements IStorage {
     startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(targetDate);
     endDate.setHours(23, 59, 59, 999);
+    
+    console.log(`[getDailyRecords] 検索日付: ${date}, 開始: ${startDate.toISOString()}, 終了: ${endDate.toISOString()}`);
 
     // residentデータを先に取得してキャッシュ
     const residentsData = await this.getResidents();
@@ -1391,6 +1393,7 @@ export class DatabaseStorage implements IStorage {
     // 体重記録
     if (!recordTypes || recordTypes.includes('体重')) {
       try {
+        console.log(`[getDailyRecords] 体重記録検索中...`);
         const weightData = await db
           .select()
           .from(weightRecords)
@@ -1398,8 +1401,10 @@ export class DatabaseStorage implements IStorage {
             gte(weightRecords.recordDate, startDate),
             lte(weightRecords.recordDate, endDate)
           ));
+        console.log(`[getDailyRecords] 体重記録件数: ${weightData.length}`);
 
         weightData.forEach(record => {
+          console.log(`[getDailyRecords] 体重記録: ID=${record.id}, 利用者=${record.residentId}, 記録日=${record.recordDate}`);
           const resident = residentsMap.get(record.residentId);
           if (resident) {
             let content = '';
@@ -1555,6 +1560,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     // 記録時間順にソート
+    console.log(`[getDailyRecords] 全記録件数: ${allRecords.length}`);
     allRecords.sort((a, b) => new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime());
 
     return allRecords;
