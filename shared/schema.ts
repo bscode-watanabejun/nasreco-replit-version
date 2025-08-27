@@ -501,7 +501,7 @@ export const mealsMedication = pgTable("meals_medication", {
   mainAmount: varchar("main_amount"), // 主食摂取量 (0-10, -, 欠, 拒, 空欄)
   sideAmount: varchar("side_amount"), // 副食摂取量 (0-10, -, 欠, 拒, 空欄)
   waterIntake: varchar("water_intake"), // 水分摂取量 (300, 250, 200, 150, 100, 50, 0, 空欄)
-  supplement1: varchar("supplement1"), // その他(栄養補助食品など)
+  supplement: varchar("supplement"), // その他(栄養補助食品など)
   staffName: varchar("staff_name"), // 記入者
   notes: text("notes"), // 記録内容(フリー入力)
   createdBy: varchar("created_by").notNull(),
@@ -530,7 +530,7 @@ export const insertMealsMedicationSchema = createInsertSchema(mealsMedication, {
   mainAmount: z.string().optional().nullable(),
   sideAmount: z.string().optional().nullable(),
   waterIntake: z.string().optional().nullable(),
-  supplement1: z.string().optional().nullable(),
+  supplement: z.string().optional().nullable(),
   staffName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 }).omit({

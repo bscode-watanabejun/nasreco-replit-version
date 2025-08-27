@@ -398,7 +398,7 @@ export default function MealsMedicationPage() {
       mainAmount: existingRecord?.mainAmount || '',
       sideAmount: existingRecord?.sideAmount || '',
       waterIntake: existingRecord?.waterIntake || '',
-      supplement1: existingRecord?.supplement1 || '',
+      supplement: existingRecord?.supplement || '',
       staffName: existingRecord?.staffName || staffName,
       notes: existingRecord?.notes || '',
       createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
@@ -411,8 +411,8 @@ export default function MealsMedicationPage() {
       recordData.sideAmount = value === "empty" ? "" : value;
     } else if (field === 'water') {
       recordData.waterIntake = value === "empty" ? "" : value;
-    } else if (field === 'supplement1') {
-      recordData.supplement1 = value === "empty" ? "" : value;
+    } else if (field === 'supplement') {
+      recordData.supplement = value === "empty" ? "" : value;
     } else if (field === 'staffName') {
       recordData.staffName = value;
     } else if (field === 'notes') {
@@ -438,8 +438,8 @@ export default function MealsMedicationPage() {
       return record.sideAmount === "" || record.sideAmount === null || record.sideAmount === undefined ? "empty" : record.sideAmount;
     } else if (category === 'water') {
       return record.waterIntake === "" || record.waterIntake === null || record.waterIntake === undefined ? "empty" : record.waterIntake;
-    } else if (category === 'supplement1') {
-      return record.supplement1 === "" || record.supplement1 === null || record.supplement1 === undefined ? "empty" : record.supplement1;
+    } else if (category === 'supplement') {
+      return record.supplement === "" || record.supplement === null || record.supplement === undefined ? "empty" : record.supplement;
     } else if (category === 'notes') {
       return record.notes === "" || record.notes === null || record.notes === undefined ? "" : record.notes;
     }
@@ -502,7 +502,7 @@ export default function MealsMedicationPage() {
         mainAmount: '',
         sideAmount: '',
         waterIntake: '',
-        supplement1: '',
+        supplement: '',
         staffName: (user as any)?.firstName || 'スタッフ',
         notes: '',
         createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
@@ -745,14 +745,14 @@ export default function MealsMedicationPage() {
                   <div className="flex-1">
                     <InputWithDropdown
                       value={(() => {
-                        const value = getMealCategoryValue(existingRecord, 'supplement1');
+                        const value = getMealCategoryValue(existingRecord, 'supplement');
                         return value === "empty" ? "" : value;
                       })()}
                       options={supplementOptions.filter(option => option !== "").map(option => ({
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'supplement1', value)}
+                      onSave={(value) => handleSaveRecord(resident.id, 'supplement', value)}
                       placeholder="その他"
                       className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />

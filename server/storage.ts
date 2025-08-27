@@ -1042,7 +1042,7 @@ export class DatabaseStorage implements IStorage {
         mainAmount: mealsMedication.mainAmount,
         sideAmount: mealsMedication.sideAmount,
         waterIntake: mealsMedication.waterIntake,
-        supplement1: mealsMedication.supplement1,
+        supplement: mealsMedication.supplement,
         staffName: mealsMedication.staffName,
         notes: mealsMedication.notes,
         createdBy: mealsMedication.createdBy,
