@@ -534,7 +534,10 @@ export const medicationRecords = pgTable("medication_records", {
   createdBy: varchar("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Unique constraint: One medication record per resident per date per timing per type
+  uniqueMedicationRecord: index("unique_medication_record").on(table.residentId, table.recordDate, table.timing, table.type),
+}));
 
 export const insertMedicationRecordSchema = createInsertSchema(medicationRecords, {
   recordDate: z.union([

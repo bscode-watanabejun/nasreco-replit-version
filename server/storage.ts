@@ -648,9 +648,8 @@ export class DatabaseStorage implements IStorage {
       .insert(medicationRecords)
       .values([recordToUpsert])
       .onConflictDoUpdate({
-        target: [medicationRecords.residentId, medicationRecords.recordDate, medicationRecords.timing],
+        target: [medicationRecords.residentId, medicationRecords.recordDate, medicationRecords.timing, medicationRecords.type],
         set: {
-          type: sql`EXCLUDED.type`,
           confirmer1: sql`EXCLUDED.confirmer1`,
           confirmer2: sql`EXCLUDED.confirmer2`,
           notes: sql`EXCLUDED.notes`,
