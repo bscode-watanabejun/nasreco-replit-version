@@ -236,12 +236,36 @@ export default function MealsMedicationPage() {
     mutationFn: async (data: InsertMealsAndMedication) => {
       return apiRequest('/api/meals-medication', 'POST', data);
     },
-    onSuccess: () => {
-      // 成功時は現在のクエリのみ無効化
-      const currentQueryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
-      queryClient.invalidateQueries({ queryKey: currentQueryKey });
+    onMutate: async (newData) => {
+      // 楽観的更新用の現在のデータスナップショット取得
+      const queryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+      const previousData = queryClient.getQueryData(queryKey);
+      return { previousData };
     },
-    onError: (error: any) => {
+    onSuccess: (serverResponse, variables, context) => {
+      // サーバーからの実際のレスポンスでキャッシュを更新
+      const queryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        
+        // tempIdのレコードを実際のIDに置き換え
+        return old.map((record: any) => {
+          if (record.id?.startsWith('temp-') && 
+              record.residentId === variables.residentId && 
+              record.mealType === variables.mealType) {
+            return { ...record, ...serverResponse, id: serverResponse.id };
+          }
+          return record;
+        });
+      });
+    },
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        const queryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+      
       toast({
         title: "エラー",
         description: error.message || "記録の作成に失敗しました。",
@@ -254,12 +278,34 @@ export default function MealsMedicationPage() {
     mutationFn: async ({ id, data }: { id: string; data: InsertMealsAndMedication }) => {
       return apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
     },
-    onSuccess: () => {
-      // 成功時は現在のクエリのみ無効化
-      const currentQueryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
-      queryClient.invalidateQueries({ queryKey: currentQueryKey });
+    onMutate: async ({ id, data }) => {
+      // 楽観的更新用の現在のデータスナップショット取得
+      const queryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      // 楽観的更新実行
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id === id) {
+            return { ...record, ...data };
+          }
+          return record;
+        });
+      });
+      
+      return { previousData };
     },
-    onError: (error: any) => {
+    onSuccess: () => {
+      // 楽観的更新を使用しているため、成功時の無効化は不要
+    },
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        const queryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+      
       toast({
         title: "エラー",
         description: error.message || "記録の更新に失敗しました。",
@@ -373,11 +419,11 @@ export default function MealsMedicationPage() {
       }
     });
     
-    // データが入力された場合は自動保存
-    if (value && value !== "empty") {
-      console.log('Auto-saving record after field update');
-      handleSaveRecord(residentId, field, value);
-    }
+    // 自動保存は無効化 - 重複登録を防ぐため
+    // if (value && value !== "empty") {
+    //   console.log('Auto-saving record after field update');
+    //   handleSaveRecord(residentId, field, value);
+    // }
   };
 
   const handleSaveRecord = (residentId: string, field: string, value: string) => {
@@ -670,7 +716,12 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleFieldUpdate(resident.id, 'main', value)}
+                      onSave={(value) => {
+                        handleFieldUpdate(resident.id, 'main', value);
+                        if (value && value !== "empty") {
+                          handleSaveRecord(resident.id, 'main', value);
+                        }
+                      }}
                       placeholder="主"
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -690,7 +741,12 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleFieldUpdate(resident.id, 'side', value)}
+                      onSave={(value) => {
+                        handleFieldUpdate(resident.id, 'side', value);
+                        if (value && value !== "empty") {
+                          handleSaveRecord(resident.id, 'side', value);
+                        }
+                      }}
                       placeholder="副"
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -707,7 +763,12 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleFieldUpdate(resident.id, 'water', value)}
+                      onSave={(value) => {
+                        handleFieldUpdate(resident.id, 'water', value);
+                        if (value && value !== "empty") {
+                          handleSaveRecord(resident.id, 'water', value);
+                        }
+                      }}
                       placeholder="水分"
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -731,6 +792,13 @@ export default function MealsMedicationPage() {
                       onChange={(e) => {
                         // 手動入力も可能にする
                         handleFieldUpdate(resident.id, 'staffName', e.target.value);
+                      }}
+                      onBlur={(e) => {
+                        // カーソルアウト時に保存
+                        const value = e.target.value;
+                        if (value && value.trim()) {
+                          handleSaveRecord(resident.id, 'staffName', value);
+                        }
                       }}
                       placeholder="記入者"
                       className="h-6 w-10 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -772,7 +840,12 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleFieldUpdate(resident.id, 'supplement', value)}
+                      onSave={(value) => {
+                        handleFieldUpdate(resident.id, 'supplement', value);
+                        if (value && value !== "empty") {
+                          handleSaveRecord(resident.id, 'supplement', value);
+                        }
+                      }}
                       placeholder="その他"
                       className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -792,7 +865,12 @@ export default function MealsMedicationPage() {
                         const value = getMealCategoryValue(existingRecord, 'notes');
                         return value === "empty" ? "" : value;
                       })()}
-                      onSave={(value) => handleFieldUpdate(resident.id, 'notes', value)}
+                      onSave={(value) => {
+                        handleFieldUpdate(resident.id, 'notes', value);
+                        if (value && value.trim()) {
+                          handleSaveRecord(resident.id, 'notes', value);
+                        }
+                      }}
                     />
                   </div>
                 </div>

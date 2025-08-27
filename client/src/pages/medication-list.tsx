@@ -458,7 +458,7 @@ export default function MedicationList() {
       residentId,
       recordDate: new Date(selectedDate),
       timing: selectedTiming,
-      type: existingRecord?.type || 'medication',
+      type: existingRecord?.type || '服薬',
       confirmer1: existingRecord?.confirmer1 || '',
       confirmer2: existingRecord?.confirmer2 || '',
       notes: existingRecord?.notes || '',
@@ -593,16 +593,16 @@ export default function MedicationList() {
       console.log('Updating existing record confirmer:', existingRecord.id, updateData);
       updateMutation.mutate({ id: existingRecord.id, data: updateData });
     } else {
-      // 新規レコードを作成
+      // 新規レコードを作成（既存データを保持）
       const recordData: InsertMedicationRecord = {
         residentId,
         recordDate: new Date(selectedDate),
         timing: selectedTiming,
-        type: 'medication',
-        confirmer1: confirmerField === 'confirmer1' ? newConfirmer : '',
-        confirmer2: confirmerField === 'confirmer2' ? newConfirmer : '',
-        notes: '',
-        result: '',
+        type: existingRecord?.type || '服薬',
+        confirmer1: confirmerField === 'confirmer1' ? newConfirmer : (existingRecord?.confirmer1 || ''),
+        confirmer2: confirmerField === 'confirmer2' ? newConfirmer : (existingRecord?.confirmer2 || ''),
+        notes: existingRecord?.notes || '',
+        result: existingRecord?.result || '',
         createdBy: (user as any)?.claims?.sub || 'unknown'
       };
       console.log('Creating new record for confirmer:', recordData);

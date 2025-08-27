@@ -206,10 +206,6 @@ export const mealsAndMedication = pgTable("meals_and_medication", {
   waterIntake: varchar("water_intake"), // 水分摂取量
   supplement: varchar("supplement"), // その他・補助食品
   staffName: varchar("staff_name"), // 記入者名
-  // 服薬関連フィールド
-  medicationName: varchar("medication_name"),
-  dosage: varchar("dosage"),
-  administeredTime: timestamp("administered_time"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -403,18 +399,21 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
   updatedAt: true,
 });
 
-export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedication, {
+export const insertMealsAndMedicationSchema = z.object({
+  residentId: z.string(),
+  staffId: z.string(),
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
-  administeredTime: z.union([z.string(), z.null()]).optional().transform((val) => {
-    if (!val || val === null) return undefined;
-    return new Date(val);
-  }),
-}).omit({
-  id: true,
-  createdAt: true,
+  type: z.string(),
+  mealType: z.string().nullable().optional(),
+  mainAmount: z.string().nullable().optional(),
+  sideAmount: z.string().nullable().optional(),
+  waterIntake: z.string().nullable().optional(),
+  supplement: z.string().nullable().optional(),
+  staffName: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
 });
 
 export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
