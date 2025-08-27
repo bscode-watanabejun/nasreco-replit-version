@@ -1201,6 +1201,11 @@ export class DatabaseStorage implements IStorage {
     const residentsData = await this.getResidents();
     const residentsMap = new Map(residentsData.map(r => [r.id, r]));
 
+    // staffデータを先に取得してキャッシュ
+    const staffData = await this.getStaffManagement();
+    const staffMap = new Map(staffData.map(s => [s.id, s.staffName]));
+
+
     // 介護記録
     if (!recordTypes || recordTypes.includes('様子')) {
       try {
@@ -1396,6 +1401,7 @@ export class DatabaseStorage implements IStorage {
           if (resident) {
             // 記録内容のみを表示（清掃・リネン値は表示しない）
             const content = record.recordNote || '';
+            const staffName = staffMap.get(record.staffId) || record.staffId || '';
 
             allRecords.push({
               id: record.id,
@@ -1405,7 +1411,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
               content: content.trim(),
-              staffName: record.staffId || '', // 清掃リネン記録は現在staffIdのみ利用可能
+              staffName: staffName, 
               createdAt: record.createdAt,
               originalData: record
             });

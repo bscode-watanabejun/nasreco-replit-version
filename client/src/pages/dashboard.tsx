@@ -108,13 +108,13 @@ export default function Dashboard() {
   // 未読連絡事項数を取得
   const { data: unreadCount = 0, refetchUnreadCount } = useUnreadStaffNoticesCount();
   
-  // 日付とフロア選択のstate
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  // 日付とフロア選択のstate - 安定した初期値を使用
+  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState("all");
   
-  // 未チェック看護記録の有無を確認
+  // 未チェック看護記録の有無を確認 - selectedDateの依存関係を削除
   const { data: hasUncheckedNursingRecords = false } = useQuery({
-    queryKey: ["/api/bathing-records", selectedDate],
+    queryKey: ["/api/bathing-records"],
     queryFn: async () => {
       try {
         // 看護記録画面と同じAPIクエリキーとロジックを使用

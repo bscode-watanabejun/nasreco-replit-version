@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { UserCog, Eye, EyeOff } from "lucide-react";
 
@@ -36,7 +36,8 @@ export default function StaffLogin() {
     mutationFn: async (data: StaffLoginForm) => {
       return await apiRequest("/api/auth/staff-login", "POST", data);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/auth/staff-user"], data);
       toast({
         title: "ログイン成功",
         description: "職員としてログインしました",
