@@ -199,8 +199,14 @@ export const mealsAndMedication = pgTable("meals_and_medication", {
   staffId: varchar("staff_id").notNull().references(() => users.id),
   recordDate: timestamp("record_date").notNull(),
   type: varchar("type").notNull(), // meal, medication
-  mealType: varchar("meal_type"), // breakfast, lunch, dinner, snack
-  mealIntake: varchar("meal_intake"), // full, partial, minimal, none
+  mealType: varchar("meal_type"), // 朝, 10時, 昼, 15時, 夕
+  // 食事関連フィールド
+  mainAmount: varchar("main_amount"), // 主食摂取量
+  sideAmount: varchar("side_amount"), // 副食摂取量 
+  waterIntake: varchar("water_intake"), // 水分摂取量
+  supplement: varchar("supplement"), // その他・補助食品
+  staffName: varchar("staff_name"), // 記入者名
+  // 服薬関連フィールド
   medicationName: varchar("medication_name"),
   dosage: varchar("dosage"),
   administeredTime: timestamp("administered_time"),
@@ -398,7 +404,10 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
 });
 
 export const insertMealsAndMedicationSchema = createInsertSchema(mealsAndMedication, {
-  recordDate: z.string().transform((str) => new Date(str)),
+  recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
   administeredTime: z.union([z.string(), z.null()]).optional().transform((val) => {
     if (!val || val === null) return undefined;
     return new Date(val);
@@ -492,23 +501,6 @@ export const insertStaffNoticeReadStatusSchema = createInsertSchema(staffNoticeR
   createdAt: true,
 });
 
-// Meals Medication Records table - 食事/服薬記録（新仕様）
-export const mealsMedication = pgTable("meals_medication", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  residentId: varchar("resident_id").notNull(),
-  recordDate: date("record_date").notNull(), // 記録日
-  mealTime: varchar("meal_time").notNull(), // 朝/10時/昼/15時/夕
-  mainAmount: varchar("main_amount"), // 主食摂取量 (0-10, -, 欠, 拒, 空欄)
-  sideAmount: varchar("side_amount"), // 副食摂取量 (0-10, -, 欠, 拒, 空欄)
-  waterIntake: varchar("water_intake"), // 水分摂取量 (300, 250, 200, 150, 100, 50, 0, 空欄)
-  supplement: varchar("supplement"), // その他(栄養補助食品など)
-  staffName: varchar("staff_name"), // 記入者
-  notes: text("notes"), // 記録内容(フリー入力)
-  createdBy: varchar("created_by").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
 // Round Records table - ラウンド記録
 export const roundRecords = pgTable("round_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -521,26 +513,6 @@ export const roundRecords = pgTable("round_records", {
   createdBy: varchar("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-export const insertMealsMedicationSchema = createInsertSchema(mealsMedication, {
-  recordDate: z.string(),
-  residentId: z.string().min(1),
-  mealTime: z.string().min(1),
-  createdBy: z.string().min(1),
-  mainAmount: z.string().optional().nullable(),
-  sideAmount: z.string().optional().nullable(),
-  waterIntake: z.string().optional().nullable(),
-  supplement: z.string().optional().nullable(),
-  staffName: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type MealsMedication = typeof mealsMedication.$inferSelect;
-export type InsertMealsMedication = z.infer<typeof insertMealsMedicationSchema>;
 
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
   recordDate: z.string().transform((str) => new Date(str)),

@@ -12,7 +12,6 @@ import {
   insertNursingRecordSchema,
   insertVitalSignsSchema,
   insertMealsAndMedicationSchema,
-  insertMealsMedicationSchema,
   insertBathingRecordSchema,
   insertExcretionRecordSchema,
   insertWeightRecordSchema,
@@ -338,7 +337,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meal-records/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      const record = await storage.getMealRecordById(id);
+      const records = await storage.getMealsAndMedication();
+      const record = records.find(r => r.id === id);
       if (!record) {
         return res.status(404).json({ message: "Meal record not found" });
       }
@@ -423,11 +423,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Meals and medication routes
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
-      const { residentId, startDate, endDate } = req.query;
-      const records = await storage.getMealsAndMedication(
-        residentId as string,
-        startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+      const { recordDate, mealTime, floor } = req.query;
+      const records = await storage.getMealList(
+        recordDate as string || new Date().toISOString().split('T')[0],
+        mealTime as string || 'all',
+        floor as string || 'all'
       );
       res.json(records);
     } catch (error: any) {
@@ -438,16 +438,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
     try {
+      console.log("🚀 POST /api/meals-medication called (first handler)");
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      console.log("User claims:", req.user.claims);
+      
       const validatedData = insertMealsAndMedicationSchema.parse({
         ...req.body,
         staffId: req.user.claims.sub,
-        type: 'meal' // Set default type as meal
       });
+      console.log("Validated data:", JSON.stringify(validatedData, null, 2));
+      
       const record = await storage.createMealsAndMedication(validatedData);
+      console.log("✅ Created record:", JSON.stringify(record, null, 2));
+      
       res.status(201).json(record);
     } catch (error: any) {
-      console.error("Error creating meals/medication record:", error);
-      res.status(400).json({ message: "Invalid meals/medication data" });
+      console.error("❌ Error creating meals/medication record:", error);
+      if (error.issues) {
+        console.error("Validation issues:", JSON.stringify(error.issues, null, 2));
+      }
+      res.status(400).json({ 
+        message: "Invalid meals/medication data",
+        error: error.message,
+        issues: error.issues || []
+      });
+    }
+  });
+
+  app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertMealsAndMedicationSchema.parse(req.body);
+      const record = await storage.updateMealsAndMedication(req.params.id, validatedData);
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error updating meals medication:", error);
+      if (error.issues) {
+        console.error("Update validation issues:", JSON.stringify(error.issues, null, 2));
+      }
+      res.status(400).json({ 
+        message: "Invalid meals medication data",
+        error: error.message,
+        issues: error.issues || []
+      });
     }
   });
 
@@ -711,45 +743,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
-    try {
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
-      const validatedData = insertMealsMedicationSchema.parse(req.body);
-      console.log("Validated data:", JSON.stringify(validatedData, null, 2));
-      const record = await storage.createMealsMedication(validatedData);
-      res.status(201).json(record);
-    } catch (error: any) {
-      console.error("Error creating meals medication:", error);
-      if (error.issues) {
-        console.error("Validation issues:", JSON.stringify(error.issues, null, 2));
-      }
-      res.status(400).json({ 
-        message: "Invalid meals medication data",
-        error: error.message,
-        issues: error.issues || []
-      });
-    }
-  });
+  // 重複したAPIルートを削除（上の439行目のルートを使用）
 
-  app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      console.log("Update request body:", JSON.stringify(req.body, null, 2));
-      const validatedData = insertMealsMedicationSchema.parse(req.body);
-      console.log("Validated update data:", JSON.stringify(validatedData, null, 2));
-      const record = await storage.updateMealsMedication(req.params.id, validatedData);
-      res.json(record);
-    } catch (error: any) {
-      console.error("Error updating meals medication:", error);
-      if (error.issues) {
-        console.error("Update validation issues:", JSON.stringify(error.issues, null, 2));
-      }
-      res.status(400).json({ 
-        message: "Invalid meals medication data",
-        error: error.message,
-        issues: error.issues || []
-      });
-    }
-  });
+  // 重複したPUTルートを削除（上の468行目のルートを使用）
 
   // Round Records routes
   app.get('/api/round-records', isAuthenticated, async (req, res) => {

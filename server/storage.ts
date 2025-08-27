@@ -5,7 +5,6 @@ import {
   nursingRecords,
   vitalSigns,
   mealsAndMedication,
-  mealsMedication,
   bathingRecords,
   excretionRecords,
   weightRecords,
@@ -30,8 +29,6 @@ import {
   type InsertVitalSigns,
   type MealsAndMedication,
   type InsertMealsAndMedication,
-  type MealsMedication,
-  type InsertMealsMedication,
   type BathingRecord,
   type InsertBathingRecord,
   type ExcretionRecord,
@@ -94,14 +91,9 @@ export interface IStorage {
 
   // Meals and medication operations
   getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]>;
-  getMealRecordById(id: string): Promise<MealsAndMedication | undefined>;
   createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication>;
   updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication>;
-
-  // Meals Medication operations (新仕様)
-  getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<any[]>;
-  createMealsMedication(record: any): Promise<any>;
-  updateMealsMedication(id: string, record: any): Promise<any>;
+  getMealList(recordDate: string, mealTime: string, floor: string): Promise<any[]>;
 
   // Bathing record operations
   getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]>;
@@ -408,12 +400,49 @@ export class DatabaseStorage implements IStorage {
     return updatedRecord;
   }
 
-  async getMealRecordById(id: string): Promise<MealsAndMedication | undefined> {
-    const [record] = await db.select()
+  async getMealList(recordDate: string, mealTime: string, floor: string): Promise<any[]> {
+    const targetDate = new Date(recordDate + 'T00:00:00');
+    
+    let whereConditions = and(
+      eq(mealsAndMedication.recordDate, targetDate),
+      eq(mealsAndMedication.type, 'meal')
+    );
+
+    if (mealTime && mealTime !== 'all') {
+      whereConditions = and(
+        whereConditions,
+        eq(mealsAndMedication.mealType, mealTime)
+      );
+    }
+
+    if (floor && floor !== 'all') {
+      whereConditions = and(
+        whereConditions,
+        eq(residents.floor, floor)
+      );
+    }
+
+    return await db
+      .select({
+        id: mealsAndMedication.id,
+        residentId: mealsAndMedication.residentId,
+        recordDate: mealsAndMedication.recordDate,
+        mealType: mealsAndMedication.mealType,
+        mainAmount: mealsAndMedication.mainAmount,
+        sideAmount: mealsAndMedication.sideAmount,
+        waterIntake: mealsAndMedication.waterIntake,
+        supplement: mealsAndMedication.supplement,
+        staffName: mealsAndMedication.staffName,
+        notes: mealsAndMedication.notes,
+        staffId: mealsAndMedication.staffId,
+        createdAt: mealsAndMedication.createdAt,
+        residentName: residents.name,
+        roomNumber: residents.roomNumber,
+        floor: residents.floor,
+      })
       .from(mealsAndMedication)
-      .where(eq(mealsAndMedication.id, id))
-      .limit(1);
-    return record;
+      .leftJoin(residents, eq(mealsAndMedication.residentId, residents.id))
+      .where(whereConditions);
   }
 
   // Bathing record operations
@@ -1035,16 +1064,11 @@ export class DatabaseStorage implements IStorage {
     );
 
     // mealTimeが指定されている場合は条件に追加
-    // ただし、meal_typeが空またはNULLの記録も含める
     if (mealTime && mealTime !== 'all') {
       console.log(`🍽️ Filtering by mealTime: ${mealTime}`);
       whereConditions = and(
         whereConditions,
-        or(
-          eq(mealsAndMedication.mealType, mealTime),
-          isNull(mealsAndMedication.mealType),
-          eq(mealsAndMedication.mealType, '')
-        )
+        eq(mealsAndMedication.mealType, mealTime)
       );
     }
 
@@ -1061,16 +1085,16 @@ export class DatabaseStorage implements IStorage {
         id: mealsAndMedication.id,
         residentId: mealsAndMedication.residentId,
         recordDate: mealsAndMedication.recordDate,
-        mealTime: mealsAndMedication.mealType,
-        mainAmount: mealsAndMedication.mealIntake,
-        sideAmount: sql`''`.as('sideAmount'), // 新テーブルにはないので空文字
-        waterIntake: sql`''`.as('waterIntake'), // 新テーブルにはないので空文字
-        supplement: sql`''`.as('supplement'), // 新テーブルにはないので空文字
-        staffName: mealsAndMedication.staffId,
+        mealType: mealsAndMedication.mealType,
+        mainAmount: mealsAndMedication.mainAmount,
+        sideAmount: mealsAndMedication.sideAmount,
+        waterIntake: mealsAndMedication.waterIntake,
+        supplement: mealsAndMedication.supplement,
+        staffName: mealsAndMedication.staffName,
         notes: mealsAndMedication.notes,
         createdBy: mealsAndMedication.staffId,
         createdAt: mealsAndMedication.createdAt,
-        updatedAt: mealsAndMedication.createdAt, // 新テーブルにupdatedAtがないのでcreatedAtを使用
+        updatedAt: mealsAndMedication.createdAt,
         residentName: residents.name,
         roomNumber: residents.roomNumber,
         floor: residents.floor,
@@ -1096,10 +1120,6 @@ export class DatabaseStorage implements IStorage {
       .set({ ...record })
       .where(eq(mealsAndMedication.id, id))
       .returning();
-    
-    if (!updatedRecord) {
-      throw new Error("Meals medication record not found");
-    }
     
     return updatedRecord;
   }

@@ -13,12 +13,12 @@ import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon,
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { MealsMedication, InsertMealsMedication } from "@shared/schema";
+import type { MealsAndMedication, InsertMealsAndMedication } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
 
-interface MealsMedicationWithResident extends MealsMedication {
+interface MealsMedicationWithResident extends MealsAndMedication {
   residentName: string;
   roomNumber: string;
   floor: string;
@@ -44,10 +44,11 @@ function NotesInput({
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValue(e.target.value);
-    // IME入力中でない場合のみ保存
-    if (!isComposing) {
-      onSave(e.target.value);
-    }
+  };
+
+  const handleBlur = () => {
+    // カーソルアウト時に保存
+    onSave(value);
   };
 
   const handleCompositionStart = () => {
@@ -57,13 +58,13 @@ function NotesInput({
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
     setValue(e.currentTarget.value);
-    onSave(e.currentTarget.value);
   };
 
   return (
     <textarea
       value={value}
       onChange={handleChange}
+      onBlur={handleBlur}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
       placeholder="記録内容"
@@ -232,15 +233,10 @@ export default function MealsMedicationPage() {
   console.log('食事一覧データ:', mealsMedicationData);
 
   const createMutation = useMutation({
-    mutationFn: async (data: InsertMealsMedication) => {
+    mutationFn: async (data: InsertMealsAndMedication) => {
       return apiRequest('/api/meals-medication', 'POST', data);
     },
     onSuccess: () => {
-      toast({
-        title: "成功",
-        description: "食事記録を登録しました。",
-      });
-      
       // 成功時は現在のクエリのみ無効化
       const currentQueryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
       queryClient.invalidateQueries({ queryKey: currentQueryKey });
@@ -255,7 +251,7 @@ export default function MealsMedicationPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: InsertMealsMedication }) => {
+    mutationFn: async ({ id, data }: { id: string; data: InsertMealsAndMedication }) => {
       return apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
     },
     onSuccess: () => {
@@ -297,28 +293,57 @@ export default function MealsMedicationPage() {
     "ラコールＮＦ半固形剤 300g"
   ];
 
+  // 記録保存時に適切な時間を決定する関数
+  const getRecordMealTime = (): string => {
+    if (selectedMealTime !== 'all') {
+      return selectedMealTime;
+    }
+    
+    // フィルタが'all'の場合は現在時刻に基づいて適切な時間を決定
+    const currentHour = new Date().getHours();
+    if (currentHour < 9) return "朝";
+    if (currentHour < 12) return "10時";
+    if (currentHour < 15) return "昼";
+    if (currentHour < 17) return "15時";
+    return "夕";
+  };
+
   const handleSaveRecord = (residentId: string, field: string, value: string) => {
+    console.log(`🔥 handleSaveRecord called:`, {
+      residentId,
+      field,
+      value,
+      selectedMealTime,
+      selectedDate: format(selectedDate, 'yyyy-MM-dd')
+    });
+    
     // 自動で記入者情報を設定
     const staffName = (user as any)?.firstName || 'スタッフ';
+    const recordMealTime = getRecordMealTime();
+    
+    console.log(`⏰ Record meal time determined:`, recordMealTime);
     
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
-        record.residentId === residentId && record.mealTime === selectedMealTime
+        record.residentId === residentId && record.mealType === recordMealTime
     );
+    
+    console.log(`📋 Existing record found:`, existingRecord);
 
 
     // 新しいスキーマに合わせたレコードデータを作成
-    const recordData: InsertMealsMedication = {
+    const recordData: InsertMealsAndMedication = {
       residentId,
-      recordDate: format(selectedDate, 'yyyy-MM-dd'),
-      mealTime: selectedMealTime,
+      staffId: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+      recordDate: selectedDate,
+      type: 'meal',
+      mealType: recordMealTime === 'all' ? '朝' : recordMealTime,
       mainAmount: existingRecord?.mainAmount || '',
       sideAmount: existingRecord?.sideAmount || '',
       waterIntake: existingRecord?.waterIntake || '',
       supplement: existingRecord?.supplement || '',
-      staffName: existingRecord?.staffName || staffName,
+      staffName: existingRecord?.staffName || '',
       notes: existingRecord?.notes || '',
-      createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
     };
 
     // フィールドを更新
@@ -331,15 +356,32 @@ export default function MealsMedicationPage() {
     } else if (field === 'supplement') {
       recordData.supplement = value === "empty" ? "" : value;
     } else if (field === 'staffName') {
-      recordData.staffName = value;
+      recordData.staffName = value === "empty" ? "" : value;
     } else if (field === 'notes') {
       recordData.notes = value;
     }
 
+    console.log(`💾 Record data to save:`, JSON.stringify(recordData, null, 2));
+    console.log(`📝 Data types:`, {
+      residentId: typeof recordData.residentId,
+      staffId: typeof recordData.staffId,
+      recordDate: typeof recordData.recordDate,
+      type: typeof recordData.type,
+      mealType: typeof recordData.mealType,
+      mainAmount: typeof recordData.mainAmount,
+      sideAmount: typeof recordData.sideAmount,
+      waterIntake: typeof recordData.waterIntake,
+      supplement: typeof recordData.supplement,
+      staffName: typeof recordData.staffName,
+      notes: typeof recordData.notes
+    });
+    
     // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
     if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+      console.log(`🔄 Updating existing record with ID:`, existingRecord.id);
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
+      console.log(`➕ Creating new record`);
       createMutation.mutate(recordData);
     }
   };
@@ -348,17 +390,23 @@ export default function MealsMedicationPage() {
   const getMealCategoryValue = (record: MealsMedicationWithResident | undefined, category: string): string => {
     if (!record) return "empty";
     
-    // 新しいスキーマの専用フィールドから直接取得
-    if (category === 'main') {
-      return record.mainAmount === "" || record.mainAmount === null || record.mainAmount === undefined ? "empty" : record.mainAmount;
-    } else if (category === 'side') {
-      return record.sideAmount === "" || record.sideAmount === null || record.sideAmount === undefined ? "empty" : record.sideAmount;
-    } else if (category === 'water') {
-      return record.waterIntake === "" || record.waterIntake === null || record.waterIntake === undefined ? "empty" : record.waterIntake;
-    } else if (category === 'supplement') {
-      return record.supplement === "" || record.supplement === null || record.supplement === undefined ? "empty" : record.supplement;
-    } else if (category === 'notes') {
+    if (category === 'notes') {
       return record.notes === "" || record.notes === null || record.notes === undefined ? "" : record.notes;
+    }
+    
+    // 通常のカラムから直接取得
+    if (category === 'main') {
+      const value = record.mainAmount;
+      return value === "" || value === null || value === undefined ? "empty" : value;
+    } else if (category === 'side') {
+      const value = record.sideAmount;
+      return value === "" || value === null || value === undefined ? "empty" : value;
+    } else if (category === 'water') {
+      const value = record.waterIntake;
+      return value === "" || value === null || value === undefined ? "empty" : value;
+    } else if (category === 'supplement') {
+      const value = record.supplement;
+      return value === "" || value === null || value === undefined ? "empty" : value;
     }
     
     return "empty";
@@ -368,7 +416,7 @@ export default function MealsMedicationPage() {
   const getStaffInfo = (record: MealsMedicationWithResident | undefined): { name: string; time: string } => {
     if (!record) return { name: '', time: '' };
     
-    // 新しいスキーマのstaffNameフィールドから直接取得
+    // 直接カラムからスタッフ名を取得
     return {
       name: record.staffName || '',
       time: '' // 時刻情報は現在のスキーマにはないので空文字
@@ -381,7 +429,7 @@ export default function MealsMedicationPage() {
     const staffName = (user as any)?.firstName || 'スタッフ';
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
-        record.residentId === residentId && record.mealTime === selectedMealTime
+        record.residentId === residentId && record.mealType === selectedMealTime
     );
     
     // 現在の記入者名を取得
@@ -390,6 +438,7 @@ export default function MealsMedicationPage() {
     // 記入者が空白の場合はログイン者名を設定、入っている場合はクリア
     const newStaffName = currentStaffName ? '' : staffName;
     
+    // スタッフ名を保存
     handleSaveRecord(residentId, 'staffName', newStaffName);
   };
 
@@ -412,17 +461,18 @@ export default function MealsMedicationPage() {
     const targetResident = unrecordedResident || filteredResidentsList[0];
     
     if (targetResident) {
-      const newRecord: InsertMealsMedication = {
+      const newRecord: InsertMealsAndMedication = {
         residentId: targetResident.id,
-        recordDate: format(selectedDate, 'yyyy-MM-dd'),
-        mealTime: selectedMealTime,
+        staffId: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+        recordDate: selectedDate,
+        type: 'meal',
+        mealType: selectedMealTime,
         mainAmount: '',
         sideAmount: '',
         waterIntake: '',
         supplement: '',
         staffName: (user as any)?.firstName || 'スタッフ',
         notes: '',
-        createdBy: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
       };
       createMutation.mutate(newRecord);
     }
@@ -543,7 +593,7 @@ export default function MealsMedicationPage() {
         {filteredResidents.map((resident: any, index: number) => {
           const existingRecord = mealsMedicationData.find(
             (record: MealsMedicationWithResident) => 
-              record.residentId === resident.id && record.mealTime === selectedMealTime
+              record.residentId === resident.id && record.mealType === selectedMealTime
           );
 
           return (
