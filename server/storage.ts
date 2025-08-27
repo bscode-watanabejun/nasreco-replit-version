@@ -99,9 +99,9 @@ export interface IStorage {
   updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication>;
 
   // Meals Medication operations (新仕様)
-  getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]>;
-  createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication>;
-  updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication>;
+  getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<any[]>;
+  createMealsMedication(record: any): Promise<any>;
+  updateMealsMedication(id: string, record: any): Promise<any>;
 
   // Bathing record operations
   getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]>;
@@ -1019,56 +1019,57 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Meals Medication operations (新スキーマ)
-  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<MealsMedication[]> {
+  async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<any[]> {
+    const targetDate = new Date(recordDate + 'T00:00:00');
     let whereConditions = and(
-      eq(mealsMedication.recordDate, recordDate),
-      eq(mealsMedication.mealTime, mealTime)
+      eq(mealsAndMedication.recordDate, targetDate),
+      eq(mealsAndMedication.type, 'meal')
     );
 
     if (floor !== 'all') {
       whereConditions = and(
-        eq(mealsMedication.recordDate, recordDate),
-        eq(mealsMedication.mealTime, mealTime),
+        eq(mealsAndMedication.recordDate, targetDate),
+        eq(mealsAndMedication.type, 'meal'),
         eq(residents.floor, floor)
       );
     }
 
     const results = await db
       .select({
-        id: mealsMedication.id,
-        residentId: mealsMedication.residentId,
-        recordDate: mealsMedication.recordDate,
-        mealTime: mealsMedication.mealTime,
-        mainAmount: mealsMedication.mainAmount,
-        sideAmount: mealsMedication.sideAmount,
-        waterIntake: mealsMedication.waterIntake,
-        supplement: mealsMedication.supplement,
-        staffName: mealsMedication.staffName,
-        notes: mealsMedication.notes,
-        createdBy: mealsMedication.createdBy,
-        createdAt: mealsMedication.createdAt,
-        updatedAt: mealsMedication.updatedAt,
+        id: mealsAndMedication.id,
+        residentId: mealsAndMedication.residentId,
+        recordDate: mealsAndMedication.recordDate,
+        mealTime: mealsAndMedication.mealType,
+        mainAmount: mealsAndMedication.mealIntake,
+        sideAmount: sql`''`.as('sideAmount'), // 新テーブルにはないので空文字
+        waterIntake: sql`''`.as('waterIntake'), // 新テーブルにはないので空文字
+        supplement: sql`''`.as('supplement'), // 新テーブルにはないので空文字
+        staffName: mealsAndMedication.staffId,
+        notes: mealsAndMedication.notes,
+        createdBy: mealsAndMedication.staffId,
+        createdAt: mealsAndMedication.createdAt,
+        updatedAt: mealsAndMedication.createdAt, // 新テーブルにupdatedAtがないのでcreatedAtを使用
         residentName: residents.name,
         roomNumber: residents.roomNumber,
         floor: residents.floor,
       })
-      .from(mealsMedication)
-      .leftJoin(residents, eq(mealsMedication.residentId, residents.id))
+      .from(mealsAndMedication)
+      .leftJoin(residents, eq(mealsAndMedication.residentId, residents.id))
       .where(whereConditions);
 
     return results;
   }
 
-  async createMealsMedication(record: InsertMealsMedication): Promise<MealsMedication> {
-    const [newRecord] = await db.insert(mealsMedication).values(record).returning();
+  async createMealsMedication(record: any): Promise<any> {
+    const [newRecord] = await db.insert(mealsAndMedication).values(record).returning();
     return newRecord;
   }
 
-  async updateMealsMedication(id: string, record: InsertMealsMedication): Promise<MealsMedication> {
+  async updateMealsMedication(id: string, record: any): Promise<any> {
     const [updatedRecord] = await db
-      .update(mealsMedication)
-      .set({ ...record, updatedAt: new Date() })
-      .where(eq(mealsMedication.id, id))
+      .update(mealsAndMedication)
+      .set({ ...record })
+      .where(eq(mealsAndMedication.id, id))
       .returning();
     
     if (!updatedRecord) {
@@ -1121,8 +1122,6 @@ export class DatabaseStorage implements IStorage {
     const endDate = new Date(targetDate);
     endDate.setHours(23, 59, 59, 999);
     
-    console.log(`[getDailyRecords] 検索日付: ${date}, 開始: ${startDate.toISOString()}, 終了: ${endDate.toISOString()}`);
-
     // residentデータを先に取得してキャッシュ
     const residentsData = await this.getResidents();
     const residentsMap = new Map(residentsData.map(r => [r.id, r]));
@@ -1173,17 +1172,18 @@ export class DatabaseStorage implements IStorage {
       try {
         const mealsData = await db
           .select()
-          .from(mealsMedication)
-          .where(eq(mealsMedication.recordDate, date));
+          .from(mealsAndMedication)
+          .where(and(
+            gte(mealsAndMedication.recordDate, startDate),
+            lte(mealsAndMedication.recordDate, endDate),
+            eq(mealsAndMedication.type, 'meal')
+          ));
 
         mealsData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = `${record.mealTime}:`;
-            if (record.mainAmount) content += ` 主食${record.mainAmount}`;
-            if (record.sideAmount) content += ` 副食${record.sideAmount}`;  
-            if (record.waterIntake) content += ` 水分${record.waterIntake}ml`;
-            if (record.notes) content += ` (${record.notes})`;
+            // 記録内容のみを表示（食事量等の詳細は表示しない）
+            const content = record.notes || '';
 
             allRecords.push({
               id: record.id,
@@ -1191,9 +1191,9 @@ export class DatabaseStorage implements IStorage {
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
+              recordTime: record.recordDate,
               content,
-              staffName: record.staffName,
+              staffName: record.staffId,
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1250,13 +1250,8 @@ export class DatabaseStorage implements IStorage {
         vitalData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = '';
-            if (record.temperature) content += `体温:${record.temperature}℃ `;
-            if (record.bloodPressureSystolic && record.bloodPressureDiastolic) {
-              content += `血圧:${record.bloodPressureSystolic}/${record.bloodPressureDiastolic} `;
-            }
-            if (record.pulseRate) content += `脈拍:${record.pulseRate} `;
-            if (record.oxygenSaturation) content += `SpO₂:${record.oxygenSaturation}% `;
+            // 記録内容のみを表示（バイタル数値は表示しない）
+            const content = record.notes || '';
 
             allRecords.push({
               id: record.id,
@@ -1291,10 +1286,8 @@ export class DatabaseStorage implements IStorage {
         excretionData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = `${record.type === 'urination' ? '排尿' : '排便'}`;
-            if (record.consistency) content += ` 性状:${record.consistency}`;
-            if (record.amount) content += ` 量:${record.amount}`;
-            if (record.notes) content += ` (${record.notes})`;
+            // 記録内容のみを表示（排泄タイプ、性状、量は表示しない）
+            const content = record.notes || '';
 
             allRecords.push({
               id: record.id,
@@ -1326,10 +1319,8 @@ export class DatabaseStorage implements IStorage {
         cleaningData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = '';
-            if (record.cleaningValue) content += `清掃:${record.cleaningValue} `;
-            if (record.linenValue) content += `リネン:${record.linenValue} `;
-            if (record.recordNote) content += `(${record.recordNote})`;
+            // 記録内容のみを表示（清掃・リネン値は表示しない）
+            const content = record.recordNote || '';
 
             allRecords.push({
               id: record.id,
@@ -1393,7 +1384,6 @@ export class DatabaseStorage implements IStorage {
     // 体重記録
     if (!recordTypes || recordTypes.includes('体重')) {
       try {
-        console.log(`[getDailyRecords] 体重記録検索中...`);
         const weightData = await db
           .select()
           .from(weightRecords)
@@ -1401,15 +1391,12 @@ export class DatabaseStorage implements IStorage {
             gte(weightRecords.recordDate, startDate),
             lte(weightRecords.recordDate, endDate)
           ));
-        console.log(`[getDailyRecords] 体重記録件数: ${weightData.length}`);
 
         weightData.forEach(record => {
-          console.log(`[getDailyRecords] 体重記録: ID=${record.id}, 利用者=${record.residentId}, 記録日=${record.recordDate}`);
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = '';
-            if (record.weight) content += `体重:${record.weight}kg`;
-            if (record.notes) content += ` (${record.notes})`;
+            // 記録内容のみを表示（体重の数値は表示しない）
+            const content = record.notes || '';
 
             allRecords.push({
               id: record.id,
@@ -1433,17 +1420,6 @@ export class DatabaseStorage implements IStorage {
     // 看護記録
     if (!recordTypes || recordTypes.includes('看護記録') || recordTypes.includes('医療記録') || recordTypes.includes('処置')) {
       try {
-        console.log(`看護記録処理開始 - 対象recordTypes: ${recordTypes || 'all'}`);
-        console.log(`看護記録処理開始 - 検索期間: ${startDate} - ${endDate}`);
-        
-        // 全ての看護記録のカテゴリを確認
-        const allNursingRecords = await db.select().from(nursingRecords);
-        console.log(`全看護記録数: ${allNursingRecords.length}`);
-        const categoryStats: Record<string, number> = {};
-        allNursingRecords.forEach(r => {
-          categoryStats[r.category] = (categoryStats[r.category] || 0) + 1;
-        });
-        console.log('カテゴリ統計:', categoryStats);
         
         // 看護記録を取得
         const nursingData = await db
@@ -1477,13 +1453,6 @@ export class DatabaseStorage implements IStorage {
           
           // 職員名をマップから取得
           const staffName = usersMap.get(record.nurseId) || record.nurseId;
-          
-          // デバッグ用ログ
-          console.log(`看護記録カテゴリデバッグ - ID: ${record.id}`);
-          console.log(`  - category: "${record.category}"`);
-          console.log(`  - notes: "${record.notes}"`);
-          console.log(`  - interventions: "${record.interventions}"`);
-          console.log(`  - description: "${record.description}"`);
           
           // カテゴリー判定ロジック：既存データとの互換性を考慮
           let recordType = '看護記録';
@@ -1520,25 +1489,17 @@ export class DatabaseStorage implements IStorage {
             recordType = record.category;
           }
 
-          // デバッグ用ログ（判定結果）
-          console.log(`  - 判定結果 recordType: "${recordType}"`);
-
           // フィルタリングに該当しない場合はスキップ
           if (recordTypes && !recordTypes.includes(recordType)) return;
 
+          // 記録内容のみを表示（看護記録、医療記録、処置共通）
           let content = '';
           if (recordType === '処置') {
-            // 処置の場合：処置部位と処置内容を組み合わせて表示
-            if (record.notes) content += record.notes;
-            if (record.description) {
-              if (content) content += ' / ';
-              content += record.description;
-            }
+            // 処置の場合は description（処置内容）のみを表示
+            content = record.description || record.interventions || '';
           } else {
-            // その他の場合：従来通り
-            if (record.description) content += record.description;
-            if (record.notes) content += ` ${record.notes}`;
-            if (record.interventions) content += ` 介入:${record.interventions}`;
+            // 看護記録・医療記録の場合は description のみを表示
+            content = record.description || '';
           }
 
           allRecords.push({
@@ -1560,7 +1521,6 @@ export class DatabaseStorage implements IStorage {
     }
 
     // 記録時間順にソート
-    console.log(`[getDailyRecords] 全記録件数: ${allRecords.length}`);
     allRecords.sort((a, b) => new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime());
 
     return allRecords;
