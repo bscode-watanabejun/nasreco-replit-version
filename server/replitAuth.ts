@@ -128,6 +128,19 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // Check for staff session authentication first
+  const staffSession = (req as any).session?.staff;
+  if (staffSession) {
+    // Create a mock user object for staff session compatibility
+    (req as any).user = {
+      claims: {
+        sub: staffSession.staffId // Use staffId as the user ID
+      }
+    };
+    return next();
+  }
+
+  // Fallback to Replit OAuth authentication
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {
