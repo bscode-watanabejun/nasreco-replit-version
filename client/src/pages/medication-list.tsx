@@ -204,8 +204,7 @@ export default function MedicationList() {
   
   // ローカル状態管理（編集中のメモ）
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-  // 保存済みの一時的レコードを追跡
-  const [savedTempRecords, setSavedTempRecords] = useState<Set<string>>(new Set());
+  // savedTempRecordsは不要になったので削除
 
   // 利用者データ取得
   const { data: residents } = useQuery<Resident[]>({
@@ -292,7 +291,8 @@ export default function MedicationList() {
       queryClient.invalidateQueries({ queryKey: ['/api/medication-records'] });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
+      // 成功時は楽観的更新のみで完了（invalidateしない）
+      // queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
     },
   });
 
@@ -366,41 +366,7 @@ export default function MedicationList() {
     }
   });
 
-  // 一時的なレコードを実際にサーバーに保存する
-  const saveTemporaryRecord = (recordId: string) => {
-    // 既に保存済みまたは作成中の場合はスキップ
-    if (savedTempRecords.has(recordId) || createMutation.isPending) {
-      console.log('Record already saved or pending, skipping:', recordId);
-      return;
-    }
-    
-    const currentRecord = displayMedicationRecords.find(r => r.id === recordId);
-    if (!currentRecord || !recordId || !recordId.startsWith('temp-')) return;
-    
-    // 必須フィールドがない場合はスキップ
-    if (!currentRecord.residentId || !currentRecord.timing || !currentRecord.type) {
-      console.log('Missing required fields, skipping save:', recordId);
-      return;
-    }
-    
-    // 保存済みとしてマーク
-    setSavedTempRecords(prev => new Set(prev).add(recordId));
-    
-    const newRecord: InsertMedicationRecord = {
-      residentId: currentRecord.residentId,
-      recordDate: new Date(selectedDate),
-      timing: currentRecord.timing,
-      type: currentRecord.type,
-      confirmer1: currentRecord.confirmer1 || "",
-      confirmer2: currentRecord.confirmer2 || "",
-      notes: currentRecord.notes || "",
-      result: currentRecord.result || "",
-      createdBy: (user as any).claims?.sub || "unknown"
-    };
-    
-    console.log('Saving temporary record:', newRecord);
-    createMutation.mutate(newRecord);
-  };
+  // saveTemporaryRecord関数は不要になったので削除
 
   // 新規カード追加 - 空のカード（利用者未選択、服薬タイミングのみセット）
   const handleAddRecord = () => {
@@ -460,7 +426,64 @@ export default function MedicationList() {
     return null;
   };
 
-  // フィールド更新
+  // フィールド保存（食事一覧と同じアプローチ）
+  const handleSaveRecord = (residentId: string, field: string, value: string) => {
+    console.log(`handleSaveRecord called:`, {
+      residentId,
+      field, 
+      value,
+      selectedTiming,
+      selectedDate
+    });
+    
+    const existingRecord = medicationRecords.find(
+      (record: MedicationRecordWithResident) => 
+        record.residentId === residentId && record.timing === selectedTiming
+    );
+    
+    console.log('Existing record found:', existingRecord);
+    
+    // レコードデータを作成
+    const recordData: InsertMedicationRecord = {
+      residentId,
+      recordDate: new Date(selectedDate),
+      timing: selectedTiming,
+      type: existingRecord?.type || 'medication',
+      confirmer1: existingRecord?.confirmer1 || '',
+      confirmer2: existingRecord?.confirmer2 || '',
+      notes: existingRecord?.notes || '',
+      result: existingRecord?.result || '',
+      createdBy: (user as any)?.claims?.sub || 'unknown'
+    };
+    
+    // フィールドを更新
+    if (field === 'timing') {
+      recordData.timing = value;
+    } else if (field === 'type') {
+      recordData.type = value;
+    } else if (field === 'confirmer1') {
+      recordData.confirmer1 = value;
+    } else if (field === 'confirmer2') {
+      recordData.confirmer2 = value;
+    } else if (field === 'notes') {
+      recordData.notes = value;
+    } else if (field === 'result') {
+      recordData.result = value;
+    }
+    
+    console.log('Record data to save:', recordData);
+    
+    // 既存レコードがあるか確認
+    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+      console.log('Updating existing record with ID:', existingRecord.id);
+      updateMutation.mutate({ id: existingRecord.id, data: recordData });
+    } else {
+      console.log('Creating new record');
+      createMutation.mutate(recordData);
+    }
+  };
+
+  // フィールド更新（一時レコード用）
   const handleFieldUpdate = async (recordId: string, field: keyof InsertMedicationRecord, value: any) => {
     console.log(`Updating field ${field} for record ${recordId} with value:`, value);
     
@@ -486,19 +509,26 @@ export default function MedicationList() {
         });
       });
       
-      // 既存レコードがない場合、一時的なIDでない場合は通常更新
-      if (recordId && !recordId.startsWith('temp-')) {
-        updateMutation.mutate({
-          id: recordId,
-          data: { residentId: value }
-        });
+      // 利用者選択時には既存の記録があるかチェックして自動でデータを設定
+      if (value && resident) {
+        const existingData = await fetchExistingDataForResident(value);
+        if (existingData) {
+          queryClient.setQueryData(queryKey, (old: any) => {
+            if (!old) return old;
+            return old.map((record: any) => {
+              if (record.id === recordId) {
+                return { ...record, ...existingData, id: recordId };
+              }
+              return record;
+            });
+          });
+        }
       }
       return;
     }
     
-    // 一時的なIDの場合は楽観的更新のみで即座にUIに反映
+    // 一時的なIDの場合は楽観的更新のみ
     if (recordId && recordId.startsWith('temp-')) {
-      // 楽観的更新でUIを即座に更新
       const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
@@ -510,10 +540,15 @@ export default function MedicationList() {
         });
       });
       
-      // API呼び出しはしない（楽観的更新のみ）
-      return;
+      // 利用者IDが設定されている場合は自動保存
+      const currentData = queryClient.getQueryData(queryKey) as any[];
+      const updatedRecord = currentData?.find((r: any) => r.id === recordId);
+      if (updatedRecord?.residentId && updatedRecord.residentId !== '') {
+        console.log('Auto-saving record with residentId:', updatedRecord.residentId);
+        handleSaveRecord(updatedRecord.residentId, field, value);
+      }
     } else if (recordId && !recordId.startsWith('temp-')) {
-      // recordId が存在し、一時的なIDでない場合のみ更新
+      // 実レコードの場合は通常更新
       const updateData = { [field]: value };
       console.log('Updating existing record:', updateData);
       updateMutation.mutate({
@@ -579,13 +614,15 @@ export default function MedicationList() {
   const handleDelete = (recordId: string) => {
     console.log('Deleting record:', recordId);
     
-    // 一時的なIDの場合は即座に削除
+    // 一時的なIDの場合は楽観的削除
     if (recordId && recordId.startsWith('temp-')) {
       console.log('Removing temp record from display');
-      // 一時的なレコードの削除時は現在の表示条件で再取得
-      queryClient.invalidateQueries({ queryKey: ["/api/medication-records"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
-      queryClient.refetchQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
+      // 楽観的に削除
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.filter((record: any) => record.id !== recordId);
+      });
       return;
     }
     
@@ -729,10 +766,7 @@ export default function MedicationList() {
                         if (!record.id) return;
                         console.log('Resident changed for record', record.id, 'to:', selectedId);
                         handleFieldUpdate(record.id, "residentId", selectedId);
-                        // 一時的なレコードの場合は保存処理を実行
-                        if (record.id && record.id.startsWith('temp-')) {
-                          setTimeout(() => saveTemporaryRecord(record.id), 200);
-                        }
+                        // 一時的なレコードの自動保存は無効化
                       }}
                       placeholder="利用者"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-pre-line leading-tight text-center"
@@ -748,15 +782,12 @@ export default function MedicationList() {
                         if (!record.id) return;
                         console.log('Timing changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "timing", value);
-                        // 一時的なレコードの場合は保存処理を実行
-                        if (record.id && record.id.startsWith('temp-')) {
-                          setTimeout(() => saveTemporaryRecord(record.id), 200);
-                        }
+                        // 一時的なレコードの自動保存は無効化
                       }}
                       placeholder="タイミング"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                       isTimingField={true}
-                      disabled={!isResidentSelected(record)}
+                      disabled={false} // 服薬タイミングは常に変更可能
                     />
                   </div>
                   
@@ -765,14 +796,14 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer1 || ''}
-                      onClick={() => isResidentSelected(record) && record.id && handleConfirmerStamp(record.residentId, "confirmer1")}
+                      onClick={() => record.id && handleConfirmerStamp(record.residentId, "confirmer1")}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        isResidentSelected(record) && record.id && handleFieldUpdate(record.id, 'confirmer1', e.target.value);
+                        record.id && handleFieldUpdate(record.id, 'confirmer1', e.target.value);
                       }}
                       placeholder="確認者1"
-                      className={`h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
-                      disabled={!isResidentSelected(record)}
+                      className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={false}
                     />
                   </div>
                   
@@ -781,14 +812,14 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer2 || ''}
-                      onClick={() => isResidentSelected(record) && record.id && handleConfirmerStamp(record.residentId, "confirmer2")}
+                      onClick={() => record.id && handleConfirmerStamp(record.residentId, "confirmer2")}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        isResidentSelected(record) && record.id && handleFieldUpdate(record.id, 'confirmer2', e.target.value);
+                        record.id && handleFieldUpdate(record.id, 'confirmer2', e.target.value);
                       }}
                       placeholder="確認者2"
-                      className={`h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
-                      disabled={!isResidentSelected(record)}
+                      className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={false}
                     />
                   </div>
                 </div>
@@ -801,29 +832,24 @@ export default function MedicationList() {
                       type="text"
                       value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
                       onChange={(e) => {
-                        if (!isResidentSelected(record)) return;
                         setLocalNotes(prev => ({
                           ...prev,
                           [record.id]: e.target.value
                         }));
                       }}
                       onBlur={(e) => {
-                        if (!isResidentSelected(record)) return;
                         handleFieldUpdate(record.id, "notes", e.target.value);
                         setLocalNotes(prev => {
                           const newState = { ...prev };
                           delete newState[record.id];
                           return newState;
                         });
-                        // 一時的なレコードの場合は保存処理を実行
-                        if (record.id && record.id.startsWith('temp-')) {
-                          saveTemporaryRecord(record.id);
-                        }
+                        // 一時的なレコードの自動保存は無効化
                       }}
-                      className={`h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 ${!isResidentSelected(record) ? 'cursor-not-allowed bg-slate-100' : ''}`}
+                      className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
                       placeholder="記録を入力..."
                       data-testid={`input-notes-${record.id}`}
-                      disabled={!isResidentSelected(record)}
+                      disabled={false}
                     />
                   </div>
                   
@@ -836,14 +862,11 @@ export default function MedicationList() {
                         if (!record.id) return;
                         console.log('Type changed for record', record.id, 'to:', value);
                         handleFieldUpdate(record.id, "type", value);
-                        // 一時的なレコードの場合は保存処理を実行
-                        if (record.id && record.id.startsWith('temp-')) {
-                          setTimeout(() => saveTemporaryRecord(record.id), 200);
-                        }
+                        // 一時的なレコードの自動保存は無効化
                       }}
                       placeholder="種類"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                      disabled={!isResidentSelected(record)}
+                      disabled={false}
                     />
                   </div>
                   
@@ -860,14 +883,11 @@ export default function MedicationList() {
                         console.log('Result changed for record', record.id, 'to:', value);
                         const actualValue = value === "空欄" ? "" : value;
                         handleFieldUpdate(record.id, "result", actualValue);
-                        // 一時的なレコードの場合は保存処理を実行
-                        if (record.id && record.id.startsWith('temp-')) {
-                          setTimeout(() => saveTemporaryRecord(record.id), 200);
-                        }
+                        // 一時的なレコードの自動保存は無効化
                       }}
                       placeholder="結果"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                      disabled={!isResidentSelected(record)}
+                      disabled={false}
                     />
                   </div>
                   
@@ -876,11 +896,7 @@ export default function MedicationList() {
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <button
-                          className={`rounded text-xs flex items-center justify-center ${
-                            isResidentSelected(record) 
-                              ? "bg-red-500 hover:bg-red-600 text-white"
-                              : "bg-slate-300 text-slate-500 cursor-not-allowed"
-                          }`}
+                          className="rounded text-xs flex items-center justify-center bg-red-500 hover:bg-red-600 text-white"
                           style={{
                             height: "24px",
                             width: "24px",
@@ -889,7 +905,7 @@ export default function MedicationList() {
                             maxHeight: "24px",
                             maxWidth: "24px",
                           }}
-                          disabled={deleteMutation.isPending || !isResidentSelected(record)}
+                          disabled={deleteMutation.isPending}
                           data-testid={`button-delete-${record.id}`}
                         >
                           <Trash2 className="w-3 h-3" />

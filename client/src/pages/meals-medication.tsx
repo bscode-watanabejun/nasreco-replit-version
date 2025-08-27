@@ -308,8 +308,9 @@ export default function MealsMedicationPage() {
     return "夕";
   };
 
-  const handleSaveRecord = (residentId: string, field: string, value: string) => {
-    console.log(`🔥 handleSaveRecord called:`, {
+  // フィールド更新（楽観的更新のみ）
+  const handleFieldUpdate = (residentId: string, field: string, value: string) => {
+    console.log(`🔥 handleFieldUpdate called:`, {
       residentId,
       field,
       value,
@@ -317,19 +318,84 @@ export default function MealsMedicationPage() {
       selectedDate: format(selectedDate, 'yyyy-MM-dd')
     });
     
-    // 自動で記入者情報を設定
-    const staffName = (user as any)?.firstName || 'スタッフ';
     const recordMealTime = getRecordMealTime();
+    const queryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
     
-    console.log(`⏰ Record meal time determined:`, recordMealTime);
+    // 楽観的更新
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!old) return old;
+      
+      // 既存のレコードを探す
+      const existingIndex = old.findIndex((record: any) => 
+        record.residentId === residentId && record.mealType === recordMealTime
+      );
+      
+      if (existingIndex >= 0) {
+        // 既存レコードを更新
+        const updated = [...old];
+        const fieldMapping: Record<string, string> = {
+          'main': 'mainAmount',
+          'side': 'sideAmount', 
+          'water': 'waterIntake',
+          'supplement': 'supplement',
+          'staffName': 'staffName',
+          'notes': 'notes'
+        };
+        
+        const dbField = fieldMapping[field] || field;
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          [dbField]: value === "empty" ? "" : value
+        };
+        return updated;
+      } else {
+        // 新規レコードを追加
+        const newRecord = {
+          id: `temp-${Date.now()}`,
+          residentId,
+          residentName: '',
+          roomNumber: '',
+          floor: '',
+          staffId: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+          recordDate: selectedDate,
+          type: 'meal',
+          mealType: recordMealTime === 'all' ? '朝' : recordMealTime,
+          mainAmount: field === 'main' ? (value === "empty" ? "" : value) : '',
+          sideAmount: field === 'side' ? (value === "empty" ? "" : value) : '',
+          waterIntake: field === 'water' ? (value === "empty" ? "" : value) : '',
+          supplement: field === 'supplement' ? (value === "empty" ? "" : value) : '',
+          staffName: field === 'staffName' ? (value === "empty" ? "" : value) : '',
+          notes: field === 'notes' ? value : '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        return [...old, newRecord];
+      }
+    });
     
+    // データが入力された場合は自動保存
+    if (value && value !== "empty") {
+      console.log('Auto-saving record after field update');
+      handleSaveRecord(residentId, field, value);
+    }
+  };
+
+  const handleSaveRecord = (residentId: string, field: string, value: string) => {
+    console.log(`💾 handleSaveRecord called:`, {
+      residentId,
+      field,
+      value,
+      selectedMealTime,
+      selectedDate: format(selectedDate, 'yyyy-MM-dd')
+    });
+    
+    const recordMealTime = getRecordMealTime();
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
         record.residentId === residentId && record.mealType === recordMealTime
     );
     
     console.log(`📋 Existing record found:`, existingRecord);
-
 
     // 新しいスキーマに合わせたレコードデータを作成
     const recordData: InsertMealsAndMedication = {
@@ -362,19 +428,6 @@ export default function MealsMedicationPage() {
     }
 
     console.log(`💾 Record data to save:`, JSON.stringify(recordData, null, 2));
-    console.log(`📝 Data types:`, {
-      residentId: typeof recordData.residentId,
-      staffId: typeof recordData.staffId,
-      recordDate: typeof recordData.recordDate,
-      type: typeof recordData.type,
-      mealType: typeof recordData.mealType,
-      mainAmount: typeof recordData.mainAmount,
-      sideAmount: typeof recordData.sideAmount,
-      waterIntake: typeof recordData.waterIntake,
-      supplement: typeof recordData.supplement,
-      staffName: typeof recordData.staffName,
-      notes: typeof recordData.notes
-    });
     
     // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
     if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
@@ -617,7 +670,7 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'main', value)}
+                      onSave={(value) => handleFieldUpdate(resident.id, 'main', value)}
                       placeholder="主"
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -637,7 +690,7 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'side', value)}
+                      onSave={(value) => handleFieldUpdate(resident.id, 'side', value)}
                       placeholder="副"
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -654,7 +707,7 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'water', value)}
+                      onSave={(value) => handleFieldUpdate(resident.id, 'water', value)}
                       placeholder="水分"
                       className="h-6 text-xs w-full px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -672,12 +725,12 @@ export default function MealsMedicationPage() {
                         const currentValue = e.currentTarget.value;
                         if (!currentValue.trim()) {
                           const staffName = (user as any)?.firstName || 'スタッフ';
-                          handleSaveRecord(resident.id, 'staffName', staffName);
+                          handleFieldUpdate(resident.id, 'staffName', staffName);
                         }
                       }}
                       onChange={(e) => {
                         // 手動入力も可能にする
-                        handleSaveRecord(resident.id, 'staffName', e.target.value);
+                        handleFieldUpdate(resident.id, 'staffName', e.target.value);
                       }}
                       placeholder="記入者"
                       className="h-6 w-10 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -719,7 +772,7 @@ export default function MealsMedicationPage() {
                         value: option,
                         label: option === "empty" ? "" : option
                       }))}
-                      onSave={(value) => handleSaveRecord(resident.id, 'supplement', value)}
+                      onSave={(value) => handleFieldUpdate(resident.id, 'supplement', value)}
                       placeholder="その他"
                       className="h-6 text-xs w-full px-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -739,7 +792,7 @@ export default function MealsMedicationPage() {
                         const value = getMealCategoryValue(existingRecord, 'notes');
                         return value === "empty" ? "" : value;
                       })()}
-                      onSave={(value) => handleSaveRecord(resident.id, 'notes', value)}
+                      onSave={(value) => handleFieldUpdate(resident.id, 'notes', value)}
                     />
                   </div>
                 </div>
