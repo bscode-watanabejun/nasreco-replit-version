@@ -436,12 +436,22 @@ export default function MedicationList() {
       selectedDate
     });
     
-    const existingRecord = medicationRecords.find(
-      (record: MedicationRecordWithResident) => 
+    // 現在のキャッシュデータから既存レコードを検索
+    const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+    const currentCacheData = queryClient.getQueryData(queryKey) as any[];
+    
+    const existingRecord = currentCacheData?.find(
+      (record: any) => 
         record.residentId === residentId && record.timing === selectedTiming
     );
     
-    console.log('Existing record found:', existingRecord);
+    console.log('Existing record found in cache:', existingRecord);
+    console.log('All current cache data:', currentCacheData?.map(r => ({
+      id: r.id,
+      residentId: r.residentId, 
+      timing: r.timing,
+      temp: r.id?.startsWith('temp-')
+    })));
     
     // レコードデータを作成
     const recordData: InsertMedicationRecord = {
@@ -473,7 +483,7 @@ export default function MedicationList() {
     
     console.log('Record data to save:', recordData);
     
-    // 既存レコードがあるか確認
+    // 既存レコードがあるか確認（一時レIDでない実レコード）
     if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
       console.log('Updating existing record with ID:', existingRecord.id);
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
@@ -540,13 +550,9 @@ export default function MedicationList() {
         });
       });
       
-      // 自動保存は無効化（重複作成を防ぐため）
-      // const currentData = queryClient.getQueryData(queryKey) as any[];
-      // const updatedRecord = currentData?.find((r: any) => r.id === recordId);
-      // if (updatedRecord?.residentId && updatedRecord.residentId !== '') {
-      //   console.log('Auto-saving record with residentId:', updatedRecord.residentId);
-      //   handleSaveRecord(updatedRecord.residentId, field, value);
-      // }
+      // 自動保存は無効化 - 明示的な保存操作のみ実行
+      // ここで自動保存するとフィールドごとに新規レコードが作成される
+      console.log('Field update completed - no auto-save to prevent duplicates');
     } else if (recordId && !recordId.startsWith('temp-')) {
       // 実レコードの場合は通常更新
       const updateData = { [field]: value };
@@ -558,20 +564,19 @@ export default function MedicationList() {
     }
   };
 
-  // 確認者設定（食事一覧の記入者と完全に同じ仕様）
+  // 確認者設定（直接フィールド更新のみ）
   const handleConfirmerStamp = (residentId: string, confirmerField: "confirmer1" | "confirmer2") => {
     if (!user) return;
     
     const staffName = (user as any)?.firstName || 'スタッフ';
+    const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+    const currentCacheData = queryClient.getQueryData(queryKey) as any[];
     
-    // 現在のレコードを取得（食事一覧と同じパターン - 生のAPIデータから検索）
-    const existingRecord = medicationRecords.find(
-      (record: MedicationRecordWithResident) => 
+    // 現在のレコードを取得
+    const existingRecord = currentCacheData?.find(
+      (record: any) => 
         record.residentId === residentId && record.timing === selectedTiming
     );
-    
-    console.log('Existing record found:', existingRecord);
-    console.log('All medication records:', medicationRecords.map(r => ({ id: r.id, residentId: r.residentId, timing: r.timing })));
     
     // 現在の確認者名を取得
     const currentConfirmer = existingRecord?.[confirmerField] || '';
@@ -579,28 +584,28 @@ export default function MedicationList() {
     // 確認者が空白の場合はログイン者名を設定、入っている場合はクリア
     const newConfirmer = currentConfirmer ? '' : staffName;
     
-    // レコードデータを準備（食事一覧と同じフォーマット）
-    const recordData: InsertMedicationRecord = {
-      residentId,
-      recordDate: new Date(selectedDate),
-      timing: selectedTiming,
-      type: existingRecord?.type || "服薬",
-      confirmer1: confirmerField === 'confirmer1' ? newConfirmer : (existingRecord?.confirmer1 || ''),
-      confirmer2: confirmerField === 'confirmer2' ? newConfirmer : (existingRecord?.confirmer2 || ''),
-      notes: existingRecord?.notes || '',
-      result: existingRecord?.result || '',
-      createdBy: (user as any)?.claims?.sub || 'unknown',
-    };
+    console.log(`Setting ${confirmerField} to: ${newConfirmer}`);
     
-    console.log('Record data to save:', recordData);
-    console.log('Will use existing record:', !!existingRecord);
-    
-    // 既存レコードがあるが、一時的なIDの場合は新規作成として扱う
+    // 既存レコードがあるか確認
     if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
-      console.log('Updating existing record with ID:', existingRecord.id);
-      updateMutation.mutate({ id: existingRecord.id, data: recordData });
+      // 既存レコードを更新
+      const updateData = { [confirmerField]: newConfirmer };
+      console.log('Updating existing record confirmer:', existingRecord.id, updateData);
+      updateMutation.mutate({ id: existingRecord.id, data: updateData });
     } else {
-      console.log('Creating new record');
+      // 新規レコードを作成
+      const recordData: InsertMedicationRecord = {
+        residentId,
+        recordDate: new Date(selectedDate),
+        timing: selectedTiming,
+        type: 'medication',
+        confirmer1: confirmerField === 'confirmer1' ? newConfirmer : '',
+        confirmer2: confirmerField === 'confirmer2' ? newConfirmer : '',
+        notes: '',
+        result: '',
+        createdBy: (user as any)?.claims?.sub || 'unknown'
+      };
+      console.log('Creating new record for confirmer:', recordData);
       createMutation.mutate(recordData);
     }
   };
@@ -838,13 +843,18 @@ export default function MedicationList() {
                         }));
                       }}
                       onBlur={(e) => {
-                        handleFieldUpdate(record.id, "notes", e.target.value);
+                        const value = e.target.value;
+                        handleFieldUpdate(record.id, "notes", value);
                         setLocalNotes(prev => {
                           const newState = { ...prev };
                           delete newState[record.id];
                           return newState;
                         });
-                        // 一時的なレコードの自動保存は無効化
+                        // メモが入力された場合は保存を実行
+                        if (value && value.trim() && record.residentId) {
+                          console.log('Saving notes on blur:', value);
+                          handleSaveRecord(record.residentId, "notes", value);
+                        }
                       }}
                       className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
                       placeholder="記録を入力..."
@@ -883,7 +893,11 @@ export default function MedicationList() {
                         console.log('Result changed for record', record.id, 'to:', value);
                         const actualValue = value === "空欄" ? "" : value;
                         handleFieldUpdate(record.id, "result", actualValue);
-                        // 一時的なレコードの自動保存は無効化
+                        // 結果が選択された場合は保存を実行
+                        if (actualValue && record.residentId) {
+                          console.log('Saving result on change:', actualValue);
+                          handleSaveRecord(record.residentId, "result", actualValue);
+                        }
                       }}
                       placeholder="結果"
                       className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"

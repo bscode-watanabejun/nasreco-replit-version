@@ -538,7 +538,10 @@ export const medicationRecords = pgTable("medication_records", {
 });
 
 export const insertMedicationRecordSchema = createInsertSchema(medicationRecords, {
-  recordDate: z.string().transform((str) => new Date(str)),
+  recordDate: z.union([
+    z.string().transform((str) => new Date(str)),
+    z.date()
+  ]).transform((val) => val instanceof Date ? val : new Date(val)),
 }).omit({
   id: true,
   createdAt: true,

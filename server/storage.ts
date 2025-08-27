@@ -124,6 +124,7 @@ export interface IStorage {
   // Medication record operations
   getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<MedicationRecord[]>;
   createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
+  upsertMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
   updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord>;
   deleteMedicationRecord(id: string): Promise<void>;
 
@@ -632,6 +633,36 @@ export class DatabaseStorage implements IStorage {
     };
     const [newRecord] = await db.insert(medicationRecords).values([recordToInsert]).returning();
     return newRecord;
+  }
+
+  async upsertMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
+    const recordToUpsert = {
+      ...record,
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+    };
+    
+    console.log('Upserting medication record:', recordToUpsert);
+    
+    // PostgreSQLのON CONFLICTを使用してupsert操作を実行
+    const [upsertedRecord] = await db
+      .insert(medicationRecords)
+      .values([recordToUpsert])
+      .onConflictDoUpdate({
+        target: [medicationRecords.residentId, medicationRecords.recordDate, medicationRecords.timing],
+        set: {
+          type: sql`EXCLUDED.type`,
+          confirmer1: sql`EXCLUDED.confirmer1`,
+          confirmer2: sql`EXCLUDED.confirmer2`,
+          notes: sql`EXCLUDED.notes`,
+          result: sql`EXCLUDED.result`,
+          createdBy: sql`EXCLUDED.created_by`,
+          updatedAt: sql`NOW()`
+        }
+      })
+      .returning();
+      
+    console.log('Upserted medication record:', upsertedRecord);
+    return upsertedRecord;
   }
 
   async updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord> {
