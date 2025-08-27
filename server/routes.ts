@@ -695,11 +695,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/meals-medication', isAuthenticated, async (req, res) => {
     try {
       const { recordDate, mealTime, floor } = req.query;
+      console.log(`🔍 食事一覧 API called with query:`, { recordDate, mealTime, floor });
+      
       const records = await storage.getMealsMedication(
         recordDate as string || new Date().toISOString().split('T')[0],
-        mealTime as string || '朝',
+        mealTime as string || 'all',
         floor as string || 'all'
       );
+      
+      console.log(`📊 Returning ${records.length} records`);
       res.json(records);
     } catch (error: any) {
       console.error("Error fetching meals medication:", error);

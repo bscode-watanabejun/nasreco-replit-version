@@ -220,64 +220,37 @@ export default function MealsMedicationPage() {
         floor: selectedFloor,
       });
       const response = await apiRequest(`/api/meals-medication?${params}`);
-      return response.json();
-    }
+      console.log('食事一覧 API レスポンス:', response);
+      return response;
+    },
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const mealsMedicationData: MealsMedicationWithResident[] = Array.isArray(mealsMedicationResponse) ? mealsMedicationResponse : [];
+  
+  console.log('食事一覧データ:', mealsMedicationData);
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertMealsMedication) => {
       return apiRequest('/api/meals-medication', 'POST', data);
     },
-    // 楽観的更新の実装
-    onMutate: async (newRecord) => {
-      // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ['/api/meals-medication'] });
-      
-      // 現在のデータのスナップショットを取得
-      const previousData = queryClient.getQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor]);
-      
-      // 楽観的に更新（新規作成）
-      queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], (old: any) => {
-        if (!old) return [newRecord];
-        
-        // 既存の記録があるかチェック
-        const existingIndex = old.findIndex((record: any) => 
-          record.residentId === newRecord.residentId && record.mealTime === newRecord.mealTime
-        );
-        
-        if (existingIndex >= 0) {
-          // 既存レコードを更新
-          const updated = [...old];
-          updated[existingIndex] = { ...updated[existingIndex], ...newRecord, id: updated[existingIndex].id };
-          return updated;
-        } else {
-          // 新規レコードを追加
-          return [...old, { ...newRecord, id: `temp-${Date.now()}` }];
-        }
+    onSuccess: () => {
+      toast({
+        title: "成功",
+        description: "食事記録を登録しました。",
       });
       
-      return { previousData };
+      // 成功時は現在のクエリのみ無効化
+      const currentQueryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+      queryClient.invalidateQueries({ queryKey: currentQueryKey });
     },
-    onError: (_, __, context) => {
-      // エラー時に前の状態に戻す
-      if (context?.previousData) {
-        queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], context.previousData);
-      }
-      
+    onError: (error: any) => {
       toast({
         title: "エラー",
-        description: "記録の作成に失敗しました。変更を元に戻しました。",
+        description: error.message || "記録の作成に失敗しました。",
         variant: "destructive",
       });
-      
-      // エラー時のみサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
-    },
-    onSuccess: () => {
-      // 成功時はサーバーから最新データを取得して同期
-      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
     },
   });
 
@@ -285,45 +258,17 @@ export default function MealsMedicationPage() {
     mutationFn: async ({ id, data }: { id: string; data: InsertMealsMedication }) => {
       return apiRequest(`/api/meals-medication/${id}`, 'PUT', data);
     },
-    // 楽観的更新の実装
-    onMutate: async ({ id, data }) => {
-      // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ['/api/meals-medication'] });
-      
-      // 現在のデータのスナップショットを取得
-      const previousData = queryClient.getQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor]);
-      
-      // 楽観的に更新
-      queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], (old: any) => {
-        if (!old) return old;
-        
-        return old.map((record: any) => {
-          if (record.id === id) {
-            return { ...record, ...data };
-          }
-          return record;
-        });
-      });
-      
-      return { previousData };
+    onSuccess: () => {
+      // 成功時は現在のクエリのみ無効化
+      const currentQueryKey = ['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor];
+      queryClient.invalidateQueries({ queryKey: currentQueryKey });
     },
-    onError: (_, __, context) => {
-      // エラー時に前の状態に戻す
-      if (context?.previousData) {
-        queryClient.setQueryData(['/api/meals-medication', format(selectedDate, 'yyyy-MM-dd'), selectedMealTime, selectedFloor], context.previousData);
-      }
-      
+    onError: (error: any) => {
       toast({
         title: "エラー",
-        description: "記録の更新に失敗しました。変更を元に戻しました。",
+        description: error.message || "記録の更新に失敗しました。",
         variant: "destructive",
       });
-      
-      // エラー時のみサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ['/api/meals-medication'] });
-    },
-    onSuccess: () => {
-      // 成功時は楽観的更新のみで完了（invalidateしない）
     },
   });
 
