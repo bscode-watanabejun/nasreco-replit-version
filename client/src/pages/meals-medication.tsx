@@ -93,39 +93,12 @@ function InputWithDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
-  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 値が外部から変更された場合に同期
   useEffect(() => {
     setInputValue(value);
   }, [value]);
-
-  // アクティブ要素を監視してフォーカス状態を更新
-  useEffect(() => {
-    const checkFocus = () => {
-      if (inputRef.current) {
-        setIsFocused(document.activeElement === inputRef.current);
-      }
-    };
-
-    // 初回チェック
-    checkFocus();
-
-    // フォーカス変更を監視
-    const handleFocusChange = () => {
-      checkFocus();
-    };
-
-    // document全体でfocus/blurイベントを監視
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', handleFocusChange);
-
-    return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusChange);
-    };
-  }, []);
 
   const handleSelect = (selectedValue: string) => {
     const selectedOption = options.find(opt => opt.value === selectedValue);
@@ -157,7 +130,6 @@ function InputWithDropdown({
   };
 
   return (
-    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <input
@@ -165,19 +137,17 @@ function InputWithDropdown({
             type="text"
             value={inputValue}
             readOnly
-            onFocus={() => {
-              setOpen(true);
-              setIsFocused(true);
-            }}
-            onBlur={() => {
-              // プルダウンが開いている場合はフォーカスを維持
-              if (!open) {
-                setTimeout(() => setIsFocused(false), 50);
+            onFocus={() => !disableFocusMove && setOpen(true)}
+            onClick={(e) => {
+              if (disableFocusMove) {
+                // フィルタ条件項目の場合はクリックでプルダウンを開く
+                setOpen(!open);
+              } else {
+                e.preventDefault();
               }
             }}
-            onClick={(e) => e.preventDefault()}
             placeholder={placeholder}
-            className={`${className} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
+            className={className}
           />
         </PopoverTrigger>
       <PopoverContent className="w-32 p-0.5" align="center">
