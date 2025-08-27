@@ -163,8 +163,7 @@ function InputWithDropdown({
           ))}
         </div>
       </PopoverContent>
-      </Popover>
-    </div>
+    </Popover>
   );
 }
 
