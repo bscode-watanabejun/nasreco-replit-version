@@ -37,7 +37,13 @@ export default function StaffLogin() {
       return await apiRequest("/api/auth/staff-login", "POST", data);
     },
     onSuccess: (data) => {
+      // 職員ログインデータをキャッシュに設定
       queryClient.setQueryData(["/api/auth/staff-user"], data);
+      // Replitユーザーのキャッシュを無効化してスタッフ認証を優先
+      queryClient.setQueryData(["/api/auth/user"], null);
+      // 認証関連のクエリを再フェッチ
+      queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
+      
       toast({
         title: "ログイン成功",
         description: "職員としてログインしました",
