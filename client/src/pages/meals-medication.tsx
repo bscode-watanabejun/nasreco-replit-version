@@ -81,6 +81,7 @@ function InputWithDropdown({
   placeholder,
   className,
   disableAutoFocus = false,
+  disableFocusMove = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
@@ -88,6 +89,7 @@ function InputWithDropdown({
   placeholder: string;
   className?: string;
   disableAutoFocus?: boolean;
+  disableFocusMove?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -131,26 +133,27 @@ function InputWithDropdown({
     onSave(selectedValue);
     setOpen(false);
 
-    // 自動フォーカス移動が有効な場合のみ実行
-    if (!disableAutoFocus) {
-      setTimeout(() => {
-        if (inputRef.current) {
-          const currentElement = inputRef.current;
-          const allElements = Array.from(
-            document.querySelectorAll("input, textarea, select, button"),
-          ).filter(
-            (el) =>
-              !el.hasAttribute("disabled") &&
-              (el as HTMLElement).offsetParent !== null,
-          ) as HTMLElement[];
+    // フォーカス移動が無効化されている場合はスキップ
+    if (disableFocusMove || disableAutoFocus) return;
+    
+    // 自動フォーカス移動を実行
+    setTimeout(() => {
+      if (inputRef.current) {
+        const currentElement = inputRef.current;
+        const allElements = Array.from(
+          document.querySelectorAll("input, textarea, select, button"),
+        ).filter(
+          (el) =>
+            !el.hasAttribute("disabled") &&
+            (el as HTMLElement).offsetParent !== null,
+        ) as HTMLElement[];
 
-          const currentIndex = allElements.indexOf(currentElement);
-          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-            allElements[currentIndex + 1].focus();
-          }
+        const currentIndex = allElements.indexOf(currentElement);
+        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+          allElements[currentIndex + 1].focus();
         }
-      }, 200);
-    }
+      }
+    }, 200);
   };
 
   return (
@@ -584,7 +587,7 @@ export default function MealsMedicationPage() {
               onSave={(value) => setSelectedMealTime(value)}
               placeholder="時間"
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disableAutoFocus={true}
+              disableFocusMove={true}
             />
           </div>
           
@@ -615,7 +618,7 @@ export default function MealsMedicationPage() {
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disableAutoFocus={true}
+              disableFocusMove={true}
             />
           </div>
         </div>

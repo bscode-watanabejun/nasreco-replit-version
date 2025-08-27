@@ -1026,10 +1026,22 @@ export class DatabaseStorage implements IStorage {
       eq(mealsAndMedication.type, 'meal')
     );
 
+    // mealTimeが指定されている場合は条件に追加
+    // ただし、meal_typeが空またはNULLの記録も含める
+    if (mealTime && mealTime !== 'all') {
+      whereConditions = and(
+        whereConditions,
+        or(
+          eq(mealsAndMedication.mealType, mealTime),
+          isNull(mealsAndMedication.mealType),
+          eq(mealsAndMedication.mealType, '')
+        )
+      );
+    }
+
     if (floor !== 'all') {
       whereConditions = and(
-        eq(mealsAndMedication.recordDate, targetDate),
-        eq(mealsAndMedication.type, 'meal'),
+        whereConditions,
         eq(residents.floor, floor)
       );
     }
