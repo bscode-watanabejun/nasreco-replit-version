@@ -1118,7 +1118,7 @@ export default function BathingList() {
       : user?.email || "スタッフ";
       
     // 現在の入浴記録を取得
-    const record = filteredBathingRecords.find((r: any) => r.id === recordId);
+    const record = bathingRecords.find((r: any) => r.id === recordId);
     if (!record) return;
     
     const currentStaffName = record.staffName || "";
@@ -1935,15 +1935,68 @@ export default function BathingList() {
             <div className="text-center py-8 text-slate-600">
               <p>データを読み込み中...</p>
             </div>
-          ) : filteredBathingRecords.length === 0 ? (
+          ) : (residents || []).filter((resident: any) => {
+            // フロアフィルタ
+            if (selectedFloor !== "全階") {
+              const residentFloor = resident.floor;
+              if (residentFloor !== selectedFloor) {
+                return false;
+              }
+            }
+            
+            // 入浴曜日フィルタ
+            const bathDayField = getBathDayField(selectedDate);
+            return resident[bathDayField];
+          }).length === 0 ? (
             <div className="text-center py-8 text-slate-600">
-              <p>選択した条件の記録がありません</p>
+              <p>選択した条件の利用者がいません</p>
             </div>
           ) : (
-            filteredBathingRecords.map((record: any, index: number) => (
+            (residents || []).filter((resident: any) => {
+              // フロアフィルタ
+              if (selectedFloor !== "全階") {
+                const residentFloor = resident.floor;
+                if (residentFloor !== selectedFloor) {
+                  return false;
+                }
+              }
+              
+              // 入浴曜日フィルタ
+              const bathDayField = getBathDayField(selectedDate);
+              return resident[bathDayField];
+            }).map((resident: any, index: number) => {
+              // この利用者に対応する入浴記録を検索
+              let existingRecord = bathingRecords.find(
+                (record: any) => record.residentId === resident.id && record.recordDate === selectedDate
+              );
+
+              // 記録が見つからない場合、一時的なレコードを作成
+              if (!existingRecord) {
+                existingRecord = {
+                  id: `temp-${resident.id}-${selectedDate}`,
+                  residentId: resident.id,
+                  recordDate: selectedDate,
+                  timing: "午前",
+                  hour: null,
+                  minute: null,
+                  bathType: null,
+                  temperature: null,
+                  bloodPressureSystolic: null,
+                  bloodPressureDiastolic: null,
+                  pulseRate: null,
+                  oxygenSaturation: null,
+                  notes: null,
+                  staffName: null,
+                  nursingCheck: false,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                };
+              }
+
+              return (
               <BathingCard
-                key={record.id}
-                record={record}
+                key={resident.id}
+                record={existingRecord}
                 residents={residents as any[]}
                 inputBaseClass={inputBaseClass}
                 hourOptions={hourOptions}
