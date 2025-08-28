@@ -1748,11 +1748,9 @@ export default function NursingRecordsList() {
                       </div>
                       
                       {/* 利用者名 */}
-                      <div className="flex-1 min-w-0 w-0">
+                      <div className="flex-1 min-w-0 mr-2">
                         <div className={`font-semibold text-sm sm:text-base truncate ${getResidentNameColor(resident)}`}>{resident.name}</div>
                       </div>
-
-                      <div className="flex-auto" />
                       
                       {/* 入浴チェックテキストボックス */}
                       <div className="w-[80px] sm:w-[140px] flex-shrink-0">
@@ -1836,9 +1834,9 @@ export default function NursingRecordsList() {
                             return (
                                 <input
                                   type="text"
-                                  value={isRejected ? "入浴チェック（差戻）" : "入浴チェック"}
+                                  value={isRejected ? "入浴チェック(差戻)" : "入浴チェック"}
                                   placeholder="入浴バイタル"
-                                  className={`w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold ${
+                                  className={`w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold leading-none box-border overflow-hidden whitespace-nowrap ${
                                     isRejected ? 'text-red-600' : (nursingChecks[resident.id] ? 'text-gray-900' : 'text-red-600')
                                   }`}
                                   readOnly
@@ -1855,7 +1853,7 @@ export default function NursingRecordsList() {
                                 type="text"
                                 value=""
                                 placeholder="入浴バイタル"
-                                className="w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold"
+                                className="w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold leading-none box-border"
                                 readOnly
                               />
                             );
@@ -1942,6 +1940,107 @@ export default function NursingRecordsList() {
           )}
         </div>
       </div>
+
+      {/* 入浴チェックダイアログ */}
+      <Dialog open={bathingCheckDialogOpen !== null} onOpenChange={() => setBathingCheckDialogOpen(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>入浴チェック</DialogTitle>
+            <DialogDescription>
+              {bathingCheckDialogOpen ? 
+                (() => {
+                  const resident = filteredResidents.find((r: any) => r.id === bathingCheckDialogOpen);
+                  return resident ? `${resident.roomNumber}: ${resident.name}` : '';
+                })() : ''
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          {bathingCheckDialogOpen && (() => {
+            const resident = filteredResidents.find((r: any) => r.id === bathingCheckDialogOpen);
+            if (!resident) return null;
+            
+            // 選択された日付の利用者の入浴記録を取得
+            const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
+              if (bathing.residentId !== resident.id) return false;
+              const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
+              return bathingDate === selectedDate;
+            });
+            
+            // バイタル完了済みの記録を取得
+            const bathingRecord = residentBathingForDate.find((bathing: any) => 
+              bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
+            );
+            
+            if (!bathingRecord) return <div className="p-4 text-center text-slate-600">バイタルデータが見つかりません</div>;
+            
+            return (
+              <div className="space-y-4">
+                {/* バイタル情報表示 */}
+                <div className="bg-slate-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-slate-800 mb-3">バイタル情報</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-slate-600">体温:</span>
+                      <span className="ml-2 font-medium">{bathingRecord.temperature}°C</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-600">血圧:</span>
+                      <span className="ml-2 font-medium">{bathingRecord.bloodPressureSystolic}/{bathingRecord.bloodPressureDiastolic} mmHg</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-600">脈拍:</span>
+                      <span className="ml-2 font-medium">{bathingRecord.pulseRate} bpm</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-600">SpO₂:</span>
+                      <span className="ml-2 font-medium">{bathingRecord.oxygenSaturation}%</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 看護チェック */}
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <span className="font-medium">看護チェック</span>
+                  <input
+                    type="checkbox"
+                    checked={nursingChecks[resident.id] || false}
+                    onChange={(e) => {
+                      const isChecked = e.target.checked;
+                      // ローカル状態を即座に更新
+                      setNursingChecks(prev => ({ ...prev, [resident.id]: isChecked }));
+                      
+                      // DB更新
+                      updateBathingRecordMutation.mutate({
+                        id: bathingRecord.id,
+                        data: { nursingCheck: isChecked }
+                      });
+                    }}
+                    className="w-5 h-5"
+                  />
+                </div>
+                
+                {/* 差戻理由（差戻がある場合のみ表示） */}
+                {bathingRecord.rejectionReason && (
+                  <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+                    <h5 className="font-medium text-red-800 mb-2">差戻理由</h5>
+                    <p className="text-red-700 text-sm">{bathingRecord.rejectionReason}</p>
+                  </div>
+                )}
+                
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setBathingCheckDialogOpen(null)}
+                  >
+                    閉じる
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
