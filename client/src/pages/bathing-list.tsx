@@ -353,7 +353,7 @@ function BathingCard({
                 value={record.hour?.toString() || ""}
                 options={hourOptions}
                 onSave={(value) =>
-                  debouncedUpdateMutation({
+                  updateMutation({
                     id: record.id,
                     field: "hour",
                     value,
@@ -368,7 +368,7 @@ function BathingCard({
                 value={record.minute?.toString() || ""}
                 options={minuteOptions}
                 onSave={(value) =>
-                  debouncedUpdateMutation({
+                  updateMutation({
                     id: record.id,
                     field: "minute",
                     value,
@@ -385,7 +385,7 @@ function BathingCard({
               value={record.bathType || ""}
               options={bathTypeOptions}
               onSave={(value) =>
-                debouncedUpdateMutation({
+                updateMutation({
                   id: record.id,
                   field: "bathType",
                   value,
@@ -413,7 +413,7 @@ function BathingCard({
               onBlur={(e) => {
                 const newValue = e.target.value;
                 if (newValue !== (record.staffName || "")) {
-                  debouncedUpdateMutation({
+                  updateMutation({
                     id: record.id,
                     field: "staffName",
                     value: newValue,
@@ -477,7 +477,7 @@ function BathingCard({
               }
               options={temperatureOptions}
               onSave={(value) =>
-                debouncedUpdateMutation({
+                updateMutation({
                   id: record.id,
                   field: "temperature",
                   value,
@@ -497,7 +497,7 @@ function BathingCard({
                 value={record.bloodPressureSystolic?.toString() || ""}
                 options={systolicBPOptions}
                 onSave={(value) =>
-                  debouncedUpdateMutation({
+                  updateMutation({
                     id: record.id,
                     field: "bloodPressureSystolic",
                     value,
@@ -512,7 +512,7 @@ function BathingCard({
                 value={record.bloodPressureDiastolic?.toString() || ""}
                 options={diastolicBPOptions}
                 onSave={(value) =>
-                  debouncedUpdateMutation({
+                  updateMutation({
                     id: record.id,
                     field: "bloodPressureDiastolic",
                     value,
@@ -532,7 +532,7 @@ function BathingCard({
               value={record.pulseRate?.toString() || ""}
               options={pulseOptions}
               onSave={(value) =>
-                debouncedUpdateMutation({
+                updateMutation({
                   id: record.id,
                   field: "pulseRate",
                   value,
@@ -551,7 +551,7 @@ function BathingCard({
               value={record.oxygenSaturation?.toString() || ""}
               options={spo2Options}
               onSave={(value) =>
-                debouncedUpdateMutation({
+                updateMutation({
                   id: record.id,
                   field: "oxygenSaturation",
                   value,
@@ -583,7 +583,7 @@ function BathingCard({
               onBlur={(e) => {
                 const newValue = e.target.value;
                 if (newValue !== (record.notes || "")) {
-                  debouncedUpdateMutation({
+                  updateMutation({
                     id: record.id,
                     field: "notes",
                     value: newValue,
