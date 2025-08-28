@@ -1935,24 +1935,8 @@ export default function BathingList() {
             <div className="text-center py-8 text-slate-600">
               <p>データを読み込み中...</p>
             </div>
-          ) : (residents || []).filter((resident: any) => {
-            // フロアフィルタ
-            if (selectedFloor !== "全階") {
-              const residentFloor = resident.floor;
-              if (residentFloor !== selectedFloor) {
-                return false;
-              }
-            }
-            
-            // 入浴曜日フィルタ
-            const bathDayField = getBathDayField(selectedDate);
-            return resident[bathDayField];
-          }).length === 0 ? (
-            <div className="text-center py-8 text-slate-600">
-              <p>選択した条件の利用者がいません</p>
-            </div>
-          ) : (
-            (residents || []).filter((resident: any) => {
+          ) : (() => {
+            const filteredResidents = (residents || []).filter((resident: any) => {
               // フロアフィルタ
               if (selectedFloor !== "全階") {
                 const residentFloor = resident.floor;
@@ -1964,7 +1948,17 @@ export default function BathingList() {
               // 入浴曜日フィルタ
               const bathDayField = getBathDayField(selectedDate);
               return resident[bathDayField];
-            }).map((resident: any, index: number) => {
+            });
+
+            if (filteredResidents.length === 0) {
+              return (
+                <div className="text-center py-8 text-slate-600">
+                  <p>選択した条件の利用者がいません</p>
+                </div>
+              );
+            }
+
+            return filteredResidents.map((resident: any, index: number) => {
               // この利用者に対応する入浴記録を検索
               let existingRecord = bathingRecords.find(
                 (record: any) => record.residentId === resident.id && record.recordDate === selectedDate
@@ -1994,30 +1988,31 @@ export default function BathingList() {
               }
 
               return (
-              <BathingCard
-                key={resident.id}
-                record={existingRecord}
-                residents={residents as any[]}
-                inputBaseClass={inputBaseClass}
-                hourOptions={hourOptions}
-                minuteOptions={minuteOptions}
-                bathTypeOptions={bathTypeOptions}
-                temperatureOptions={temperatureOptions}
-                systolicBPOptions={systolicBPOptions}
-                diastolicBPOptions={diastolicBPOptions}
-                pulseOptions={pulseOptions}
-                spo2Options={spo2Options}
-                localNotes={localNotes}
-                setLocalNotes={setLocalNotes}
-                localStaffNames={localStaffNames}
-                setLocalStaffNames={setLocalStaffNames}
-                updateMutation={debouncedUpdateMutation}
-                handleStaffStamp={handleStaffStamp}
-                deleteMutation={deleteMutation}
-                changeResidentMutation={changeResidentMutation}
-              />
-            ))
-          )}
+                <BathingCard
+                  key={resident.id}
+                  record={existingRecord}
+                  residents={residents as any[]}
+                  inputBaseClass={inputBaseClass}
+                  hourOptions={hourOptions}
+                  minuteOptions={minuteOptions}
+                  bathTypeOptions={bathTypeOptions}
+                  temperatureOptions={temperatureOptions}
+                  systolicBPOptions={systolicBPOptions}
+                  diastolicBPOptions={diastolicBPOptions}
+                  pulseOptions={pulseOptions}
+                  spo2Options={spo2Options}
+                  localNotes={localNotes}
+                  setLocalNotes={setLocalNotes}
+                  localStaffNames={localStaffNames}
+                  setLocalStaffNames={setLocalStaffNames}
+                  updateMutation={debouncedUpdateMutation}
+                  handleStaffStamp={handleStaffStamp}
+                  deleteMutation={deleteMutation}
+                  changeResidentMutation={changeResidentMutation}
+                />
+              );
+            });
+          })()}
         </div>
       </main>
 
