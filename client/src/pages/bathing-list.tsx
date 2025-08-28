@@ -243,8 +243,10 @@ function ResidentSelector({
     setPendingResidentId(null);
   }, [record.id, record.residentId]);
 
-  // 全項目未入力でない場合は変更不可
-  const disabled = !isAllEmpty;
+  const isAllEmpty = isAllBathingFieldsEmpty(record);
+  
+  // 全項目未入力でない、かつ、一時的レコードでない場合は変更不可
+  const disabled = !isAllEmpty && !record.id.startsWith('temp-');
 
   return (
     <div className="font-medium text-xs sm:text-sm truncate w-16 sm:w-24 flex-shrink-0">
@@ -296,7 +298,6 @@ function BathingCard({
   handleFieldChange,
   handleStaffStamp,
   deleteMutation,
-  changeResidentMutation,
 }: {
   record: any;
   residents: any[];
@@ -334,7 +335,7 @@ function BathingCard({
               record={record}
               residents={residents}
               onResidentChange={(recordId, residentId) => 
-                changeResidentMutation.mutate({ recordId, newResidentId: residentId })
+                handleFieldChange(recordId, residentId, "residentId", residentId)
               }
             />
           </div>
@@ -713,78 +714,66 @@ export default function BathingList() {
 
   // 入浴記録の作成
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("/api/bathing-records", "POST", data),
-    onSuccess: (serverData, variables) => {
-      console.log("createMutation onSuccess. Replacing temp record.", { serverData, variables });
-      queryClient.setQueryData(["/api/bathing-records"], (old: any[] | undefined) => {
-        if (!old) return [serverData];
+    mutationFn: async (data: any) => apiRequest("/api/bathing-records", "POST", data),
+    onMutate: async (newData) => {
+      const queryKey = ["/api/bathing-records"];
+      await queryClient.cancelQueries({ queryKey });
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
+        if (!old) return [];
+        const tempId = `temp-${newData.residentId}-${newData.recordDate}`;
         
-        const tempId = `temp-${variables.residentId}-${variables.recordDate}`;
-        const recordExists = old.some(r => r.id === serverData.id);
-
-        if (recordExists) {
-            return old.map(r => r.id === serverData.id ? serverData : r);
-        }
-
+        // 既存のtempレコードを新しいデータで更新
         const tempIndex = old.findIndex(r => r.id === tempId);
         if (tempIndex > -1) {
-            const updated = [...old];
-            updated[tempIndex] = serverData;
-            return updated;
+          const updated = [...old];
+          updated[tempIndex] = { ...updated[tempIndex], ...newData, id: tempId };
+          return updated;
         }
-
-        return [...old, serverData];
+        
+        // 新しいtempレコードを追加
+        return [...old, { ...newData, id: tempId }];
+      });
+      
+      return { previousData };
+    },
+    onSuccess: (serverData, variables) => {
+      const queryKey = ["/api/bathing-records"];
+      queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
+        if (!old) return [serverData];
+        const tempId = `temp-${variables.residentId}-${variables.recordDate}`;
+        return old.map(r => r.id === tempId ? serverData : r);
       });
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
       toast({
         title: "エラー",
         description: error.message || "入浴記録の作成に失敗しました。",
         variant: "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+      if (context?.previousData) {
+        queryClient.setQueryData(["/api/bathing-records"], context.previousData);
+      }
     },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    }
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<any> }) => {
-      // IDがtemp-で始まる場合はエラー（更新対象ではない）
       if (id.startsWith("temp-")) {
-        console.error("更新エラー: 一時的なレコードは更新できません。", { id, data });
         throw new Error("一時的なレコードは更新できません。");
       }
-      
-      // データ型を適切に変換
-      const updateData: any = {};
-      for (const key in data) {
-        if (Object.prototype.hasOwnProperty.call(data, key)) {
-          const value = (data as any)[key];
-          if (["hour", "minute"].includes(key)) {
-            if (value && value.toString().trim() !== "") {
-              const intValue = parseInt(value.toString(), 10);
-              updateData[key] = isNaN(intValue) ? null : intValue;
-            } else {
-              updateData[key] = null;
-            }
-          } else if (key === "nursingCheck") {
-            updateData[key] = value === true || value === "true" || value === "on";
-          } else {
-            updateData[key] = value;
-          }
-        }
-      }
-
-      console.log("PATCHリクエスト送信:", { id, updateData });
-      const result = await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
-      console.log("PATCH成功:", result);
-      return result;
+      return apiRequest(`/api/bathing-records/${id}`, "PATCH", data);
     },
     onMutate: async ({ id, data }) => {
-      console.log("onMutate: 楽観的更新", { id, data });
-      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records"] });
-      const previousRecords = queryClient.getQueryData(["/api/bathing-records"]);
+      const queryKey = ["/api/bathing-records"];
+      await queryClient.cancelQueries({ queryKey });
+      const previousRecords = queryClient.getQueryData(queryKey);
       
-      queryClient.setQueryData(["/api/bathing-records"], (old: any[] | undefined) => {
+      queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
         if (!old) return [];
         return old.map(record =>
           record.id === id ? { ...record, ...data } : record
@@ -794,7 +783,6 @@ export default function BathingList() {
       return { previousRecords };
     },
     onError: (error: any, _, context) => {
-      console.error('Update error:', error);
       toast({
         title: "エラー",
         description: error.message || "入浴記録の更新に失敗しました。",
@@ -804,13 +792,49 @@ export default function BathingList() {
         queryClient.setQueryData(["/api/bathing-records"], context.previousRecords);
       }
     },
-    onSuccess: () => {
-      console.log("updateMutation onSuccess: キャッシュを無効化");
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
   });
 
   
+
+  const handleSaveRecord = (residentId: string, field: string, value: any) => {
+    const recordDate = selectedDate;
+    const existingRecord = bathingRecords.find(
+      (r: any) => r.residentId === residentId && r.recordDate === recordDate
+    );
+
+    const recordData: any = {
+      residentId,
+      recordDate,
+      timing: existingRecord?.timing || '午前',
+      hour: existingRecord?.hour,
+      minute: existingRecord?.minute,
+      staffName: existingRecord?.staffName,
+      bathType: existingRecord?.bathType,
+      temperature: existingRecord?.temperature,
+      bloodPressureSystolic: existingRecord?.bloodPressureSystolic,
+      bloodPressureDiastolic: existingRecord?.bloodPressureDiastolic,
+      pulseRate: existingRecord?.pulseRate,
+      oxygenSaturation: existingRecord?.oxygenSaturation,
+      notes: existingRecord?.notes,
+      nursingCheck: existingRecord?.nursingCheck || false,
+    };
+
+    // 更新されたフィールドを適用
+    recordData[field] = value;
+
+    // 不要なフィールドを削除
+    delete recordData.isTemporary;
+    delete recordData.id;
+
+    if (existingRecord && !existingRecord.id.startsWith('temp-')) {
+      updateMutation.mutate({ id: existingRecord.id, data: { [field]: value } });
+    } else {
+      createMutation.mutate(recordData);
+    }
+  };
 
   const updateTimers = useRef<Record<string, NodeJS.Timeout>>({});
 
@@ -820,15 +844,9 @@ export default function BathingList() {
     // 1. 楽観的更新: UIを即時反映
     queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
       if (!old) return [];
-      const recordIndex = old.findIndex(r => r.id === recordId);
-      if (recordIndex > -1) {
-        const updatedRecords = [...old];
-        const currentRecord = updatedRecords[recordIndex];
-        updatedRecords[recordIndex] = { ...currentRecord, [field]: value };
-        console.log("楽観的更新:", { recordId, field, value });
-        return updatedRecords;
-      }
-      return old;
+      return old.map(r => 
+        r.id === recordId ? { ...r, [field]: value } : r
+      );
     });
 
     // 2. デバウンス付きDB保存
@@ -838,41 +856,7 @@ export default function BathingList() {
     }
 
     updateTimers.current[timerId] = setTimeout(() => {
-      const records = queryClient.getQueryData(queryKey) as any[];
-      const recordToSave = records?.find(r => r.id === recordId);
-
-      if (!recordToSave) {
-        console.error("保存対象のレコードが見つかりません。", { recordId });
-        return;
-      }
-
-      // isTemporaryフラグやその他のUI用プロパティを除外
-      const { isTemporary, ...saveData } = recordToSave;
-
-      if (recordToSave.id && !recordToSave.id.startsWith('temp-')) {
-        // --- 更新 --- 
-        console.log("DB更新を実行:", { id: recordToSave.id, data: { [field]: value } });
-        updateMutation.mutate({ id: recordToSave.id, data: { [field]: value } });
-      } else {
-        // --- 新規作成 ---
-        // residentIdがなければエラー
-        if (!residentId) {
-            console.error("新規作成エラー: residentIdがありません。");
-            toast({ title: "エラー", description: "利用者を選択してください。", variant: "destructive" });
-            return;
-        }
-        const createData = {
-            ...saveData,
-            residentId: residentId,
-            recordDate: selectedDate,
-            timing: "午前",
-        };
-        // 不要なIDフィールドを削除
-        delete createData.id;
-
-        console.log("DB新規作成を実行:", createData);
-        createMutation.mutate(createData);
-      }
+      handleSaveRecord(residentId, field, value);
     }, 800); // 800msのデバウンス
   };
 
@@ -933,66 +917,7 @@ export default function BathingList() {
     },
   });
 
-  // 利用者変更
-  const changeResidentMutation = useMutation({
-    mutationFn: async ({ recordId, newResidentId }: { recordId: string; newResidentId: string }) => {
-      // 一時的レコード（新規作成）かどうかを判定
-      if (recordId && typeof recordId === 'string' && recordId.startsWith("temp-")) {
-        // 新規作成の場合：完全なレコードデータを構築
-        const currentData = queryClient.getQueryData(["/api/bathing-records"]) as any[];
-        const currentRecord = Array.isArray(currentData) ? currentData.find((record: any) => record.id === recordId) : null;
-        
-        if (!currentRecord) {
-          throw new Error("一時的レコードが見つかりません");
-        }
-        
-        const createData = {
-          // residentIdはサーバー側で処理されるため送信しない
-          recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
-          timing: currentRecord.timing || "午前",
-          ...(currentRecord.hour && { hour: currentRecord.hour }),
-          ...(currentRecord.minute && { minute: currentRecord.minute }),
-          ...(currentRecord.staffName && { staffName: currentRecord.staffName }),
-          ...(currentRecord.bathType && { bathType: currentRecord.bathType }),
-          ...(currentRecord.temperature && { temperature: currentRecord.temperature }),
-          ...(currentRecord.bloodPressureSystolic && { bloodPressureSystolic: currentRecord.bloodPressureSystolic }),
-          ...(currentRecord.bloodPressureDiastolic && { bloodPressureDiastolic: currentRecord.bloodPressureDiastolic }),
-          ...(currentRecord.pulseRate && { pulseRate: currentRecord.pulseRate }),
-          ...(currentRecord.oxygenSaturation && { oxygenSaturation: currentRecord.oxygenSaturation }),
-          ...(currentRecord.notes && { notes: currentRecord.notes }),
-          ...(currentRecord.rejectionReason && { rejectionReason: currentRecord.rejectionReason }),
-          nursingCheck: currentRecord.nursingCheck || false,
-        };
-        
-        await apiRequest(`/api/bathing-records?residentId=${encodeURIComponent(newResidentId)}`, "POST", createData);
-      } else {
-        // 既存レコードの更新
-        await apiRequest(`/api/bathing-records/${recordId}`, "PATCH", {
-          residentId: newResidentId
-        });
-      }
-    },
-    onMutate: async ({ recordId, newResidentId }) => {
-      console.log("利用者変更のonMutate: 楽観的更新をスキップ（順番維持のため）", { recordId, newResidentId });
-      // 楽観的更新を行わず、サーバーレスポンス後のinvalidateQueriesのみに依存
-      return {};
-    },
-    onError: (error: any, variables, context) => {
-      console.error('Change resident error:', error);
-      toast({
-        title: "エラー",
-        description: error.message || "利用者の変更に失敗しました",
-        variant: "destructive",
-      });
-      
-      // エラー時もサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-    },
-    onSuccess: (data, { recordId }) => {
-      // 成功時は全体を更新
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-    },
-  });
+  
 
   // 承認者入力補助機能
   // 現在時刻に最も近いプルダウン項目を取得する関数
@@ -1048,28 +973,13 @@ export default function BathingList() {
 
   // 新規入浴記録追加機能
   const addNewRecord = () => {
-    // 現在時刻を取得
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    
-    // 時間は現在の時刻をそのまま使用
-    const selectedHour = currentHour.toString();
-    
-    // 分は15分刻みの選択肢（0, 15, 30, 45）から最も近いものを選択
-    const minuteChoices = [0, 15, 30, 45];
-    const closestMinute = minuteChoices.reduce((prev, curr) => 
-      Math.abs(curr - currentMinute) < Math.abs(prev - currentMinute) ? curr : prev
-    );
-    const selectedMinute = closestMinute.toString();
-
     const newRecord = {
-      // residentId は省略（サーバー側で null に設定）
-      recordDate: selectedDate, // YYYY-MM-DD形式の日付文字列として送信
-      hour: selectedHour, // 現在の時
-      minute: selectedMinute, // 現在時刻に最も近い15分刻みの分
+      residentId: null,
+      recordDate: selectedDate,
+      timing: "午前",
+      hour: new Date().getHours().toString(),
+      minute: (Math.round(new Date().getMinutes() / 15) * 15).toString(),
     };
-
     createMutation.mutate(newRecord);
   };
 
@@ -1827,7 +1737,6 @@ export default function BathingList() {
                   handleFieldChange={handleFieldChange}
                   handleStaffStamp={handleStaffStamp}
                   deleteMutation={deleteMutation}
-                  changeResidentMutation={changeResidentMutation}
                 />
               );
             });
