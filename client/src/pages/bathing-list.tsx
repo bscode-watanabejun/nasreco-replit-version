@@ -353,7 +353,7 @@ function BathingCard({
                 value={record.hour?.toString() || ""}
                 options={hourOptions}
                 onSave={(value) =>
-                  debouncedUpdateMutation({
+                  updateMutation.mutate({
                     id: record.id,
                     field: "hour",
                     value,
@@ -368,7 +368,7 @@ function BathingCard({
                 value={record.minute?.toString() || ""}
                 options={minuteOptions}
                 onSave={(value) =>
-                  debouncedUpdateMutation({
+                  updateMutation.mutate({
                     id: record.id,
                     field: "minute",
                     value,
@@ -385,7 +385,7 @@ function BathingCard({
               value={record.bathType || ""}
               options={bathTypeOptions}
               onSave={(value) =>
-                debouncedUpdateMutation({
+                updateMutation.mutate({
                   id: record.id,
                   field: "bathType",
                   value,
@@ -413,7 +413,7 @@ function BathingCard({
               onBlur={(e) => {
                 const newValue = e.target.value;
                 if (newValue !== (record.staffName || "")) {
-                  debouncedUpdateMutation({
+                  updateMutation.mutate({
                     id: record.id,
                     field: "staffName",
                     value: newValue,
@@ -1128,7 +1128,7 @@ export default function BathingList() {
       try {
         // 各フィールドを順次クリア（短い間隔で実行）
         await new Promise(resolve => {
-          debouncedUpdateMutation({
+          updateMutation.mutate({
             id: recordId,
             field: "staffName",
             value: "",
@@ -1138,7 +1138,7 @@ export default function BathingList() {
         });
         
         await new Promise(resolve => {
-          debouncedUpdateMutation({
+          updateMutation.mutate({
             id: recordId,
             field: "hour",
             value: "",
@@ -1147,7 +1147,7 @@ export default function BathingList() {
           setTimeout(resolve, 100);
         });
         
-        debouncedUpdateMutation({
+        updateMutation.mutate({
           id: recordId,
           field: "minute",
           value: "",
@@ -1163,7 +1163,7 @@ export default function BathingList() {
       try {
         // 各フィールドを順次入力（短い間隔で実行）
         await new Promise(resolve => {
-          debouncedUpdateMutation({
+          updateMutation.mutate({
             id: recordId,
             field: "staffName",
             value: staffName,
@@ -1173,7 +1173,7 @@ export default function BathingList() {
         });
         
         await new Promise(resolve => {
-          debouncedUpdateMutation({
+          updateMutation.mutate({
             id: recordId,
             field: "hour",
             value: currentTime.hour,
@@ -1182,7 +1182,7 @@ export default function BathingList() {
           setTimeout(resolve, 100);
         });
         
-        debouncedUpdateMutation({
+        updateMutation.mutate({
           id: recordId,
           field: "minute",
           value: currentTime.minute,
