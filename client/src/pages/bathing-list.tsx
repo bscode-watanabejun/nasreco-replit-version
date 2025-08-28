@@ -316,7 +316,7 @@ function BathingCard({
   setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   localStaffNames: Record<string, string>;
   setLocalStaffNames: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  updateMutation: any;
+  updateMutation: (params: { id: string; field: string; value: string; residentId?: string }) => void;
   handleStaffStamp: (recordId: string, residentId?: string) => void;
   deleteMutation: any;
   changeResidentMutation: any;
@@ -353,7 +353,7 @@ function BathingCard({
                 value={record.hour?.toString() || ""}
                 options={hourOptions}
                 onSave={(value) =>
-                  updateMutation.mutate({
+                  debouncedUpdateMutation({
                     id: record.id,
                     field: "hour",
                     value,
@@ -368,7 +368,7 @@ function BathingCard({
                 value={record.minute?.toString() || ""}
                 options={minuteOptions}
                 onSave={(value) =>
-                  updateMutation.mutate({
+                  debouncedUpdateMutation({
                     id: record.id,
                     field: "minute",
                     value,
@@ -385,7 +385,7 @@ function BathingCard({
               value={record.bathType || ""}
               options={bathTypeOptions}
               onSave={(value) =>
-                updateMutation.mutate({
+                debouncedUpdateMutation({
                   id: record.id,
                   field: "bathType",
                   value,
@@ -413,7 +413,7 @@ function BathingCard({
               onBlur={(e) => {
                 const newValue = e.target.value;
                 if (newValue !== (record.staffName || "")) {
-                  updateMutation.mutate({
+                  debouncedUpdateMutation({
                     id: record.id,
                     field: "staffName",
                     value: newValue,
@@ -477,7 +477,7 @@ function BathingCard({
               }
               options={temperatureOptions}
               onSave={(value) =>
-                updateMutation.mutate({
+                debouncedUpdateMutation({
                   id: record.id,
                   field: "temperature",
                   value,
@@ -497,7 +497,7 @@ function BathingCard({
                 value={record.bloodPressureSystolic?.toString() || ""}
                 options={systolicBPOptions}
                 onSave={(value) =>
-                  updateMutation.mutate({
+                  debouncedUpdateMutation({
                     id: record.id,
                     field: "bloodPressureSystolic",
                     value,
@@ -512,7 +512,7 @@ function BathingCard({
                 value={record.bloodPressureDiastolic?.toString() || ""}
                 options={diastolicBPOptions}
                 onSave={(value) =>
-                  updateMutation.mutate({
+                  debouncedUpdateMutation({
                     id: record.id,
                     field: "bloodPressureDiastolic",
                     value,
@@ -532,7 +532,7 @@ function BathingCard({
               value={record.pulseRate?.toString() || ""}
               options={pulseOptions}
               onSave={(value) =>
-                updateMutation.mutate({
+                debouncedUpdateMutation({
                   id: record.id,
                   field: "pulseRate",
                   value,
@@ -551,7 +551,7 @@ function BathingCard({
               value={record.oxygenSaturation?.toString() || ""}
               options={spo2Options}
               onSave={(value) =>
-                updateMutation.mutate({
+                debouncedUpdateMutation({
                   id: record.id,
                   field: "oxygenSaturation",
                   value,
@@ -583,7 +583,7 @@ function BathingCard({
               onBlur={(e) => {
                 const newValue = e.target.value;
                 if (newValue !== (record.notes || "")) {
-                  updateMutation.mutate({
+                  debouncedUpdateMutation({
                     id: record.id,
                     field: "notes",
                     value: newValue,
@@ -1958,7 +1958,7 @@ export default function BathingList() {
                 setLocalNotes={setLocalNotes}
                 localStaffNames={localStaffNames}
                 setLocalStaffNames={setLocalStaffNames}
-                updateMutation={updateMutation}
+                updateMutation={debouncedUpdateMutation}
                 handleStaffStamp={handleStaffStamp}
                 deleteMutation={deleteMutation}
                 changeResidentMutation={changeResidentMutation}
