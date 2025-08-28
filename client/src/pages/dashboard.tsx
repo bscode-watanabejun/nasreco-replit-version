@@ -312,7 +312,7 @@ export default function Dashboard() {
       description: "日誌・報告書",
       color: "slate",
       span: 2,
-      path: "/journals"
+      path: "/nursing-journal"
     }
   ];
 

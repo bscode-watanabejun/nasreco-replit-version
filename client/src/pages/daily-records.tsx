@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Calendar, Filter } from "lucide-react";
+import { ArrowLeft, Calendar, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -188,6 +188,7 @@ export default function DailyRecords() {
   // フィルタ状態
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedRecordType, setSelectedRecordType] = useState("all");
+  const [cardCheckboxes, setCardCheckboxes] = useState<Record<string, string[]>>({});
 
   // ローカル編集状態
   const [editingContent, setEditingContent] = useState<Record<string, string>>({});
@@ -287,6 +288,7 @@ export default function DailyRecords() {
     if (selectedRecordType !== "all") {
       const recordTypeMapping = {
         "日中": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"],
+        "夜間": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"],
         "看護": ["看護記録", "医療記録", "処置", "バイタル", "入浴"]
       };
 
@@ -325,6 +327,16 @@ export default function DailyRecords() {
     }
   };
 
+  // 日付変更関数
+  const changeDateBy = (days: number) => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() + days);
+    setSelectedDate(format(currentDate, "yyyy-MM-dd"));
+  };
+
+  const goToPreviousDay = () => changeDateBy(-1);
+  const goToNextDay = () => changeDateBy(1);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
@@ -349,12 +361,30 @@ export default function DailyRecords() {
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
-              />
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goToPreviousDay}
+                  className="h-6 w-5 p-0 hover:bg-blue-100 -mr-px"
+                >
+                  <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+                </Button>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={goToNextDay}
+                  className="h-6 w-5 p-0 hover:bg-blue-100 -ml-px"
+                >
+                  <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+                </Button>
+              </div>
             </div>
 
             {/* 記録種別選択 */}
@@ -365,6 +395,7 @@ export default function DailyRecords() {
                   const option = [
                     { value: "all", label: "全て" },
                     { value: "日中", label: "日中" },
+                    { value: "夜間", label: "夜間" },
                     { value: "看護", label: "看護" }
                   ].find(opt => opt.value === selectedRecordType);
                   return option ? option.label : "全て";
@@ -372,6 +403,7 @@ export default function DailyRecords() {
                 options={[
                   { value: "all", label: "全て" },
                   { value: "日中", label: "日中" },
+                  { value: "夜間", label: "夜間" },
                   { value: "看護", label: "看護" }
                 ]}
                 onSave={(value) => setSelectedRecordType(value)}
@@ -475,7 +507,36 @@ export default function DailyRecords() {
                   </div>
 
                   {/* 下段：記録者 */}
-                  <div className="font-medium text-sm text-right">{record.staffName || '-'}</div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-4">
+                        {(['日中', '夜間', '看護'] as const).map((type) => (
+                          <div key={type} className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              id={`${record.id}-${type}`}
+                              checked={(cardCheckboxes[record.id] || []).includes(type)}
+                              onChange={() => {
+                                setCardCheckboxes(prev => {
+                                  const currentTypes = prev[record.id] || [];
+                                  const newTypes = currentTypes.includes(type)
+                                    ? currentTypes.filter(t => t !== type)
+                                    : [...currentTypes, type];
+                                  return {
+                                    ...prev,
+                                    [record.id]: newTypes
+                                  };
+                                });
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <label htmlFor={`${record.id}-${type}`} className="text-sm font-medium text-gray-700">
+                              {type}
+                            </label>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="font-medium text-sm text-right">{record.staffName || '-'}</div>
+                  </div>
                 </CardContent>
               </Card>
             ))

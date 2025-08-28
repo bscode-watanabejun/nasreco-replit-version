@@ -486,12 +486,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bathing records routes
   app.get('/api/bathing-records', isAuthenticated, async (req, res) => {
     try {
+      console.log("=== GET /api/bathing-records Debug ===");
       const { residentId, startDate, endDate } = req.query;
+      console.log("Query params:", { residentId, startDate, endDate });
+      
       const records = await storage.getBathingRecords(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
+      
+      console.log("Records retrieved:", records);
+      console.log("Records length:", records ? records.length : "null/undefined");
+      console.log("Records type:", typeof records);
+      console.log("Is array:", Array.isArray(records));
+      
       res.json(records);
     } catch (error: any) {
       console.error("Error fetching bathing records:", error);

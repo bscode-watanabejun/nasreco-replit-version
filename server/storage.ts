@@ -448,6 +448,9 @@ export class DatabaseStorage implements IStorage {
 
   // Bathing record operations
   async getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]> {
+    console.log("=== getBathingRecords Debug ===");
+    console.log("Input params:", { residentId, startDate, endDate });
+    
     const conditions = [];
 
     if (residentId) {
@@ -460,10 +463,24 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(bathingRecords.recordDate, endDate));
     }
 
-    return await db.select()
-      .from(bathingRecords)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(bathingRecords.recordDate));
+    console.log("Conditions:", conditions.length);
+    
+    try {
+      const result = await db.select()
+        .from(bathingRecords)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(bathingRecords.recordDate));
+      
+      console.log("DB query result:", result);
+      console.log("Result length:", result ? result.length : "null/undefined");
+      console.log("Result type:", typeof result);
+      console.log("Is array:", Array.isArray(result));
+      
+      return result;
+    } catch (error) {
+      console.error("Error in getBathingRecords:", error);
+      throw error;
+    }
   }
 
   async createBathingRecord(record: InsertBathingRecord): Promise<BathingRecord> {
