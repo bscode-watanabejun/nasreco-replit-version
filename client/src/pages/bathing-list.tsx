@@ -292,11 +292,8 @@ function BathingCard({
   diastolicBPOptions,
   pulseOptions,
   spo2Options,
-  localNotes,
-  setLocalNotes,
-  localStaffNames,
-  setLocalStaffNames,
-  updateMutation,
+  
+  handleFieldChange,
   handleStaffStamp,
   deleteMutation,
   changeResidentMutation,
@@ -312,11 +309,8 @@ function BathingCard({
   diastolicBPOptions: any[];
   pulseOptions: any[];
   spo2Options: any[];
-  localNotes: Record<string, string>;
-  setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  localStaffNames: Record<string, string>;
-  setLocalStaffNames: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  updateMutation: (params: { id: string; field: string; value: string; residentId?: string }) => void;
+  
+  handleFieldChange: (recordId: string, residentId: string, field: string, value: any) => void;
   handleStaffStamp: (recordId: string, residentId?: string) => void;
   deleteMutation: any;
   changeResidentMutation: any;
@@ -353,12 +347,7 @@ function BathingCard({
                 value={record.hour?.toString() || ""}
                 options={hourOptions}
                 onSave={(value) =>
-                  updateMutation({
-                    id: record.id,
-                    field: "hour",
-                    value,
-                    residentId: record.residentId,
-                  })
+                  handleFieldChange(record.id, record.residentId, "hour", value)
                 }
                 placeholder="--"
                 className={`w-8 ${inputBaseClass}`}
@@ -368,12 +357,7 @@ function BathingCard({
                 value={record.minute?.toString() || ""}
                 options={minuteOptions}
                 onSave={(value) =>
-                  updateMutation({
-                    id: record.id,
-                    field: "minute",
-                    value,
-                    residentId: record.residentId,
-                  })
+                  handleFieldChange(record.id, record.residentId, "minute", value)
                 }
                 placeholder="--"
                 className={`w-8 ${inputBaseClass}`}
@@ -385,12 +369,8 @@ function BathingCard({
               value={record.bathType || ""}
               options={bathTypeOptions}
               onSave={(value) =>
-                updateMutation({
-                  id: record.id,
-                  field: "bathType",
-                  value,
-                  residentId: record.residentId,
-                })
+                                  handleFieldChange(record.id, record.residentId, "bathType", value)
+
               }
               placeholder="--"
               className={`w-16 ${inputBaseClass}`}
@@ -399,46 +379,9 @@ function BathingCard({
             {/* 承認者 */}
             <input
               type="text"
-              value={
-                localStaffNames[record.id] !== undefined
-                  ? localStaffNames[record.id]
-                  : record.staffName || ""
-              }
+              value={record.staffName || ""}
               onChange={(e) => {
-                setLocalStaffNames((prev) => ({
-                  ...prev,
-                  [record.id]: e.target.value,
-                }));
-              }}
-              onBlur={(e) => {
-                const newValue = e.target.value;
-                if (newValue !== (record.staffName || "")) {
-                  updateMutation({
-                    id: record.id,
-                    field: "staffName",
-                    value: newValue,
-                    residentId: record.residentId,
-                  });
-                }
-                // ローカル状態をクリア
-                setLocalStaffNames((prev) => {
-                  const updated = { ...prev };
-                  delete updated[record.id];
-                  return updated;
-                });
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                } else if (e.key === "Escape") {
-                  setLocalStaffNames((prev) => {
-                    const updated = { ...prev };
-                    delete updated[record.id];
-                    return updated;
-                  });
-                  e.currentTarget.blur();
-                }
+                handleFieldChange(record.id, record.residentId, "staffName", e.target.value);
               }}
               placeholder=""
               className={`w-12 ${inputBaseClass} px-1`}
@@ -477,12 +420,7 @@ function BathingCard({
               }
               options={temperatureOptions}
               onSave={(value) =>
-                updateMutation({
-                  id: record.id,
-                  field: "temperature",
-                  value,
-                  residentId: record.residentId,
-                })
+                handleFieldChange(record.id, record.residentId, "temperature", value)
               }
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
@@ -497,12 +435,7 @@ function BathingCard({
                 value={record.bloodPressureSystolic?.toString() || ""}
                 options={systolicBPOptions}
                 onSave={(value) =>
-                  updateMutation({
-                    id: record.id,
-                    field: "bloodPressureSystolic",
-                    value,
-                    residentId: record.residentId,
-                  })
+                  handleFieldChange(record.id, record.residentId, "bloodPressureSystolic", value)
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
@@ -512,12 +445,7 @@ function BathingCard({
                 value={record.bloodPressureDiastolic?.toString() || ""}
                 options={diastolicBPOptions}
                 onSave={(value) =>
-                  updateMutation({
-                    id: record.id,
-                    field: "bloodPressureDiastolic",
-                    value,
-                    residentId: record.residentId,
-                  })
+                  handleFieldChange(record.id, record.residentId, "bloodPressureDiastolic", value)
                 }
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
@@ -532,12 +460,7 @@ function BathingCard({
               value={record.pulseRate?.toString() || ""}
               options={pulseOptions}
               onSave={(value) =>
-                updateMutation({
-                  id: record.id,
-                  field: "pulseRate",
-                  value,
-                  residentId: record.residentId,
-                })
+                handleFieldChange(record.id, record.residentId, "pulseRate", value)
               }
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
@@ -551,12 +474,7 @@ function BathingCard({
               value={record.oxygenSaturation?.toString() || ""}
               options={spo2Options}
               onSave={(value) =>
-                updateMutation({
-                  id: record.id,
-                  field: "oxygenSaturation",
-                  value,
-                  residentId: record.residentId,
-                })
+                handleFieldChange(record.id, record.residentId, "oxygenSaturation", value)
               }
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
@@ -569,50 +487,9 @@ function BathingCard({
           {/* 記録 */}
           <div className="flex items-center flex-1">
             <textarea
-              value={
-                localNotes[record.id] !== undefined
-                  ? localNotes[record.id]
-                  : record.notes || ""
-              }
+              value={record.notes || ""}
               onChange={(e) => {
-                setLocalNotes((prev) => ({
-                  ...prev,
-                  [record.id]: e.target.value,
-                }));
-              }}
-              onBlur={(e) => {
-                const newValue = e.target.value;
-                if (newValue !== (record.notes || "")) {
-                  updateMutation({
-                    id: record.id,
-                    field: "notes",
-                    value: newValue,
-                    residentId: record.residentId,
-                  });
-                }
-                // 保存処理完了後にローカル状態をクリア（少し遅延）
-                setTimeout(() => {
-                  setLocalNotes((prev) => {
-                    const updated = { ...prev };
-                    delete updated[record.id];
-                    return updated;
-                  });
-                }, 100);
-              }}
-              onKeyDown={(e) => {
-                // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                } else if (e.key === "Escape") {
-                  // Escapeキー：変更を破棄して元の値に戻す
-                  setLocalNotes((prev) => {
-                    const updated = { ...prev };
-                    delete updated[record.id];
-                    return updated;
-                  });
-                  e.currentTarget.blur();
-                }
+                handleFieldChange(record.id, record.residentId, "notes", e.target.value);
               }}
               placeholder="記録内容"
               className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none`}
@@ -721,8 +598,7 @@ export default function BathingList() {
     }
     return "全階";
   });
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-  const [localStaffNames, setLocalStaffNames] = useState<Record<string, string>>({});
+  
   const [localValues, setLocalValues] = useState<Record<string, Record<string, string>>>({});
   
   // デバウンス用タイマー
@@ -838,100 +714,84 @@ export default function BathingList() {
   // 入浴記録の作成
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("/api/bathing-records", "POST", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    onSuccess: (serverData, variables) => {
+      console.log("createMutation onSuccess. Replacing temp record.", { serverData, variables });
+      queryClient.setQueryData(["/api/bathing-records"], (old: any[] | undefined) => {
+        if (!old) return [serverData];
+        
+        const tempId = `temp-${variables.residentId}-${variables.recordDate}`;
+        const recordExists = old.some(r => r.id === serverData.id);
+
+        if (recordExists) {
+            return old.map(r => r.id === serverData.id ? serverData : r);
+        }
+
+        const tempIndex = old.findIndex(r => r.id === tempId);
+        if (tempIndex > -1) {
+            const updated = [...old];
+            updated[tempIndex] = serverData;
+            return updated;
+        }
+
+        return [...old, serverData];
+      });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "エラー",
-        description: "入浴記録の作成に失敗しました。",
+        description: error.message || "入浴記録の作成に失敗しました。",
         variant: "destructive",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
   });
 
-  // 入浴記録の更新（体重一覧と同じ楽観的更新対応）
   const updateMutation = useMutation({
-    mutationFn: async ({
-      id,
-      field,
-      value,
-      residentId,
-    }: {
-      id: string;
-      field: string;
-      value: string;
-      residentId?: string;
-    }) => {
-      console.log("updateMutation開始:", { id, field, value, residentId });
-      
-      // 一時的なレコード（IDがtempで始まる）の場合は新規作成
+    mutationFn: async ({ id, data }: { id: string; data: Partial<any> }) => {
+      // IDがtemp-で始まる場合はエラー（更新対象ではない）
       if (id.startsWith("temp-")) {
-        const residentIdFromTemp = residentId || id.split("-")[1]; // temp-{residentId}-{date}から抽出
-        
-        // residentIdの検証
-        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
-          throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
-        }
-
-        const newRecordData: any = {
-          residentId: residentIdFromTemp,
-          recordDate: selectedDate,
-          timing: "午前",
-          [field]: value,
-        };
-
-        // データ型を適切に変換
-        if (field === "recordDate") {
-          newRecordData[field] = value;
-        } else if (["hour", "minute"].includes(field)) {
-          if (value && value.trim() !== "") {
-            const intValue = parseInt(value);
-            if (!isNaN(intValue)) {
-              newRecordData[field] = intValue;
-            }
-          }
-        } else if (field === "nursingCheck") {
-          newRecordData[field] = value === "true" || value === "on";
-        } else {
-          // その他のフィールド（notes, staffName等）はそのまま設定
-          newRecordData[field] = value;
-        }
-
-        console.log("POSTリクエスト送信:", newRecordData);
-        const result = await apiRequest("/api/bathing-records", "POST", newRecordData);
-        console.log("POST成功:", result);
-        return result;
-      } else {
-        // 既存レコードの更新
-        const updateData: any = { [field]: value };
-        if (field === "recordDate") {
-          updateData[field] = value;
-        } else if (["hour", "minute"].includes(field)) {
-          if (value && value.trim() !== "") {
-            const intValue = parseInt(value);
-            if (!isNaN(intValue)) {
-              updateData[field] = intValue;
-            }
-          } else {
-            updateData[field] = null;
-          }
-        } else if (field === "nursingCheck") {
-          updateData[field] = value === "true" || value === "on";
-        }
-        // その他のフィールド（notes, staffName等）は最初の { [field]: value } でそのまま設定される
-
-        console.log("PATCHリクエスト送信:", { id, updateData });
-        const result = await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
-        console.log("PATCH成功:", result);
-        return result;
+        console.error("更新エラー: 一時的なレコードは更新できません。", { id, data });
+        throw new Error("一時的なレコードは更新できません。");
       }
+      
+      // データ型を適切に変換
+      const updateData: any = {};
+      for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          const value = (data as any)[key];
+          if (["hour", "minute"].includes(key)) {
+            if (value && value.toString().trim() !== "") {
+              const intValue = parseInt(value.toString(), 10);
+              updateData[key] = isNaN(intValue) ? null : intValue;
+            } else {
+              updateData[key] = null;
+            }
+          } else if (key === "nursingCheck") {
+            updateData[key] = value === true || value === "true" || value === "on";
+          } else {
+            updateData[key] = value;
+          }
+        }
+      }
+
+      console.log("PATCHリクエスト送信:", { id, updateData });
+      const result = await apiRequest(`/api/bathing-records/${id}`, "PATCH", updateData);
+      console.log("PATCH成功:", result);
+      return result;
     },
-    // 楽観的更新の実装
-    onMutate: async ({ id, field, value }) => {
-      console.log("onMutate: 楽観的更新をスキップ（順番維持のため）", { id, field, value });
-      // 楽観的更新を行わず、サーバーレスポンス後のinvalidateQueriesのみに依存
-      return {};
+    onMutate: async ({ id, data }) => {
+      console.log("onMutate: 楽観的更新", { id, data });
+      await queryClient.cancelQueries({ queryKey: ["/api/bathing-records"] });
+      const previousRecords = queryClient.getQueryData(["/api/bathing-records"]);
+      
+      queryClient.setQueryData(["/api/bathing-records"], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.map(record =>
+          record.id === id ? { ...record, ...data } : record
+        );
+      });
+      
+      return { previousRecords };
     },
     onError: (error: any, _, context) => {
       console.error('Update error:', error);
@@ -940,37 +800,81 @@ export default function BathingList() {
         description: error.message || "入浴記録の更新に失敗しました。",
         variant: "destructive",
       });
-      
-      // エラー時はサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-    },
-    onSuccess: (_, variables) => {
-      console.log("updateMutation onSuccess:", variables);
-      
-      // デバウンス付きでキャッシュを無効化
-      debouncedInvalidateQueries();
-      
-      // 成功メッセージ（一時的レコードの場合のみ）
-      if (variables.id.startsWith("temp-")) {
-        toast({
-          title: "入浴記録を登録しました",
-          description: "データが保存されました。",
-        });
+      if (context?.previousRecords) {
+        queryClient.setQueryData(["/api/bathing-records"], context.previousRecords);
       }
+    },
+    onSuccess: () => {
+      console.log("updateMutation onSuccess: キャッシュを無効化");
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
     },
   });
 
-  // デバウンス付き更新関数
-  const debouncedUpdateMutation = useCallback((params: { id: string; field: string; value: string; residentId?: string }) => {
-    console.log("debouncedUpdateMutation called:", params);
-    if (updateTimerRef.current) {
-      clearTimeout(updateTimerRef.current);
+  
+
+  const updateTimers = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const handleFieldChange = (recordId: string, residentId: string, field: string, value: any) => {
+    const queryKey = ["/api/bathing-records"];
+
+    // 1. 楽観的更新: UIを即時反映
+    queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
+      if (!old) return [];
+      const recordIndex = old.findIndex(r => r.id === recordId);
+      if (recordIndex > -1) {
+        const updatedRecords = [...old];
+        const currentRecord = updatedRecords[recordIndex];
+        updatedRecords[recordIndex] = { ...currentRecord, [field]: value };
+        console.log("楽観的更新:", { recordId, field, value });
+        return updatedRecords;
+      }
+      return old;
+    });
+
+    // 2. デバウンス付きDB保存
+    const timerId = `${residentId}-${selectedDate}-${field}`;
+    if (updateTimers.current[timerId]) {
+      clearTimeout(updateTimers.current[timerId]);
     }
-    
-    updateTimerRef.current = setTimeout(() => {
-      updateMutation.mutate(params);
-    }, 500); // 500ms後に実行
-  }, [updateMutation]);
+
+    updateTimers.current[timerId] = setTimeout(() => {
+      const records = queryClient.getQueryData(queryKey) as any[];
+      const recordToSave = records?.find(r => r.id === recordId);
+
+      if (!recordToSave) {
+        console.error("保存対象のレコードが見つかりません。", { recordId });
+        return;
+      }
+
+      // isTemporaryフラグやその他のUI用プロパティを除外
+      const { isTemporary, ...saveData } = recordToSave;
+
+      if (recordToSave.id && !recordToSave.id.startsWith('temp-')) {
+        // --- 更新 --- 
+        console.log("DB更新を実行:", { id: recordToSave.id, data: { [field]: value } });
+        updateMutation.mutate({ id: recordToSave.id, data: { [field]: value } });
+      } else {
+        // --- 新規作成 ---
+        // residentIdがなければエラー
+        if (!residentId) {
+            console.error("新規作成エラー: residentIdがありません。");
+            toast({ title: "エラー", description: "利用者を選択してください。", variant: "destructive" });
+            return;
+        }
+        const createData = {
+            ...saveData,
+            residentId: residentId,
+            recordDate: selectedDate,
+            timing: "午前",
+        };
+        // 不要なIDフィールドを削除
+        delete createData.id;
+
+        console.log("DB新規作成を実行:", createData);
+        createMutation.mutate(createData);
+      }
+    }, 800); // 800msのデバウンス
+  };
 
   // 入浴記録の削除
   const deleteMutation = useMutation({
@@ -1111,86 +1015,34 @@ export default function BathingList() {
     return { hour: nearestHour, minute: nearestMinute };
   };
 
-  const handleStaffStamp = async (recordId: string, residentId?: string) => {
+  const handleStaffStamp = (recordId: string, residentId?: string) => {
     const user = currentUser as any;
     const staffName = user?.firstName && user?.lastName
       ? `${user.lastName} ${user.firstName}`
       : user?.email || "スタッフ";
       
-    // 現在の入浴記録を取得
     const record = bathingRecords.find((r: any) => r.id === recordId);
     if (!record) return;
     
+    const effectiveResidentId = residentId || record.residentId;
+    if (!effectiveResidentId) {
+        toast({ title: "エラー", description: "利用者情報が見つかりません。", variant: "destructive" });
+        return;
+    }
+
     const currentStaffName = record.staffName || "";
     
     if (currentStaffName) {
       // 承認者名が入力済みの場合：承認者名、時、分をクリア
-      try {
-        // 各フィールドを順次クリア（短い間隔で実行）
-        await new Promise(resolve => {
-          updateMutation.mutate({
-            id: recordId,
-            field: "staffName",
-            value: "",
-            residentId: residentId || record.residentId,
-          });
-          setTimeout(resolve, 100);
-        });
-        
-        await new Promise(resolve => {
-          updateMutation.mutate({
-            id: recordId,
-            field: "hour",
-            value: "",
-            residentId: residentId || record.residentId,
-          });
-          setTimeout(resolve, 100);
-        });
-        
-        updateMutation.mutate({
-          id: recordId,
-          field: "minute",
-          value: "",
-          residentId: residentId || record.residentId,
-        });
-      } catch (error) {
-        console.error("Error clearing fields:", error);
-      }
+      handleFieldChange(recordId, effectiveResidentId, "staffName", "");
+      handleFieldChange(recordId, effectiveResidentId, "hour", null);
+      handleFieldChange(recordId, effectiveResidentId, "minute", null);
     } else {
       // 承認者名が空の場合：承認者名と現在時刻を自動入力
       const currentTime = getCurrentTimeOptions();
-      
-      try {
-        // 各フィールドを順次入力（短い間隔で実行）
-        await new Promise(resolve => {
-          updateMutation.mutate({
-            id: recordId,
-            field: "staffName",
-            value: staffName,
-            residentId: residentId || record.residentId,
-          });
-          setTimeout(resolve, 100);
-        });
-        
-        await new Promise(resolve => {
-          updateMutation.mutate({
-            id: recordId,
-            field: "hour",
-            value: currentTime.hour,
-            residentId: residentId || record.residentId,
-          });
-          setTimeout(resolve, 100);
-        });
-        
-        updateMutation.mutate({
-          id: recordId,
-          field: "minute",
-          value: currentTime.minute,
-          residentId: residentId || record.residentId,
-        });
-      } catch (error) {
-        console.error("Error setting fields:", error);
-      }
+      handleFieldChange(recordId, effectiveResidentId, "staffName", staffName);
+      handleFieldChange(recordId, effectiveResidentId, "hour", currentTime.hour);
+      handleFieldChange(recordId, effectiveResidentId, "minute", currentTime.minute);
     }
   };
 
@@ -1846,48 +1698,18 @@ export default function BathingList() {
               variant="ghost"
               size="sm"
               onClick={() => {
-                console.log("戻るボタンクリック: 保存処理開始");
-                
-                // すべての入力フィールドを強制的にブラー
-                const inputs = document.querySelectorAll('input:not([disabled]), textarea:not([disabled])');
-                console.log(`見つかった入力フィールド数: ${inputs.length}`);
-                
-                inputs.forEach((input, index) => {
-                  console.log(`フィールド${index}: tag=${input.tagName}, type=${input.getAttribute('type')}, value=${(input as HTMLInputElement).value}`);
-                  if (input === document.activeElement) {
-                    console.log(`フィールド${index}をブラー中`);
-                    (input as HTMLElement).blur();
-                  }
-                });
+                // 現在アクティブな要素からフォーカスを外すことで、
+                // 編集中のフィールドがあればデバウンスされた保存がトリガーされる可能性がある
+                const activeElement = document.activeElement as HTMLElement;
+                if (activeElement && typeof activeElement.blur === 'function') {
+                  activeElement.blur();
+                }
 
-                // 少し待ってからローカル状態もチェック
+                // 短い遅延の後でページ遷移する
+                // これにより、blurイベントハンドラが実行される時間を確保する
                 setTimeout(() => {
-                  console.log("戻るボタン: localStaffNames", localStaffNames);
-                  console.log("戻るボタン: localNotes", localNotes);
-                  
-                  Object.entries(localStaffNames).forEach(([recordId, staffName]) => {
-                    console.log(`承認者名保存: recordId=${recordId}, staffName=${staffName}`);
-                    updateMutation.mutate({
-                      id: recordId,
-                      field: "staffName",
-                      value: staffName,
-                    });
-                  });
-
-                  Object.entries(localNotes).forEach(([recordId, notes]) => {
-                    console.log(`記録内容保存: recordId=${recordId}, notes=${notes}`);
-                    updateMutation.mutate({
-                      id: recordId,
-                      field: "notes",
-                      value: notes,
-                    });
-                  });
-
-                  // ページ遷移
-                  setTimeout(() => {
-                    setLocation("/");
-                  }, 300);
-                }, 100);
+                  setLocation("/");
+                }, 200);
               }}
               className="h-8 w-8 p-0"
               data-testid="button-back"
@@ -2001,11 +1823,8 @@ export default function BathingList() {
                   diastolicBPOptions={diastolicBPOptions}
                   pulseOptions={pulseOptions}
                   spo2Options={spo2Options}
-                  localNotes={localNotes}
-                  setLocalNotes={setLocalNotes}
-                  localStaffNames={localStaffNames}
-                  setLocalStaffNames={setLocalStaffNames}
-                  updateMutation={debouncedUpdateMutation}
+                  
+                  handleFieldChange={handleFieldChange}
                   handleStaffStamp={handleStaffStamp}
                   deleteMutation={deleteMutation}
                   changeResidentMutation={changeResidentMutation}
