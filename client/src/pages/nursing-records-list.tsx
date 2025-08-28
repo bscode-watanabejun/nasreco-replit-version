@@ -1838,7 +1838,7 @@ export default function NursingRecordsList() {
                                   type="text"
                                   value={isRejected ? "入浴チェック（差戻）" : "入浴チェック"}
                                   placeholder="入浴バイタル"
-                                  className={`w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold ${
+                                  className={`w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold ${
                                     isRejected ? 'text-red-600' : (nursingChecks[resident.id] ? 'text-gray-900' : 'text-red-600')
                                   }`}
                                   readOnly
@@ -1855,7 +1855,7 @@ export default function NursingRecordsList() {
                                 type="text"
                                 value=""
                                 placeholder="入浴バイタル"
-                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold"
+                                className="w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold"
                                 readOnly
                               />
                             );
@@ -1880,162 +1880,6 @@ export default function NursingRecordsList() {
                           
                           // 「入浴チェック」が表示されていない場合は看護チェックを非活性化
                           const isNursingCheckDisabled = !showsBathingCheck;
-                          return (
-                            <>
-                              <input
-                                type="checkbox"
-                                checked={nursingChecks[resident.id] || false}
-                                onChange={(e) => {
-                                  const isChecked = e.target.checked;
-                                  <DialogContent className="max-w-2xl">
-                                    <DialogHeader>
-                                      <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
-                                      <DialogDescription>
-                                        入浴記録の確認と編集を行ってください。
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-6">
-                                      {(() => {
-                                        // 該当日の入浴記録データを取得
-                                        const bathingRecordForResident = residentBathingForDate.find((bathing: any) => 
-                                          bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
-                                        );
-
-                                        if (!bathingRecordForResident) {
-                                          return <div className="text-gray-500">入浴記録が見つかりません</div>;
-                                        }
-
-                                        return (
-                                          <>
-                                            {/* バイタルサイン表示（編集不可） */}
-                                            <div className="bg-gray-50 p-4 rounded-lg">
-                                              <h3 className="text-sm font-semibold text-gray-700 mb-3">バイタルサイン（入浴一覧より）</h3>
-                                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                                <div>
-                                                  <label className="text-gray-600">体温</label>
-                                                  <div className="font-medium">{bathingRecordForResident.temperature}℃</div>
-                                                </div>
-                                                <div>
-                                                  <label className="text-gray-600">血圧</label>
-                                                  <div className="font-medium">
-                                                    {bathingRecordForResident.bloodPressureSystolic}/{bathingRecordForResident.bloodPressureDiastolic || '-'}mmHg
-                                                  </div>
-                                                </div>
-                                                <div>
-                                                  <label className="text-gray-600">脈拍</label>
-                                                  <div className="font-medium">{bathingRecordForResident.pulseRate}bpm</div>
-                                                </div>
-                                                <div>
-                                                  <label className="text-gray-600">SpO₂</label>
-                                                  <div className="font-medium">{bathingRecordForResident.oxygenSaturation}%</div>
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            {/* 記録内容（編集可能） */}
-                                            <div className="space-y-2">
-                                              <label className="text-sm font-semibold text-gray-700">記録内容</label>
-                                              <Textarea
-                                                defaultValue={bathingRecordForResident.notes || ""}
-                                                onBlur={(e) => {
-                                                  // フォーカス離脱時にサーバーに保存と楽観的更新
-                                                  const newValue = e.target.value;
-                                                  // 楽観的更新
-                                                  queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
-                                                    return old?.map((record: any) => 
-                                                      record.id === bathingRecordForResident.id 
-                                                        ? { ...record, notes: newValue }
-                                                        : record
-                                                    );
-                                                  });
-                                                  // サーバーに保存
-                                                  updateBathingRecordMutation.mutate({
-                                                    id: bathingRecordForResident.id,
-                                                    data: { notes: newValue }
-                                                  });
-                                                }}
-                                                placeholder="記録内容を入力してください"
-                                                rows={4}
-                                                className="resize-none"
-                                              />
-                                              <p className="text-xs text-gray-500">※入浴一覧画面と相互編集されます</p>
-                                            </div>
-
-                                            {/* 差戻チェックボックス */}
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`rejection-${resident.id}`}
-                                                checked={!!bathingRecordForResident.rejectionReason}
-                                                onCheckedChange={(checked) => {
-                                                  // 差戻状態を入浴記録に保存
-                                                  const rejectionValue = checked ? "差戻" : "";
-                                                  
-                                                  // 楽観的更新
-                                                  queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
-                                                    return old?.map((record: any) => 
-                                                      record.id === bathingRecordForResident.id 
-                                                        ? { ...record, rejectionReason: rejectionValue }
-                                                        : record
-                                                    );
-                                                  });
-                                                  
-                                                  // DB更新
-                                                  updateBathingRecordMutation.mutate({
-                                                    id: bathingRecordForResident.id,
-                                                    data: { rejectionReason: rejectionValue }
-                                                  });
-                                                }}
-                                              />
-                                              <label 
-                                                htmlFor={`rejection-${resident.id}`}
-                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                              >
-                                                差戻
-                                              </label>
-                                            </div>
-
-                                          </>
-                                        );
-                                      })()}
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-                            );
-                          } else {
-                            // バイタル未入力の場合は「入浴バイタル」プレースホルダー表示（ダイアログなし）
-                            return (
-                              <input
-                                type="text"
-                                value=""
-                                placeholder="入浴バイタル"
-                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold"
-                                readOnly
-                              />
-                            );
-                          }
-                        })()}
-                      </div>
-                      
-                      {/* 看チェックボックス */}
-                      <div className="flex items-center flex-shrink-0">
-                        {(() => {
-                          // 選択された日付の利用者の入浴記録を取得（入浴チェック表示条件と同じロジック）
-                          const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
-                            if (bathing.residentId !== resident.id) return false;
-                            const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
-                            return bathingDate === selectedDate;
-                          });
-
-                          const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
-                            bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
-                          );
-
-                          // 「入浴チェック」が表示される条件：バイタル完了済み
-                          const showsBathingCheck = hasCompleteVitals;
-                          
-                          // 「入浴チェック」が表示されていない場合は看護チェックを非活性化
-                          const isNursingCheckDisabled = !showsBathingCheck;
-
                           return (
                             <>
                               <input
