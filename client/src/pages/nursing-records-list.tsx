@@ -346,6 +346,8 @@ export default function NursingRecordsList() {
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
   // 差戻チェック用の状態（ポップアップ内でのみ使用）
   const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
+  // 入浴チェックダイアログ用の状態
+  const [bathingCheckDialogOpen, setBathingCheckDialogOpen] = useState<string | null>(null);
   // 入浴チェックのみフィルタの状態
   const [showBathingOnly, setShowBathingOnly] = useState(false);
   // ローカル記録日時の状態
@@ -1830,40 +1832,61 @@ export default function NursingRecordsList() {
                             );
                             const isRejected = bathingRecord?.rejectionReason ? true : false;
                             
-                            // 常に「入浴チェック」を表示し、差戻時はスタンプを重ねる
+                            // 常に「入浴チェック」を表示し、差戻時は（差戻）を追加
                             return (
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <div 
-                                      className="relative w-full cursor-pointer"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <input
-                                        type="text"
-                                        value="入浴チェック"
-                                        placeholder="入浴バイタル"
-                                        className={`w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold pointer-events-none ${
-                                          nursingChecks[resident.id] ? 'text-gray-900' : 'text-red-600'
-                                        }`}
-                                        readOnly
-                                      />
-                                      {/* 差戻スタンプオーバーレイ */}
-                                      {isRejected && (
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                          <div className="relative">
-                                            {/* スタンプの影効果 */}
-                                            <div className="absolute top-0.5 left-0.5 bg-red-800 text-transparent text-xs font-bold px-1.5 py-0.5 rounded-full transform rotate-12">
-                                              差戻
-                                            </div>
-                                            {/* メインスタンプ */}
-                                            <div className="bg-red-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full border-2 border-red-700 transform rotate-12 shadow-md">
-                                              差戻
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </DialogTrigger>
+                                <input
+                                  type="text"
+                                  value={isRejected ? "入浴チェック（差戻）" : "入浴チェック"}
+                                  placeholder="入浴バイタル"
+                                  className={`w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold ${
+                                    isRejected ? 'text-red-600' : (nursingChecks[resident.id] ? 'text-gray-900' : 'text-red-600')
+                                  }`}
+                                  readOnly
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBathingCheckDialogOpen(resident.id);
+                                  }}
+                                />
+                            );
+                          } else {
+                            // バイタル未入力の場合は「入浴バイタル」プレースホルダー表示（ダイアログなし）
+                            return (
+                              <input
+                                type="text"
+                                value=""
+                                placeholder="入浴バイタル"
+                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold"
+                                readOnly
+                              />
+                            );
+                          }
+                        })()}
+                      </div>
+                      
+                      {/* 看チェックボックス */}
+                      <div className="flex items-center flex-shrink-0">
+                        {(() => {
+                          // 選択された日付の利用者の入浴記録を取得（入浴チェック表示条件と同じロジック）
+                          const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
+                            if (bathing.residentId !== resident.id) return false;
+                            const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
+                            return bathingDate === selectedDate;
+                          });
+                          const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
+                            bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
+                          );
+                          // 「入浴チェック」が表示される条件：バイタル完了済み
+                          const showsBathingCheck = hasCompleteVitals;
+                          
+                          // 「入浴チェック」が表示されていない場合は看護チェックを非活性化
+                          const isNursingCheckDisabled = !showsBathingCheck;
+                          return (
+                            <>
+                              <input
+                                type="checkbox"
+                                checked={nursingChecks[resident.id] || false}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
                                   <DialogContent className="max-w-2xl">
                                     <DialogHeader>
                                       <DialogTitle>入浴チェック - {resident.name}</DialogTitle>
@@ -1985,7 +2008,7 @@ export default function NursingRecordsList() {
                                 type="text"
                                 value=""
                                 placeholder="入浴バイタル"
-                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="w-full h-5 sm:h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold"
                                 readOnly
                               />
                             );
