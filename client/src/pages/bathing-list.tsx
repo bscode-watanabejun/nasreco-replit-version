@@ -242,8 +242,6 @@ function ResidentSelector({
   useEffect(() => {
     setPendingResidentId(null);
   }, [record.id, record.residentId]);
-
-  const isAllEmpty = isAllBathingFieldsEmpty(record);
   
   // 全項目未入力でない、かつ、一時的レコードでない場合は変更不可
   const disabled = !isAllEmpty && !record.id.startsWith('temp-');
@@ -1737,6 +1735,7 @@ export default function BathingList() {
                   handleFieldChange={handleFieldChange}
                   handleStaffStamp={handleStaffStamp}
                   deleteMutation={deleteMutation}
+                  changeResidentMutation={handleFieldChange}
                 />
               );
             });
