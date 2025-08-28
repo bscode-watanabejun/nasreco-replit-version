@@ -523,7 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       console.log("Data to validate:", JSON.stringify(dataToValidate, null, 2));
       
-      const validatedData = insertBathingRecordSchema.parse(dataToValidate);
+      const validatedData = insertBathingRecordSchema.partial().parse(dataToValidate);
       console.log("Validation successful:", JSON.stringify(validatedData, null, 2));
       
       // residentIdとstaffIdはvalidationから除外されているため、手動で追加
@@ -531,6 +531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...validatedData,
         residentId: req.body.residentId || req.query.residentId || null,  // bodyから優先して取得、なければquery、それでもなければnull
         staffId: req.user.claims.sub,  // 現在のユーザーIDを設定
+        recordDate: req.body.recordDate ? new Date(req.body.recordDate) : new Date(),  // recordDateが未定義の場合は現在日時
       };
       
       console.log("Final recordData:", JSON.stringify(recordData, null, 2));

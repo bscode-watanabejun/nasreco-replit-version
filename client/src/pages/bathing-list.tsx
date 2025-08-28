@@ -41,6 +41,57 @@ import {
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
+// 記録内容用のIME対応textareaコンポーネント（食事一覧と同じ）
+function NotesInput({
+  residentId,
+  initialValue,
+  onSave,
+}: {
+  residentId: string;
+  initialValue: string;
+  onSave: (value: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const [isComposing, setIsComposing] = useState(false);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+  };
+
+  const handleBlur = () => {
+    // カーソルアウト時に保存
+    onSave(value);
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+    setValue(e.currentTarget.value);
+  };
+
+  return (
+    <textarea
+      value={value}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      placeholder="記録内容"
+      className="flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none"
+      rows={1}
+      style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
+    />
+  );
+}
+
 // インライン編集用のコンポーネント（処置一覧と同じ実装）
 function InputWithDropdown({
   id,
@@ -63,6 +114,7 @@ function InputWithDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [lastSavedValue, setLastSavedValue] = useState<string>("");
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -87,18 +139,23 @@ function InputWithDropdown({
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
-    // 選択した値をローカル状態にセット
-    setInputValue(selectedValue);
-    setOpen(false);
     
-    // 即座に保存
-    if (selectedValue !== value) {
-      onSave(selectedValue);
+    // 重複防止：同じ値を連続して保存しない
+    if (selectedValue === lastSavedValue) {
+      setOpen(false);
+      return;
     }
+    
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    setInputValue(selectedOption ? selectedOption.label : selectedValue);
+    setLastSavedValue(selectedValue);
+    onSave(selectedValue);
+    setOpen(false);
 
     if (enableAutoFocus) {
       setTimeout(() => {
         if (inputRef.current) {
+          const currentElement = inputRef.current;
           const allElements = Array.from(
             document.querySelectorAll("input, textarea, select, button"),
           ).filter(
@@ -106,43 +163,13 @@ function InputWithDropdown({
               !el.hasAttribute("disabled") &&
               (el as HTMLElement).offsetParent !== null,
           ) as HTMLElement[];
-          const currentIndex = allElements.indexOf(inputRef.current);
+
+          const currentIndex = allElements.indexOf(currentElement);
           if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-            const nextElement = allElements[currentIndex + 1] as HTMLElement;
-            nextElement.focus();
-            if (nextElement.getAttribute('data-component') === 'input-with-dropdown') {
-              nextElement.click();
-            }
+            allElements[currentIndex + 1].focus();
           }
         }
       }, 200);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (disabled) return;
-    setInputValue(e.target.value);
-  };
-
-  const handleInputBlur = () => {
-    if (disabled) return;
-    // 値が変更された場合のみ保存
-    if (inputValue !== value) {
-      onSave(inputValue);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (disabled) return;
-    if (e.key === "Enter") {
-      // 値が変更された場合のみ保存
-      if (inputValue !== value) {
-        onSave(inputValue);
-      }
-      setOpen(false);
-    } else if (e.key === "Escape") {
-      setInputValue(value);
-      setOpen(false);
     }
   };
 
@@ -155,12 +182,11 @@ function InputWithDropdown({
             ref={inputRef}
             type="text"
             value={inputValue}
-            onChange={handleInputChange}
-            onBlur={handleInputBlur}
-            onKeyDown={handleKeyDown}
+            readOnly
+            onFocus={() => !disabled && setOpen(true)}
             onClick={(e) => {
+              if (disabled) return;
               e.preventDefault();
-              setOpen(!open);
             }}
             placeholder={placeholder}
             className={className}
@@ -283,6 +309,7 @@ function ResidentSelector({
 function BathingCard({
   record,
   residents,
+  currentUser,
   inputBaseClass,
   hourOptions,
   minuteOptions,
@@ -293,12 +320,14 @@ function BathingCard({
   pulseOptions,
   spo2Options,
   
-  handleFieldChange,
+  handleFieldUpdate,
+  handleSaveRecord,
   handleStaffStamp,
   deleteMutation,
 }: {
   record: any;
   residents: any[];
+  currentUser: any;
   inputBaseClass: string;
   hourOptions: any[];
   minuteOptions: any[];
@@ -309,12 +338,40 @@ function BathingCard({
   pulseOptions: any[];
   spo2Options: any[];
   
-  handleFieldChange: (recordId: string, residentId: string, field: string, value: any) => void;
+  handleFieldUpdate: (residentId: string, field: string, value: any) => void;
+  handleSaveRecord: (residentId: string, field: string, value: any) => void;
   handleStaffStamp: (recordId: string, residentId?: string) => void;
   deleteMutation: any;
   changeResidentMutation: any;
 }) {
   const resident = residents.find((r: any) => r.id === record.residentId);
+  const [staffName, setStaffName] = useState(record.staffName || "");
+  const [notes, setNotes] = useState(record.notes || "");
+
+  useEffect(() => {
+    setStaffName(record.staffName || "");
+  }, [record.staffName]);
+
+  useEffect(() => {
+    setNotes(record.notes || "");
+  }, [record.notes]);
+
+  const handleStaffNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setStaffName(e.target.value);
+  };
+
+  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNotes(e.target.value);
+  };
+
+  const handleBlur = (field: string, value: any) => {
+    if (value !== record[field]) {
+      handleFieldUpdate(record.residentId, field, value);
+      if (value && value.toString().trim() !== "") {
+        handleSaveRecord(record.residentId, field, value);
+      }
+    }
+  };
 
   return (
     <Card className="bg-white shadow-sm">
@@ -332,9 +389,10 @@ function BathingCard({
             <ResidentSelector
               record={record}
               residents={residents}
-              onResidentChange={(recordId, residentId) => 
-                handleFieldChange(recordId, residentId, "residentId", residentId)
-              }
+              onResidentChange={(recordId, residentId) => {
+                handleFieldUpdate(residentId, "residentId", residentId);
+                handleSaveRecord(residentId, "residentId", residentId);
+              }}
             />
           </div>
           
@@ -345,9 +403,13 @@ function BathingCard({
               <InputWithDropdown
                 value={record.hour?.toString() || ""}
                 options={hourOptions}
-                onSave={(value) =>
-                  handleFieldChange(record.id, record.residentId, "hour", value)
-                }
+                onSave={(value) => {
+                  console.log("🎯 Hour onSave called with:", value);
+                  handleFieldUpdate(record.residentId, "hour", value);
+                  if (value && value !== "" && value !== "empty") {
+                    handleSaveRecord(record.residentId, "hour", value);
+                  }
+                }}
                 placeholder="--"
                 className={`w-8 ${inputBaseClass}`}
               />
@@ -355,9 +417,12 @@ function BathingCard({
               <InputWithDropdown
                 value={record.minute?.toString() || ""}
                 options={minuteOptions}
-                onSave={(value) =>
-                  handleFieldChange(record.id, record.residentId, "minute", value)
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(record.residentId, "minute", value);
+                  if (value && value !== "" && value !== "empty") {
+                    handleSaveRecord(record.residentId, "minute", value);
+                  }
+                }}
                 placeholder="--"
                 className={`w-8 ${inputBaseClass}`}
               />
@@ -367,10 +432,12 @@ function BathingCard({
             <InputWithDropdown
               value={record.bathType || ""}
               options={bathTypeOptions}
-              onSave={(value) =>
-                                  handleFieldChange(record.id, record.residentId, "bathType", value)
-
-              }
+              onSave={(value) => {
+                handleFieldUpdate(record.residentId, "bathType", value);
+                if (value && value !== "" && value !== "empty") {
+                  handleSaveRecord(record.residentId, "bathType", value);
+                }
+              }}
               placeholder="--"
               className={`w-16 ${inputBaseClass}`}
             />
@@ -378,9 +445,25 @@ function BathingCard({
             {/* 承認者 */}
             <input
               type="text"
-              value={record.staffName || ""}
+              value={staffName}
               onChange={(e) => {
-                handleFieldChange(record.id, record.residentId, "staffName", e.target.value);
+                setStaffName(e.target.value);
+                handleFieldUpdate(record.residentId, "staffName", e.target.value);
+              }}
+              onBlur={(e) => {
+                const value = e.target.value;
+                if (value && value.trim()) {
+                  handleSaveRecord(record.residentId, "staffName", value);
+                }
+              }}
+              onClick={(e) => {
+                const currentValue = e.currentTarget.value;
+                if (!currentValue.trim()) {
+                  const user = currentUser as any;
+                  const newStaffName = user?.firstName || 'スタッフ';
+                  setStaffName(newStaffName);
+                  handleFieldUpdate(record.residentId, "staffName", newStaffName);
+                }
               }}
               placeholder=""
               className={`w-12 ${inputBaseClass} px-1`}
@@ -418,9 +501,12 @@ function BathingCard({
                   : ""
               }
               options={temperatureOptions}
-              onSave={(value) =>
-                handleFieldChange(record.id, record.residentId, "temperature", value)
-              }
+              onSave={(value) => {
+                handleFieldUpdate(record.residentId, "temperature", value);
+                if (value && value !== "" && value !== "empty") {
+                  handleSaveRecord(record.residentId, "temperature", value);
+                }
+              }}
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
             />
@@ -433,9 +519,12 @@ function BathingCard({
               <InputWithDropdown
                 value={record.bloodPressureSystolic?.toString() || ""}
                 options={systolicBPOptions}
-                onSave={(value) =>
-                  handleFieldChange(record.id, record.residentId, "bloodPressureSystolic", value)
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(record.residentId, "bloodPressureSystolic", value);
+                  if (value && value !== "" && value !== "empty") {
+                    handleSaveRecord(record.residentId, "bloodPressureSystolic", value);
+                  }
+                }}
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
               />
@@ -443,9 +532,12 @@ function BathingCard({
               <InputWithDropdown
                 value={record.bloodPressureDiastolic?.toString() || ""}
                 options={diastolicBPOptions}
-                onSave={(value) =>
-                  handleFieldChange(record.id, record.residentId, "bloodPressureDiastolic", value)
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(record.residentId, "bloodPressureDiastolic", value);
+                  if (value && value !== "" && value !== "empty") {
+                    handleSaveRecord(record.residentId, "bloodPressureDiastolic", value);
+                  }
+                }}
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
               />
@@ -458,9 +550,12 @@ function BathingCard({
             <InputWithDropdown
               value={record.pulseRate?.toString() || ""}
               options={pulseOptions}
-              onSave={(value) =>
-                handleFieldChange(record.id, record.residentId, "pulseRate", value)
-              }
+              onSave={(value) => {
+                handleFieldUpdate(record.residentId, "pulseRate", value);
+                if (value && value !== "" && value !== "empty") {
+                  handleSaveRecord(record.residentId, "pulseRate", value);
+                }
+              }}
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
             />
@@ -472,9 +567,12 @@ function BathingCard({
             <InputWithDropdown
               value={record.oxygenSaturation?.toString() || ""}
               options={spo2Options}
-              onSave={(value) =>
-                handleFieldChange(record.id, record.residentId, "oxygenSaturation", value)
-              }
+              onSave={(value) => {
+                handleFieldUpdate(record.residentId, "oxygenSaturation", value);
+                if (value && value !== "" && value !== "empty") {
+                  handleSaveRecord(record.residentId, "oxygenSaturation", value);
+                }
+              }}
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
             />
@@ -485,15 +583,15 @@ function BathingCard({
         <div className="flex items-center gap-0.5 sm:gap-1">
           {/* 記録 */}
           <div className="flex items-center flex-1">
-            <textarea
-              value={record.notes || ""}
-              onChange={(e) => {
-                handleFieldChange(record.id, record.residentId, "notes", e.target.value);
+            <NotesInput
+              residentId={record.residentId}
+              initialValue={notes}
+              onSave={(value) => {
+                handleFieldUpdate(record.residentId, "notes", value);
+                if (value && value.trim()) {
+                  handleSaveRecord(record.residentId, "notes", value);
+                }
               }}
-              placeholder="記録内容"
-              className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none`}
-              rows={1}
-              style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
             />
           </div>
 
@@ -713,50 +811,35 @@ export default function BathingList() {
   // 入浴記録の作成
   const createMutation = useMutation({
     mutationFn: async (data: any) => apiRequest("/api/bathing-records", "POST", data),
-    onMutate: async (newData) => {
+    onSuccess: (serverResponse, variables) => {
       const queryKey = ["/api/bathing-records"];
-      await queryClient.cancelQueries({ queryKey });
-      const previousData = queryClient.getQueryData(queryKey);
       
-      queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
-        if (!old) return [];
-        const tempId = `temp-${newData.residentId}-${newData.recordDate}`;
+      // 食事一覧と同じパターンで一時レコードを置き換える
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
         
-        // 既存のtempレコードを新しいデータで更新
-        const tempIndex = old.findIndex(r => r.id === tempId);
-        if (tempIndex > -1) {
-          const updated = [...old];
-          updated[tempIndex] = { ...updated[tempIndex], ...newData, id: tempId };
-          return updated;
-        }
-        
-        // 新しいtempレコードを追加
-        return [...old, { ...newData, id: tempId }];
-      });
-      
-      return { previousData };
-    },
-    onSuccess: (serverData, variables) => {
-      const queryKey = ["/api/bathing-records"];
-      queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
-        if (!old) return [serverData];
-        const tempId = `temp-${variables.residentId}-${variables.recordDate}`;
-        return old.map(r => r.id === tempId ? serverData : r);
+        // temp-で始まる一時レコードを実際のIDに置き換え
+        return old.map((record: any) => {
+          if (record.id?.startsWith('temp-') && 
+              record.residentId === variables.residentId && 
+              format(new Date(record.recordDate), 'yyyy-MM-dd') === format(new Date(variables.recordDate), 'yyyy-MM-dd')) {
+            return { ...record, ...serverResponse, id: serverResponse.id };
+          }
+          return record;
+        });
       });
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any) => {
+      console.error("入浴記録作成エラー:", error);
+      
       toast({
         title: "エラー",
         description: error.message || "入浴記録の作成に失敗しました。",
         variant: "destructive",
       });
-      if (context?.previousData) {
-        queryClient.setQueryData(["/api/bathing-records"], context.previousData);
-      }
-    },
-    onSettled: () => {
+      // エラー時は invalidate してサーバーの状態と同期させる
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-    }
+    },
   });
 
   const updateMutation = useMutation({
@@ -790,73 +873,159 @@ export default function BathingList() {
         queryClient.setQueryData(["/api/bathing-records"], context.previousRecords);
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    onSuccess: () => {
+      // 楽観的更新を使用しているため、成功時の無効化は不要
     },
   });
 
+  // フィールド更新（楽観的更新のみ）- 食事一覧と同じパターン
+  const handleFieldUpdate = (residentId: string, field: string, value: any) => {
+
+    const queryKey = ["/api/bathing-records"];
+    
+    // 食事一覧と同じ楽観的更新
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!old) return old;
+      
+      // 既存のレコードを探す（食事一覧と同じ条件）
+      const existingIndex = old.findIndex((record: any) => 
+        record.residentId === residentId && 
+        format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+      );
+      
+      if (existingIndex >= 0) {
+        // 既存レコードを更新
+        const updated = [...old];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          [field]: value === "empty" ? "" : value
+        };
+        return updated;
+      } else {
+        // 新規レコードを追加（食事一覧と同じパターン）
+        const newRecord = {
+          id: `temp-${Date.now()}`,
+          residentId,
+          staffId: (currentUser as any)?.id || (currentUser as any)?.claims?.sub || 'unknown',
+          recordDate: new Date(selectedDate),
+          timing: "午前",
+          hour: field === 'hour' ? (value === "empty" ? "" : value) : '',
+          minute: field === 'minute' ? (value === "empty" ? "" : value) : '',
+          staffName: field === 'staffName' ? (value === "empty" ? "" : value) : '',
+          bathType: field === 'bathType' ? (value === "empty" ? "" : value) : '',
+          temperature: field === 'temperature' ? (value === "empty" ? "" : value) : '',
+          weight: '',
+          bloodPressureSystolic: field === 'bloodPressureSystolic' ? (value === "empty" ? "" : value) : '',
+          bloodPressureDiastolic: field === 'bloodPressureDiastolic' ? (value === "empty" ? "" : value) : '',
+          pulseRate: field === 'pulseRate' ? (value === "empty" ? "" : value) : '',
+          oxygenSaturation: field === 'oxygenSaturation' ? (value === "empty" ? "" : value) : '',
+          notes: field === 'notes' ? value : '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        return [...old, newRecord];
+      }
+    });
+    
+    // 自動保存は無効化 - 重複登録を防ぐため（食事一覧と同じ）
+  };
+
+  // 食事一覧と同じシンプルなパターンに統一（重複防止キャッシュは削除）
+
+  // DB保存処理（食事一覧と完全に同じパターンに変更）
+  const lastSaveRef = useRef<Record<string, any>>({});
   
-
   const handleSaveRecord = (residentId: string, field: string, value: any) => {
-    const recordDate = selectedDate;
-    const existingRecord = bathingRecords.find(
-      (r: any) => r.residentId === residentId && r.recordDate === recordDate
-    );
+    const saveKey = `${residentId}-${field}`;
+    const lastValue = lastSaveRef.current[saveKey];
+    
+    // 重複防止：同じ利用者の同じフィールドで同じ値を連続して保存しない
+    if (lastValue === value) {
+      console.log("⏸️ Skipping duplicate save in handleSaveRecord:", saveKey, value);
+      return;
+    }
+    
+    lastSaveRef.current[saveKey] = value;
 
-    const recordData: any = {
+    // React Queryのキャッシュから現在のデータを取得（楽観的更新含む）
+    const currentCachedData = queryClient.getQueryData(["/api/bathing-records"]) as any[] || [];
+    
+    console.log("🔍 Searching for existing record:", {
+      searchResidentId: residentId,
+      searchDate: selectedDate,
+      originalBathingRecordsLength: bathingRecords.length,
+      currentCachedDataLength: currentCachedData.length,
+      cachedRecords: currentCachedData.map(r => ({
+        id: r.id,
+        residentId: r.residentId,
+        recordDate: r.recordDate,
+        formattedDate: format(new Date(r.recordDate), 'yyyy-MM-dd'),
+        isTemp: r.id?.startsWith('temp-')
+      }))
+    });
+    
+    // 楽観的更新を含むキャッシュから検索
+    const existingRecord = currentCachedData.find((record: any) => 
+      record.residentId === residentId && 
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+    );
+    
+    console.log("📋 Existing record found:", existingRecord);
+
+    // 食事一覧と同じレコードデータ作成方式
+    const recordData = {
       residentId,
-      recordDate,
-      timing: existingRecord?.timing || '午前',
-      hour: existingRecord?.hour,
-      minute: existingRecord?.minute,
-      staffName: existingRecord?.staffName,
-      bathType: existingRecord?.bathType,
-      temperature: existingRecord?.temperature,
-      bloodPressureSystolic: existingRecord?.bloodPressureSystolic,
-      bloodPressureDiastolic: existingRecord?.bloodPressureDiastolic,
-      pulseRate: existingRecord?.pulseRate,
-      oxygenSaturation: existingRecord?.oxygenSaturation,
-      notes: existingRecord?.notes,
-      nursingCheck: existingRecord?.nursingCheck || false,
+      staffId: (currentUser as any)?.id || (currentUser as any)?.claims?.sub || 'unknown',
+      recordDate: new Date(selectedDate),
+      timing: "午前",
+      hour: existingRecord?.hour || "",
+      minute: existingRecord?.minute || "",
+      staffName: existingRecord?.staffName || "",
+      bathType: existingRecord?.bathType || "",
+      temperature: existingRecord?.temperature || "",
+      weight: existingRecord?.weight || "",
+      bloodPressureSystolic: existingRecord?.bloodPressureSystolic || "",
+      bloodPressureDiastolic: existingRecord?.bloodPressureDiastolic || "",
+      pulseRate: existingRecord?.pulseRate || "",
+      oxygenSaturation: existingRecord?.oxygenSaturation || "",
+      notes: existingRecord?.notes || "",
     };
 
-    // 更新されたフィールドを適用
-    recordData[field] = value;
+    // フィールドを更新（食事一覧と同じ方式）
+    if (field === 'hour') {
+      recordData.hour = value === "empty" ? "" : value;
+    } else if (field === 'minute') {
+      recordData.minute = value === "empty" ? "" : value;
+    } else if (field === 'staffName') {
+      recordData.staffName = value === "empty" ? "" : value;
+    } else if (field === 'bathType') {
+      recordData.bathType = value === "empty" ? "" : value;
+    } else if (field === 'temperature') {
+      recordData.temperature = value === "empty" ? "" : value;
+    } else if (field === 'bloodPressureSystolic') {
+      recordData.bloodPressureSystolic = value === "empty" ? "" : value;
+    } else if (field === 'bloodPressureDiastolic') {
+      recordData.bloodPressureDiastolic = value === "empty" ? "" : value;
+    } else if (field === 'pulseRate') {
+      recordData.pulseRate = value === "empty" ? "" : value;
+    } else if (field === 'oxygenSaturation') {
+      recordData.oxygenSaturation = value === "empty" ? "" : value;
+    } else if (field === 'notes') {
+      recordData.notes = value;
+    }
 
-    // 不要なフィールドを削除
-    delete recordData.isTemporary;
-    delete recordData.id;
-
-    if (existingRecord && !existingRecord.id.startsWith('temp-')) {
-      updateMutation.mutate({ id: existingRecord.id, data: { [field]: value } });
+    console.log("💾 Record data to save:", JSON.stringify(recordData, null, 2));
+    
+    // 食事一覧と同じ更新/作成判定
+    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+      console.log("🔄 Updating existing record with ID:", existingRecord.id);
+      updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
+      console.log("➕ Creating new record");
       createMutation.mutate(recordData);
     }
   };
 
-  const updateTimers = useRef<Record<string, NodeJS.Timeout>>({});
-
-  const handleFieldChange = (recordId: string, residentId: string, field: string, value: any) => {
-    const queryKey = ["/api/bathing-records"];
-
-    // 1. 楽観的更新: UIを即時反映
-    queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
-      if (!old) return [];
-      return old.map(r => 
-        r.id === recordId ? { ...r, [field]: value } : r
-      );
-    });
-
-    // 2. デバウンス付きDB保存
-    const timerId = `${residentId}-${selectedDate}-${field}`;
-    if (updateTimers.current[timerId]) {
-      clearTimeout(updateTimers.current[timerId]);
-    }
-
-    updateTimers.current[timerId] = setTimeout(() => {
-      handleSaveRecord(residentId, field, value);
-    }, 800); // 800msのデバウンス
-  };
 
   // 入浴記録の削除
   const deleteMutation = useMutation({
@@ -957,15 +1126,15 @@ export default function BathingList() {
     
     if (currentStaffName) {
       // 承認者名が入力済みの場合：承認者名、時、分をクリア
-      handleFieldChange(recordId, effectiveResidentId, "staffName", "");
-      handleFieldChange(recordId, effectiveResidentId, "hour", null);
-      handleFieldChange(recordId, effectiveResidentId, "minute", null);
+      handleFieldUpdate(effectiveResidentId, "staffName", "");
+      handleFieldUpdate(effectiveResidentId, "hour", null);
+      handleFieldUpdate(effectiveResidentId, "minute", null);
     } else {
       // 承認者名が空の場合：承認者名と現在時刻を自動入力
       const currentTime = getCurrentTimeOptions();
-      handleFieldChange(recordId, effectiveResidentId, "staffName", staffName);
-      handleFieldChange(recordId, effectiveResidentId, "hour", currentTime.hour);
-      handleFieldChange(recordId, effectiveResidentId, "minute", currentTime.minute);
+      handleFieldUpdate(effectiveResidentId, "staffName", staffName);
+      handleFieldUpdate(effectiveResidentId, "hour", currentTime.hour);
+      handleFieldUpdate(effectiveResidentId, "minute", currentTime.minute);
     }
   };
 
@@ -1665,81 +1834,70 @@ export default function BathingList() {
             <div className="text-center py-8 text-slate-600">
               <p>データを読み込み中...</p>
             </div>
-          ) : (() => {
-            const filteredResidents = (residents || []).filter((resident: any) => {
-              // フロアフィルタ
-              if (selectedFloor !== "全階") {
-                const residentFloor = resident.floor;
-                if (residentFloor !== selectedFloor) {
-                  return false;
-                }
-              }
-              
-              // 入浴曜日フィルタ
+          ) : filteredBathingRecords.length === 0 ? (
+            <div className="text-center py-8 text-slate-600">
+              <p>選択した条件の利用者がいません</p>
+            </div>
+          ) : (
+            // 食事一覧と同じ利用者ベースのレンダリングに変更
+            (() => {
               const bathDayField = getBathDayField(selectedDate);
-              return resident[bathDayField];
-            });
-
-            if (filteredResidents.length === 0) {
-              return (
-                <div className="text-center py-8 text-slate-600">
-                  <p>選択した条件の利用者がいません</p>
-                </div>
-              );
-            }
-
-            return filteredResidents.map((resident: any, index: number) => {
-              // この利用者に対応する入浴記録を検索
-              let existingRecord = bathingRecords.find(
-                (record: any) => record.residentId === resident.id && record.recordDate === selectedDate
-              );
-
-              // 記録が見つからない場合、一時的なレコードを作成
-              if (!existingRecord) {
-                existingRecord = {
-                  id: `temp-${resident.id}-${selectedDate}`,
-                  residentId: resident.id,
-                  recordDate: selectedDate,
-                  timing: "午前",
-                  hour: null,
-                  minute: null,
-                  bathType: null,
-                  temperature: null,
-                  bloodPressureSystolic: null,
-                  bloodPressureDiastolic: null,
-                  pulseRate: null,
-                  oxygenSaturation: null,
-                  notes: null,
-                  staffName: null,
-                  nursingCheck: false,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                };
-              }
-
-              return (
-                <BathingCard
-                  key={resident.id}
-                  record={existingRecord}
-                  residents={residents as any[]}
-                  inputBaseClass={inputBaseClass}
-                  hourOptions={hourOptions}
-                  minuteOptions={minuteOptions}
-                  bathTypeOptions={bathTypeOptions}
-                  temperatureOptions={temperatureOptions}
-                  systolicBPOptions={systolicBPOptions}
-                  diastolicBPOptions={diastolicBPOptions}
-                  pulseOptions={pulseOptions}
-                  spo2Options={spo2Options}
+              const filteredResidents = (residents as any[]).filter((resident: any) => {
+                // フロアフィルタ
+                if (selectedFloor !== "全階") {
+                  const residentFloor = resident.floor;
+                  if (!residentFloor) return false;
                   
-                  handleFieldChange={handleFieldChange}
-                  handleStaffStamp={handleStaffStamp}
-                  deleteMutation={deleteMutation}
-                  changeResidentMutation={handleFieldChange}
-                />
-              );
-            });
-          })()}
+                  const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+                  const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
+                  
+                  if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
+                    return false;
+                  }
+                }
+                
+                // 入浴日フィルタ（該当曜日にチェックONの利用者のみ）
+                return resident[bathDayField] === true;
+              })
+              // 居室番号の若い順にソート
+              .sort((a: any, b: any) => {
+                const roomA = parseInt(a.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+                const roomB = parseInt(b.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+                return roomA - roomB;
+              });
+              
+              return filteredResidents;
+            })().map((resident: any) => {
+                // 同一利用者の既存レコードを検索（食事一覧と同じパターン）
+                const existingRecord = bathingRecords.find((r: any) => 
+                  r.residentId === resident.id && 
+                  format(new Date(r.recordDate), 'yyyy-MM-dd') === selectedDate
+                );
+                
+                return (
+                  <BathingCard
+                    key={resident.id} // 利用者IDをキーに使用（食事一覧と同じ）
+                    record={existingRecord || { residentId: resident.id, isTemporary: true }} // 既存レコードまたは一時レコード
+                    residents={residents as any[]}
+                    currentUser={currentUser}
+                    inputBaseClass={inputBaseClass}
+                    hourOptions={hourOptions}
+                    minuteOptions={minuteOptions}
+                    bathTypeOptions={bathTypeOptions}
+                    temperatureOptions={temperatureOptions}
+                    systolicBPOptions={systolicBPOptions}
+                    diastolicBPOptions={diastolicBPOptions}
+                    pulseOptions={pulseOptions}
+                    spo2Options={spo2Options}
+                    handleFieldUpdate={handleFieldUpdate}
+                    handleSaveRecord={handleSaveRecord}
+                    handleStaffStamp={handleStaffStamp}
+                    deleteMutation={deleteMutation}
+                    changeResidentMutation={handleFieldUpdate}
+                  />
+                );
+              })
+          )}
         </div>
       </main>
 

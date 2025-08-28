@@ -3,6 +3,7 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorMessage = `${res.status}: ${res.statusText}`;
+    let errorDetails = null;
     
     try {
       // Response bodyを一度だけ読み取る
@@ -10,7 +11,15 @@ async function throwIfResNotOk(res: Response) {
       if (contentType && contentType.includes('application/json')) {
         const errorData = await res.json();
         console.error("❌ API Error Response:", errorData);
+        // エラー詳細を完全に表示
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          console.error("❌ Server validation errors:");
+          errorData.errors.forEach((err: any, index: number) => {
+            console.error(`  Error ${index + 1}:`, JSON.stringify(err, null, 2));
+          });
+        }
         errorMessage = errorData.message || errorMessage;
+        errorDetails = errorData;
       } else {
         const text = await res.text();
         console.error("❌ API Error (text):", text);
@@ -21,7 +30,11 @@ async function throwIfResNotOk(res: Response) {
       // パースエラーの場合はデフォルトメッセージを使用
     }
     
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage);
+    // エラー詳細を Error オブジェクトに追加
+    (error as any).errors = errorDetails?.errors;
+    (error as any).details = errorDetails;
+    throw error;
   }
 }
 

@@ -112,43 +112,26 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState("all");
   
-  // 未チェック看護記録の有無を確認 - selectedDateの依存関係を削除
-  const { data: hasUncheckedNursingRecords = false } = useQuery({
-    queryKey: ["/api/bathing-records"],
+  // 未チェック看護記録の有無を確認
+  const { data: hasUncheckedNursingRecords, isPending: isCheckingNursingRecords } = useQuery({
+    queryKey: ["hasUncheckedNursingRecords", selectedDate],
     queryFn: async () => {
       try {
-        // 看護記録画面と同じAPIクエリキーとロジックを使用
         const allBathingRecords = await apiRequest("/api/bathing-records");
-        console.log("ダッシュボード - 全入浴記録:", allBathingRecords);
-        
         if (!allBathingRecords || !Array.isArray(allBathingRecords)) {
-          console.log("ダッシュボード - 入浴記録なし");
           return false;
         }
-        
-        console.log("ダッシュボード - 全入浴記録数:", allBathingRecords.length);
-        
-        // 選択日付の入浴記録をフィルター
         const selectedDateRecords = allBathingRecords.filter((bathing: any) => {
           const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
           return bathingDate === selectedDate;
         });
-        
-        console.log("ダッシュボード - 選択日付の入浴記録数:", selectedDateRecords.length);
-        
-        // 入浴チェック対象の記録（バイタル全項目入力済み）かつ看護チェックが未実施のものを探す
         const uncheckedRecords = selectedDateRecords.filter((record: any) => {
           const hasCompleteVitals = record.temperature && 
                                   record.bloodPressureSystolic && 
                                   record.pulseRate && 
                                   record.oxygenSaturation;
-          
-          console.log(`ダッシュボード - 記録ID: ${record.id}, 利用者ID: ${record.residentId}, バイタル完了: ${hasCompleteVitals}, 看護チェック: ${record.nursingCheck}`);
-          
           return hasCompleteVitals && !record.nursingCheck;
         });
-        
-        console.log("ダッシュボード - 未チェック看護記録数:", uncheckedRecords.length);
         return uncheckedRecords.length > 0;
       } catch (error) {
         console.error("未チェック看護記録の確認でエラー:", error);
@@ -399,7 +382,7 @@ export default function Dashboard() {
                   onClick={() => handleModuleClick(module.path)}
                   compact={true}
                   badge={module.path === "/communications" && unreadCount > 0 ? unreadCount : 
-                         module.path === "/nursing-records-list" && hasUncheckedNursingRecords ? "未" : null}
+                         module.path === "/nursing-records-list" && !isCheckingNursingRecords && hasUncheckedNursingRecords ? "未" : null}
                 />
               ))}
             </div>
