@@ -112,6 +112,11 @@ export default function UserInfo() {
   const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
   
+  // URLパラメータから日付・階数を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const selectedDate = urlParams.get('date');
+  const selectedFloor = urlParams.get('floor');
+  
   const [editOpen, setEditOpen] = useState(false);
   const [editingResident, setEditingResident] = useState<any>(null);
 
@@ -525,7 +530,14 @@ export default function UserInfo() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate("/")}
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (selectedDate) params.set('date', selectedDate);
+              if (selectedFloor) params.set('floor', selectedFloor);
+              const targetUrl = `/?${params.toString()}`;
+              console.log('ご利用者情報からトップ画面へ遷移:', targetUrl);
+              navigate(targetUrl);
+            }}
             className="h-8 w-8 p-0"
           >
             <ArrowLeft className="h-4 w-4" />

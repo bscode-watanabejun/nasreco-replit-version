@@ -5,6 +5,11 @@ import { useLocation } from "wouter";
 
 export default function ManagementMenu() {
   const [, navigate] = useLocation();
+  
+  // URLパラメータから日付・階数を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const selectedDate = urlParams.get('date');
+  const selectedFloor = urlParams.get('floor');
 
   const menuItems = [
     {
@@ -85,7 +90,14 @@ export default function ManagementMenu() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/")}
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (selectedDate) params.set('date', selectedDate);
+                  if (selectedFloor) params.set('floor', selectedFloor);
+                  const targetUrl = `/?${params.toString()}`;
+                  console.log('管理メニューからトップ画面へ遷移:', targetUrl);
+                  navigate(targetUrl);
+                }}
                 className="p-2"
                 data-testid="button-back-dashboard"
               >

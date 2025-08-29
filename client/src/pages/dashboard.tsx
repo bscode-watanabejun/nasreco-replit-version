@@ -108,9 +108,32 @@ export default function Dashboard() {
   // 未読連絡事項数を取得
   const { data: unreadCount = 0, refetchUnreadCount } = useUnreadStaffNoticesCount();
   
-  // 日付とフロア選択のstate - 安定した初期値を使用
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  // 日付とフロア選択のstate - デフォルト値で初期化
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedFloor, setSelectedFloor] = useState("all");
+
+  // Wouterの現在のロケーションを監視
+  const [location] = useLocation();
+  
+  // URLパラメータから値を設定（URL変更時に実行）
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateParam = urlParams.get('date');
+    const floorParam = urlParams.get('floor');
+    
+    console.log('Dashboard: 現在のURL:', window.location.href);
+    console.log('Dashboard: URLパラメータ - date:', dateParam, 'floor:', floorParam);
+    console.log('Dashboard: location変更:', location);
+    
+    if (dateParam) {
+      console.log('Dashboard: 日付を設定:', dateParam);
+      setSelectedDate(dateParam);
+    }
+    if (floorParam) {
+      console.log('Dashboard: 階数を設定:', floorParam);
+      setSelectedFloor(floorParam);
+    }
+  }, [location]); // locationが変更されるたびに実行
   
   // 未チェック看護記録の有無を確認
   const { data: hasUncheckedNursingRecords, isPending: isCheckingNursingRecords } = useQuery({

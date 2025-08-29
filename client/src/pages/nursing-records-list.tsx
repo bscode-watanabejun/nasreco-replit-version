@@ -1665,7 +1665,13 @@ export default function NursingRecordsList() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
+              const targetUrl = `/?date=${selectedDate}&floor=${floorParam}`;
+              console.log('看護記録一覧からトップ画面へ遷移:', targetUrl);
+              console.log('現在の状態 - selectedDate:', selectedDate, 'selectedFloor:', selectedFloor, 'floorParam:', floorParam);
+              setLocation(targetUrl);
+            }}
             className="p-2"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -1830,14 +1836,15 @@ export default function NursingRecordsList() {
                             );
                             const isRejected = bathingRecord?.rejectionReason ? true : false;
                             
-                            // 常に「入浴チェック」を表示し、差戻時は（差戻）を追加
+                            // 常に「入浴チェック」を表示し、差戻時は差戻札を被せる
                             return (
+                              <div className="relative w-full">
                                 <input
                                   type="text"
-                                  value={isRejected ? "入浴チェック(差戻)" : "入浴チェック"}
+                                  value="入浴チェック"
                                   placeholder="入浴バイタル"
                                   className={`w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer font-bold leading-none box-border overflow-hidden whitespace-nowrap ${
-                                    isRejected ? 'text-red-600' : (nursingChecks[resident.id] ? 'text-gray-900' : 'text-red-600')
+                                    nursingChecks[resident.id] ? 'text-gray-900' : 'text-red-600'
                                   }`}
                                   readOnly
                                   onClick={(e) => {
@@ -1845,6 +1852,13 @@ export default function NursingRecordsList() {
                                     setBathingCheckDialogOpen(resident.id);
                                   }}
                                 />
+                                {/* 差戻札 */}
+                                {isRejected && (
+                                  <div className="absolute top-0 right-0 transform translate-x-1 -translate-y-1 bg-red-600 text-white text-[10px] px-1.5 py-1 rounded font-bold shadow-md z-10 whitespace-nowrap">
+                                    差戻
+                                  </div>
+                                )}
+                              </div>
                             );
                           } else {
                             // バイタル未入力の場合は「入浴バイタル」プレースホルダー表示（ダイアログなし）
@@ -1942,7 +1956,15 @@ export default function NursingRecordsList() {
       </div>
 
       {/* 入浴チェックダイアログ */}
-      <Dialog open={bathingCheckDialogOpen !== null} onOpenChange={() => setBathingCheckDialogOpen(null)}>
+      <Dialog 
+        open={bathingCheckDialogOpen !== null} 
+        onOpenChange={(open) => {
+          if (!open) {
+            // ダイアログを閉じる際の処理（既にonChange/onBlurで自動保存されているため、特別な保存処理は不要）
+            setBathingCheckDialogOpen(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>入浴チェック</DialogTitle>
@@ -1999,42 +2021,61 @@ export default function NursingRecordsList() {
                   </div>
                 </div>
                 
-                {/* 看護チェック */}
+                {/* 記録内容 */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-slate-800">記録内容</h4>
+                  <textarea
+                    value={bathingRecord.notes || ''}
+                    onChange={(e) => {
+                      // 楽観的更新でローカル状態を即座に反映
+                      queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
+                        return old?.map((record: any) => 
+                          record.id === bathingRecord.id 
+                            ? { ...record, notes: e.target.value }
+                            : record
+                        );
+                      });
+                    }}
+                    onBlur={(e) => {
+                      // カーソルアウト時にDB更新
+                      updateBathingRecordMutation.mutate({
+                        id: bathingRecord.id,
+                        data: { notes: e.target.value }
+                      });
+                    }}
+                    placeholder="記録内容を入力してください"
+                    className="w-full h-24 p-3 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                    rows={4}
+                  />
+                </div>
+                
+                {/* 差戻チェックボックス */}
                 <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <span className="font-medium">看護チェック</span>
+                  <span className="font-medium">差戻</span>
                   <input
                     type="checkbox"
-                    checked={nursingChecks[resident.id] || false}
+                    checked={!!bathingRecord.rejectionReason}
                     onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      // ローカル状態を即座に更新
-                      setNursingChecks(prev => ({ ...prev, [resident.id]: isChecked }));
+                      const isRejected = e.target.checked;
+                      const rejectionValue = isRejected ? "差戻" : undefined;
+                      
+                      // 楽観的更新
+                      queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
+                        return old?.map((record: any) => 
+                          record.id === bathingRecord.id 
+                            ? { ...record, rejectionReason: rejectionValue }
+                            : record
+                        );
+                      });
                       
                       // DB更新
                       updateBathingRecordMutation.mutate({
                         id: bathingRecord.id,
-                        data: { nursingCheck: isChecked }
+                        data: { rejectionReason: rejectionValue }
                       });
                     }}
                     className="w-5 h-5"
                   />
-                </div>
-                
-                {/* 差戻理由（差戻がある場合のみ表示） */}
-                {bathingRecord.rejectionReason && (
-                  <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-                    <h5 className="font-medium text-red-800 mb-2">差戻理由</h5>
-                    <p className="text-red-700 text-sm">{bathingRecord.rejectionReason}</p>
-                  </div>
-                )}
-                
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setBathingCheckDialogOpen(null)}
-                  >
-                    閉じる
-                  </Button>
                 </div>
               </div>
             );

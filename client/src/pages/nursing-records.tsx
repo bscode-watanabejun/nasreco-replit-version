@@ -2325,7 +2325,12 @@ export default function NursingRecords() {
           <div className="flex items-center justify-between max-w-lg mx-auto">
             <Button 
               variant="outline" 
-              onClick={() => setLocation('/nursing-records-list')}
+              onClick={() => {
+                const params = new URLSearchParams();
+                params.set('date', selectedDate);
+                params.set('floor', selectedFloor);
+                setLocation(`/nursing-records-list?${params.toString()}`);
+              }}
               className="flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -2388,7 +2393,12 @@ export default function NursingRecords() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', selectedDate);
+              params.set('floor', selectedFloor);
+              setLocation(`/?${params.toString()}`);
+            }}
             className="p-2"
           >
             <ArrowLeft className="h-4 w-4" />

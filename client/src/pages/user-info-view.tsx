@@ -77,6 +77,11 @@ function InputWithDropdown({
 
 export default function UserInfoView() {
   const [, navigate] = useLocation();
+  
+  // URLパラメータから日付・階数を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const selectedDate = urlParams.get('date');
+  const selectedFloor = urlParams.get('floor');
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   
@@ -186,7 +191,14 @@ export default function UserInfoView() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/")}
+                onClick={() => {
+                  const params = new URLSearchParams();
+                  if (selectedDate) params.set('date', selectedDate);
+                  if (selectedFloor) params.set('floor', selectedFloor);
+                  const targetUrl = `/?${params.toString()}`;
+                  console.log('利用者閲覧からトップ画面へ遷移:', targetUrl);
+                  navigate(targetUrl);
+                }}
                 className="p-2 text-white hover:bg-orange-600"
                 data-testid="button-back-dashboard"
               >
