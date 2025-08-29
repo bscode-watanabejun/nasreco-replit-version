@@ -1024,6 +1024,30 @@ export default function BathingList() {
       console.log("➕ Creating new record");
       createMutation.mutate(recordData);
     }
+
+    // バイタルデータをバイタル一覧にも同時登録
+    if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'oxygenSaturation', 'notes', 'hour', 'minute', 'staffName'].includes(field) && value && value !== "empty") {
+      const vitalData = {
+        residentId,
+        recordDate: new Date(selectedDate),
+        timing: getCurrentTiming(), // 現在時刻に応じてタイミングを判定
+        staffId: (currentUser as any)?.id || (currentUser as any)?.claims?.sub || 'unknown',
+        hour: field === 'hour' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.hour ? parseInt(recordData.hour, 10) : null),
+        minute: field === 'minute' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.minute ? parseInt(recordData.minute, 10) : null),
+        staffName: field === 'staffName' ? (value === "empty" ? null : value) : recordData.staffName,
+        temperature: field === 'temperature' ? (value === "empty" ? null : parseFloat(value)) : (recordData.temperature ? parseFloat(recordData.temperature) : null),
+        bloodPressureSystolic: field === 'bloodPressureSystolic' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.bloodPressureSystolic ? parseInt(recordData.bloodPressureSystolic, 10) : null),
+        bloodPressureDiastolic: field === 'bloodPressureDiastolic' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.bloodPressureDiastolic ? parseInt(recordData.bloodPressureDiastolic, 10) : null),
+        pulseRate: field === 'pulseRate' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.pulseRate ? parseInt(recordData.pulseRate, 10) : null),
+        oxygenSaturation: field === 'oxygenSaturation' ? (value === "empty" ? null : parseFloat(value)) : (recordData.oxygenSaturation ? parseFloat(recordData.oxygenSaturation) : null),
+        notes: field === 'notes' ? value : recordData.notes,
+      };
+      
+      console.log("🩺 Saving vital data to vital signs:", vitalData);
+      
+      // バイタル一覧にも登録
+      upsertVitalMutation.mutate({ vitalData });
+    }
   };
 
 
@@ -1084,26 +1108,46 @@ export default function BathingList() {
     },
   });
 
+  // 現在時刻に基づいてタイミングを判定する関数
+  const getCurrentTiming = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // 午前（6:00-11:59）、午後（12:00-17:59）、臨時（18:00-5:59）
+    if (currentHour >= 6 && currentHour < 12) {
+      return "午前";
+    } else if (currentHour >= 12 && currentHour < 18) {
+      return "午後";
+    } else {
+      return "臨時";
+    }
+  };
+
   const upsertVitalMutation = useMutation({
     mutationFn: async (data: { existingVitalId?: string; vitalData: any }) => {
-      if (data.existingVitalId) {
+      // 同一日時・同一利用者・同一タイミングの既存バイタル記録を検索
+      const existingVitalResponse = await apiRequest(`/api/vital-signs?residentId=${data.vitalData.residentId}&date=${format(data.vitalData.recordDate, 'yyyy-MM-dd')}&timing=${data.vitalData.timing}`);
+      const existingVitals = Array.isArray(existingVitalResponse) ? existingVitalResponse : [];
+      const existingVital = existingVitals.length > 0 ? existingVitals[0] : null;
+
+      if (existingVital) {
+        // 既存のレコードがある場合は更新
         return apiRequest(
-          `/api/vital-signs/${data.existingVitalId}`,
+          `/api/vital-signs/${existingVital.id}`,
           "PATCH",
           data.vitalData
         );
       } else {
+        // 既存のレコードがない場合は新規作成
         return apiRequest("/api/vital-signs", "POST", data.vitalData);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-      toast({
-        title: "成功",
-        description: "バイタル記録を更新しました。",
-      });
+      console.log("✅ バイタル記録を更新しました。");
     },
     onError: (error: any) => {
+      console.error("❌ バイタル記録の更新に失敗:", error);
       toast({
         title: "エラー",
         description: error.message || "バイタル記録の更新に失敗しました。",
