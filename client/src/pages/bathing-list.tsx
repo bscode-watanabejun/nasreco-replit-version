@@ -934,7 +934,7 @@ export default function BathingList() {
 
   // DB保存処理（食事一覧と完全に同じパターンに変更）
   const lastSaveRef = useRef<Record<string, any>>({});
-  
+
   const handleSaveRecord = (residentId: string, field: string, value: any) => {
     const saveKey = `${residentId}-${field}`;
     const lastValue = lastSaveRef.current[saveKey];
@@ -1081,6 +1081,34 @@ export default function BathingList() {
       
       // エラー時もキャッシュを更新
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
+    },
+  });
+
+  const upsertVitalMutation = useMutation({
+    mutationFn: async (data: { existingVitalId?: string; vitalData: any }) => {
+      if (data.existingVitalId) {
+        return apiRequest(
+          `/api/vital-signs/${data.existingVitalId}`,
+          "PATCH",
+          data.vitalData
+        );
+      } else {
+        return apiRequest("/api/vital-signs", "POST", data.vitalData);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      toast({
+        title: "成功",
+        description: "バイタル記録を更新しました。",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "エラー",
+        description: error.message || "バイタル記録の更新に失敗しました。",
+        variant: "destructive",
+      });
     },
   });
 
@@ -1855,7 +1883,6 @@ export default function BathingList() {
                   
                   const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
                   const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
-                  
                   if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
                     return false;
                   }
