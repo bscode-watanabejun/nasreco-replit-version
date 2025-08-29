@@ -30,7 +30,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import type { MedicationRecord, InsertMedicationRecord, Resident } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const timingOptions = [
   { value: "起床後", label: "起床後" },
@@ -186,9 +186,14 @@ export default function MedicationList() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   
   // フィルタ状態
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    return dateParam || format(new Date(), "yyyy-MM-dd");
+  });
   const [selectedTiming, setSelectedTiming] = useState(() => {
     const currentHour = new Date().getHours();
     if (currentHour < 7) return "起床後";
@@ -200,7 +205,18 @@ export default function MedicationList() {
     if (currentHour < 21) return "夕後";
     return "眠前";
   });
-  const [selectedFloor, setSelectedFloor] = useState("all");
+  const [selectedFloor, setSelectedFloor] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const floorParam = params.get('floor');
+    if (floorParam) {
+      if (floorParam === 'all') return '全階';
+      const floorNumber = floorParam.replace('F', '');
+      if (!isNaN(Number(floorNumber))) {
+        return `${floorNumber}階`;
+      }
+    }
+    return '全階';
+  });
   
   // ローカル状態管理（編集中のメモ）
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
@@ -219,7 +235,7 @@ export default function MedicationList() {
       const params = new URLSearchParams({
         recordDate: selectedDate,
         timing: selectedTiming,
-        floor: selectedFloor
+        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', '')
       });
       const response = await fetch(`/api/medication-records?${params}`, {
         credentials: 'include'
@@ -642,16 +658,20 @@ export default function MedicationList() {
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Link href="/meals-medication">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-2"
-              data-testid="button-back"
-            >
-              <ArrowLeftIcon className="h-4 w-4" />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-2"
+            data-testid="button-back"
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', selectedDate);
+              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              setLocation(`/?${params.toString()}`);
+            }}
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+          </Button>
           <h1 className="text-xl font-bold text-slate-800">服薬一覧</h1>
         </div>
       </div>
@@ -690,25 +710,14 @@ export default function MedicationList() {
           <div className="flex items-center space-x-1">
             <BuildingIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
             <InputWithDropdown
-              value={(() => {
-                const floorOptions = [
-                  { value: "all", label: "全階" },
-                  { value: "1F", label: "1階" },
-                  { value: "2F", label: "2階" },
-                  { value: "3F", label: "3階" },
-                  { value: "4F", label: "4階" },
-                  { value: "5F", label: "5階" }
-                ];
-                const option = floorOptions.find(opt => opt.value === selectedFloor);
-                return option ? option.label : "全階";
-              })()}
+              value={selectedFloor}
               options={[
-                { value: "all", label: "全階" },
-                { value: "1F", label: "1階" },
-                { value: "2F", label: "2階" },
-                { value: "3F", label: "3階" },
-                { value: "4F", label: "4階" },
-                { value: "5F", label: "5階" }
+                { value: "全階", label: "全階" },
+                { value: "1階", label: "1階" },
+                { value: "2階", label: "2階" },
+                { value: "3階", label: "3階" },
+                { value: "4階", label: "4階" },
+                { value: "5階", label: "5階" }
               ]}
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
@@ -745,7 +754,7 @@ export default function MedicationList() {
               return roomA - roomB;
             })
             .map((record: MedicationRecordWithResident, index: number) => (
-            <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
+            <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}> 
               <div className="p-2 space-y-2">
                 {/* 1段目：居室番号・利用者名・服薬タイミング・確認者1・確認者2 */}
                 <div className="flex items-center gap-1">
@@ -946,7 +955,7 @@ export default function MedicationList() {
                 </div>
               </div>
             </div>
-          ))
+          )) 
         ) : null}
       </div>
 
@@ -954,11 +963,14 @@ export default function MedicationList() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div></div>
-          <Link href="/meals-medication">
-            <Button variant="outline" className="flex items-center gap-2">
-              食事一覧へ
-            </Button>
-          </Link>
+          <Button variant="outline" className="flex items-center gap-2" onClick={() => {
+            const params = new URLSearchParams();
+            params.set('date', selectedDate);
+            params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+            setLocation(`/meals-medication?${params.toString()}`);
+          }}>
+            食事一覧へ
+          </Button>
           <Button
             onClick={handleAddRecord}
             className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"

@@ -174,7 +174,17 @@ export default function MealsMedicationPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedMealTime, setSelectedMealTime] = useState(() => {
     const currentHour = new Date().getHours();
     if (currentHour < 9) return "朝";
@@ -884,7 +894,12 @@ export default function MealsMedicationPage() {
           </Button>
           <Button 
             variant="outline"
-            onClick={() => setLocation('/medication-list')}
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              setLocation(`/medication-list?${params.toString()}`);
+            }}
             data-testid="button-medication-list"
             className="flex items-center gap-2"
           >
