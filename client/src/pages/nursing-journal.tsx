@@ -177,10 +177,16 @@ export default function NursingJournal() {
   const { isAuthenticated, user } = useAuth();
   const [, navigate] = useLocation();
   
-  // フィルタ状態
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  // URLパラメータから初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
   const [selectedRecordType, setSelectedRecordType] = useState("all");
-  const [selectedFloor, setSelectedFloor] = useState("全階");
+  const [selectedFloor, setSelectedFloor] = useState(() => {
+    const floorParam = urlParams.get('floor');
+    if (floorParam === 'all') return '全階';
+    if (floorParam) return `${floorParam}階`;
+    return '全階';
+  });
   
   // 記入者
   const [enteredBy, setEnteredBy] = useState("");
@@ -301,7 +307,12 @@ export default function NursingJournal() {
   }
 
   const handleBack = () => {
-    navigate('/');
+    const params = new URLSearchParams();
+    params.set('date', selectedDate);
+    params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+    const targetUrl = `/?${params.toString()}`;
+    console.log('看護日誌からトップ画面へ遷移:', targetUrl);
+    navigate(targetUrl);
   };
 
   const formatTime = (dateString: string) => {

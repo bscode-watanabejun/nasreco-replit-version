@@ -185,8 +185,9 @@ export default function DailyRecords() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   
-  // フィルタ状態
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  // URLパラメータから初期値を取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
   const [selectedRecordType, setSelectedRecordType] = useState("all");
   const [cardCheckboxes, setCardCheckboxes] = useState<Record<string, string[]>>({});
 
@@ -306,7 +307,14 @@ export default function DailyRecords() {
   }
 
   const handleBack = () => {
-    navigate('/');
+    const params = new URLSearchParams();
+    params.set('date', selectedDate);
+    // daily-recordsは階数フィルタがないので、URLから取得した階数をそのまま使用
+    const floorParam = urlParams.get('floor');
+    if (floorParam) params.set('floor', floorParam);
+    const targetUrl = `/?${params.toString()}`;
+    console.log('今日の記録一覧からトップ画面へ遷移:', targetUrl);
+    navigate(targetUrl);
   };
 
   const formatTime = (dateString: string) => {

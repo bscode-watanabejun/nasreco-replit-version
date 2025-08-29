@@ -817,7 +817,7 @@ export default function Vitals() {
       if (floorParam === "all") {
         return "全階";
       }
-      return floorParam;
+      return `${floorParam}階`;
     }
 
     // localStorageからトップ画面の選択階数を取得
@@ -1282,7 +1282,14 @@ export default function Vitals() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setLocation("/")}
+              onClick={() => {
+                const params = new URLSearchParams();
+                params.set('date', selectedDate);
+                params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+                const targetUrl = `/?${params.toString()}`;
+                console.log('バイタル一覧からトップ画面へ遷移:', targetUrl);
+                setLocation(targetUrl);
+              }}
               className="h-8 w-8 p-0"
             >
               <ArrowLeft className="h-4 w-4" />

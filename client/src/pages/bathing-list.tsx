@@ -679,7 +679,7 @@ export default function BathingList() {
       if (floorParam === "all") {
         return "全階";
       }
-      return floorParam;
+      return `${floorParam}階`;
     }
 
     // localStorageからトップ画面の選択階数を取得
@@ -1785,7 +1785,12 @@ export default function BathingList() {
                 // 短い遅延の後でページ遷移する
                 // これにより、blurイベントハンドラが実行される時間を確保する
                 setTimeout(() => {
-                  setLocation("/");
+                  const params = new URLSearchParams();
+                  params.set('date', selectedDate);
+                  params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+                  const targetUrl = `/?${params.toString()}`;
+                  console.log('入浴一覧からトップ画面へ遷移:', targetUrl);
+                  setLocation(targetUrl);
                 }, 200);
               }}
               className="h-8 w-8 p-0"

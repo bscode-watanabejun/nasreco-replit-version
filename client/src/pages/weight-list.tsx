@@ -594,7 +594,7 @@ export default function WeightList() {
       if (floorParam === "all") {
         return "全階";
       }
-      return floorParam;
+      return `${floorParam}階`;
     }
 
     // localStorageからトップ画面の選択階数を取得
@@ -1116,7 +1116,17 @@ export default function WeightList() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setLocation("/")}
+              onClick={() => {
+                const params = new URLSearchParams();
+                const urlParams = new URLSearchParams(window.location.search);
+                const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
+                const selectedFloor = urlParams.get('floor') || 'all';
+                params.set('date', selectedDate);
+                params.set('floor', selectedFloor);
+                const targetUrl = `/?${params.toString()}`;
+                console.log('体重一覧からトップ画面へ遷移:', targetUrl);
+                setLocation(targetUrl);
+              }}
               className="h-8 w-8 p-0"
             >
               <ArrowLeft className="h-4 w-4" />

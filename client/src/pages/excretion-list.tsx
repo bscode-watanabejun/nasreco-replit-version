@@ -455,9 +455,11 @@ export default function ExcretionList() {
   const [selectedFloor, setSelectedFloor] = useState(() => {
     const floorParam = urlParams.get('floor');
     if (floorParam) {
-      // 古いフォーマット（all, 1F, 2Fなど）を新しいフォーマット（全階, 1階, 2階など）に変換
       if (floorParam === 'all') return '全階';
-      if (floorParam.endsWith('F')) return floorParam.replace('F', '階');
+      const floorNumber = floorParam.replace('F', '');
+      if (!isNaN(Number(floorNumber))) {
+        return `${floorNumber}階`;
+      }
     }
     return '全階';
   });
@@ -799,16 +801,22 @@ export default function ExcretionList() {
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="flex items-center gap-2 mb-4">
-          <Link href="/">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-2"
-              data-testid="button-back"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', selectedDate);
+              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              const targetUrl = `/?${params.toString()}`;
+              console.log('排泄一覧からトップ画面へ遷移:', targetUrl);
+              setLocation(targetUrl);
+            }}
+            className="p-2"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
           <h1 className="text-xl font-bold text-slate-800" data-testid="text-title">
             排泄一覧
           </h1>

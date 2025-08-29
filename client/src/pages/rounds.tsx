@@ -246,7 +246,14 @@ export default function Rounds() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation('/')}
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', selectedDate);
+              params.set('floor', selectedFloor);
+              const targetUrl = `/?${params.toString()}`;
+              console.log('ラウンド一覧からトップ画面へ遷移:', targetUrl);
+              setLocation(targetUrl);
+            }}
             className="p-2"
             data-testid="button-back"
           >

@@ -1548,7 +1548,14 @@ export default function CareRecords() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', selectedDate);
+              params.set('floor', selectedFloor);
+              const targetUrl = `/?${params.toString()}`;
+              console.log('ケア記録からトップ画面へ遷移:', targetUrl);
+              setLocation(targetUrl);
+            }}
             className="p-2"
           >
             <ArrowLeft className="h-4 w-4" />

@@ -23,7 +23,14 @@
       "Bash(cp:*)",
       "Bash(kill:*)",
       "Bash(python3:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(for file in communications.tsx meals-medication.tsx rounds.tsx daily-records.tsx nursing-journal.tsx)",
+      "Bash(do)",
+      "Bash(if [ -f \"/home/runner/workspace/client/src/pages/$file\" ])",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(fi)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": [],

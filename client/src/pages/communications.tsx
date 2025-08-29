@@ -89,14 +89,17 @@ export default function Communications() {
     urlParams.get('date') || format(new Date(), "yyyy-MM-dd")
   );
   const [selectedJobRole, setSelectedJobRole] = useState("全体");
-  const [selectedFloor, setSelectedFloor] = useState(
-    urlParams.get('floor') === 'all' ? "全階" :
-    urlParams.get('floor') === '1F' ? "1階" :
-    urlParams.get('floor') === '2F' ? "2階" :
-    urlParams.get('floor') === '3F' ? "3階" :
-    urlParams.get('floor') === '4F' ? "4階" :
-    "全階"
-  );
+  const [selectedFloor, setSelectedFloor] = useState(() => {
+    const floorParam = urlParams.get('floor');
+    if (floorParam) {
+      if (floorParam === 'all') return '全階';
+      const floorNumber = floorParam.replace('F', '');
+      if (!isNaN(Number(floorNumber))) {
+        return `${floorNumber}階`;
+      }
+    }
+    return '全階';
+  });
   const [selectedNotice, setSelectedNotice] = useState<StaffNotice | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -288,7 +291,17 @@ export default function Communications() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation('/')}
+            onClick={() => {
+              const params = new URLSearchParams();
+              const urlParams = new URLSearchParams(window.location.search);
+              const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
+              const selectedFloor = urlParams.get('floor') || 'all';
+              params.set('date', selectedDate);
+              params.set('floor', selectedFloor);
+              const targetUrl = `/?${params.toString()}`;
+              console.log('連絡事項からトップ画面へ遷移:', targetUrl);
+              setLocation(targetUrl);
+            }}
             className="text-white hover:bg-blue-700 p-1"
             data-testid="button-back"
           >

@@ -108,6 +108,17 @@ export default function CleaningLinenList() {
     return startOfWeek(new Date(), { weekStartsOn: 1 }); // 月曜日始まり
   });
   const [selectedFloor, setSelectedFloor] = useState("全階");
+
+  useEffect(() => {
+    const floorParam = urlParams.get('floor');
+    if (floorParam) {
+      if (floorParam === 'all') {
+        setSelectedFloor('全階');
+      } else {
+        setSelectedFloor(`${floorParam}階`);
+      }
+    }
+  }, []);
   
   // ポップアップ用の状態
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -364,7 +375,14 @@ export default function CleaningLinenList() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/")}
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (selectedDateFromUrl) params.set('date', selectedDateFromUrl);
+              params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+              const targetUrl = `/?${params.toString()}`;
+              console.log('清拭・リネン一覧からトップ画面へ遷移:', targetUrl);
+              setLocation(targetUrl);
+            }}
             className="h-8 w-8 p-0"
           >
             <ArrowLeft className="h-4 w-4" />

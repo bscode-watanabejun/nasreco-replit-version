@@ -183,32 +183,27 @@ export default function MealsMedicationPage() {
     if (currentHour < 17) return "15時";
     return "夕";
   });
-  const [selectedFloor, setSelectedFloor] = useState("all");
-
-  // URLパラメータからstate復元
-  useEffect(() => {
+  const [selectedFloor, setSelectedFloor] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const dateParam = params.get('date');
-    const mealTimeParam = params.get('mealTime');
     const floorParam = params.get('floor');
-
-    if (dateParam) {
-      setSelectedDate(new Date(dateParam));
-    }
-    if (mealTimeParam) {
-      setSelectedMealTime(mealTimeParam);
-    }
     if (floorParam) {
-      setSelectedFloor(floorParam);
+      if (floorParam === 'all') return '全階';
+      const floorNumber = floorParam.replace('F', '');
+      if (!isNaN(Number(floorNumber))) {
+        return `${floorNumber}階`;
+      }
     }
-  }, []);
+    return '全階';
+  });
+
+  
 
   // URLパラメータ更新
   useEffect(() => {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('mealTime', selectedMealTime);
-    params.set('floor', selectedFloor);
+    params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
     window.history.replaceState({}, '', `?${params.toString()}`);
   }, [selectedDate, selectedMealTime, selectedFloor]);
 
@@ -218,7 +213,7 @@ export default function MealsMedicationPage() {
       const params = new URLSearchParams({
         recordDate: format(selectedDate, 'yyyy-MM-dd'),
         mealTime: selectedMealTime,
-        floor: selectedFloor,
+        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''),
       });
       const response = await apiRequest(`/api/meals-medication?${params}`);
       console.log('食事一覧 API レスポンス:', response);
@@ -578,23 +573,16 @@ export default function MealsMedicationPage() {
   };
 
   const filteredResidents = residents.filter((resident: any) => {
-    if (selectedFloor === 'all') return true;
+    if (selectedFloor === '全階') return true;
 
     const residentFloor = resident.floor;
-    if (!residentFloor) return false; // null/undefinedをフィルタアウト
+    if (!residentFloor) return false;
     
-    // selectedFloorは "1F", "2F" などの形式
-    // residentFloorは "1", "2" または "1F", "2F" などの形式
-    const selectedFloorNumber = selectedFloor.replace("F", ""); // "1F" -> "1"
+    const selectedFloorNumber = selectedFloor.replace("階", "");
     
-    // "1F" 形式との比較
-    if (residentFloor === selectedFloor) return true;
-    
-    // "1" 形式との比較
-    if (residentFloor === selectedFloorNumber) return true;
-    
-    // "1階" 形式との比較
-    if (residentFloor === `${selectedFloorNumber}階`) return true;
+    if (residentFloor === selectedFloor) return true; // "1階" === "1階"
+    if (residentFloor === selectedFloorNumber) return true; // "1" === "1"
+    if (residentFloor === `${selectedFloorNumber}F`) return true; // "1F" === "1F"
     
     return false;
   }).sort((a: any, b: any) => {
@@ -614,7 +602,14 @@ export default function MealsMedicationPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation('/')}
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              const targetUrl = `/?${params.toString()}`;
+              console.log('食事一覧からトップ画面へ遷移:', targetUrl);
+              setLocation(targetUrl);
+            }}
             className="p-2"
             data-testid="button-back"
           >
@@ -658,25 +653,14 @@ export default function MealsMedicationPage() {
           <div className="flex items-center space-x-1">
             <BuildingIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
             <InputWithDropdown
-              value={(() => {
-                const floorOptions = [
-                  { value: "all", label: "全階" },
-                  { value: "1F", label: "1階" },
-                  { value: "2F", label: "2階" },
-                  { value: "3F", label: "3階" },
-                  { value: "4F", label: "4階" },
-                  { value: "5F", label: "5階" }
-                ];
-                const option = floorOptions.find(opt => opt.value === selectedFloor);
-                return option ? option.label : "全階";
-              })()}
+              value={selectedFloor}
               options={[
-                { value: "all", label: "全階" },
-                { value: "1F", label: "1階" },
-                { value: "2F", label: "2階" },
-                { value: "3F", label: "3階" },
-                { value: "4F", label: "4階" },
-                { value: "5F", label: "5階" }
+                { value: "全階", label: "全階" },
+                { value: "1階", label: "1階" },
+                { value: "2階", label: "2階" },
+                { value: "3階", label: "3階" },
+                { value: "4階", label: "4階" },
+                { value: "5階", label: "5階" }
               ]}
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
