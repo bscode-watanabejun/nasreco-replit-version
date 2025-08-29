@@ -77,11 +77,6 @@ function InputWithDropdown({
 
 export default function UserInfoView() {
   const [, navigate] = useLocation();
-  
-  // URLパラメータから日付・階数を取得
-  const urlParams = new URLSearchParams(window.location.search);
-  const selectedDate = urlParams.get('date');
-  const selectedFloor = urlParams.get('floor');
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   
