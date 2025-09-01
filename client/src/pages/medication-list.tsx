@@ -768,7 +768,9 @@ export default function MedicationList() {
             該当する利用者がいません
           </div>
         ) : !error ? (
-          displayMedicationRecords
+          (() => {
+            console.log('Rendering displayMedicationRecords:', JSON.stringify(displayMedicationRecords, null, 2));
+            return displayMedicationRecords
             .sort((a: MedicationRecordWithResident, b: MedicationRecordWithResident) => {
               const roomA = parseInt(a.roomNumber || "0");
               const roomB = parseInt(b.roomNumber || "0");
@@ -976,7 +978,8 @@ export default function MedicationList() {
                 </div>
               </div>
             </div>
-          )) 
+          ));
+          })()
         ) : null}
       </div>
 
