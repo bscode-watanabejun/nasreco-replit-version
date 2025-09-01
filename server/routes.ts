@@ -315,9 +315,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/nursing-records', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const nurseId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!nurseId) {
+        console.error("Validation failed: nurseId is missing.");
+        return res.status(401).json({ message: "有効な看護師IDが見つかりません" });
+      }
+
       const validatedData = insertNursingRecordSchema.parse({
         ...req.body,
-        nurseId: req.user.claims.sub,
+        nurseId: nurseId,
       });
       const record = await storage.createNursingRecord(validatedData);
       res.status(201).json(record);
@@ -705,9 +713,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/excretion-records', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertExcretionRecordSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const record = await storage.createExcretionRecord(validatedData);
       res.status(201).json(record);
@@ -735,9 +751,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/weight-records', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertWeightRecordSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const record = await storage.createWeightRecord(validatedData);
       res.status(201).json(record);
@@ -828,9 +852,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/round-records', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const createdBy = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!createdBy) {
+        console.error("Validation failed: createdBy is missing.");
+        return res.status(401).json({ message: "有効な作成者IDが見つかりません" });
+      }
+
       const validatedData = insertRoundRecordSchema.parse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: createdBy,
       });
       const roundRecord = await storage.createRoundRecord(validatedData);
       res.status(201).json(roundRecord);
@@ -868,9 +900,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/medication-records', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const createdBy = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!createdBy) {
+        console.error("Validation failed: createdBy is missing.");
+        return res.status(401).json({ message: "有効な作成者IDが見つかりません" });
+      }
+
       const validatedData = insertMedicationRecordSchema.parse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: createdBy,
       });
       console.log('Medication record upsert request:', validatedData);
       
@@ -954,9 +994,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/staff-notices', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const createdBy = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!createdBy) {
+        console.error("Validation failed: createdBy is missing.");
+        return res.status(401).json({ message: "有効な作成者IDが見つかりません" });
+      }
+
       const validatedData = insertStaffNoticeSchema.parse({
         ...req.body,
-        createdBy: req.user.claims.sub,
+        createdBy: createdBy,
       });
       const notice = await storage.createStaffNotice(validatedData);
       res.status(201).json(notice);
@@ -1053,9 +1101,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/cleaning-linen', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertCleaningLinenRecordSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const record = await storage.createCleaningLinenRecord(validatedData);
       res.status(201).json(record);
@@ -1067,9 +1123,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/cleaning-linen/:id', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertCleaningLinenRecordSchema.partial().parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const record = await storage.updateCleaningLinenRecord(req.params.id, validatedData);
       res.json(record);
@@ -1081,9 +1145,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/cleaning-linen/upsert', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertCleaningLinenRecordSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const record = await storage.upsertCleaningLinenRecord(validatedData);
       res.status(201).json(record);
@@ -1201,8 +1273,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/residents/:residentId/attachments', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
       const { residentId } = req.params;
-      const userId = req.user.claims.sub;
+      const staffSession = (req as any).session?.staff;
+      const userId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
       const file = req.file;
+
+      if (!userId) {
+        console.error("Validation failed: userId is missing.");
+        return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
+      }
       
       if (!file) {
         return res.status(400).json({ message: "ファイルが選択されていません" });
