@@ -623,17 +623,29 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(medicationRecords.timing, timing));
     }
 
-    // Temporarily remove floor filter as it requires a join
-    // if (floor && floor !== 'all') {
-    //   conditions.push(eq(residents.floor, floor));
-    // }
+    if (floor && floor !== 'all') {
+      conditions.push(eq(residents.floor, floor));
+    }
 
     const results = await db.select()
       .from(medicationRecords)
+      .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
       .where(and(...conditions));
       
-    console.log('getMedicationRecords without join:', JSON.stringify(results, null, 2));
-    return results;
+    console.log('Raw results from DB:', JSON.stringify(results, null, 2));
+
+    const flattenedResults = results.map(result => {
+      console.log('Processing result item on server:', JSON.stringify(result, null, 2));
+      return {
+        ...(result.medication_records || {}),
+        residentName: result.residents?.name,
+        roomNumber: result.residents?.room_number,
+        floor: result.residents?.floor,
+      }
+    });
+
+    console.log('Final flattened results on server:', JSON.stringify(flattenedResults, null, 2));
+    return flattenedResults;
   }
 
   async createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
