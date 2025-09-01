@@ -589,7 +589,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("=== POST /api/bathing-records Debug ===");
       console.log("Request body:", JSON.stringify(req.body, null, 2));
       console.log("Query params:", JSON.stringify(req.query, null, 2));
-      console.log("User ID:", req.user.claims.sub);
+      console.log("User ID:", req.user?.claims?.sub || "undefined");
       console.log("ResidentId from body:", req.body.residentId);
       console.log("ResidentId from query:", req.query.residentId);
       
@@ -812,9 +812,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/communications', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertCommunicationSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const communication = await storage.createCommunication(validatedData);
       res.status(201).json(communication);
