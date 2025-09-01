@@ -337,6 +337,11 @@ export default function CareRecords() {
     queryKey: ["/api/auth/user"],
   });
 
+  // Debug: ユーザー情報をコンソールに出力
+  useEffect(() => {
+    console.log("🔍 Current User in care-records:", currentUser);
+  }, [currentUser]);
+
   const form = useForm<CareRecordForm>({
     resolver: zodResolver(careRecordSchema),
     defaultValues: {
@@ -364,10 +369,19 @@ export default function CareRecords() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CareRecordForm) => {
-      await apiRequest("/api/care-records", "POST", {
+      // recordDateがISO形式になるよう確保
+      const recordDate = data.recordDate.includes('T') 
+        ? data.recordDate 
+        : data.recordDate + 'T' + new Date().toTimeString().slice(0, 8);
+      
+      const requestData = {
         ...data,
-        recordDate: new Date(data.recordDate),
-      });
+        recordDate: recordDate, // ISO形式の文字列で送信
+        notes: data.notes && data.notes.trim() ? data.notes : undefined, // 空の場合はundefinedにする
+      };
+      console.log("🚀 Sending care record data:", JSON.stringify(requestData, null, 2));
+      console.log("🚀 recordDate format:", recordDate);
+      await apiRequest("/api/care-records", "POST", requestData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
@@ -383,10 +397,11 @@ export default function CareRecords() {
       });
       setOpen(false);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error("❌ Care record creation failed:", error);
       toast({
         title: "エラー",
-        description: "介護記録の作成に失敗しました",
+        description: error.message || "介護記録の作成に失敗しました",
         variant: "destructive",
       });
     },
@@ -678,11 +693,30 @@ export default function CareRecords() {
 
   const { data: vitals = [] } = useQuery({
     queryKey: ["/api/vital-signs", selectedResident?.id],
+    queryFn: async () => {
+      if (!selectedResident?.id) return [];
+      const response = await fetch(`/api/vital-signs?residentId=${selectedResident.id}`, {
+        credentials: "include"
+      });
+      if (!response.ok) throw new Error("Failed to fetch vitals");
+      return response.json();
+    },
     enabled: !!selectedResident,
   });
 
   const { data: mealRecords = [] } = useQuery({
     queryKey: ["/api/meal-records", selectedResident?.id],
+    queryFn: async () => {
+      if (!selectedResident?.id) return [];
+      // meals-and-medication APIを使用し、フロントエンドで利用者IDでフィルタ
+      const response = await fetch(`/api/meals-medication`, {
+        credentials: "include"
+      });
+      if (!response.ok) throw new Error("Failed to fetch meal records");
+      const allRecords = await response.json();
+      // 選択された利用者の記録のみを返す
+      return allRecords.filter((record: any) => record.residentId === selectedResident.id);
+    },
     enabled: !!selectedResident,
   });
 
@@ -927,7 +961,20 @@ export default function CareRecords() {
                 <div>
                   <input
                     type="text"
-                    value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                    value={(() => {
+                      // 職員ログインの場合
+                      if ((currentUser as any)?.staffName) {
+                        return (currentUser as any).staffName;
+                      }
+                      // Replitユーザーの場合
+                      if ((currentUser as any)?.firstName) {
+                        return (currentUser as any).firstName;
+                      }
+                      if ((currentUser as any)?.email) {
+                        return (currentUser as any).email.split('@')[0];
+                      }
+                      return "不明";
+                    })()}
                     readOnly
                     className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                   />
@@ -1199,7 +1246,20 @@ export default function CareRecords() {
                       <div>
                         <input
                           type="text"
-                          value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                          value={(() => {
+                            // 職員ログインの場合
+                            if ((currentUser as any)?.staffName) {
+                              return (currentUser as any).staffName;
+                            }
+                            // Replitユーザーの場合
+                            if ((currentUser as any)?.firstName) {
+                              return (currentUser as any).firstName;
+                            }
+                            if ((currentUser as any)?.email) {
+                              return (currentUser as any).email.split('@')[0];
+                            }
+                            return "不明";
+                          })()}
                           readOnly
                           className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                         />
@@ -1370,7 +1430,20 @@ export default function CareRecords() {
                           <div>
                             <input
                               type="text"
-                              value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                              value={(() => {
+                                // 職員ログインの場合
+                                if ((currentUser as any)?.staffName) {
+                                  return (currentUser as any).staffName;
+                                }
+                                // Replitユーザーの場合
+                                if ((currentUser as any)?.firstName) {
+                                  return (currentUser as any).firstName;
+                                }
+                                if ((currentUser as any)?.email) {
+                                  return (currentUser as any).email.split('@')[0];
+                                }
+                                return "不明";
+                              })()}
                               readOnly
                               className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                             />
@@ -1543,8 +1616,8 @@ export default function CareRecords() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+        <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
             size="sm"

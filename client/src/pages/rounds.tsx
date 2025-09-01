@@ -146,7 +146,17 @@ export default function Rounds() {
         body: JSON.stringify({
           ...data,
           recordDate: selectedDate,
-          staffName: (user as any)?.firstName?.charAt(0) || '?',
+          staffName: (() => {
+            // 職員ログインの場合
+            if ((user as any)?.staffName) {
+              return (user as any).staffName.charAt(0);
+            }
+            // Replitユーザーの場合
+            if ((user as any)?.firstName) {
+              return (user as any).firstName.charAt(0);
+            }
+            return '?';
+          })(),
         }),
       });
       return response.json();

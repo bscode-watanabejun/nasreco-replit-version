@@ -346,8 +346,11 @@ export default function NursingRecordsList() {
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
   // 差戻チェック用の状態（ポップアップ内でのみ使用）
   const [rejectionChecks, setRejectionChecks] = useState<Record<string, boolean>>({});
+  // ポップアップ内の看護チェック用の状態
+  const [popupNursingChecks, setPopupNursingChecks] = useState<Record<string, boolean>>({});
   // 入浴チェックダイアログ用の状態
   const [bathingCheckDialogOpen, setBathingCheckDialogOpen] = useState<string | null>(null);
+  const [selectedBathingRecord, setSelectedBathingRecord] = useState<any>(null);
   // 入浴チェックのみフィルタの状態
   const [showBathingOnly, setShowBathingOnly] = useState(false);
   // ローカル記録日時の状態
@@ -793,10 +796,12 @@ export default function NursingRecordsList() {
     mutationFn: ({ id, data }: { id: string; data: any }) => 
       apiRequest(`/api/bathing-records/${id}`, "PATCH", data),
     onSuccess: () => {
+      // サーバーから最新データを取得して確実に同期
       queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
-      // 正常更新のメッセージは表示しない
     },
-    onError: () => {
+    onError: (error, variables, context) => {
+      // エラー時は楽観的更新をロールバック
+      queryClient.invalidateQueries({ queryKey: ["/api/bathing-records"] });
       toast({
         title: "エラー",
         description: "入浴記録の更新に失敗しました",
@@ -1660,8 +1665,8 @@ export default function NursingRecordsList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4">
+        <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
             size="sm"
@@ -1850,6 +1855,17 @@ export default function NursingRecordsList() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setBathingCheckDialogOpen(resident.id);
+                                    
+                                    // 対応する入浴記録を設定
+                                    const bathingRecord = (allBathingRecords as any[]).find((record: any) => record.residentId === resident.id);
+                                    if (bathingRecord) {
+                                      setSelectedBathingRecord({ ...bathingRecord });
+                                      // ポップアップ内の状態を初期化
+                                      setPopupNursingChecks(prev => ({
+                                        ...prev,
+                                        [resident.id]: nursingChecks[resident.id] || false
+                                      }));
+                                    }
                                   }}
                                 />
                                 {/* 差戻札 */}
@@ -1861,16 +1877,8 @@ export default function NursingRecordsList() {
                               </div>
                             );
                           } else {
-                            // バイタル未入力の場合は「入浴バイタル」プレースホルダー表示（ダイアログなし）
-                            return (
-                              <input
-                                type="text"
-                                value=""
-                                placeholder="入浴バイタル"
-                                className="w-full h-8 px-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 font-bold leading-none box-border"
-                                readOnly
-                              />
-                            );
+                            // バイタル未入力の場合は何も表示しない
+                            return null;
                           }
                         })()}
                       </div>
@@ -1890,8 +1898,11 @@ export default function NursingRecordsList() {
                           // 「入浴チェック」が表示される条件：バイタル完了済み
                           const showsBathingCheck = hasCompleteVitals;
                           
-                          // 「入浴チェック」が表示されていない場合は看護チェックを非活性化
-                          const isNursingCheckDisabled = !showsBathingCheck;
+                          // 「入浴チェック」が表示されていない場合は看護チェックを非表示
+                          if (!showsBathingCheck) {
+                            return null;
+                          }
+                          
                           return (
                             <>
                               <input
@@ -1924,10 +1935,9 @@ export default function NursingRecordsList() {
                                     });
                                   }
                                 }}
-                                className={`w-4 h-4 sm:w-5 sm:h-5 ${isNursingCheckDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                disabled={isNursingCheckDisabled}
+                                className="w-4 h-4 sm:w-5 sm:h-5"
                               />
-                              <label className={`text-sm sm:text-base font-medium ml-0.5 ${isNursingCheckDisabled ? 'text-gray-400' : 'text-gray-700'}`}>看</label>
+                              <label className="text-sm sm:text-base font-medium ml-0.5 text-gray-700">看</label>
                             </>
                           );
                         })()}
@@ -1960,8 +1970,36 @@ export default function NursingRecordsList() {
         open={bathingCheckDialogOpen !== null} 
         onOpenChange={(open) => {
           if (!open) {
-            // ダイアログを閉じる際の処理（既にonChange/onBlurで自動保存されているため、特別な保存処理は不要）
+            // ダイアログを閉じる際に更新処理を実行
+            if (selectedBathingRecord && bathingCheckDialogOpen) {
+              const originalRecord = (allBathingRecords as any[]).find((r: any) => r.id === selectedBathingRecord.id);
+              
+              // 差戻状態が変更されている場合のみ更新
+              if (originalRecord && originalRecord.rejectionReason !== selectedBathingRecord.rejectionReason) {
+                updateBathingRecordMutation.mutate({
+                  id: selectedBathingRecord.id,
+                  data: { rejectionReason: selectedBathingRecord.rejectionReason || "" }
+                });
+              }
+
+              // 看護チェック状態が変更されている場合のみ更新
+              const currentNursingCheck = popupNursingChecks[bathingCheckDialogOpen];
+              const originalNursingCheck = nursingChecks[bathingCheckDialogOpen];
+              if (currentNursingCheck !== originalNursingCheck) {
+                updateBathingRecordMutation.mutate({
+                  id: selectedBathingRecord.id,
+                  data: { nursingCheck: currentNursingCheck || false }
+                });
+                // メイン画面の看護チェック状態も更新
+                setNursingChecks(prev => ({
+                  ...prev,
+                  [bathingCheckDialogOpen]: currentNursingCheck || false
+                }));
+              }
+            }
+            
             setBathingCheckDialogOpen(null);
+            setSelectedBathingRecord(null);
           }
         }}
       >
@@ -2049,33 +2087,51 @@ export default function NursingRecordsList() {
                   />
                 </div>
                 
-                {/* 差戻チェックボックス */}
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <span className="font-medium">差戻</span>
-                  <input
-                    type="checkbox"
-                    checked={!!bathingRecord.rejectionReason}
-                    onChange={(e) => {
-                      const isRejected = e.target.checked;
-                      const rejectionValue = isRejected ? "差戻" : undefined;
-                      
-                      // 楽観的更新
-                      queryClient.setQueryData(["/api/bathing-records"], (old: any) => {
-                        return old?.map((record: any) => 
-                          record.id === bathingRecord.id 
-                            ? { ...record, rejectionReason: rejectionValue }
-                            : record
-                        );
-                      });
-                      
-                      // DB更新
-                      updateBathingRecordMutation.mutate({
-                        id: bathingRecord.id,
-                        data: { rejectionReason: rejectionValue }
-                      });
-                    }}
-                    className="w-5 h-5"
-                  />
+                {/* 差戻と看護チェックボックス（横並び） */}
+                <div className="flex gap-4 p-3 border rounded-lg">
+                  {/* 差戻チェックボックス */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedBathingRecord?.rejectionReason ? true : false}
+                      onCheckedChange={(checked) => {
+                        if (checked && bathingCheckDialogOpen) {
+                          // 差戻を選択した場合、看護チェックを解除
+                          setPopupNursingChecks(prev => ({
+                            ...prev,
+                            [bathingCheckDialogOpen]: false
+                          }));
+                        }
+                        setSelectedBathingRecord((prev: any) => prev ? {
+                          ...prev,
+                          rejectionReason: checked ? "差戻" : ""
+                        } : null);
+                      }}
+                    />
+                    <span className="font-medium">差戻</span>
+                  </div>
+
+                  {/* 看護チェックボックス */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={bathingCheckDialogOpen ? (popupNursingChecks[bathingCheckDialogOpen] || false) : false}
+                      onCheckedChange={(checked) => {
+                        if (bathingCheckDialogOpen) {
+                          if (checked) {
+                            // 看護チェックを選択した場合、差戻を解除
+                            setSelectedBathingRecord((prev: any) => prev ? {
+                              ...prev,
+                              rejectionReason: ""
+                            } : null);
+                          }
+                          setPopupNursingChecks(prev => ({
+                            ...prev,
+                            [bathingCheckDialogOpen]: checked ? true : false
+                          }));
+                        }
+                      }}
+                    />
+                    <span className="font-medium">看護チェック</span>
+                  </div>
                 </div>
               </div>
             );

@@ -149,7 +149,7 @@ export const residents = pgTable("residents", {
 export const careRecords = pgTable("care_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   category: varchar("category").notNull(), // daily_care, assistance, observation
   description: text("description").notNull(),
@@ -197,7 +197,7 @@ export const vitalSigns = pgTable("vital_signs", {
 export const mealsAndMedication = pgTable("meals_and_medication", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   type: varchar("type").notNull(), // meal, medication
   mealType: varchar("meal_type"), // 朝, 10時, 昼, 15時, 夕
@@ -239,7 +239,7 @@ export const bathingRecords = pgTable("bathing_records", {
 export const excretionRecords = pgTable("excretion_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   type: varchar("type").notNull(), // urination, bowel_movement
   consistency: varchar("consistency"), // normal, soft, hard, liquid
@@ -269,7 +269,7 @@ export const weightRecords = pgTable("weight_records", {
 export const communications = pgTable("communications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").references(() => residents.id),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   category: varchar("category").notNull(), // handover, incident, general
   priority: varchar("priority").default("normal"), // low, normal, high, urgent
@@ -299,7 +299,7 @@ export const staffNotices = pgTable("staff_notices", {
 export const staffNoticeReadStatus = pgTable("staff_notice_read_status", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   noticeId: varchar("notice_id").notNull().references(() => staffNotices.id, { onDelete: 'cascade' }),
-  staffId: varchar("staff_id").notNull().references(() => users.id),
+  staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   readAt: timestamp("read_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -338,6 +338,7 @@ export const insertResidentSchema = createInsertSchema(residents, {
 
 export const insertCareRecordSchema = createInsertSchema(careRecords, {
   recordDate: z.string().transform((str) => new Date(str)),
+  staffId: z.string().uuid("有効な職員IDを指定してください"),
 }).omit({
   id: true,
   createdAt: true,

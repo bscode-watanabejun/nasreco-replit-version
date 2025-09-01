@@ -363,8 +363,8 @@ export default function TreatmentList() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <Button 
               variant="ghost" 

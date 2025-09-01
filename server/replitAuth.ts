@@ -130,13 +130,8 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   // Check for staff session authentication first
   const staffSession = (req as any).session?.staff;
-  if (staffSession) {
-    // Create a mock user object for staff session compatibility
-    (req as any).user = {
-      claims: {
-        sub: staffSession.staffId // Use staffId as the user ID
-      }
-    };
+  if (staffSession && staffSession.id) {
+    // Staff is authenticated via session, proceed.
     return next();
   }
 

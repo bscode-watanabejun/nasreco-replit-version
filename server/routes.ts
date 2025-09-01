@@ -70,9 +70,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      // Check if this is a staff session first
+      const staffSession = (req as any).session?.staff;
+      if (staffSession) {
+        // Return staff information
+        res.json({
+          id: staffSession.staffId,
+          staffName: staffSession.staffName,
+          authority: staffSession.authority,
+          floor: staffSession.floor,
+          jobRole: staffSession.jobRole,
+          isStaff: true
+        });
+        return;
+      }
+      
+      // Fallback to regular user lookup only if req.user exists
+      if (req.user && req.user.claims) {
+        const userId = req.user.claims.sub;
+        const user = await storage.getUser(userId);
+        res.json(user);
+      } else {
+        res.status(401).json({ message: "ユーザー情報が見つかりません" });
+      }
     } catch (error: any) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -221,15 +241,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/care-records', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertCareRecordSchema.parse({
+      console.log("--- DEBUG START: /api/care-records ---");
+      console.log("Request Body:", JSON.stringify(req.body, null, 2));
+      console.log("Session Staff:", JSON.stringify((req as any).session?.staff, null, 2));
+
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : req.user.claims.sub;
+
+      console.log("Determined staffId:", staffId);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
+      const requestData = {
         ...req.body,
-        staffId: req.user.claims.sub,
-      });
+        staffId: staffId,
+      };
+
+      console.log("Data before validation:", JSON.stringify(requestData, null, 2));
+
+      const validatedData = insertCareRecordSchema.parse(requestData);
+      
+      console.log("Validation successful. Validated data:", JSON.stringify(validatedData, null, 2));
+
       const record = await storage.createCareRecord(validatedData);
+      console.log("--- DEBUG END: Record created successfully ---");
       res.status(201).json(record);
     } catch (error: any) {
+      console.error("--- DEBUG ERROR: /api/care-records ---");
       console.error("Error creating care record:", error);
-      res.status(400).json({ message: "Invalid care record data" });
+      if (error.issues) {
+        console.error("Validation issues:", JSON.stringify(error.issues, null, 2));
+      }
+      res.status(400).json({ 
+        message: "Invalid care record data",
+        error: error.message,
+        issues: error.issues || []
+      });
     }
   });
 
@@ -367,9 +417,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/vital-signs', isAuthenticated, async (req: any, res) => {
     try {
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : req.user.claims.sub;
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       const validatedData = insertVitalSignsSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       const vitals = await storage.createVitalSigns(validatedData);
       res.status(201).json(vitals);
@@ -440,11 +498,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log("🚀 POST /api/meals-medication called (first handler)");
       console.log("Request body:", JSON.stringify(req.body, null, 2));
-      console.log("User claims:", req.user.claims);
+      console.log("Session Staff:", JSON.stringify((req as any).session?.staff, null, 2));
+
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : req.user.claims.sub;
+
+      console.log("Determined staffId:", staffId);
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
       
       const validatedData = insertMealsAndMedicationSchema.parse({
         ...req.body,
-        staffId: req.user.claims.sub,
+        staffId: staffId,
       });
       console.log("Validated data:", JSON.stringify(validatedData, null, 2));
       
@@ -526,11 +594,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertBathingRecordSchema.partial().parse(dataToValidate);
       console.log("Validation successful:", JSON.stringify(validatedData, null, 2));
       
+      // staffId の決定 - 職員セッションを優先
+      const staffSession = (req as any).session?.staff;
+      const staffId = staffSession ? staffSession.id : req.user.claims.sub;
+
+      if (!staffId) {
+        console.error("Validation failed: staffId is missing.");
+        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+      }
+
       // residentIdとstaffIdはvalidationから除外されているため、手動で追加
       const recordData = {
         ...validatedData,
         residentId: req.body.residentId || req.query.residentId || null,  // bodyから優先して取得、なければquery、それでもなければnull
-        staffId: req.user.claims.sub,  // 現在のユーザーIDを設定
+        staffId: staffId,  // 職員セッションを優先したstaffIdを設定
         recordDate: req.body.recordDate ? new Date(req.body.recordDate) : new Date(),  // recordDateが未定義の場合は現在日時
       };
       
@@ -912,7 +989,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/staff-notices/:id/mark-read', isAuthenticated, async (req: any, res) => {
     try {
-      const readStatus = await storage.markStaffNoticeAsRead(req.params.id, req.user.claims.sub);
+      const staffSession = (req as any).session?.staff;
+      const userId = staffSession ? staffSession.staffId : (req.user?.claims?.sub || null);
+
+      if (!userId) {
+        return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
+      }
+
+      const readStatus = await storage.markStaffNoticeAsRead(req.params.id, userId);
       res.status(201).json(readStatus);
     } catch (error: any) {
       console.error("Error marking staff notice as read:", error);
@@ -922,7 +1006,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/staff-notices/:id/mark-unread', isAuthenticated, async (req: any, res) => {
     try {
-      await storage.markStaffNoticeAsUnread(req.params.id, req.user.claims.sub);
+      const staffSession = (req as any).session?.staff;
+      const userId = staffSession ? staffSession.staffId : (req.user?.claims?.sub || null);
+
+      if (!userId) {
+        return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
+      }
+
+      await storage.markStaffNoticeAsUnread(req.params.id, userId);
       res.status(200).json({ message: "Marked as unread" });
     } catch (error: any) {
       console.error("Error marking staff notice as unread:", error);
@@ -932,7 +1023,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/staff-notices/unread-count', isAuthenticated, async (req: any, res) => {
     try {
-      const count = await storage.getUnreadStaffNoticesCount(req.user.claims.sub);
+      const staffSession = (req as any).session?.staff;
+      const userId = staffSession ? staffSession.staffId : (req.user?.claims?.sub || null);
+
+      if (!userId) {
+        return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
+      }
+
+      const count = await storage.getUnreadStaffNoticesCount(userId);
       res.json({ count });
     } catch (error: any) {
       console.error("Error fetching unread count:", error);

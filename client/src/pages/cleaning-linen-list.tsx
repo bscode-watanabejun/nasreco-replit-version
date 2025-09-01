@@ -370,8 +370,8 @@ export default function CleaningLinenList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 shadow-md">
-        <div className="flex items-center gap-2">
+      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 shadow-md">
+        <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
             size="sm"

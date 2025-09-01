@@ -2388,8 +2388,8 @@ export default function NursingRecords() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-4">
-        <div className="flex items-center gap-2 mb-4">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4">
+        <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
             size="sm"

@@ -56,10 +56,10 @@ export default function ModuleCard({
             )}
           </div>
           <div>
-            <h3 className="font-medium text-slate-900 leading-tight text-xs">
+            <h3 className="font-medium text-slate-900 leading-tight text-base sm:text-lg">
               {title}
             </h3>
-            <p className="text-slate-600 leading-tight text-xs mt-0 hidden sm:block">
+            <p className="text-slate-600 leading-tight text-sm sm:text-base mt-0 hidden sm:block">
               {description}
             </p>
           </div>

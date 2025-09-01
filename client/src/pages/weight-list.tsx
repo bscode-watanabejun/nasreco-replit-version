@@ -322,13 +322,11 @@ function WeightCard({
             <div className="text-lg font-bold text-blue-600 min-w-[50px]">
               {resident?.roomNumber || "未設定"}
             </div>
-            <ResidentSelector
-              weight={weight}
-              residents={residents}
-              onResidentChange={(weightId, residentId) => 
-                changeResidentMutation.mutate({ weightId, newResidentId: residentId })
-              }
-            />
+            <div className="font-medium text-sm truncate w-20 sm:w-24">
+              <span className="text-slate-800">
+                {resident?.name || "未選択"}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2 ml-2">
             <span className="text-xs font-medium text-blue-600">体重</span>
@@ -1110,8 +1108,8 @@ export default function WeightList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+        <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"

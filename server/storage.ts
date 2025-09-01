@@ -230,12 +230,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteResident(id: string): Promise<void> {
-    console.log(`Attempting to delete resident with id: ${id}`);
-    const result = await db.update(residents)
+    await db.update(residents)
       .set({ isActive: false, updatedAt: new Date() })
-      .where(eq(residents.id, id))
-      .returning({ id: residents.id, isActive: residents.isActive });
-    console.log(`Delete result:`, result);
+      .where(eq(residents.id, id));
   }
 
   // Care record operations
@@ -448,8 +445,6 @@ export class DatabaseStorage implements IStorage {
 
   // Bathing record operations
   async getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]> {
-    console.log("=== getBathingRecords Debug ===");
-    console.log("Input params:", { residentId, startDate, endDate });
     
     const conditions = [];
 
@@ -463,18 +458,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(bathingRecords.recordDate, endDate));
     }
 
-    console.log("Conditions:", conditions.length);
-    
     try {
       const result = await db.select()
         .from(bathingRecords)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(bathingRecords.recordDate));
-      
-      console.log("DB query result:", result);
-      console.log("Result length:", result ? result.length : "null/undefined");
-      console.log("Result type:", typeof result);
-      console.log("Is array:", Array.isArray(result));
       
       return result;
     } catch (error) {
@@ -658,7 +646,6 @@ export class DatabaseStorage implements IStorage {
       recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
     };
     
-    console.log('Upserting medication record:', recordToUpsert);
     
     // PostgreSQLのON CONFLICTを使用してupsert操作を実行
     const [upsertedRecord] = await db
@@ -677,7 +664,6 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
       
-    console.log('Upserted medication record:', upsertedRecord);
     return upsertedRecord;
   }
 
@@ -813,12 +799,6 @@ export class DatabaseStorage implements IStorage {
     const startDateStr = weekStartDate.toISOString().split('T')[0];
     const endDateStr = weekEndDate.toISOString().split('T')[0];
     
-    console.log('Fetching cleaning linen records:', { 
-      weekStartDate: weekStartDate.toISOString(),
-      floor, 
-      startDateStr, 
-      endDateStr 
-    });
 
     let query = db.select({
       id: cleaningLinenRecords.id,
@@ -888,10 +868,6 @@ export class DatabaseStorage implements IStorage {
     }
 
     const result = await query.orderBy(cleaningLinenRecords.recordDate, residents.roomNumber);
-    console.log('Query result count:', result.length);
-    if (result.length > 0) {
-      console.log('Sample record:', result[0]);
-    }
     return result;
   }
 
@@ -977,12 +953,9 @@ export class DatabaseStorage implements IStorage {
 
   async createStaffManagement(record: InsertStaffManagement): Promise<StaffManagement> {
     try {
-      console.log("💾 Creating staff record:", record);
       
       // 職員IDの重複チェック
-      console.log("🔍 Checking for duplicate staffId:", record.staffId);
       const existing = await db.select().from(staffManagement).where(eq(staffManagement.staffId, record.staffId));
-      console.log("📊 Found existing records:", existing.length);
       
       if (existing.length > 0) {
         throw new Error("この職員IDは既に使用されています");
@@ -990,17 +963,14 @@ export class DatabaseStorage implements IStorage {
 
       // パスワードのハッシュ化（実装簡略化のため、実際の本番環境ではbcryptを使用）
       const hashedPassword = record.password ? Buffer.from(record.password).toString('base64') : null;
-      console.log("🔐 Password hashed");
 
       const insertData = {
         ...record,
         password: hashedPassword,
         lastModifiedAt: new Date(),
       };
-      console.log("📝 Inserting data:", insertData);
 
       const [created] = await db.insert(staffManagement).values(insertData).returning();
-      console.log("✅ Staff created successfully:", created);
       
       return created;
     } catch (error: any) {
@@ -1221,6 +1191,9 @@ export class DatabaseStorage implements IStorage {
     // staffデータを先に取得してキャッシュ
     const staffData = await this.getStaffManagement();
     const staffMap = new Map(staffData.map(s => [s.id, s.staffName]));
+    // usersテーブルも確認してマッピングを作成
+    const usersData = await db.select().from(users);
+    const usersMap = new Map(usersData.map(u => [u.id, u.firstName || u.email || u.id]));
 
 
     // 介護記録
@@ -1245,6 +1218,11 @@ export class DatabaseStorage implements IStorage {
         careRecordsData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
+            const mappedStaffName = staffMap.get(record.staffId);
+            const fallbackUserName = usersMap.get(record.staffId);
+            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            
+            
             allRecords.push({
               id: record.id,
               recordType: '様子',
@@ -1253,7 +1231,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: record.recordDate,
               content: record.description,
-              staffName: record.staffId, // 介護記録は現在staffIdのみ利用可能
+              staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1282,6 +1260,11 @@ export class DatabaseStorage implements IStorage {
             // 記録内容のみを表示（食事量等の詳細は表示しない）
             const content = record.notes || '';
 
+            const mappedStaffName = staffMap.get(record.staffId);
+            const fallbackUserName = usersMap.get(record.staffId);
+            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            
+            
             allRecords.push({
               id: record.id,
               recordType: '食事',
@@ -1290,7 +1273,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: record.recordDate,
               content,
-              staffName: record.staffId,
+              staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1314,6 +1297,13 @@ export class DatabaseStorage implements IStorage {
           if (resident) {
             let content = record.notes || '';
 
+            // 服薬記録のconfirmer1またはconfirmer2もマッピングを適用
+            const rawStaffName = record.confirmer1 || record.confirmer2;
+            const mappedStaffName = staffMap.get(rawStaffName);
+            const fallbackUserName = usersMap.get(rawStaffName);
+            const finalStaffName = mappedStaffName || fallbackUserName || rawStaffName;
+            
+
             allRecords.push({
               id: record.id,
               recordType: '服薬',
@@ -1322,7 +1312,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
               content,
-              staffName: record.confirmer1 || record.confirmer2,
+              staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1350,6 +1340,12 @@ export class DatabaseStorage implements IStorage {
             // 記録内容のみを表示（バイタル数値は表示しない）
             const content = record.notes || '';
 
+            // バイタル記録のスタッフ名もマッピングを適用
+            const mappedStaffName = staffMap.get(record.staffName);
+            const fallbackUserName = usersMap.get(record.staffName);
+            const finalStaffName = mappedStaffName || fallbackUserName || record.staffName;
+            
+
             allRecords.push({
               id: record.id,
               recordType: 'バイタル',
@@ -1358,7 +1354,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: record.recordDate,
               content: content.trim(),
-              staffName: record.staffName,
+              staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1386,6 +1382,10 @@ export class DatabaseStorage implements IStorage {
             // 記録内容のみを表示（排泄タイプ、性状、量は表示しない）
             const content = record.notes || '';
 
+            const mappedStaffName = staffMap.get(record.staffId);
+            const fallbackUserName = usersMap.get(record.staffId);
+            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            
             allRecords.push({
               id: record.id,
               recordType: '排泄',
@@ -1394,7 +1394,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: record.recordDate,
               content,
-              staffName: record.staffId, // 排泄記録は現在staffIdのみ利用可能
+              staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1418,7 +1418,12 @@ export class DatabaseStorage implements IStorage {
           if (resident) {
             // 記録内容のみを表示（清掃・リネン値は表示しない）
             const content = record.recordNote || '';
-            const staffName = staffMap.get(record.staffId) || record.staffId || '';
+            
+            // 清掃リネン記録のスタッフIDもマッピングを適用
+            const mappedStaffName = staffMap.get(record.staffId);
+            const fallbackUserName = usersMap.get(record.staffId);
+            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            
 
             allRecords.push({
               id: record.id,
@@ -1428,7 +1433,7 @@ export class DatabaseStorage implements IStorage {
               residentName: resident.name,
               recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
               content: content.trim(),
-              staffName: staffName, 
+              staffName: finalStaffName, 
               createdAt: record.createdAt,
               originalData: record
             });
@@ -1549,8 +1554,8 @@ export class DatabaseStorage implements IStorage {
         nursingData.forEach(record => {
           const resident = record.residentId ? residentsMap.get(record.residentId) : null;
           
-          // 職員名をマップから取得
-          const staffName = usersMap.get(record.nurseId) || record.nurseId;
+          // 職員名をマップから取得（staffMapを優先、次にusersMap）
+          const staffName = staffMap.get(record.nurseId) || usersMap.get(record.nurseId) || record.nurseId;
           
           // カテゴリー判定ロジック：既存データとの互換性を考慮
           let recordType = '看護記録';

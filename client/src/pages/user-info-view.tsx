@@ -191,7 +191,6 @@ export default function UserInfoView() {
                   if (selectedDate) params.set('date', selectedDate);
                   if (selectedFloor) params.set('floor', selectedFloor);
                   const targetUrl = `/?${params.toString()}`;
-                  console.log('利用者閲覧からトップ画面へ遷移:', targetUrl);
                   navigate(targetUrl);
                 }}
                 className="p-2 text-white hover:bg-orange-600"
