@@ -627,22 +627,32 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(residents.floor, floor));
     }
 
-    const results = await db.select()
+    const results = await db.select({
+      // medication_records のフィールド
+      id: medicationRecords.id,
+      residentId: medicationRecords.residentId,
+      recordDate: medicationRecords.recordDate,
+      timing: medicationRecords.timing,
+      confirmer1: medicationRecords.confirmer1,
+      confirmer2: medicationRecords.confirmer2,
+      notes: medicationRecords.notes,
+      type: medicationRecords.type,
+      result: medicationRecords.result,
+      createdBy: medicationRecords.createdBy,
+      createdAt: medicationRecords.createdAt,
+      updatedAt: medicationRecords.updatedAt,
+      // residents のフィールド
+      residentName: residents.name,
+      roomNumber: residents.roomNumber,
+      floor: residents.floor,
+    })
       .from(medicationRecords)
       .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
       .where(and(...conditions));
       
     console.log('Raw results from DB:', JSON.stringify(results, null, 2));
 
-    const flattenedResults = results.map(result => {
-      console.log('Processing result item on server:', JSON.stringify(result, null, 2));
-      return {
-        ...(result.medication_records || {}),
-        residentName: result.residents?.name,
-        roomNumber: result.residents?.room_number,
-        floor: result.residents?.floor,
-      }
-    });
+    const flattenedResults = results;
 
     console.log('Final flattened results on server:', JSON.stringify(flattenedResults, null, 2));
     return flattenedResults;

@@ -284,7 +284,7 @@ export default function MedicationList() {
           return updated;
         } else {
           // 新規レコードを追加
-          return [...old, { ...newRecord, id: `temp-${Date.now()}` }];
+          return [...old, { ...newRecord, id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` }];
         }
       });
       
@@ -390,8 +390,8 @@ export default function MedicationList() {
   const handleAddRecord = () => {
     if (!user) return;
 
-    // 一時的なIDを生成（タイムスタンプベース）
-    const tempId = `temp-new-${Date.now()}`;
+    // 一時的なIDを生成（ユニークなIDを保証）
+    const tempId = `temp-new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // 楽観的更新で空のカードを即座に追加
     queryClient.setQueryData(["/api/medication-records", selectedDate, selectedTiming, selectedFloor], (old: any) => {
