@@ -913,9 +913,8 @@ export default function ExcretionList() {
               <tbody>
                 {filteredResidents.map((resident: Resident) => {
                   const residentId = resident.id;
-                  return (
-                    <React.Fragment key={`${residentId}-record`}>
-                      {/* 便の行 */}
+                  return [
+                      // 便の行
                       <tr key={`${residentId}-stool`}>
                       <td className="border-r border-b border-gray-200 px-1 py-1 text-center bg-gray-100 sticky left-0 z-10" rowSpan={2}>
                         <div className="text-xs font-bold">{resident.roomNumber}</div>
@@ -989,6 +988,9 @@ export default function ExcretionList() {
                           className="w-full h-6 text-xs text-center border border-dashed border-gray-300 bg-blue-50 hover:bg-blue-100 focus:bg-white focus:border-blue-500 focus:outline-none font-bold rounded cursor-text transition-colors px-0.5"
                         />
                       </td>
+                      ,
+                      // 尿の行
+                      <tr key={`${residentId}-urine`}>
                       {/* 記録列は上の行でrowSpan={2}でマージされているため、ここにはセルなし */}
                       {hours.map(hour => {
                         const data = getCellData(resident.id, hour);
@@ -1006,8 +1008,7 @@ export default function ExcretionList() {
                         );
                       })}
                       </tr>
-                    </React.Fragment>
-                  );
+                  ];
                 })}
               </tbody>
             </table>
@@ -1117,9 +1118,8 @@ export default function ExcretionList() {
                       const currentAiAnalysis = getAiAnalysisData(resident.id) || aiAnalysis;
                       
                       const residentId = resident.id;
-                      return (
-                        <React.Fragment key={`${residentId}-summary`}>
-                          {/* 便の行 */}
+                      return [
+                          // 便の行
                           <tr key={`${residentId}-stool`}>
                             <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center bg-gray-100 sticky left-0 z-10 w-16" rowSpan={2}>
                               <div className="text-xs font-bold">{resident.roomNumber}</div>
@@ -1169,7 +1169,8 @@ export default function ExcretionList() {
                               />
                             </td>
                           </tr>
-                          {/* 尿の行 */}
+                          ,
+                          // 尿の行
                           <tr key={`${residentId}-urine`} className="border-b-2 border-gray-300"> 
                             <td className="border-r border-b border-gray-200 px-0.5 py-1 text-center text-xs bg-gray-100 w-12">
                               尿計
@@ -1190,8 +1191,7 @@ export default function ExcretionList() {
                               <span className="text-xs font-bold">{resident.diaperType || ''}</span>
                             </td>
                           </tr>
-                        </React.Fragment>
-                      );
+                      ];
                     })}
                   </tbody>
                 </table>

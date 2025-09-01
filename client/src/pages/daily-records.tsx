@@ -276,7 +276,9 @@ export default function DailyRecords() {
       return response as DailyRecord[];
     },
     enabled: !!isAuthenticated && !!selectedDate,
-    staleTime: 30000, // 30秒間キャッシュ
+    staleTime: 0, // キャッシュを無効化
+    refetchOnMount: true, // マウント時に必ず最新データを取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時にも最新データを取得
   });
 
   // フロントエンド側でフィルタリングを実装

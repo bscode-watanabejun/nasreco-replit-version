@@ -422,27 +422,7 @@ export default function MedicationList() {
     });
   };
 
-  // 特定の利用者の既存データを取得する関数
-  const fetchExistingDataForResident = async (residentId: string) => {
-    try {
-      const params = new URLSearchParams({
-        recordDate: selectedDate,
-        timing: selectedTiming,
-        floor: 'all', // 利用者変更時は階数フィルタを無視
-        residentId: residentId
-      });
-      const response = await fetch(`/api/medication-records?${params}`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const data = await response.json();
-        return data.length > 0 ? data[0] : null; // 最初のレコードを返す
-      }
-    } catch (error) {
-      console.error('Failed to fetch existing data for resident:', error);
-    }
-    return null;
-  };
+  // fetchExistingDataForResident関数は削除（使用されなくなったため）
 
   // フィールド保存（食事一覧と同じアプローチ）
   const handleSaveRecord = (residentId: string, field: string, value: string) => {
@@ -537,21 +517,9 @@ export default function MedicationList() {
         });
       });
       
-      // 利用者選択時には既存の記録があるかチェックして自動でデータを設定
-      if (value && resident) {
-        const existingData = await fetchExistingDataForResident(value);
-        if (existingData) {
-          queryClient.setQueryData(queryKey, (old: any) => {
-            if (!old) return old;
-            return old.map((record: any) => {
-              if (record.id === recordId) {
-                return { ...record, ...existingData, id: recordId };
-              }
-              return record;
-            });
-          });
-        }
-      }
+      // 新規カードでは既存データの自動設定は行わない
+      // （既存データの自動設定は削除）
+      // この処理により、同じ利用者の既存レコードがあっても新規カードには影響しない
       return;
     }
     
