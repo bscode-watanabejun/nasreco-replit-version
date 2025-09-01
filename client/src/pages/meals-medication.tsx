@@ -407,7 +407,7 @@ export default function MealsMedicationPage() {
           residentName: '',
           roomNumber: '',
           floor: '',
-          staffId: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+          staffId: null, // null値で作成し、サーバー側で適切なスタッフIDを設定
           recordDate: selectedDate,
           type: 'meal',
           mealType: recordMealTime === 'all' ? '朝' : recordMealTime,
@@ -451,7 +451,7 @@ export default function MealsMedicationPage() {
     // 新しいスキーマに合わせたレコードデータを作成
     const recordData: InsertMealsAndMedication = {
       residentId,
-      staffId: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+      // staffIdはサーバー側で自動設定するため、フロントでは送信しない
       recordDate: selectedDate,
       type: 'meal',
       mealType: recordMealTime === 'all' ? '朝' : recordMealTime,
@@ -530,7 +530,8 @@ export default function MealsMedicationPage() {
 
   // 承認者アイコン機能（バイタル一覧と同じ）
   const handleStaffStamp = (residentId: string) => {
-    const staffName = (user as any)?.firstName || 'スタッフ';
+    // セッション職員情報があるか確認
+    const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
     const existingRecord = mealsMedicationData.find(
       (record: MealsMedicationWithResident) => 
         record.residentId === residentId && record.mealType === selectedMealTime
@@ -567,7 +568,7 @@ export default function MealsMedicationPage() {
     if (targetResident) {
       const newRecord: InsertMealsAndMedication = {
         residentId: targetResident.id,
-        staffId: (user as any)?.id || (user as any)?.claims?.sub || 'unknown',
+        // staffIdはサーバー側で自動設定するため、フロントでは送信しない
         recordDate: selectedDate,
         type: 'meal',
         mealType: selectedMealTime,
@@ -575,7 +576,7 @@ export default function MealsMedicationPage() {
         sideAmount: '',
         waterIntake: '',
         supplement: '',
-        staffName: (user as any)?.firstName || 'スタッフ',
+        staffName: (user as any)?.staffName || (user as any)?.firstName || 'スタッフ',
         notes: '',
       };
       createMutation.mutate(newRecord);
@@ -779,7 +780,7 @@ export default function MealsMedicationPage() {
                       onClick={(e) => {
                         const currentValue = e.currentTarget.value;
                         if (!currentValue.trim()) {
-                          const staffName = (user as any)?.firstName || 'スタッフ';
+                          const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
                           handleFieldUpdate(resident.id, 'staffName', staffName);
                         }
                       }}

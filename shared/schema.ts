@@ -403,7 +403,7 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
 
 export const insertMealsAndMedicationSchema = z.object({
   residentId: z.string(),
-  staffId: z.string(),
+  staffId: z.string().optional(), // オプションに変更（サーバー側で設定）
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
     if (val instanceof Date) return val;
     return new Date(val);

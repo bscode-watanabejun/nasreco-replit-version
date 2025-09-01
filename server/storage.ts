@@ -150,6 +150,8 @@ export interface IStorage {
 
   // Staff authentication
   authenticateStaff(staffId: string, password: string): Promise<StaffManagement | null>;
+  getStaffByUserId(userId: string): Promise<StaffManagement | null>;
+  getDefaultStaff(): Promise<StaffManagement | null>;
 
   // Staff Management operations
   getStaffManagement(): Promise<StaffManagement[]>;
@@ -1060,6 +1062,23 @@ export class DatabaseStorage implements IStorage {
           eq(staffManagement.password, hashedPassword)
         )
       );
+    
+    return staff || null;
+  }
+
+  async getStaffByUserId(userId: string): Promise<StaffManagement | null> {
+    // ユーザーIDから職員を検索（まだ実装していないため、現在はnullを返す）
+    // 将来的に users テーブルと staff_management テーブルを連携させる場合に実装
+    return null;
+  }
+
+  async getDefaultStaff(): Promise<StaffManagement | null> {
+    // デフォルト職員を取得（最初の職員またはアクティブな職員を返す）
+    const [staff] = await db.select()
+      .from(staffManagement)
+      .where(eq(staffManagement.status, "ロック解除"))
+      .orderBy(staffManagement.sortOrder, staffManagement.createdAt)
+      .limit(1);
     
     return staff || null;
   }
