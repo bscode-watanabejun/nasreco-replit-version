@@ -175,7 +175,7 @@ export const nursingRecords = pgTable("nursing_records", {
 export const vitalSigns = pgTable("vital_signs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").references(() => users.id),
+  staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   timing: varchar("timing"), // 午前, 午後, 臨時, 前日
   hour: integer("hour"), // 時間 (0-23)
@@ -215,7 +215,7 @@ export const mealsAndMedication = pgTable("meals_and_medication", {
 export const bathingRecords = pgTable("bathing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").references(() => residents.id),
-  staffId: varchar("staff_id").references(() => users.id),
+  staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   timing: varchar("timing"), // 午前, 午後, 臨時, 前日
   hour: varchar("hour"), // 時間 (0-23)
@@ -253,7 +253,7 @@ export const excretionRecords = pgTable("excretion_records", {
 export const weightRecords = pgTable("weight_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
-  staffId: varchar("staff_id").references(() => users.id),
+  staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   measurementDate: date("measurement_date"), // 計測日 (recordDateとは別)
   hour: integer("hour"), // 時間 (0-23)
@@ -283,7 +283,7 @@ export const communications = pgTable("communications", {
 export const staffNotices = pgTable("staff_notices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   facilityId: varchar("facility_id").notNull(), // 施設ID
-  createdBy: varchar("created_by").notNull().references(() => users.id), // 作成者（管理者）
+  createdBy: varchar("created_by").notNull().references(() => staffManagement.id), // 作成者（管理者）
   title: varchar("title"), // タイトル (optional)
   content: text("content").notNull(), // 連絡事項内容
   startDate: date("start_date").notNull(), // 閲覧期間From
