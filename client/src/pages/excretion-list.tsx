@@ -968,8 +968,8 @@ export default function ExcretionList() {
                           </td>
                         );
                       })}
-                    </tr>
-                      {/* 記録の行 */}
+                    </tr>,
+                      // 尿の行
                       <tr key={`${residentId}-urine`} className="border-b-2 border-gray-300">
                       <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">尿</td>
                       <td className="border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
@@ -988,9 +988,6 @@ export default function ExcretionList() {
                           className="w-full h-6 text-xs text-center border border-dashed border-gray-300 bg-blue-50 hover:bg-blue-100 focus:bg-white focus:border-blue-500 focus:outline-none font-bold rounded cursor-text transition-colors px-0.5"
                         />
                       </td>
-                      ,
-                      // 尿の行
-                      <tr key={`${residentId}-urine`}>
                       {/* 記録列は上の行でrowSpan={2}でマージされているため、ここにはセルなし */}
                       {hours.map(hour => {
                         const data = getCellData(resident.id, hour);
