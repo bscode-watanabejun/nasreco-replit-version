@@ -244,7 +244,6 @@ export default function MedicationList() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log('Medication records fetched:', data);
       return data;
     }
   });
@@ -309,6 +308,7 @@ export default function MedicationList() {
     onSuccess: () => {
       // 成功時は楽観的更新のみで完了（invalidateしない）
       // queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-records'] });
     },
   });
 
@@ -357,6 +357,7 @@ export default function MedicationList() {
     },
     onSuccess: () => {
       // 成功時は楽観的更新のみで完了（invalidateしない）
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-records'] });
     },
   });
 
@@ -376,6 +377,7 @@ export default function MedicationList() {
       queryClient.refetchQueries({ 
         queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] 
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/daily-records'] });
     },
     onError: (error, variables) => {
       console.error('Delete failed for record:', variables, error);
@@ -478,8 +480,8 @@ export default function MedicationList() {
       confirmer1: existingRecord?.confirmer1 || '',
       confirmer2: existingRecord?.confirmer2 || '',
       notes: existingRecord?.notes || '',
-      result: existingRecord?.result || '',
-      createdBy: (user as any)?.claims?.sub || 'unknown'
+      result: existingRecord?.result || ''
+      // createdByはサーバー側で自動設定するため、フロントでは送信しない
     };
     
     // フィールドを更新
@@ -581,18 +583,23 @@ export default function MedicationList() {
   };
 
   // 確認者設定（直接フィールド更新のみ）
-  const handleConfirmerStamp = (residentId: string, confirmerField: "confirmer1" | "confirmer2") => {
+  const handleConfirmerStamp = (recordId: string, confirmerField: "confirmer1" | "confirmer2") => {
     if (!user) return;
     
-    const staffName = (user as any)?.firstName || 'スタッフ';
+    const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
     const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
     const currentCacheData = queryClient.getQueryData(queryKey) as any[];
     
-    // 現在のレコードを取得
+    // IDでレコードを検索
     const existingRecord = currentCacheData?.find(
-      (record: any) => 
-        record.residentId === residentId && record.timing === selectedTiming
+      (record: any) => record.id === recordId
     );
+
+    if (!existingRecord) {
+      console.error("Record not found for stamping:", recordId);
+      toast({ title: "エラー", description: "対象の記録が見つかりません。", variant: "destructive" });
+      return;
+    }
     
     // 現在の確認者名を取得
     const currentConfirmer = existingRecord?.[confirmerField] || '';
@@ -600,29 +607,43 @@ export default function MedicationList() {
     // 確認者が空白の場合はログイン者名を設定、入っている場合はクリア
     const newConfirmer = currentConfirmer ? '' : staffName;
     
-    console.log(`Setting ${confirmerField} to: ${newConfirmer}`);
+    console.log(`Setting ${confirmerField} to: ${newConfirmer} for record ${recordId}`);
     
-    // 既存レコードがあるか確認
-    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+    // 既存レコード（一時的でない）があるか確認
+    if (existingRecord.id && !existingRecord.id.startsWith('temp-')) {
       // 既存レコードを更新
       const updateData = { [confirmerField]: newConfirmer };
       console.log('Updating existing record confirmer:', existingRecord.id, updateData);
       updateMutation.mutate({ id: existingRecord.id, data: updateData });
     } else {
-      // 新規レコードを作成（既存データを保持）
-      const recordData: InsertMedicationRecord = {
-        residentId,
-        recordDate: new Date(selectedDate),
-        timing: selectedTiming,
-        type: existingRecord?.type || '服薬',
-        confirmer1: confirmerField === 'confirmer1' ? newConfirmer : (existingRecord?.confirmer1 || ''),
-        confirmer2: confirmerField === 'confirmer2' ? newConfirmer : (existingRecord?.confirmer2 || ''),
-        notes: existingRecord?.notes || '',
-        result: existingRecord?.result || '',
-        createdBy: (user as any)?.claims?.sub || 'unknown'
-      };
-      console.log('Creating new record for confirmer:', recordData);
-      createMutation.mutate(recordData);
+      // 新規レコード（一時的）の場合
+      // 利用者が選択されているか確認
+      if (existingRecord.residentId) {
+        // 利用者が選択されていれば、レコードを作成
+        const recordData: InsertMedicationRecord = {
+          residentId: existingRecord.residentId,
+          recordDate: new Date(selectedDate),
+          timing: selectedTiming,
+          type: existingRecord?.type || '服薬',
+          confirmer1: confirmerField === 'confirmer1' ? newConfirmer : (existingRecord?.confirmer1 || ''),
+          confirmer2: confirmerField === 'confirmer2' ? newConfirmer : (existingRecord?.confirmer2 || ''),
+          notes: existingRecord?.notes || '',
+          result: existingRecord?.result || ''
+        };
+        console.log('Creating new record for confirmer stamp on temp record:', recordData);
+        createMutation.mutate(recordData);
+      } else {
+        // 利用者が未選択の場合は、キャッシュ内のレコードを直接更新
+        console.log('Updating temp record in cache:', recordId);
+        queryClient.setQueryData(queryKey, (old: any[] | undefined) => {
+          if (!old) return [];
+          return old.map(record => 
+            record.id === recordId 
+              ? { ...record, [confirmerField]: newConfirmer }
+              : record
+          );
+        });
+      }
     }
   };
 
@@ -810,7 +831,7 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer1 || ''}
-                      onClick={() => record.id && handleConfirmerStamp(record.residentId, "confirmer1")}
+                      onClick={() => record.id && handleConfirmerStamp(record.id, "confirmer1")}
                       onChange={(e) => {
                         // 手動入力も可能にする
                         record.id && handleFieldUpdate(record.id, 'confirmer1', e.target.value);
@@ -826,7 +847,7 @@ export default function MedicationList() {
                     <input
                       type="text"
                       value={record.confirmer2 || ''}
-                      onClick={() => record.id && handleConfirmerStamp(record.residentId, "confirmer2")}
+                      onClick={() => record.id && handleConfirmerStamp(record.id, "confirmer2")}
                       onChange={(e) => {
                         // 手動入力も可能にする
                         record.id && handleFieldUpdate(record.id, 'confirmer2', e.target.value);

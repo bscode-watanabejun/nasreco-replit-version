@@ -1050,10 +1050,11 @@ export default function Vitals() {
   // スタッフ印機能
   const handleStaffStamp = async (vitalId: string, residentId?: string) => {
     const user = currentUser as any;
-    const staffName =
-      user?.firstName && user?.lastName
+    // セッション職員情報があるか確認
+    const staffName = user?.staffName || 
+      (user?.firstName && user?.lastName
         ? `${user.lastName} ${user.firstName}`
-        : user?.email || "スタッフ";
+        : user?.email || "スタッフ");
 
     // 現在のバイタル記録を取得
     const vital = filteredVitalSigns.find((v: any) => v.id === vitalId);

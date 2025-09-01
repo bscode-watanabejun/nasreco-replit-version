@@ -359,6 +359,7 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
+  staffId: z.string().optional(), // オプションに変更（サーバー側で設定）
   hour: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val : parseInt(val, 10);
@@ -457,6 +458,7 @@ export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
     if (val instanceof Date) return val;
     return new Date(val);
   }),
+  staffId: z.string().optional(), // オプションに変更（サーバー側で設定）
   measurementDate: z.union([z.string(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     return val;
@@ -546,6 +548,7 @@ export const insertMedicationRecordSchema = createInsertSchema(medicationRecords
     z.string().transform((str) => new Date(str)),
     z.date()
   ]).transform((val) => val instanceof Date ? val : new Date(val)),
+  createdBy: z.string().optional(), // オプションに変更（サーバー側で設定）
 }).omit({
   id: true,
   createdAt: true,

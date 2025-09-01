@@ -870,10 +870,11 @@ export default function WeightList() {
   // スタッフ印機能
   const handleStaffStamp = async (weightId: string, residentId?: string) => {
     const user = currentUser as any;
-    const staffName =
-      user?.firstName && user?.lastName
+    // セッション職員情報があるか確認
+    const staffName = user?.staffName || 
+      (user?.firstName && user?.lastName
         ? `${user.lastName} ${user.firstName}`
-        : user?.email || "スタッフ";
+        : user?.email || "スタッフ");
 
     // 現在の体重記録を取得
     const weight = filteredWeightRecords.find((w: any) => w.id === weightId);

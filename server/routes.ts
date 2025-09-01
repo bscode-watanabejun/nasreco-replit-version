@@ -426,11 +426,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/vital-signs', isAuthenticated, async (req: any, res) => {
     try {
       const staffSession = (req as any).session?.staff;
-      const staffId = staffSession ? staffSession.id : req.user.claims.sub;
+      let staffId = staffSession ? staffSession.id : null;
 
+      // 職員セッションがない場合、デフォルト職員またはユーザー職員を探す
       if (!staffId) {
-        console.error("Validation failed: staffId is missing.");
-        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+        try {
+          const userBasedStaff = await storage.getStaffByUserId(req.user.claims.sub);
+          if (userBasedStaff) {
+            staffId = userBasedStaff.id;
+          } else {
+            const defaultStaff = await storage.getDefaultStaff();
+            if (defaultStaff) {
+              staffId = defaultStaff.id;
+            } else {
+              return res.status(401).json({ message: "有効な職員情報が見つかりません。職員管理で職員を登録するか、職員ログインを行ってください。" });
+            }
+          }
+        } catch (staffError) {
+          return res.status(500).json({ message: "職員情報の取得に失敗しました" });
+        }
       }
 
       const validatedData = insertVitalSignsSchema.parse({
@@ -649,11 +663,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // staffId の決定 - 職員セッションを優先
       const staffSession = (req as any).session?.staff;
-      const staffId = staffSession ? staffSession.id : req.user.claims.sub;
+      let staffId = staffSession ? staffSession.id : null;
 
+      // 職員セッションがない場合、デフォルト職員またはユーザー職員を探す
       if (!staffId) {
-        console.error("Validation failed: staffId is missing.");
-        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+        try {
+          const userBasedStaff = await storage.getStaffByUserId(req.user.claims.sub);
+          if (userBasedStaff) {
+            staffId = userBasedStaff.id;
+          } else {
+            const defaultStaff = await storage.getDefaultStaff();
+            if (defaultStaff) {
+              staffId = defaultStaff.id;
+            } else {
+              return res.status(401).json({ message: "有効な職員情報が見つかりません。職員管理で職員を登録するか、職員ログインを行ってください。" });
+            }
+          }
+        } catch (staffError) {
+          return res.status(500).json({ message: "職員情報の取得に失敗しました" });
+        }
       }
 
       // residentIdとstaffIdはvalidationから除外されているため、手動で追加
@@ -797,11 +825,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/weight-records', isAuthenticated, async (req: any, res) => {
     try {
       const staffSession = (req as any).session?.staff;
-      const staffId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+      let staffId = staffSession ? staffSession.id : null;
 
+      // 職員セッションがない場合、デフォルト職員またはユーザー職員を探す
       if (!staffId) {
-        console.error("Validation failed: staffId is missing.");
-        return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
+        try {
+          const userBasedStaff = await storage.getStaffByUserId(req.user.claims.sub);
+          if (userBasedStaff) {
+            staffId = userBasedStaff.id;
+          } else {
+            const defaultStaff = await storage.getDefaultStaff();
+            if (defaultStaff) {
+              staffId = defaultStaff.id;
+            } else {
+              return res.status(401).json({ message: "有効な職員情報が見つかりません。職員管理で職員を登録するか、職員ログインを行ってください。" });
+            }
+          }
+        } catch (staffError) {
+          return res.status(500).json({ message: "職員情報の取得に失敗しました" });
+        }
       }
 
       const validatedData = insertWeightRecordSchema.parse({
@@ -954,11 +996,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/medication-records', isAuthenticated, async (req: any, res) => {
     try {
       const staffSession = (req as any).session?.staff;
-      const createdBy = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+      let createdBy = staffSession ? staffSession.id : null;
 
+      // 職員セッションがない場合、デフォルト職員またはユーザー職員を探す
       if (!createdBy) {
-        console.error("Validation failed: createdBy is missing.");
-        return res.status(401).json({ message: "有効な作成者IDが見つかりません" });
+        try {
+          // まず、認証ユーザーに対応する職員を探す
+          const userBasedStaff = await storage.getStaffByUserId(req.user.claims.sub);
+          if (userBasedStaff) {
+            createdBy = userBasedStaff.id;
+            console.log("🔍 Found staff by user ID:", userBasedStaff.staffName);
+          } else {
+            // 見つからない場合はデフォルト職員を取得
+            const defaultStaff = await storage.getDefaultStaff();
+            if (defaultStaff) {
+              createdBy = defaultStaff.id;
+              console.log("🔍 Using default staff:", defaultStaff.staffName);
+            } else {
+              console.error("❌ No valid staff found for user:", req.user.claims.sub);
+              return res.status(401).json({ message: "有効な職員情報が見つかりません。職員管理で職員を登録するか、職員ログインを行ってください。" });
+            }
+          }
+        } catch (staffError) {
+          console.error("❌ Error finding staff:", staffError);
+          return res.status(500).json({ message: "職員情報の取得に失敗しました" });
+        }
       }
 
       const validatedData = insertMedicationRecordSchema.parse({

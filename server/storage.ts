@@ -56,7 +56,7 @@ import {
   type InsertResidentAttachment,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, or, sql, isNull } from "drizzle-orm";
+import { eq, desc, and, gte, lte, or, sql, isNull, isNotNull, not } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -627,10 +627,19 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(residents.floor, floor));
     }
 
-    return await db.select()
+    const results = await db.select()
       .from(medicationRecords)
       .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
       .where(and(...conditions));
+      
+    const flattenedResults = results.map(result => ({
+      ...(result.medication_records || {}),
+      residentName: result.residents?.name,
+      roomNumber: result.residents?.roomNumber,
+      floor: result.residents?.floor,
+    }));
+
+    return flattenedResults;
   }
 
   async createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
@@ -1214,6 +1223,50 @@ export class DatabaseStorage implements IStorage {
     const usersData = await db.select().from(users);
     const usersMap = new Map(usersData.map(u => [u.id, u.firstName || u.email || u.id]));
 
+    // 時間帯判定ヘルパー関数
+    const getTimeCategory = (recordTime: Date) => {
+      const hour = recordTime.getHours();
+      const minute = recordTime.getMinutes();
+      const totalMinutes = hour * 60 + minute;
+      
+      // 8:31〜17:30 = 日中 (511分〜1050分)
+      // 17:31〜8:30 = 夜間 (1051分〜510分、ただし翌日の0:00〜8:30も含む)
+      if (totalMinutes >= 511 && totalMinutes <= 1050) {
+        return '日中';
+      } else {
+        return '夜間';
+      }
+    };
+
+    // 服薬記録の時間マッピング
+    const getMedicationTime = (timing: string, customTime?: string) => {
+      const JST_OFFSET = '+09:00';
+      let hour = 12, minute = 0;
+
+      switch (timing) {
+        case '起床後': hour = 7; minute = 0; break;
+        case '朝前':   hour = 7; minute = 30; break;
+        case '朝後':   hour = 8; minute = 30; break;
+        case '昼前':   hour = 11; minute = 30; break;
+        case '昼後':   hour = 12; minute = 30; break;
+        case '夕前':   hour = 17; minute = 30; break;
+        case '夕後':   hour = 18; minute = 30; break;
+        case '眠前':   hour = 20; minute = 30; break;
+        case '頓服':   hour = 12; minute = 0; break;
+      }
+
+      if (customTime) {
+        const [customHour, customMinute] = customTime.split(':').map(Number);
+        if (!isNaN(customHour) && !isNaN(customMinute)) {
+          hour = customHour;
+          minute = customMinute;
+        }
+      }
+
+      const jstDateString = `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${JST_OFFSET}`;
+      return new Date(jstDateString);
+    };
+
 
     // 介護記録
     if (!recordTypes || recordTypes.includes('様子')) {
@@ -1241,7 +1294,6 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
-            
             allRecords.push({
               id: record.id,
               recordType: '様子',
@@ -1261,7 +1313,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // 食事記録
+    // 食事記録 - スタンプされている記録のみ表示
     if (!recordTypes || recordTypes.includes('食事')) {
       try {
         const mealsData = await db
@@ -1270,19 +1322,19 @@ export class DatabaseStorage implements IStorage {
           .where(and(
             gte(mealsAndMedication.recordDate, startDate),
             lte(mealsAndMedication.recordDate, endDate),
-            eq(mealsAndMedication.type, 'meal')
+            eq(mealsAndMedication.type, 'meal'),
+            // スタンプされている記録のみ
+            isNotNull(mealsAndMedication.staffName),
+            not(eq(mealsAndMedication.staffName, ''))
           ));
 
         mealsData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            // 記録内容のみを表示（食事量等の詳細は表示しない）
             const content = record.notes || '';
-
             const mappedStaffName = staffMap.get(record.staffId);
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
-            
             
             allRecords.push({
               id: record.id,
@@ -1309,19 +1361,24 @@ export class DatabaseStorage implements IStorage {
         const medicationData = await db
           .select()
           .from(medicationRecords)
-          .where(eq(medicationRecords.recordDate, date));
+          .where(and(
+            eq(medicationRecords.recordDate, date),
+            isNotNull(medicationRecords.confirmer1),
+            not(eq(medicationRecords.confirmer1, '')),
+            isNotNull(medicationRecords.confirmer2),
+            not(eq(medicationRecords.confirmer2, ''))
+          ));
 
         medicationData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            let content = record.notes || '';
-
-            // 服薬記録のconfirmer1またはconfirmer2もマッピングを適用
+            const content = record.notes || '';
             const rawStaffName = record.confirmer1 || record.confirmer2;
             const mappedStaffName = staffMap.get(rawStaffName);
             const fallbackUserName = usersMap.get(rawStaffName);
             const finalStaffName = mappedStaffName || fallbackUserName || rawStaffName;
             
+            const recordTime = getMedicationTime(record.timing);
 
             allRecords.push({
               id: record.id,
@@ -1329,8 +1386,8 @@ export class DatabaseStorage implements IStorage {
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
-              content,
+              recordTime: recordTime,
+              content: `${record.timing}: ${content}`,
               staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
@@ -1356,8 +1413,16 @@ export class DatabaseStorage implements IStorage {
         vitalData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            // 記録内容のみを表示（バイタル数値は表示しない）
-            const content = record.notes || '';
+            // バイタル数値と記録内容の両方を表示
+            const vitalInfo = [];
+            if (record.temperature) vitalInfo.push(`体温:${record.temperature}℃`);
+            if (record.systolicBP && record.diastolicBP) vitalInfo.push(`血圧:${record.systolicBP}/${record.diastolicBP}`);
+            if (record.pulse) vitalInfo.push(`脈拍:${record.pulse}`);
+            if (record.spO2) vitalInfo.push(`SpO2:${record.spO2}%`);
+            
+            const vitalString = vitalInfo.length > 0 ? vitalInfo.join(' ') : '';
+            const notes = record.notes || '';
+            const content = vitalString && notes ? `${vitalString} ${notes}` : vitalString || notes;
 
             // バイタル記録のスタッフ名もマッピングを適用
             const mappedStaffName = staffMap.get(record.staffName);
@@ -1398,12 +1463,19 @@ export class DatabaseStorage implements IStorage {
         excretionData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            // 記録内容のみを表示（排泄タイプ、性状、量は表示しない）
             const content = record.notes || '';
-
             const mappedStaffName = staffMap.get(record.staffId);
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            
+            const timeCategory = getTimeCategory(new Date(record.recordDate));
+            
+            // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
+            if (recordTypes && (recordTypes.includes('日中') || recordTypes.includes('夜間'))) {
+              if (!recordTypes.includes(timeCategory)) {
+                return; // この記録をスキップ
+              }
+            }
             
             allRecords.push({
               id: record.id,
@@ -1415,6 +1487,7 @@ export class DatabaseStorage implements IStorage {
               content,
               staffName: finalStaffName,
               createdAt: record.createdAt,
+              timeCategory: timeCategory,
               originalData: record
             });
           }
@@ -1435,14 +1508,21 @@ export class DatabaseStorage implements IStorage {
         cleaningData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            // 記録内容のみを表示（清掃・リネン値は表示しない）
             const content = record.recordNote || '';
-            
-            // 清掃リネン記録のスタッフIDもマッピングを適用
             const mappedStaffName = staffMap.get(record.staffId);
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
+            // 仮の時間で時間帯判定を行う（12:00で日中として扱う）
+            const recordTime = new Date(`${record.recordDate}T12:00:00`);
+            const timeCategory = getTimeCategory(recordTime);
+            
+            // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
+            if (recordTypes && (recordTypes.includes('日中') || recordTypes.includes('夜間'))) {
+              if (!recordTypes.includes(timeCategory)) {
+                return; // この記録をスキップ
+              }
+            }
 
             allRecords.push({
               id: record.id,
@@ -1450,10 +1530,11 @@ export class DatabaseStorage implements IStorage {
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: new Date(`${record.recordDate}T12:00:00`), // 仮の時間
+              recordTime: recordTime,
               content: content.trim(),
               staffName: finalStaffName, 
               createdAt: record.createdAt,
+              timeCategory: timeCategory,
               originalData: record
             });
           }
@@ -1463,45 +1544,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // 入浴記録
-    if (!recordTypes || recordTypes.includes('入浴')) {
-      try {
-        const bathingData = await db
-          .select()
-          .from(bathingRecords)
-          .where(and(
-            gte(bathingRecords.recordDate, startDate),
-            lte(bathingRecords.recordDate, endDate)
-          ));
-
-        bathingData.forEach(record => {
-          const resident = record.residentId ? residentsMap.get(record.residentId) : null;
-          if (resident) {
-            // 入浴記録の内容は「記録」フィールド（notes）のみを表示
-            // notesフィールドから体温情報を除去（既存データの互換性のため）
-            let content = record.notes || '';
-            
-            // 体温情報のパターンを除去: "体温:XX.X℃ " の形式
-            content = content.replace(/体温:\d+(\.\d+)?℃\s*/g, '').trim();
-
-            allRecords.push({
-              id: record.id,
-              recordType: '入浴',
-              residentId: record.residentId || '',
-              roomNumber: resident.roomNumber,
-              residentName: resident.name,
-              recordTime: record.recordDate,
-              content: content,
-              staffName: record.staffName,
-              createdAt: record.createdAt,
-              originalData: record
-            });
-          }
-        });
-      } catch (error) {
-        console.error('入浴記録の取得でエラー:', error);
-      }
-    }
+    // 入浴記録は除外（バイタル一覧と相互記録されるため表示不要）
 
     // 体重記録
     if (!recordTypes || recordTypes.includes('体重')) {
@@ -1517,8 +1560,15 @@ export class DatabaseStorage implements IStorage {
         weightData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            // 記録内容のみを表示（体重の数値は表示しない）
             const content = record.notes || '';
+            const timeCategory = getTimeCategory(new Date(record.recordDate));
+            
+            // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
+            if (recordTypes && (recordTypes.includes('日中') || recordTypes.includes('夜間'))) {
+              if (!recordTypes.includes(timeCategory)) {
+                return; // この記録をスキップ
+              }
+            }
 
             allRecords.push({
               id: record.id,
@@ -1530,6 +1580,7 @@ export class DatabaseStorage implements IStorage {
               content: content.trim(),
               staffName: record.staffName,
               createdAt: record.createdAt,
+              timeCategory: timeCategory,
               originalData: record
             });
           }
@@ -1539,7 +1590,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // 看護記録
+    // 看護記録・処置記録
     if (!recordTypes || recordTypes.includes('看護記録') || recordTypes.includes('医療記録') || recordTypes.includes('処置')) {
       try {
         

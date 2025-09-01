@@ -188,7 +188,7 @@ export default function DailyRecords() {
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
-  const [selectedRecordType, setSelectedRecordType] = useState("all");
+  const [selectedRecordType, setSelectedRecordType] = useState("日中");
   const [cardCheckboxes, setCardCheckboxes] = useState<Record<string, string[]>>({});
 
   // ローカル編集状態
@@ -279,27 +279,33 @@ export default function DailyRecords() {
     staleTime: 30000, // 30秒間キャッシュ
   });
 
-  // フィルタリングされた記録
+  // フロントエンド側でフィルタリングを実装
   const filteredRecords = useMemo(() => {
     if (!records) return [];
-    
-    let filtered = records;
 
-    // 記録種別フィルタ
-    if (selectedRecordType !== "all") {
-      const recordTypeMapping = {
-        "日中": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"],
-        "夜間": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"],
-        "看護": ["看護記録", "医療記録", "処置", "バイタル", "入浴"]
-      };
-
-      const targetTypes = recordTypeMapping[selectedRecordType as keyof typeof recordTypeMapping];
-      if (targetTypes) {
-        filtered = filtered.filter(record => targetTypes.includes(record.recordType));
+    return records.filter(record => {
+      const recordTime = new Date(record.recordTime);
+      const hour = recordTime.getHours();
+      const minute = recordTime.getMinutes();
+      const totalMinutes = hour * 60 + minute;
+      
+      // 8:31〜17:30 = 日中 (511分〜1050分)
+      const isDaytime = totalMinutes >= 511 && totalMinutes <= 1050;
+      const isNighttime = !isDaytime;
+      
+      if (selectedRecordType === "日中") {
+        // 日中フィルタ：8:31〜17:30の時間帯で、バイタル・看護記録・処置以外
+        return isDaytime && !['バイタル', '看護記録', '処置'].includes(record.recordType);
+      } else if (selectedRecordType === "夜間") {
+        // 夜間フィルタ：17:31〜8:30の時間帯で、バイタル・看護記録・処置以外
+        return isNighttime && !['バイタル', '看護記録', '処置'].includes(record.recordType);
+      } else if (selectedRecordType === "看護") {
+        // 看護フィルタ：時間に関係なく、バイタル・看護記録・処置のみ
+        return ['バイタル', '看護記録', '処置'].includes(record.recordType);
       }
-    }
-
-    return filtered;
+      
+      return true;
+    });
   }, [records, selectedRecordType]);
 
   if (!isAuthenticated) {
@@ -401,15 +407,13 @@ export default function DailyRecords() {
               <InputWithDropdown
                 value={(() => {
                   const option = [
-                    { value: "all", label: "全て" },
                     { value: "日中", label: "日中" },
                     { value: "夜間", label: "夜間" },
                     { value: "看護", label: "看護" }
                   ].find(opt => opt.value === selectedRecordType);
-                  return option ? option.label : "全て";
+                  return option ? option.label : "日中";
                 })()}
                 options={[
-                  { value: "all", label: "全て" },
                   { value: "日中", label: "日中" },
                   { value: "夜間", label: "夜間" },
                   { value: "看護", label: "看護" }

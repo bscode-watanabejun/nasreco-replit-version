@@ -456,7 +456,8 @@ function BathingCard({
                 const currentValue = e.currentTarget.value;
                 if (!currentValue.trim()) {
                   const user = currentUser as any;
-                  const newStaffName = user?.firstName || 'スタッフ';
+                  // セッション職員情報があるか確認
+                  const newStaffName = user?.staffName || user?.firstName || 'スタッフ';
                   setStaffName(newStaffName);
                   handleFieldUpdate(record.residentId, "staffName", newStaffName);
                 }
@@ -878,7 +879,7 @@ export default function BathingList() {
         const newRecord = {
           id: `temp-${Date.now()}`,
           residentId,
-          staffId: (currentUser as any)?.id || (currentUser as any)?.claims?.sub || 'unknown',
+          // staffIdはサーバー側で自動設定するため、フロントでは送信しない
           recordDate: new Date(selectedDate),
           timing: "午前",
           hour: field === 'hour' ? (value === "empty" ? "" : value) : '',
@@ -932,7 +933,7 @@ export default function BathingList() {
     // 食事一覧と同じレコードデータ作成方式
     const recordData = {
       residentId,
-      staffId: (currentUser as any)?.id || (currentUser as any)?.claims?.sub || 'unknown',
+      // staffIdはサーバー側で自動設定するため、フロントでは送信しない
       recordDate: new Date(selectedDate),
       timing: "午前",
       hour: existingRecord?.hour || "",
@@ -988,7 +989,7 @@ export default function BathingList() {
         residentId,
         recordDate: new Date(selectedDate),
         timing: getTimingFromBathingTime(bathingHour, recordData), // 入浴時間に応じてタイミングを判定
-        staffId: (currentUser as any)?.id || (currentUser as any)?.claims?.sub || 'unknown',
+        // staffIdはサーバー側で自動設定するため、フロントでは送信しない
         hour: field === 'hour' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.hour ? parseInt(recordData.hour, 10) : null),
         minute: field === 'minute' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.minute ? parseInt(recordData.minute, 10) : null),
         staffName: field === 'staffName' ? (value === "empty" ? null : value) : recordData.staffName,
@@ -1141,16 +1142,33 @@ export default function BathingList() {
 
   const handleStaffStamp = (recordId: string, residentId?: string) => {
     const user = currentUser as any;
-    const staffName = user?.firstName && user?.lastName
-      ? `${user.lastName} ${user.firstName}`
-      : user?.email || "スタッフ";
+    // セッション職員情報があるか確認
+    const staffName = user?.staffName || 
+      (user?.firstName && user?.lastName
+        ? `${user.lastName} ${user.firstName}`
+        : user?.email || "スタッフ");
       
     const record = bathingRecords.find((r: any) => r.id === recordId);
     if (!record) return;
     
     const effectiveResidentId = residentId || record.residentId;
+    
+    // 利用者が選択されていない場合（初期表示カード）は、楽観的更新のみ実行
     if (!effectiveResidentId) {
-        toast({ title: "エラー", description: "利用者情報が見つかりません。", variant: "destructive" });
+        const currentStaffName = record.staffName || "";
+        
+        if (currentStaffName) {
+            // 承認者名が入力済みの場合：承認者名、時、分をクリア（楽観的更新のみ）
+            handleFieldUpdate(recordId, "staffName", "");
+            handleFieldUpdate(recordId, "hour", null);
+            handleFieldUpdate(recordId, "minute", null);
+        } else {
+            // 承認者名が空の場合：承認者名と現在時刻を自動入力（楽観的更新のみ）
+            const currentTime = getCurrentTimeOptions();
+            handleFieldUpdate(recordId, "staffName", staffName);
+            handleFieldUpdate(recordId, "hour", currentTime.hour);
+            handleFieldUpdate(recordId, "minute", currentTime.minute);
+        }
         return;
     }
 
@@ -1161,12 +1179,20 @@ export default function BathingList() {
       handleFieldUpdate(effectiveResidentId, "staffName", "");
       handleFieldUpdate(effectiveResidentId, "hour", null);
       handleFieldUpdate(effectiveResidentId, "minute", null);
+      // 保存処理も実行
+      handleSaveRecord(effectiveResidentId, "staffName", "");
+      handleSaveRecord(effectiveResidentId, "hour", "");
+      handleSaveRecord(effectiveResidentId, "minute", "");
     } else {
       // 承認者名が空の場合：承認者名と現在時刻を自動入力
       const currentTime = getCurrentTimeOptions();
       handleFieldUpdate(effectiveResidentId, "staffName", staffName);
       handleFieldUpdate(effectiveResidentId, "hour", currentTime.hour);
       handleFieldUpdate(effectiveResidentId, "minute", currentTime.minute);
+      // 保存処理も実行
+      handleSaveRecord(effectiveResidentId, "staffName", staffName);
+      handleSaveRecord(effectiveResidentId, "hour", currentTime.hour.toString());
+      handleSaveRecord(effectiveResidentId, "minute", currentTime.minute.toString());
     }
   };
 
