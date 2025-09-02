@@ -626,6 +626,7 @@ export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull(),
   recordDate: date("record_date").notNull(), // 記録日
+  recordTime: timestamp("record_time").defaultNow(), // 記録時刻（記録内容の作成・更新時刻）
   dayOfWeek: integer("day_of_week").notNull(), // 曜日 (0=日曜, 1=月曜, ..., 6=土曜)
   cleaningValue: varchar("cleaning_value"), // 清掃の値 ("○", "2", "3", または空白)
   linenValue: varchar("linen_value"), // リネンの値 ("○", "2", "3", または空白)
@@ -642,6 +643,7 @@ export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
 export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenRecords, {
   residentId: z.string().min(1, "利用者IDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
+  recordTime: z.date().optional().default(() => new Date()), // 記録時刻（デフォルトは現在時刻）
   dayOfWeek: z.coerce.number().int().min(0).max(6),
   cleaningValue: z.enum(["○", "2", "3", ""]).optional(),
   linenValue: z.enum(["○", "2", "3", ""]).optional(),

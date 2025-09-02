@@ -575,7 +575,13 @@ export default function ExcretionList() {
 
     // データを置き換える（蓄積しない）
     setCellData(newCellData);
-    setNotesData(newNotesData);
+    
+    // notesDataは既存のローカルデータを保持しつつマージ
+    setNotesData(prev => ({
+      ...newNotesData, // API取得データ
+      ...prev // 既存のローカルデータで上書き（優先）
+    }));
+    
     setAssistanceData(newAssistanceData);
   }, [excretionRecords, selectedDate]);
 
@@ -687,7 +693,8 @@ export default function ExcretionList() {
         await apiRequest('/api/excretion-records', 'POST', urineRecord);
       }
       
-      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records'] });
+      // 正しいクエリキーで無効化
+      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records', selectedDate, selectedFloor] });
     } catch (error) {
       console.error('Error saving excretion record:', error);
     }
@@ -713,7 +720,8 @@ export default function ExcretionList() {
       };
       
       await apiRequest('/api/excretion-records', 'POST', recordData);
-      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records'] });
+      // 正しいクエリキーで無効化
+      queryClient.invalidateQueries({ queryKey: ['/api/excretion-records', selectedDate, selectedFloor] });
     } catch (error) {
       console.error('Error saving notes:', error);
     }

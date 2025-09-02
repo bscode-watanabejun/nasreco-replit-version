@@ -929,6 +929,7 @@ export class DatabaseStorage implements IStorage {
 
   async upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
     const recordDateStr = record.recordDate.toISOString().split('T')[0];
+    const recordTime = record.recordTime || new Date(); // recordTimeが指定されていない場合は現在時刻を使用
     
     // まず既存レコードを検索
     const existing = await db.select()
@@ -942,12 +943,18 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (existing.length > 0) {
-      // 既存レコードを更新
+      // 既存レコードを更新（記録内容に変更があった場合にrecordTimeを更新）
+      const hasContentChange = 
+        existing[0].cleaningValue !== record.cleaningValue ||
+        existing[0].linenValue !== record.linenValue ||
+        existing[0].recordNote !== record.recordNote;
+      
       const [updated] = await db.update(cleaningLinenRecords)
         .set({
           cleaningValue: record.cleaningValue,
           linenValue: record.linenValue,
           recordNote: record.recordNote,
+          recordTime: hasContentChange ? recordTime : existing[0].recordTime, // 内容変更時のみrecordTimeを更新
           staffId: record.staffId,
           updatedAt: new Date(),
         })
@@ -958,7 +965,8 @@ export class DatabaseStorage implements IStorage {
       // 新規レコードを作成
       const recordWithStringDate = {
         ...record,
-        recordDate: recordDateStr
+        recordDate: recordDateStr,
+        recordTime: recordTime
       };
       
       const [created] = await db.insert(cleaningLinenRecords)
@@ -1529,8 +1537,17 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
-            // 仮の時間で時間帯判定を行う（12:00で日中として扱う）
-            const recordTime = new Date(`${record.recordDate}T12:00:00`);
+            // デバッグ: 清掃リネン記録の時刻情報をログ出力
+            console.log('清掃リネン記録デバッグ:', {
+              recordId: record.id,
+              residentName: resident.name,
+              recordDate: record.recordDate,
+              recordTime: record.recordTime,
+              createdAt: record.createdAt
+            });
+            
+            // recordTimeが存在する場合はそれを使用、ない場合は12:00で日中として扱う
+            const recordTime = record.recordTime || new Date(`${record.recordDate}T12:00:00`);
             const timeCategory = getTimeCategory(recordTime);
             
             // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
