@@ -618,7 +618,7 @@ export class DatabaseStorage implements IStorage {
   async updateExcretionRecord(id: string, record: Partial<InsertExcretionRecord>): Promise<ExcretionRecord> {
     const [updatedRecord] = await db
       .update(excretionRecords)
-      .set({ ...record, updatedAt: new Date() })
+      .set(record)
       .where(eq(excretionRecords.id, id))
       .returning();
     return updatedRecord;
