@@ -251,6 +251,32 @@ export default function NursingRecords() {
     queryKey: ["/api/auth/user"],
   });
 
+  const { data: staffUser } = useQuery({
+    queryKey: ["/api/auth/staff-user"],
+    retry: false, // 失敗時はリトライしない（通常ログインの場合は失敗する）
+  });
+
+  // 実際に使用するユーザー情報（職員ログインの場合はstaffUser、通常ログインの場合はcurrentUser）
+  const effectiveUser = staffUser || currentUser;
+
+  // デバッグ: ユーザー情報をログ出力
+  useEffect(() => {
+    console.log("=== User debug info ===");
+    console.log("currentUser:", currentUser);
+    console.log("staffUser:", staffUser);
+    console.log("effectiveUser:", effectiveUser);
+    console.log("effectiveUser keys:", effectiveUser ? Object.keys(effectiveUser) : "no keys");
+    if (effectiveUser) {
+      console.log("firstName:", effectiveUser.firstName);
+      console.log("email:", effectiveUser.email);
+      console.log("staffName:", (effectiveUser as any).staffName);
+      console.log("id:", effectiveUser.id);
+      console.log("userId:", (effectiveUser as any).userId);
+      console.log("nurseId to use:", (effectiveUser as any).userId || effectiveUser.id);
+    }
+    console.log("=======================");
+  }, [currentUser, staffUser, effectiveUser]);
+
   // 利用者の添付ファイルを取得
   const { data: attachments = [] } = useQuery({
     queryKey: [`/api/residents/${selectedResident?.id}/attachments`],
@@ -302,10 +328,20 @@ export default function NursingRecords() {
 
   const createMutation = useMutation({
     mutationFn: async (data: NursingRecordForm) => {
-      await apiRequest("/api/nursing-records", "POST", {
+      const nurseId = (effectiveUser as any)?.userId || effectiveUser?.id;
+      const payload = {
         ...data,
+        nurseId: nurseId,
         recordDate: new Date(data.recordDate),
-      });
+      };
+      
+      console.log("=== Frontend sending nursing record ===");
+      console.log("effectiveUser:", effectiveUser);
+      console.log("nurseId to send:", nurseId);
+      console.log("Full payload:", payload);
+      console.log("===========================================");
+      
+      await apiRequest("/api/nursing-records", "POST", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
@@ -551,6 +587,18 @@ export default function NursingRecords() {
       return;
     }
     
+    if (!effectiveUser) {
+      console.error("effectiveUser is not available:", effectiveUser);
+      toast({
+        title: "エラー",
+        description: "ユーザー情報が取得できません",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log("Effective user info:", effectiveUser);
+    
     // 現在時刻を取得
     const now = new Date();
     const currentHour = now.getHours();
@@ -572,6 +620,7 @@ export default function NursingRecords() {
     const newBlock = {
       id: `${selectedResident.id}-${Date.now()}`,
       residentId: selectedResident.id,
+      nurseId: (effectiveUser as any).userId || effectiveUser.id, // 職員ログイン時はuserId、通常ログイン時はidを使用
       category: "看護記録",
       recordDate: recordDate.toISOString(),
       description: "",
@@ -585,6 +634,15 @@ export default function NursingRecords() {
       toast({
         title: "エラー",
         description: "利用者が選択されていません",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!effectiveUser) {
+      toast({
+        title: "エラー",
+        description: "ユーザー情報が取得できません",
         variant: "destructive",
       });
       return;
@@ -611,6 +669,7 @@ export default function NursingRecords() {
     const newBlock = {
       id: `medical-${selectedResident.id}-${Date.now()}`,
       residentId: selectedResident.id,
+      nurseId: (effectiveUser as any).userId || effectiveUser.id, // 職員ログイン時はuserId、通常ログイン時はidを使用
       category: "医療記録",
       recordDate: recordDate.toISOString(),
       description: "",
@@ -624,6 +683,15 @@ export default function NursingRecords() {
       toast({
         title: "エラー",
         description: "利用者が選択されていません",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!effectiveUser) {
+      toast({
+        title: "エラー",
+        description: "ユーザー情報が取得できません",
         variant: "destructive",
       });
       return;
@@ -650,6 +718,7 @@ export default function NursingRecords() {
     const newBlock = {
       id: `treatment-${selectedResident.id}-${Date.now()}`,
       residentId: selectedResident.id,
+      nurseId: (effectiveUser as any).userId || effectiveUser.id, // 職員ログイン時はuserId、通常ログイン時はidを使用
       category: "処置",
       recordDate: recordDate.toISOString(),
       description: "",
@@ -1040,7 +1109,7 @@ export default function NursingRecords() {
                 <div>
                   <input
                     type="text"
-                    value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                    value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                     readOnly
                     className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                   />
@@ -1308,7 +1377,7 @@ export default function NursingRecords() {
                           <div>
                             <input
                               type="text"
-                              value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                              value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                               readOnly
                               className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                             />
@@ -1332,6 +1401,7 @@ export default function NursingRecords() {
                                   recordDate: new Date(block.recordDate).toISOString(),
                                   category: 'observation',
                                   description: e.target.value,
+                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -1465,7 +1535,7 @@ export default function NursingRecords() {
                               <div>
                                 <input
                                   type="text"
-                                  value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                                  value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                                   readOnly
                                   className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                                 />
@@ -1605,7 +1675,7 @@ export default function NursingRecords() {
                           <div>
                             <input
                               type="text"
-                              value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                              value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                               readOnly
                               className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                             />
@@ -1629,6 +1699,7 @@ export default function NursingRecords() {
                                   recordDate: new Date(block.recordDate).toISOString(),
                                   category: '医療記録',
                                   description: e.target.value,
+                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -1762,7 +1833,7 @@ export default function NursingRecords() {
                               <div>
                                 <input
                                   type="text"
-                                  value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                                  value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                                   readOnly
                                   className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                                 />
@@ -1902,7 +1973,7 @@ export default function NursingRecords() {
                           <div>
                             <input
                               type="text"
-                              value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                              value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                               readOnly
                               className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                             />
@@ -1931,6 +2002,7 @@ export default function NursingRecords() {
                                   category: '処置',
                                   description: description,
                                   notes: e.target.value,
+                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -1971,6 +2043,7 @@ export default function NursingRecords() {
                                   category: '処置',
                                   description: e.target.value,
                                   notes: notes,
+                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -2109,7 +2182,7 @@ export default function NursingRecords() {
                               <div>
                                 <input
                                   type="text"
-                                  value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                                  value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
                                   readOnly
                                   className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                                 />

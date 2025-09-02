@@ -62,6 +62,7 @@ export interface IStorage {
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  findUserByStaffInfo(staffId: string, staffName: string): Promise<User | undefined>;
 
   // Resident operations
   getResidents(): Promise<Resident[]>;
@@ -191,6 +192,20 @@ export class DatabaseStorage implements IStorage {
         },
       })
       .returning();
+    return user;
+  }
+
+  async findUserByStaffInfo(staffId: string, staffName: string): Promise<User | undefined> {
+    // staffIdやstaffNameに基づいてusersテーブルから対応するユーザーを検索
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(or(
+        eq(users.email, `${staffId}@bigsmall.co.jp`),
+        sql`${users.email} LIKE '%${staffId}%'`,
+        eq(users.firstName, staffName.split(' ')[0]), // 名前の一部で検索
+      ))
+      .limit(1);
     return user;
   }
 

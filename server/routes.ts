@@ -155,7 +155,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!staff) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      res.json(staff);
+      
+      // 職員IDに対応するusersテーブルのIDを検索
+      const correspondingUser = await storage.findUserByStaffInfo(staff.staffId, staff.staffName);
+      
+      const staffWithUserId = {
+        ...staff,
+        userId: correspondingUser?.id || null, // 対応するusersテーブルのIDを追加
+      };
+      
+      res.json(staffWithUserId);
     } catch (error: any) {
       console.error("Error fetching staff user:", error);
       res.status(500).json({ message: "Failed to fetch staff user" });
@@ -314,14 +323,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/nursing-records', isAuthenticated, async (req: any, res) => {
+    console.log("🚨 NURSING RECORD CREATE START 🚨");
     try {
       const staffSession = (req as any).session?.staff;
-      const nurseId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
+      let nurseId = null;
+      
+      console.log("🔍 Checking session type...");
+      if (staffSession) {
+        // 職員ログインの場合、対応するusersテーブルのIDを取得
+        console.log("📋 Staff session detected");
+        const correspondingUser = await storage.findUserByStaffInfo(staffSession.staffId, staffSession.staffName);
+        nurseId = correspondingUser?.id || null;
+        
+        console.log("🔥🔥🔥 STAFF LOGIN DEBUG 🔥🔥🔥");
+        console.log("Staff login - staffSession:", staffSession);
+        console.log("Staff login - correspondingUser:", correspondingUser);
+        console.log("Staff login - nurseId to use:", nurseId);
+        console.log("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥");
+      } else {
+        // 通常ログインの場合
+        console.log("👤 Regular user session detected");
+        nurseId = req.user?.claims?.sub || null;
+        console.log("Regular login - nurseId:", nurseId);
+      }
+
+      // フロントエンドから送信されたnurseIdも確認（デバッグ用）
+      console.log("🎯 Frontend sent nurseId:", req.body.nurseId);
+      console.log("🎯 Server determined nurseId:", nurseId);
+      console.log("🎯 Final nurseId type:", typeof nurseId);
 
       if (!nurseId) {
-        console.error("Validation failed: nurseId is missing.");
+        console.error("❌ Validation failed: nurseId is missing or no corresponding user found.");
         return res.status(401).json({ message: "有効な看護師IDが見つかりません" });
       }
+
+      // nurseIdがusersテーブルに存在するか確認
+      console.log("🔍 Checking if user exists in database...");
+      console.log("🔍 Looking for user ID:", nurseId);
+      const userExists = await storage.getUser(nurseId);
+      console.log("👤 User exists check result:", userExists ? "✅ Found" : "❌ Not found");
+      console.log("👤 Found user data:", userExists);
+      
+      // 存在しない場合は、利用可能なユーザー一覧も出力（デバッグ用）
+      if (!userExists) {
+        console.error("❌ Validation failed: nurseId does not exist in users table:", nurseId);
+        try {
+          const allUsers = await storage.getAllUsers ? await storage.getAllUsers() : "getAllUsers method not available";
+          console.log("🔍 Available users in database:");
+          console.log(allUsers);
+        } catch (error) {
+          console.log("🔍 Could not fetch user list:", error);
+        }
+        return res.status(400).json({ message: "指定された看護師IDが存在しません" });
+      }
+      console.log("✅ User validation passed, proceeding with record creation...")
 
       const validatedData = insertNursingRecordSchema.parse({
         ...req.body,
@@ -331,7 +386,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(record);
     } catch (error: any) {
       console.error("Error creating nursing record:", error);
-      res.status(400).json({ message: "Invalid nursing record data", error: error.message });
+      if (error.code === '23503') {
+        res.status(400).json({ message: "参照データが存在しません。看護師IDまたは入居者IDを確認してください。" });
+      } else {
+        res.status(400).json({ message: "看護記録の作成に失敗しました", error: error.message });
+      }
     }
   });
 

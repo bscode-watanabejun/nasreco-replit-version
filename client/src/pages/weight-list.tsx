@@ -1057,9 +1057,9 @@ export default function WeightList() {
           id: `temp-${resident.id}-${selectedMonth}`,
           residentId: resident.id,
           recordDate: selectedMonth,
-          measurementDate: null,
-          hour: null,
-          minute: null,
+          measurementDate: `${selectedMonth}-01`, // デフォルト：月の1日
+          hour: 9, // デフォルト：9時
+          minute: 0, // デフォルト：0分
           staffName: null,
           weight: null,
           notes: null,
