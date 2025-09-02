@@ -196,17 +196,78 @@ export class DatabaseStorage implements IStorage {
   }
 
   async findUserByStaffInfo(staffId: string, staffName: string): Promise<User | undefined> {
-    // staffIdやstaffNameに基づいてusersテーブルから対応するユーザーを検索
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(or(
-        eq(users.email, `${staffId}@bigsmall.co.jp`),
-        like(users.email, `%${staffId}%`),
-        eq(users.firstName, staffName.split(' ')[0]), // 名前の一部で検索
-      ))
-      .limit(1);
-    return user;
+    console.log("🔍 🆕 UPDATED findUserByStaffInfo called with:", { staffId, staffName });
+    
+    // パラメータの安全性チェック
+    if (!staffId) {
+      console.log("⚠️ staffId is missing for findUserByStaffInfo");
+      return undefined;
+    }
+
+    try {
+      // 段階的に検索を試行（最も安全な方法から）
+      
+      // 1. 正確なemailマッチを試行
+      console.log("🔍 Step 1: Trying exact email match");
+      let [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, `${staffId}@bigsmall.co.jp`))
+        .limit(1);
+      
+      if (user) {
+        console.log("✅ Found user by exact email:", user);
+        return user;
+      }
+
+      // 2. staffIdがそのままemailに含まれている場合を検索（likeを使わない方法）
+      console.log("🔍 Step 2: Trying to find users containing staffId in email");
+      const allUsers = await db.select().from(users);
+      const emailMatchUser = allUsers.find(u => 
+        u.email && u.email.includes(staffId)
+      );
+      
+      if (emailMatchUser) {
+        console.log("✅ Found user by email containing staffId:", emailMatchUser);
+        return emailMatchUser;
+      }
+
+      // 3. staffNameがある場合、名前での検索を試行
+      if (staffName && typeof staffName === 'string' && staffName.trim()) {
+        console.log("🔍 Step 3: Trying name-based search");
+        const firstName = staffName.toString().trim().split(' ')[0] || staffName.toString().trim();
+        
+        if (firstName && firstName.length > 0) {
+          [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.firstName, firstName))
+            .limit(1);
+            
+          if (user) {
+            console.log("✅ Found user by firstName:", user);
+            return user;
+          }
+          
+          // 4. 名前の部分一致検索（likeを使わない方法）
+          const nameMatchUser = allUsers.find(u => 
+            u.firstName && u.firstName.includes(firstName)
+          );
+          
+          if (nameMatchUser) {
+            console.log("✅ Found user by firstName containing:", nameMatchUser);
+            return nameMatchUser;
+          }
+        }
+      }
+
+      console.log("❌ No user found for staffId:", staffId);
+      return undefined;
+      
+    } catch (error) {
+      console.error("❌ Error in findUserByStaffInfo:", error);
+      return undefined;
+    }
   }
 
   // Resident operations

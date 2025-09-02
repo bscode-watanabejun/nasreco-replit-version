@@ -158,8 +158,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
+      console.log("🔍 Getting staff user info for:", { staffId: staff.staffId, staffName: staff.staffName });
+      
       // 職員IDに対応するusersテーブルのIDを検索
-      const correspondingUser = await storage.findUserByStaffInfo(staff.staffId, staff.staffName);
+      let correspondingUser = null;
+      try {
+        correspondingUser = await storage.findUserByStaffInfo(staff.staffId, staff.staffName);
+        console.log("✅ Successfully found corresponding user:", correspondingUser);
+      } catch (findError) {
+        console.error("❌ Error finding corresponding user:", findError);
+        // findUserByStaffInfoでエラーが発生した場合は、correspondingUserをnullのままにする
+      }
       
       const staffWithUserId = {
         ...staff,
