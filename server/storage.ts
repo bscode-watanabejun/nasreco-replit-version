@@ -198,21 +198,26 @@ export class DatabaseStorage implements IStorage {
   async findUserByStaffInfo(staffId: string, staffName: string): Promise<User | undefined> {
     console.log("🔍 🆕 UPDATED findUserByStaffInfo called with:", { staffId, staffName });
     
-    // パラメータの安全性チェック
-    if (!staffId) {
-      console.log("⚠️ staffId is missing for findUserByStaffInfo");
+    // パラメータの安全性チェック - null, undefined, 空文字列を厳密にチェック
+    if (!staffId || staffId === null || staffId === undefined || typeof staffId !== 'string' || staffId.trim() === '') {
+      console.log("⚠️ Invalid staffId for findUserByStaffInfo:", { staffId, type: typeof staffId });
       return undefined;
     }
 
+    // staffNameも安全性チェック
+    const safeStaffName = staffName && typeof staffName === 'string' ? staffName.trim() : '';
+    console.log("🔍 Cleaned parameters:", { staffId: staffId.trim(), staffName: safeStaffName });
+
     try {
       // 段階的に検索を試行（最も安全な方法から）
+      const cleanStaffId = staffId.trim();
       
       // 1. 正確なemailマッチを試行
       console.log("🔍 Step 1: Trying exact email match");
       let [user] = await db
         .select()
         .from(users)
-        .where(eq(users.email, `${staffId}@bigsmall.co.jp`))
+        .where(eq(users.email, `${cleanStaffId}@bigsmall.co.jp`))
         .limit(1);
       
       if (user) {
@@ -224,7 +229,7 @@ export class DatabaseStorage implements IStorage {
       console.log("🔍 Step 2: Trying to find users containing staffId in email");
       const allUsers = await db.select().from(users);
       const emailMatchUser = allUsers.find(u => 
-        u.email && u.email.includes(staffId)
+        u.email && u.email.includes(cleanStaffId)
       );
       
       if (emailMatchUser) {
@@ -233,9 +238,9 @@ export class DatabaseStorage implements IStorage {
       }
 
       // 3. staffNameがある場合、名前での検索を試行
-      if (staffName && typeof staffName === 'string' && staffName.trim()) {
+      if (safeStaffName && safeStaffName.length > 0) {
         console.log("🔍 Step 3: Trying name-based search");
-        const firstName = staffName.toString().trim().split(' ')[0] || staffName.toString().trim();
+        const firstName = safeStaffName.split(' ')[0] || safeStaffName;
         
         if (firstName && firstName.length > 0) {
           [user] = await db
@@ -261,7 +266,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      console.log("❌ No user found for staffId:", staffId);
+      console.log("❌ No user found for staffId:", cleanStaffId);
       return undefined;
       
     } catch (error) {
@@ -463,7 +468,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication> {
-    const [newRecord] = await db.insert(mealsAndMedication).values(record).returning();
+    const recordToInsert = {
+      ...record,
+      staffId: record.staffId || 'unknown' // Ensure staffId is not undefined
+    };
+    const [newRecord] = await db.insert(mealsAndMedication).values([recordToInsert]).returning();
     return newRecord;
   }
 
@@ -738,6 +747,7 @@ export class DatabaseStorage implements IStorage {
     const recordToInsert = {
       ...record,
       recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+      createdBy: record.createdBy || 'unknown' // Ensure createdBy is not undefined
     };
     const [newRecord] = await db.insert(medicationRecords).values([recordToInsert]).returning();
     return newRecord;
@@ -747,6 +757,7 @@ export class DatabaseStorage implements IStorage {
     const recordToUpsert = {
       ...record,
       recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+      createdBy: record.createdBy || 'unknown' // Ensure createdBy is not undefined
     };
     
     
@@ -907,6 +918,7 @@ export class DatabaseStorage implements IStorage {
       id: cleaningLinenRecords.id,
       residentId: cleaningLinenRecords.residentId,
       recordDate: cleaningLinenRecords.recordDate,
+      recordTime: cleaningLinenRecords.recordTime,
       dayOfWeek: cleaningLinenRecords.dayOfWeek,
       cleaningValue: cleaningLinenRecords.cleaningValue,
       linenValue: cleaningLinenRecords.linenValue,
@@ -942,6 +954,7 @@ export class DatabaseStorage implements IStorage {
         id: cleaningLinenRecords.id,
         residentId: cleaningLinenRecords.residentId,
         recordDate: cleaningLinenRecords.recordDate,
+        recordTime: cleaningLinenRecords.recordTime,
         dayOfWeek: cleaningLinenRecords.dayOfWeek,
         cleaningValue: cleaningLinenRecords.cleaningValue,
         linenValue: cleaningLinenRecords.linenValue,
@@ -1473,7 +1486,7 @@ export class DatabaseStorage implements IStorage {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
             const content = record.notes || '';
-            const rawStaffName = record.confirmer1 || record.confirmer2;
+            const rawStaffName = record.confirmer1 || record.confirmer2 || '';
             const mappedStaffName = staffMap.get(rawStaffName);
             const fallbackUserName = usersMap.get(rawStaffName);
             const finalStaffName = mappedStaffName || fallbackUserName || rawStaffName;
@@ -1516,17 +1529,18 @@ export class DatabaseStorage implements IStorage {
             // バイタル数値と記録内容の両方を表示
             const vitalInfo = [];
             if (record.temperature) vitalInfo.push(`体温:${record.temperature}℃`);
-            if (record.systolicBP && record.diastolicBP) vitalInfo.push(`血圧:${record.systolicBP}/${record.diastolicBP}`);
-            if (record.pulse) vitalInfo.push(`脈拍:${record.pulse}`);
-            if (record.spO2) vitalInfo.push(`SpO2:${record.spO2}%`);
+            if (record.bloodPressureSystolic && record.bloodPressureDiastolic) vitalInfo.push(`血圧:${record.bloodPressureSystolic}/${record.bloodPressureDiastolic}`);
+            if (record.pulseRate) vitalInfo.push(`脈拍:${record.pulseRate}`);
+            if (record.oxygenSaturation) vitalInfo.push(`SpO2:${record.oxygenSaturation}%`);
             
             const vitalString = vitalInfo.length > 0 ? vitalInfo.join(' ') : '';
             const notes = record.notes || '';
             const content = vitalString && notes ? `${vitalString} ${notes}` : vitalString || notes;
 
             // バイタル記録のスタッフ名もマッピングを適用
-            const mappedStaffName = staffMap.get(record.staffName);
-            const fallbackUserName = usersMap.get(record.staffName);
+            const safeStaffName = record.staffName || '';
+            const mappedStaffName = staffMap.get(safeStaffName);
+            const fallbackUserName = usersMap.get(safeStaffName);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffName;
             
 
