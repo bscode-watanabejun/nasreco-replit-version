@@ -1537,17 +1537,18 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
-            // デバッグ: 清掃リネン記録の時刻情報をログ出力
-            console.log('清掃リネン記録デバッグ:', {
-              recordId: record.id,
-              residentName: resident.name,
-              recordDate: record.recordDate,
-              recordTime: record.recordTime,
-              createdAt: record.createdAt
-            });
-            
-            // recordTimeが存在する場合はそれを使用、ない場合は12:00で日中として扱う
-            const recordTime = record.recordTime || new Date(`${record.recordDate}T12:00:00`);
+            // 清掃リネン記録の時刻処理を修正
+            // recordTimeが存在する場合はそれを使用し、ない場合のみデフォルト時刻を使用
+            let recordTime;
+            if (record.recordTime && record.recordTime instanceof Date) {
+              recordTime = record.recordTime;
+            } else if (record.recordTime) {
+              // 文字列の場合は日付に変換
+              recordTime = new Date(record.recordTime);
+            } else {
+              // recordTimeが存在しない場合のみデフォルトの12:00を使用
+              recordTime = new Date(`${record.recordDate}T12:00:00`);
+            }
             const timeCategory = getTimeCategory(recordTime);
             
             // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
