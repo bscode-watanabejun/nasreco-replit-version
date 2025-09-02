@@ -56,7 +56,7 @@ import {
   type InsertResidentAttachment,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, or, sql, isNull, isNotNull, not } from "drizzle-orm";
+import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -202,7 +202,7 @@ export class DatabaseStorage implements IStorage {
       .from(users)
       .where(or(
         eq(users.email, `${staffId}@bigsmall.co.jp`),
-        sql`${users.email} LIKE '%${staffId}%'`,
+        like(users.email, `%${staffId}%`),
         eq(users.firstName, staffName.split(' ')[0]), // 名前の一部で検索
       ))
       .limit(1);

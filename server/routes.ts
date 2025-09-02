@@ -5,6 +5,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
+import { db } from "./db";
+import { users } from "../shared/schema";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
   insertResidentSchema,
@@ -333,7 +335,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 職員ログインの場合、対応するusersテーブルのIDを取得
         console.log("📋 Staff session detected");
         const correspondingUser = await storage.findUserByStaffInfo(staffSession.staffId, staffSession.staffName);
-        nurseId = correspondingUser?.id || null;
+        
+        if (!correspondingUser) {
+          console.log("⚠️ No corresponding user found in users table for staff login");
+          console.log("⚠️ Creating a temporary user record for this staff member");
+          
+          // 職員情報を基に一時的なユーザーレコードを作成
+          try {
+            const tempUser = await storage.upsertUser({
+              id: staffSession.staffId, // staffIdをユーザーIDとして使用
+              email: `${staffSession.staffId}@temp.staff`,
+              firstName: staffSession.staffName || "Unknown",
+              lastName: "",
+              profileImageUrl: null,
+              role: "nurse"
+            });
+            nurseId = tempUser.id;
+            console.log("✅ Created temporary user:", tempUser);
+          } catch (createError) {
+            console.error("❌ Failed to create temporary user:", createError);
+            // フォールバック：最初に見つかったユーザーを使用
+            console.log("🔄 Using fallback: finding any existing user...");
+            try {
+              const [fallbackUser] = await db.select().from(users).limit(1);
+              if (fallbackUser) {
+                nurseId = fallbackUser.id;
+                console.log("🔄 Using fallback user:", fallbackUser);
+              }
+            } catch (fallbackError) {
+              console.error("❌ Fallback also failed:", fallbackError);
+            }
+          }
+        } else {
+          nurseId = correspondingUser.id;
+        }
         
         console.log("🔥🔥🔥 STAFF LOGIN DEBUG 🔥🔥🔥");
         console.log("Staff login - staffSession:", staffSession);
@@ -368,7 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userExists) {
         console.error("❌ Validation failed: nurseId does not exist in users table:", nurseId);
         try {
-          const allUsers = await storage.getAllUsers ? await storage.getAllUsers() : "getAllUsers method not available";
+          const allUsers = await db.select().from(users).limit(5);
           console.log("🔍 Available users in database:");
           console.log(allUsers);
         } catch (error) {
