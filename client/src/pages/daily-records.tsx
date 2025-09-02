@@ -27,6 +27,9 @@ interface DailyRecord {
   staffName: string;
   createdAt: string;
   originalData?: any;
+  excretionDetails?: {
+    formattedEntries: string[];
+  };
 }
 
 const recordTypeColors = {
@@ -273,6 +276,28 @@ export default function DailyRecords() {
       params.set('date', selectedDate);
       
       const response = await apiRequest(`/api/daily-records?${params.toString()}`);
+      
+      // 排泄記録のデバッグログ
+      const excretionRecords = response.filter((record: DailyRecord) => record.recordType === '排泄');
+      console.log('💧 排泄記録詳細:', excretionRecords.map((record: DailyRecord) => ({
+        id: record.id,
+        residentName: record.residentName,
+        recordTime: record.recordTime,
+        content: record.content,
+        hasExcretionDetails: !!record.excretionDetails,
+        excretionDetails: record.excretionDetails,
+        originalData: record.originalData
+      })));
+
+      // データベースの排泄記録を直接確認
+      apiRequest(`/api/debug-excretion?date=${selectedDate}`)
+        .then(debugData => {
+          console.log('🔍 データベース排泄記録:', debugData);
+        })
+        .catch(err => {
+          console.error('デバッグAPI呼び出しエラー:', err);
+        });
+      
       return response as DailyRecord[];
     },
     enabled: !!isAuthenticated && !!selectedDate,
@@ -474,6 +499,36 @@ export default function DailyRecords() {
                       </div>
                     </div>
                   )}
+
+                  {/* バイタル専用：上枠（バイタル数値） */}
+                  {record.recordType === 'バイタル' && record.vitalValues && (
+                    <div className="mb-2">
+                      <div className="p-1.5 bg-slate-50 rounded border text-sm">
+                        {record.vitalValues}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 排泄専用：上枠（排泄データ） */}
+                  {record.recordType === '排泄' && (() => {
+                    console.log('🔍 排泄カード表示チェック:', {
+                      recordId: record.id,
+                      hasExcretionDetails: !!record.excretionDetails,
+                      formattedEntries: record.excretionDetails?.formattedEntries,
+                      entriesLength: record.excretionDetails?.formattedEntries?.length || 0
+                    });
+                    return record.excretionDetails && record.excretionDetails.formattedEntries.length > 0;
+                  })() && (
+                    <div className="mb-2">
+                      <div className="p-1.5 bg-slate-50 rounded border text-sm">
+                        <div className="whitespace-pre-line">
+                          {record.excretionDetails.formattedEntries.join('\n')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 下枠：記録内容（全記録タイプ共通） */}
                   <div className="mb-2">
                     <textarea
                       className="w-full p-1.5 bg-white rounded border text-sm min-h-[4rem] leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -481,7 +536,9 @@ export default function DailyRecords() {
                         ? editingContent[record.id]
                         : record.recordType === '処置' 
                           ? (record.originalData?.description || record.originalData?.interventions || '')
-                          : (record.content || '')
+                          : record.recordType === 'バイタル' 
+                            ? (record.notes || '') // バイタルの場合はnotesのみ表示
+                            : (record.content || '')
                       }
                       onChange={(e) => {
                         setEditingContent(prev => ({
@@ -493,7 +550,9 @@ export default function DailyRecords() {
                         const newContent = e.target.value;
                         const originalContent = record.recordType === '処置' 
                           ? (record.originalData?.description || record.originalData?.interventions || '')
-                          : (record.content || '');
+                          : record.recordType === 'バイタル'
+                            ? (record.notes || '') // バイタルの場合はnotesと比較
+                            : (record.content || '');
                         
                         if (newContent !== originalContent) {
                           updateRecordMutation.mutate({

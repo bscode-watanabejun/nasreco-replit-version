@@ -244,6 +244,7 @@ export const excretionRecords = pgTable("excretion_records", {
   type: varchar("type").notNull(), // urination, bowel_movement
   consistency: varchar("consistency"), // normal, soft, hard, liquid
   amount: varchar("amount"), // small, medium, large
+  urineVolumeCc: integer("urine_volume_cc"), // 尿量(CC)
   assistance: varchar("assistance"), // independent, partial, full
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

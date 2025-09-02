@@ -57,6 +57,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
+import { format } from "date-fns";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -105,6 +106,7 @@ export interface IStorage {
   // Excretion record operations
   getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<ExcretionRecord[]>;
   createExcretionRecord(record: InsertExcretionRecord): Promise<ExcretionRecord>;
+  updateExcretionRecord(id: string, record: Partial<InsertExcretionRecord>): Promise<ExcretionRecord>;
 
   // Weight record operations
   getWeightRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<WeightRecord[]>;
@@ -611,6 +613,15 @@ export class DatabaseStorage implements IStorage {
   async createExcretionRecord(record: InsertExcretionRecord): Promise<ExcretionRecord> {
     const [newRecord] = await db.insert(excretionRecords).values(record).returning();
     return newRecord;
+  }
+
+  async updateExcretionRecord(id: string, record: Partial<InsertExcretionRecord>): Promise<ExcretionRecord> {
+    const [updatedRecord] = await db
+      .update(excretionRecords)
+      .set({ ...record, updatedAt: new Date() })
+      .where(eq(excretionRecords.id, id))
+      .returning();
+    return updatedRecord;
   }
 
   // Weight record operations
@@ -1526,15 +1537,19 @@ export class DatabaseStorage implements IStorage {
         vitalData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
-            // バイタル数値と記録内容の両方を表示
+            // バイタル数値を個別に送信（フロントで枠分け表示用）
             const vitalInfo = [];
             if (record.temperature) vitalInfo.push(`体温:${record.temperature}℃`);
             if (record.bloodPressureSystolic && record.bloodPressureDiastolic) vitalInfo.push(`血圧:${record.bloodPressureSystolic}/${record.bloodPressureDiastolic}`);
             if (record.pulseRate) vitalInfo.push(`脈拍:${record.pulseRate}`);
             if (record.oxygenSaturation) vitalInfo.push(`SpO2:${record.oxygenSaturation}%`);
+            if (record.bloodSugar) vitalInfo.push(`血糖:${record.bloodSugar}`);
+            if (record.respirationRate) vitalInfo.push(`呼吸:${record.respirationRate}`);
             
             const vitalString = vitalInfo.length > 0 ? vitalInfo.join(' ') : '';
             const notes = record.notes || '';
+            
+            // 後方互換性のためcontentも保持
             const content = vitalString && notes ? `${vitalString} ${notes}` : vitalString || notes;
 
             // バイタル記録のスタッフ名もマッピングを適用
@@ -1544,14 +1559,57 @@ export class DatabaseStorage implements IStorage {
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffName;
             
 
+            // バイタル一覧画面と同じ記録日時の表示を作成
+            let recordTimeDisplay = record.recordDate;
+            console.log(`🔍 バイタル記録の時刻情報:`, {
+              id: record.id,
+              timing: record.timing,
+              hour: record.hour,
+              minute: record.minute,
+              recordDate: record.recordDate
+            });
+            
+            if (record.timing && record.hour !== null && record.minute !== null) {
+              // timing + 時:分 の形式で表示
+              console.log(`🕐 時刻設定前 - baseDate:`, new Date(record.recordDate));
+              console.log(`🕐 時刻設定前 - hour:${record.hour}, minute:${record.minute}`);
+              
+              // JST での日時文字列を直接作成してからDateオブジェクト化
+              const baseDate = new Date(record.recordDate);
+              const year = baseDate.getFullYear();
+              const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+              const day = String(baseDate.getDate()).padStart(2, '0');
+              const hour = String(record.hour).padStart(2, '0');
+              const minute = String(record.minute).padStart(2, '0');
+              
+              // JST時刻として解釈されるような文字列を作成
+              const jstDateString = `${year}-${month}-${day}T${hour}:${minute}:00+09:00`;
+              recordTimeDisplay = new Date(jstDateString);
+              
+              console.log(`🎯 JST文字列:`, jstDateString);
+              console.log(`✅ 作成した記録時刻:`, recordTimeDisplay);
+              console.log(`✅ 表示用時刻文字列:`, recordTimeDisplay.toLocaleString('ja-JP'));
+            } else if (record.timing) {
+              // timingのみの場合はrecordDateを使用
+              recordTimeDisplay = record.recordDate;
+              console.log(`⚠️ timing のみ利用:`, recordTimeDisplay);
+            } else {
+              console.log(`❌ 時刻情報なし、recordDate使用:`, recordTimeDisplay);
+            }
+
             allRecords.push({
               id: record.id,
               recordType: 'バイタル',
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: record.recordDate,
-              content: content.trim(),
+              recordTime: recordTimeDisplay,
+              timing: record.timing, // バイタル一覧との互換性のため追加
+              hour: record.hour,     // バイタル一覧との互換性のため追加  
+              minute: record.minute, // バイタル一覧との互換性のため追加
+              content: content.trim(), // 後方互換性のため保持
+              vitalValues: vitalString.trim(), // バイタル数値のみ（上枠用）
+              notes: notes.trim(), // 記録内容のみ（下枠用）
               staffName: finalStaffName,
               createdAt: record.createdAt,
               originalData: record
@@ -1563,26 +1621,79 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // 排泄記録
+    // 排泄記録（記録内容 + 関連排泄データ）
     if (!recordTypes || recordTypes.includes('排泄')) {
       try {
-        const excretionData = await db
+        // 記録内容（general_note）を取得
+        const excretionNotesData = await db
           .select()
           .from(excretionRecords)
           .where(and(
             gte(excretionRecords.recordDate, startDate),
-            lte(excretionRecords.recordDate, endDate)
+            lte(excretionRecords.recordDate, endDate),
+            eq(excretionRecords.type, 'general_note')
           ));
 
-        excretionData.forEach(record => {
-          const resident = residentsMap.get(record.residentId);
+        // 同日の全排泄データも取得（便記録・尿記録）
+        const allExcretionData = await db
+          .select()
+          .from(excretionRecords)
+          .where(and(
+            gte(excretionRecords.recordDate, startDate),
+            lte(excretionRecords.recordDate, endDate),
+            or(
+              eq(excretionRecords.type, 'bowel_movement'),
+              eq(excretionRecords.type, 'urination')
+            )
+          ));
+
+        console.log('📊 全排泄データ取得:', {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          totalRecords: allExcretionData.length,
+          records: allExcretionData.map(r => ({
+            id: r.id,
+            residentId: r.residentId,
+            type: r.type,
+            recordDate: r.recordDate,
+            consistency: r.consistency,
+            amount: r.amount,
+            urineVolumeCc: r.urineVolumeCc,
+            notes: r.notes
+          }))
+        });
+
+        // 記録内容（general_note）と排泄データを組み合わせて処理
+        // 利用者ごとにデータをグループ化
+        const residentGroups = new Map<string, { notes?: any, excretionData: any[] }>();
+
+        // general_noteを追加
+        excretionNotesData.forEach(record => {
+          const existing = residentGroups.get(record.residentId) || { excretionData: [] };
+          existing.notes = record;
+          residentGroups.set(record.residentId, existing);
+        });
+
+        // 排泄データを追加
+        allExcretionData.forEach(record => {
+          const existing = residentGroups.get(record.residentId) || { excretionData: [] };
+          existing.excretionData.push(record);
+          residentGroups.set(record.residentId, existing);
+        });
+
+        // 利用者ごとにレコードを作成
+        residentGroups.forEach((data, residentId) => {
+          const resident = residentsMap.get(residentId);
           if (resident) {
-            const content = record.notes || '';
-            const mappedStaffName = staffMap.get(record.staffId);
-            const fallbackUserName = usersMap.get(record.staffId);
-            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            const notesRecord = data.notes;
+            const content = notesRecord?.notes || '';
+            const recordTime = notesRecord?.recordDate || (data.excretionData[0]?.recordDate) || new Date();
             
-            const timeCategory = getTimeCategory(new Date(record.recordDate));
+            const mappedStaffName = staffMap.get(notesRecord?.staffId);
+            const fallbackUserName = usersMap.get(notesRecord?.staffId);
+            const finalStaffName = mappedStaffName || fallbackUserName || notesRecord?.staffId || '不明';
+            
+            const timeCategory = getTimeCategory(new Date(recordTime));
             
             // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
             if (recordTypes && (recordTypes.includes('日中') || recordTypes.includes('夜間'))) {
@@ -1590,19 +1701,95 @@ export class DatabaseStorage implements IStorage {
                 return; // この記録をスキップ
               }
             }
+
+            // この利用者の排泄データを使用（既にフィルタリング済み）
+            const relatedExcretionData = data.excretionData;
+
+            // 時間別に排泄データを整理
+            const timeGroupedData: Record<string, { stool?: any, urine?: any }> = {};
+
+            console.log('🔍 relatedExcretionData:', {
+              residentId: residentId,
+              totalRecords: relatedExcretionData.length,
+              records: relatedExcretionData.map(r => ({
+                id: r.id,
+                type: r.type,
+                recordDate: r.recordDate,
+                consistency: r.consistency,
+                amount: r.amount,
+                urineVolumeCc: r.urineVolumeCc
+              }))
+            });
+
+            relatedExcretionData.forEach(excretionRecord => {
+              const timeKey = format(new Date(excretionRecord.recordDate), 'HH:mm');
+              console.log('🕐 Processing record:', { timeKey, type: excretionRecord.type, recordDate: excretionRecord.recordDate });
+              
+              if (!timeGroupedData[timeKey]) {
+                timeGroupedData[timeKey] = {};
+              }
+
+              if (excretionRecord.type === 'bowel_movement') {
+                timeGroupedData[timeKey].stool = {
+                  state: excretionRecord.consistency || '',
+                  amount: excretionRecord.amount || ''
+                };
+              } else if (excretionRecord.type === 'urination') {
+                timeGroupedData[timeKey].urine = {
+                  amount: excretionRecord.amount || '',
+                  volumeCc: excretionRecord.urineVolumeCc || null
+                };
+              }
+            });
+
+            console.log('📊 timeGroupedData:', timeGroupedData);
+
+            // フォーマット済みの文字列配列を作成
+            const formattedEntries = Object.keys(timeGroupedData)
+              .sort() // 時間順にソート
+              .map(time => {
+                const data = timeGroupedData[time];
+                let line = `${time}`;
+                
+                // 便データ
+                if (data.stool && (data.stool.state || data.stool.amount)) {
+                  const stoolPart = `便: ${data.stool.state}${data.stool.amount ? ` (${data.stool.amount})` : ''}`;
+                  line += ` ${stoolPart}`;
+                }
+                
+                // 尿データ
+                if (data.urine && (data.urine.amount || data.urine.volumeCc)) {
+                  const urinePart = `尿: ${data.urine.amount}${data.urine.volumeCc ? ` (${data.urine.volumeCc}CC)` : ''}`;
+                  if (data.stool && (data.stool.state || data.stool.amount)) {
+                    line += ` / ${urinePart}`;
+                  } else {
+                    line += ` ${urinePart}`;
+                  }
+                }
+                
+                return line;
+              })
+              .filter(line => line.length > 5); // 時間のみの行（データなし）を除外
+
+            console.log('📝 formattedEntries:', formattedEntries);
+
+            const excretionDetails = {
+              formattedEntries
+            };
             
             allRecords.push({
-              id: record.id,
+              id: notesRecord?.id || `excretion-${residentId}`,
               recordType: '排泄',
-              residentId: record.residentId,
+              residentId: residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: record.recordDate,
+              recordTime: recordTime,
               content,
               staffName: finalStaffName,
-              createdAt: record.createdAt,
+              createdAt: notesRecord?.createdAt || new Date(),
               timeCategory: timeCategory,
-              originalData: record
+              originalData: notesRecord,
+              excretionDetails // 排泄データを追加
             });
           }
         });

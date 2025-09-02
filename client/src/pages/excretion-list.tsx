@@ -54,6 +54,14 @@ interface ExcretionData {
   urineAmount: string;
 }
 
+interface ExcretionRecordIds {
+  stoolId?: string;
+  urineId?: string;
+  generalNoteId?: string;
+  assistanceStoolId?: string;
+  assistanceUrineId?: string;
+}
+
 interface CellData {
   residentId: string;
   hour: number;
@@ -472,6 +480,7 @@ export default function ExcretionList() {
   
   // セルデータ管理
   const [cellData, setCellData] = useState<Record<string, ExcretionData>>({});
+  const [recordIds, setRecordIds] = useState<Record<string, ExcretionRecordIds>>({});
   const [notesData, setNotesData] = useState<Record<string, string>>({});
   const [assistanceData, setAssistanceData] = useState<Record<string, { stool: string; urine: string }>>({});
   const [aiAnalysisData, setAiAnalysisData] = useState<Record<string, string>>({});
@@ -508,6 +517,7 @@ export default function ExcretionList() {
   // 日付や階数が変更されたときにローカル状態をリセット
   useEffect(() => {
     setCellData({});
+    setRecordIds({});
     setNotesData({});
     setAssistanceData({});
     setAiAnalysisData({});
@@ -517,7 +527,10 @@ export default function ExcretionList() {
   useEffect(() => {
     if (!excretionRecords || !Array.isArray(excretionRecords)) return;
 
+    console.log('🔍 取得した排泄記録データ:', excretionRecords);
+
     const newCellData: Record<string, ExcretionData> = {};
+    const newRecordIds: Record<string, ExcretionRecordIds> = {};
     const newNotesData: Record<string, string> = {};
     const newAssistanceData: Record<string, { stool: string; urine: string }> = {};
     
@@ -533,15 +546,56 @@ export default function ExcretionList() {
         if (!newAssistanceData[key]) {
           newAssistanceData[key] = { stool: "", urine: "" };
         }
+        if (!newRecordIds[key]) {
+          newRecordIds[key] = {};
+        }
+        
         if (record.type === 'bowel_movement') {
           newAssistanceData[key].stool = record.assistance;
+          newRecordIds[key].assistanceStoolId = record.id;
         } else if (record.type === 'urination') {
           newAssistanceData[key].urine = record.assistance;
+          newRecordIds[key].assistanceUrineId = record.id;
         }
+        
+        console.log('🔍 自立データ処理:', { recordId: record.id, type: record.type, assistance: record.assistance });
       }
 
-      // 記録から時間を抽出する簡易的な方法
-      if (record.notes && record.notes.includes('時の')) {
+      // 記録日時から時間を抽出してnotesを保存
+      const recordDate = new Date(record.recordDate);
+      const hour = recordDate.getHours();
+      const extractedKey = `${record.residentId}-${hour}`;
+      
+      // 記録内容をnotesDataに保存（時間ベース）
+      if (record.notes) {
+        newNotesData[extractedKey] = record.notes;
+        console.log(`🔍 排泄記録のnotes保存:`, {
+          recordId: record.id,
+          residentId: record.residentId,
+          hour: hour,
+          extractedKey: extractedKey,
+          notes: record.notes,
+          recordDate: record.recordDate
+        });
+      }
+      
+      // 記録内容の処理（type: 'general_note'の場合）
+      if (record.type === 'general_note' && record.notes) {
+        // hour: -1（記録列）用のキーとしてresidentIdを使用
+        const generalKey = `${record.residentId}--1`;
+        newNotesData[generalKey] = record.notes;
+        
+        // general_noteのIDも保存
+        if (!newRecordIds[generalKey]) {
+          newRecordIds[generalKey] = {};
+        }
+        newRecordIds[generalKey].generalNoteId = record.id;
+        
+        console.log('🔍 general_note記録を処理:', { key: generalKey, notes: record.notes, id: record.id });
+      }
+      
+      // 従来の処理：記録から時間を抽出する簡易的な方法（既存データとの互換性のため）
+      else if (record.notes && record.notes.includes('時の')) {
         const hourMatch = record.notes.match(/(\d+)時の/);
         if (hourMatch) {
           const extractedHour = parseInt(hourMatch[1]);
@@ -551,22 +605,45 @@ export default function ExcretionList() {
             if (!newCellData[extractedKey]) {
               newCellData[extractedKey] = { stoolState: "", stoolAmount: "", urineCC: "", urineAmount: "" };
             }
+            if (!newRecordIds[extractedKey]) {
+              newRecordIds[extractedKey] = {};
+            }
             newCellData[extractedKey].stoolState = record.consistency || "";
             newCellData[extractedKey].stoolAmount = record.amount || "";
+            newRecordIds[extractedKey].stoolId = record.id; // 便記録のID保存
           } else if (record.type === 'urination') {
             if (!newCellData[extractedKey]) {
               newCellData[extractedKey] = { stoolState: "", stoolAmount: "", urineCC: "", urineAmount: "" };
             }
-            newCellData[extractedKey].urineAmount = record.amount || "";
-            // CCを抽出
-            const ccMatch = record.notes?.match(/\((\d+)CC\)/);
-            if (ccMatch) {
-              newCellData[extractedKey].urineCC = ccMatch[1];
+            if (!newRecordIds[extractedKey]) {
+              newRecordIds[extractedKey] = {};
             }
-          } else if (record.type === 'general_note') {
-            const noteMatch = record.notes?.match(/\d+時の記録: (.+)/);
-            if (noteMatch) {
-              newNotesData[extractedKey] = noteMatch[1];
+            newCellData[extractedKey].urineAmount = record.amount || "";
+            newRecordIds[extractedKey].urineId = record.id; // 尿記録のID保存
+            // CCデータを専用フィールドから取得
+            if (record.urineVolumeCc) {
+              newCellData[extractedKey].urineCC = record.urineVolumeCc.toString();
+              console.log('💧 新フィールドからCC取得:', { recordId: record.id, cc: record.urineVolumeCc });
+            }
+            // 旧データの互換性：notesからのCC抽出（既存データの移行期間用）
+            else {
+              let ccMatch = record.notes?.match(/\[CC:(\d+)\]/); // 新フォーマット
+              if (!ccMatch) {
+                ccMatch = record.notes?.match(/\((\d+)CC\)/); // 旧フォーマット
+              }
+              if (ccMatch) {
+                newCellData[extractedKey].urineCC = ccMatch[1];
+                console.log('🔄 旧フォーマットからCC取得:', { recordId: record.id, cc: ccMatch[1] });
+              }
+            }
+          }
+          
+          // 記録内容をnotesDataに保存（排泄記録の自動生成文字列は除外）
+          if (record.notes) {
+            // 排泄記録の自動生成文字列パターンをチェック（新フォーマット対応 + 旧フォーマット互換性）
+            const isExcretionAutoGenerated = /^\d+時の[便尿]記録(\s(\[CC:\d+\]|\(\d+CC\)))?$/.test(record.notes);
+            if (!isExcretionAutoGenerated) {
+              newNotesData[extractedKey] = record.notes;
             }
           }
         }
@@ -575,12 +652,21 @@ export default function ExcretionList() {
 
     // データを置き換える（蓄積しない）
     setCellData(newCellData);
+    setRecordIds(newRecordIds);
     
     // notesDataは既存のローカルデータを保持しつつマージ
-    setNotesData(prev => ({
-      ...newNotesData, // API取得データ
-      ...prev // 既存のローカルデータで上書き（優先）
-    }));
+    setNotesData(prev => {
+      const finalNotesData = {
+        ...newNotesData, // API取得データ
+        ...prev // 既存のローカルデータで上書き（優先）
+      };
+      console.log(`🔍 notesData更新:`, {
+        newNotesData: newNotesData,
+        prevNotesData: prev,
+        finalNotesData: finalNotesData
+      });
+      return finalNotesData;
+    });
     
     setAssistanceData(newAssistanceData);
   }, [excretionRecords, selectedDate]);
@@ -628,22 +714,48 @@ export default function ExcretionList() {
   // 時間配列を生成（0-23時）
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
-  // セルのクリックハンドラー
+  // セルのクリックハンドラー（自立データ用）
   const handleCellClick = async (residentId: string, hour: number, type: 'urine' | 'stool', field: string, value: string) => {
     console.log('Cell clicked:', { residentId, hour, type, field, value });
     
     if (!residentId || !value.trim()) return;
     
     try {
+      const key = `${residentId}--1`; // 自立列用のキー
+      const existingIds = recordIds[key] || {};
+      const existingIdField = type === 'stool' ? 'assistanceStoolId' : 'assistanceUrineId';
+      const existingId = existingIds[existingIdField];
+      
+      // 自立データの場合、hour は -1 なので現在時刻を使用
+      const recordDateTime = hour === -1 ? new Date() : (() => {
+        const dt = new Date(selectedDate);
+        dt.setHours(hour, 0, 0, 0);
+        return dt;
+      })();
+      
       const recordData = {
         residentId,
-        recordDate: new Date(selectedDate).toISOString(),
+        recordDate: recordDateTime.toISOString(),
         type: type === 'stool' ? 'bowel_movement' : 'urination',
         assistance: value,
-        notes: `${hour}時の${type === 'stool' ? '便' : '尿'}記録`
+        notes: `${hour === -1 ? '自立' : hour + '時'}の${type === 'stool' ? '便' : '尿'}記録`
       };
       
-      await apiRequest('/api/excretion-records', 'POST', recordData);
+      if (existingId) {
+        // 既存の自立レコードを更新
+        await apiRequest(`/api/excretion-records/${existingId}`, 'PATCH', recordData);
+        console.log(`🔄 ${type}自立データを更新:`, existingId);
+      } else {
+        // 新規の自立レコードを作成
+        const newRecord = await apiRequest('/api/excretion-records', 'POST', recordData);
+        // 新しいIDを保存
+        setRecordIds(prev => ({
+          ...prev,
+          [key]: { ...prev[key], [existingIdField]: newRecord.id }
+        }));
+        console.log(`✨ ${type}自立データを新規作成:`, newRecord.id);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['/api/excretion-records'] });
     } catch (error) {
       console.error('Error saving excretion record:', error);
@@ -668,29 +780,69 @@ export default function ExcretionList() {
     if (!residentId) return;
     
     try {
-      // 便記録の保存
+      const existingIds = recordIds[key] || {};
+      
+      // 便記録の保存/更新
       if (data.stoolState || data.stoolAmount) {
+        // 選択日時 + 時間を組み合わせた日時を作成
+        const recordDateTime = new Date(selectedDate);
+        recordDateTime.setHours(hour, 0, 0, 0);
+        
         const stoolRecord = {
           residentId,
-          recordDate: new Date(selectedDate).toISOString(),
+          recordDate: recordDateTime.toISOString(),
           type: 'bowel_movement',
           consistency: data.stoolState || null,
           amount: data.stoolAmount || null,
           notes: `${hour}時の便記録`
         };
-        await apiRequest('/api/excretion-records', 'POST', stoolRecord);
+        
+        if (existingIds.stoolId) {
+          // 既存レコードを更新
+          await apiRequest(`/api/excretion-records/${existingIds.stoolId}`, 'PATCH', stoolRecord);
+          console.log('🔄 便記録を更新:', existingIds.stoolId);
+        } else {
+          // 新規レコードを作成
+          const newRecord = await apiRequest('/api/excretion-records', 'POST', stoolRecord);
+          // 新しいIDを保存
+          setRecordIds(prev => ({
+            ...prev,
+            [key]: { ...prev[key], stoolId: newRecord.id }
+          }));
+          console.log('✨ 便記録を新規作成:', newRecord.id);
+        }
       }
       
-      // 尿記録の保存
+      // 尿記録の保存/更新
       if (data.urineCC || data.urineAmount) {
+        // 選択日時 + 時間を組み合わせた日時を作成
+        const recordDateTime = new Date(selectedDate);
+        recordDateTime.setHours(hour, 0, 0, 0);
+        
         const urineRecord = {
           residentId,
-          recordDate: new Date(selectedDate).toISOString(),
+          recordDate: recordDateTime.toISOString(),
           type: 'urination',
           amount: data.urineAmount || null,
-          notes: `${hour}時の尿記録${data.urineCC ? ` (${data.urineCC}CC)` : ''}`
+          urineVolumeCc: data.urineCC ? parseInt(data.urineCC) : null,
+          notes: `${hour}時の尿記録`
         };
-        await apiRequest('/api/excretion-records', 'POST', urineRecord);
+        console.log('💧 尿記録保存データ:', { urineCC: data.urineCC, urineVolumeCc: urineRecord.urineVolumeCc });
+        
+        if (existingIds.urineId) {
+          // 既存レコードを更新
+          await apiRequest(`/api/excretion-records/${existingIds.urineId}`, 'PATCH', urineRecord);
+          console.log('🔄 尿記録を更新:', existingIds.urineId);
+        } else {
+          // 新規レコードを作成
+          const newRecord = await apiRequest('/api/excretion-records', 'POST', urineRecord);
+          // 新しいIDを保存
+          setRecordIds(prev => ({
+            ...prev,
+            [key]: { ...prev[key], urineId: newRecord.id }
+          }));
+          console.log('✨ 尿記録を新規作成:', newRecord.id);
+        }
       }
       
       // 正しいクエリキーで無効化
@@ -703,23 +855,47 @@ export default function ExcretionList() {
   // 記録データ保存ハンドラー
   const handleSaveNotesData = async (residentId: string, hour: number, notes: string) => {
     const key = `${residentId}-${hour}`;
+    
+    // general_noteとしてもキーを作成（hour: -1用）
+    const generalKey = `${residentId}--1`;
+    
     setNotesData(prev => ({
       ...prev,
-      [key]: notes
+      [key]: notes,
+      [generalKey]: notes // general_note用キーにも保存
     }));
-    console.log('Notes data saved:', { residentId, hour, notes });
+    console.log('Notes data saved:', { residentId, hour, notes, generalKey });
     
     if (!residentId || !notes.trim()) return;
     
     try {
+      const existingIds = recordIds[generalKey] || {};
+      // 記録内容は選択日の指定時間に保存（排泄データと同じ形式）
+      const recordDateTime = new Date(selectedDate);
+      recordDateTime.setHours(hour, 0, 0, 0);
+      
       const recordData = {
         residentId,
-        recordDate: new Date(selectedDate).toISOString(),
+        recordDate: recordDateTime.toISOString(),
         type: 'general_note',
-        notes: `${hour}時の記録: ${notes}`
+        notes: notes
       };
       
-      await apiRequest('/api/excretion-records', 'POST', recordData);
+      if (existingIds.generalNoteId) {
+        // 既存の記録内容を更新
+        await apiRequest(`/api/excretion-records/${existingIds.generalNoteId}`, 'PATCH', recordData);
+        console.log('🔄 記録内容を更新:', existingIds.generalNoteId);
+      } else {
+        // 新規記録内容を作成
+        const newRecord = await apiRequest('/api/excretion-records', 'POST', recordData);
+        // 新しいIDを保存
+        setRecordIds(prev => ({
+          ...prev,
+          [generalKey]: { ...prev[generalKey], generalNoteId: newRecord.id }
+        }));
+        console.log('✨ 記録内容を新規作成:', newRecord.id);
+      }
+      
       // 正しいクエリキーで無効化
       queryClient.invalidateQueries({ queryKey: ['/api/excretion-records', selectedDate, selectedFloor] });
     } catch (error) {
@@ -766,7 +942,63 @@ export default function ExcretionList() {
   // 記録データ取得
   const getNotesData = (residentId: string, hour: number): string => {
     const key = `${residentId}-${hour}`;
-    return notesData[key] || "";
+    let result = notesData[key] || "";
+    
+    // hour: -1の場合（記録列）、general_noteタイプの記録を最優先で確認
+    if (hour === -1) {
+      const generalKey = `${residentId}--1`;
+      if (notesData[generalKey]) {
+        result = notesData[generalKey];
+        console.log('🔍 general_note記録を取得:', { residentId, result });
+        return result;
+      }
+      const residentNotesKeys = Object.keys(notesData).filter(k => k.startsWith(`${residentId}-`));
+      if (residentNotesKeys.length > 0) {
+        // 最新の記録内容を取得（時間が最も大きいものを使用）
+        const latestKey = residentNotesKeys.sort((a, b) => {
+          const hourA = parseInt(a.split('-').pop() || '0');
+          const hourB = parseInt(b.split('-').pop() || '0');
+          return hourB - hourA; // 降順
+        })[0];
+        result = notesData[latestKey] || "";
+        
+        // 既存データの"-1時の記録: "などのプレフィックスを除去
+        const timeRecordPattern = /-?\d+時の記録:\s*/;
+        if (timeRecordPattern.test(result)) {
+          result = result.replace(timeRecordPattern, '');
+        }
+        // 排泄記録の自動生成文字列も削除（新旧両フォーマット対応）
+        const excretionPattern = /^\d+時の[便尿]記録(\s(\[CC:\d+\]|\(\d+CC\)))?$/;
+        if (excretionPattern.test(result)) {
+          result = '';
+        }
+      }
+    }
+    
+    // 通常の時間指定でも同様の処理を適用
+    if (result) {
+      const timeRecordPattern = /-?\d+時の記録:\s*/;
+      if (timeRecordPattern.test(result)) {
+        result = result.replace(timeRecordPattern, '');
+      }
+      // 排泄記録の自動生成文字列も削除（新旧両フォーマット対応）
+      const excretionPattern = /^\d+時の[便尿]記録(\s(\[CC:\d+\]|\(\d+CC\)))?$/;
+      if (excretionPattern.test(result)) {
+        result = '';
+      }
+    }
+    
+    console.log(`🔍 getNotesData呼出:`, {
+      residentId: residentId,
+      hour: hour,
+      key: key,
+      generalKey: hour === -1 ? `${residentId}--1` : null,
+      result: result,
+      allNotesDataKeys: Object.keys(notesData),
+      isRecordColumn: hour === -1,
+      hasGeneralNote: hour === -1 && notesData[`${residentId}--1`] ? true : false
+    });
+    return result;
   };
 
   // 自立データ取得

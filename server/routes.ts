@@ -6,7 +6,8 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users } from "../shared/schema";
+import { users, excretionRecords } from "../shared/schema";
+import { and, gte, lte, desc } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
   insertResidentSchema,
@@ -909,6 +910,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/excretion-records/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = insertExcretionRecordSchema.partial().parse(req.body);
+      const record = await storage.updateExcretionRecord(req.params.id, validatedData);
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error updating excretion record:", error);
+      res.status(400).json({ message: "Invalid excretion record data" });
+    }
+  });
+
   // Weight records routes
   app.get('/api/weight-records', isAuthenticated, async (req, res) => {
     try {
@@ -1599,6 +1611,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error testing nursing categories:", error);
       res.status(500).json({ message: "Failed to test nursing categories" });
+    }
+  });
+
+  // 排泄記録デバッグ用エンドポイント（認証なし）
+  app.get('/api/debug-excretion', async (req, res) => {
+    try {
+      const { date = new Date().toISOString().split('T')[0] } = req.query;
+      
+      const startDate = new Date(date as string);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(date as string);
+      endDate.setHours(23, 59, 59, 999);
+
+      // 全排泄記録を取得
+      const allExcretionRecords = await db.select()
+        .from(excretionRecords)
+        .where(and(
+          gte(excretionRecords.recordDate, startDate),
+          lte(excretionRecords.recordDate, endDate)
+        ))
+        .orderBy(desc(excretionRecords.recordDate));
+
+      res.json({
+        date: date,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        totalRecords: allExcretionRecords.length,
+        byType: {
+          general_note: allExcretionRecords.filter(r => r.type === 'general_note').length,
+          bowel_movement: allExcretionRecords.filter(r => r.type === 'bowel_movement').length,
+          urination: allExcretionRecords.filter(r => r.type === 'urination').length,
+        },
+        records: allExcretionRecords.map(r => ({
+          id: r.id,
+          type: r.type,
+          residentId: r.residentId,
+          recordDate: r.recordDate,
+          consistency: r.consistency,
+          amount: r.amount,
+          urineVolumeCc: r.urineVolumeCc,
+          assistance: r.assistance,
+          notes: r.notes,
+          createdAt: r.createdAt
+        }))
+      });
+    } catch (error: any) {
+      console.error("Error debugging excretion:", error);
+      res.status(500).json({ message: "Failed to debug excretion records" });
     }
   });
 

@@ -2,6 +2,28 @@
 
 このファイルは、Claude Code（claude.ai/code）がこのリポジトリで作業する際のガイドです。
 
+## 🚀 Quick Start
+```bash
+[DEVELOPMENT_COMMAND]  # Start development server (MANUAL EXECUTION ONLY)
+```
+- Frontend: [FRONTEND_URL]
+- Backend: [BACKEND_URL]
+
+**⚠️ 重要**: `[DEVELOPMENT_COMMAND]`は手動実行のみ。Claude Codeでは実行しない。
+**✅ 必須**: 実装後は必ず高速エラーチェックを実施すること。
+
+## ⚡ 高速エラーチェック
+実装後の検証には以下の高速化手法を使用:
+```bash
+npm run check  # TypeScript型チェック（推奨：30秒以内）
+npm run build  # 完全ビルド（時間要注意：フルビルドが必要な場合のみ）
+```
+**使い分け**:
+- **通常の実装後**: `npm run check` で型エラーを高速検証
+- **デプロイ前**: `npm run build` でフルビルドテスト
+- **緊急修正**: `npm run check` で迅速確認
+
+
 ## 開発コマンド
 
 ### 基本開発
