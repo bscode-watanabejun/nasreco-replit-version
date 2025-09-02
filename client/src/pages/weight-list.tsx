@@ -613,7 +613,7 @@ export default function WeightList() {
     queryKey: ["/api/residents"],
   });
 
-  const { data: weightRecords = [] } = useQuery({
+  const { data: weightRecords = [] } = useQuery<any[]>({
     queryKey: ["/api/weight-records"],
   });
 
@@ -645,10 +645,10 @@ export default function WeightList() {
 
         // 既存の体重記録から measurementDate を取得
         const existingWeight = filteredWeightRecords.find((w: any) => w.id === id);
-        const measurementDate = existingWeight?.measurementDate;
+        const existingMeasurementDate = existingWeight?.measurementDate;
         
         // measurementDate が設定されていればそれを recordDate に使用、未設定なら月の1日を使用
-        const recordDate = measurementDate ? new Date(measurementDate) : new Date(selectedMonth + "-01");
+        const recordDate = existingMeasurementDate ? new Date(existingMeasurementDate) : new Date(selectedMonth + "-01");
 
         const newRecordData: any = {
           residentId: residentIdFromTemp,
@@ -670,8 +670,8 @@ export default function WeightList() {
         // recordTime を hour/minute から構築
         const hour = newRecordData.hour || existingWeight?.hour || 9;
         const minute = newRecordData.minute || existingWeight?.minute || 0;
-        const measurementDate = newRecordData.measurementDate || existingWeight?.measurementDate || `${selectedMonth}-01`;
-        newRecordData.recordTime = new Date(`${measurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+        const finalMeasurementDate = newRecordData.measurementDate || existingWeight?.measurementDate || `${selectedMonth}-01`;
+        newRecordData.recordTime = new Date(`${finalMeasurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
 
         // データ型を適切に変換
         if (field === "measurementDate") {
