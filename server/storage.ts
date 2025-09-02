@@ -58,6 +58,7 @@ import {
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
 import { format } from "date-fns";
+import { utcToZonedTime } from "date-fns-tz";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -1624,12 +1625,15 @@ export class DatabaseStorage implements IStorage {
     // 排泄記録（記録内容 + 関連排泄データ）
     if (!recordTypes || recordTypes.includes('排泄')) {
       try {
-        // 記録内容（general_note）を取得
+        // 記録内容（general_note）を取得（前日も含めて検索）
+        const extendedStartDate = new Date(startDate);
+        extendedStartDate.setDate(extendedStartDate.getDate() - 1); // 前日も含める
+        
         const excretionNotesData = await db
           .select()
           .from(excretionRecords)
           .where(and(
-            gte(excretionRecords.recordDate, startDate),
+            gte(excretionRecords.recordDate, extendedStartDate),
             lte(excretionRecords.recordDate, endDate),
             eq(excretionRecords.type, 'general_note')
           ));
@@ -1723,7 +1727,9 @@ export class DatabaseStorage implements IStorage {
             });
 
             relatedExcretionData.forEach(excretionRecord => {
-              const timeKey = format(new Date(excretionRecord.recordDate), 'HH:mm');
+              // UTCからJSTに変換してからフォーマット
+              const jstDate = utcToZonedTime(new Date(excretionRecord.recordDate), 'Asia/Tokyo');
+              const timeKey = format(jstDate, 'HH:mm');
               console.log('🕐 Processing record:', { timeKey, type: excretionRecord.type, recordDate: excretionRecord.recordDate });
               
               if (!timeGroupedData[timeKey]) {

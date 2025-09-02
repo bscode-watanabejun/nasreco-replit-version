@@ -870,9 +870,11 @@ export default function ExcretionList() {
     
     try {
       const existingIds = recordIds[generalKey] || {};
-      // 記録内容は選択日の指定時間に保存（排泄データと同じ形式）
+      // 記録内容は選択日の12:00に保存（hour=-1の場合は日付がずれないように）
       const recordDateTime = new Date(selectedDate);
-      recordDateTime.setHours(hour, 0, 0, 0);
+      // hour=-1の場合は12時、それ以外は指定時間
+      const saveHour = hour === -1 ? 12 : hour;
+      recordDateTime.setHours(saveHour, 0, 0, 0);
       
       const recordData = {
         residentId,
