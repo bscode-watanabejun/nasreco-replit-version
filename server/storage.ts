@@ -58,7 +58,7 @@ import {
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
 import { format } from "date-fns";
-import { utcToZonedTime } from "date-fns-tz";
+import { toZonedTime } from "date-fns-tz";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -1728,7 +1728,7 @@ export class DatabaseStorage implements IStorage {
 
             relatedExcretionData.forEach(excretionRecord => {
               // UTCからJSTに変換してからフォーマット
-              const jstDate = utcToZonedTime(new Date(excretionRecord.recordDate), 'Asia/Tokyo');
+              const jstDate = toZonedTime(new Date(excretionRecord.recordDate), 'Asia/Tokyo');
               const timeKey = format(jstDate, 'HH:mm');
               console.log('🕐 Processing record:', { timeKey, type: excretionRecord.type, recordDate: excretionRecord.recordDate });
               
