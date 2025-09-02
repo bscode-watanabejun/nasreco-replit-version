@@ -1687,7 +1687,8 @@ export class DatabaseStorage implements IStorage {
           if (resident) {
             const notesRecord = data.notes;
             const content = notesRecord?.notes || '';
-            const recordTime = notesRecord?.recordDate || (data.excretionData[0]?.recordDate) || new Date();
+            // 記録内容の作成日時を優先、なければ排泄データの作成日時を使用
+            const recordTime = notesRecord?.createdAt || (data.excretionData[0]?.createdAt) || new Date();
             
             const mappedStaffName = staffMap.get(notesRecord?.staffId);
             const fallbackUserName = usersMap.get(notesRecord?.staffId);

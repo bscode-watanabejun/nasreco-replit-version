@@ -7,7 +7,7 @@ import fs from "fs";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, excretionRecords } from "../shared/schema";
-import { and, gte, lte, desc } from "drizzle-orm";
+import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
   insertResidentSchema,
@@ -1633,6 +1633,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ))
         .orderBy(desc(excretionRecords.recordDate));
 
+      // 今は一旦コメントアウト
+      // const allGeneralNotes = await db.select()
+      //   .from(excretionRecords)  
+      //   .where(eq(excretionRecords.type, 'general_note'))
+      //   .orderBy(desc(excretionRecords.createdAt))
+      //   .limit(10);
+
       res.json({
         date: date,
         startDate: startDate.toISOString(),
@@ -1653,8 +1660,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           urineVolumeCc: r.urineVolumeCc,
           assistance: r.assistance,
           notes: r.notes,
-          createdAt: r.createdAt
-        }))
+          createdAt: r.createdAt,
+          staffId: r.staffId
+        })),
+        // allGeneralNotes: allGeneralNotes.map(r => ({
+        //   id: r.id,
+        //   residentId: r.residentId,
+        //   recordDate: r.recordDate,
+        //   notes: r.notes,
+        //   createdAt: r.createdAt,
+        //   staffId: r.staffId
+        // }))
       });
     } catch (error: any) {
       console.error("Error debugging excretion:", error);
