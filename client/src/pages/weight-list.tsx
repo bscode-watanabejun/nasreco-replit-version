@@ -656,6 +656,23 @@ export default function WeightList() {
           [field]: value,
         };
 
+        // 新規作成時にデフォルト値を設定（まだ設定されていない場合）
+        if (field !== "measurementDate" && (!existingWeight?.measurementDate)) {
+          newRecordData.measurementDate = `${selectedMonth}-01`;
+        }
+        if (field !== "hour" && existingWeight?.hour === null) {
+          newRecordData.hour = 9;
+        }
+        if (field !== "minute" && existingWeight?.minute === null) {
+          newRecordData.minute = 0;
+        }
+        
+        // recordTime を hour/minute から構築
+        const hour = newRecordData.hour || existingWeight?.hour || 9;
+        const minute = newRecordData.minute || existingWeight?.minute || 0;
+        const measurementDate = newRecordData.measurementDate || existingWeight?.measurementDate || `${selectedMonth}-01`;
+        newRecordData.recordTime = new Date(`${measurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+
         // データ型を適切に変換
         if (field === "measurementDate") {
           newRecordData[field] = value;
@@ -688,6 +705,14 @@ export default function WeightList() {
           // measurementDate が設定された場合は recordDate も同じ日付に更新
           if (value && value.trim() !== "") {
             updateData.recordDate = new Date(value);
+            
+            // recordTime も更新
+            const currentRecord = weightRecords.find((w: any) => w.id === id);
+            if (currentRecord) {
+              const hour = currentRecord.hour || 9;
+              const minute = currentRecord.minute || 0;
+              updateData.recordTime = new Date(`${value}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+            }
           }
         } else if (["hour", "minute"].includes(field)) {
           if (value && value.trim() !== "") {
@@ -697,6 +722,15 @@ export default function WeightList() {
             }
           } else {
             updateData[field] = null;
+          }
+          
+          // hour/minute が更新された場合、recordTime も更新
+          const currentRecord = weightRecords.find((w: any) => w.id === id);
+          if (currentRecord) {
+            const hour = field === "hour" ? (updateData.hour || parseInt(value) || 0) : (currentRecord.hour || 0);
+            const minute = field === "minute" ? (updateData.minute || parseInt(value) || 0) : (currentRecord.minute || 0);
+            const measurementDate = currentRecord.measurementDate || `${selectedMonth}-01`;
+            updateData.recordTime = new Date(`${measurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
           }
         } else if (field === "weight") {
           if (value && value.trim() !== "") {
@@ -954,14 +988,15 @@ export default function WeightList() {
     queryClient.setQueryData(["/api/weight-records"], (old: any) => {
       if (!old) return old;
       
-      // 新しい空のレコードを作成
+      // 新しい空のレコードを作成（デフォルト値を設定）
+      const defaultMeasurementDate = `${selectedMonth}-01`; // フィルタ項目の年月の1日
       const newEmptyRecord = {
         id: tempId,
         residentId: "", // 空の状態に設定
         recordDate: selectedMonth,
-        measurementDate: null,
-        hour: null,
-        minute: null,
+        measurementDate: defaultMeasurementDate, // デフォルト：月の1日
+        hour: 9, // デフォルト：9時
+        minute: 0, // デフォルト：0分
         staffName: null,
         weight: null,
         notes: null,

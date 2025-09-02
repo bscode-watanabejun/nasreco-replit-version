@@ -1595,7 +1595,24 @@ export class DatabaseStorage implements IStorage {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
             const content = record.notes || '';
-            const timeCategory = getTimeCategory(new Date(record.recordDate));
+            
+            // 体重記録の時刻処理を修正
+            // recordTimeが存在する場合はそれを使用、ない場合はhour/minuteから時刻を構築
+            let recordTime;
+            if (record.recordTime && record.recordTime instanceof Date) {
+              recordTime = record.recordTime;
+            } else if (record.recordTime) {
+              // 文字列の場合は日付に変換
+              recordTime = new Date(record.recordTime);
+            } else if (record.hour !== null && record.minute !== null) {
+              // hour/minuteフィールドから時刻を構築
+              recordTime = new Date(`${date}T${String(record.hour).padStart(2, '0')}:${String(record.minute).padStart(2, '0')}:00`);
+            } else {
+              // どちらもない場合はrecordDateを使用
+              recordTime = new Date(record.recordDate);
+            }
+            
+            const timeCategory = getTimeCategory(recordTime);
             
             // recordTypesフィルタリング: 日中/夜間が指定された場合はその時間帯のみ
             if (recordTypes && (recordTypes.includes('日中') || recordTypes.includes('夜間'))) {
@@ -1610,7 +1627,7 @@ export class DatabaseStorage implements IStorage {
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: record.recordDate,
+              recordTime: recordTime,
               content: content.trim(),
               staffName: record.staffName,
               createdAt: record.createdAt,

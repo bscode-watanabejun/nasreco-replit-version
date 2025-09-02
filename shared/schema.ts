@@ -255,6 +255,7 @@ export const weightRecords = pgTable("weight_records", {
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
+  recordTime: timestamp("record_time").defaultNow(), // 記録時刻（体重一覧で選択した日時）
   measurementDate: date("measurement_date"), // 計測日 (recordDateとは別)
   hour: integer("hour"), // 時間 (0-23)
   minute: integer("minute"), // 分 (0, 15, 30, 45)
@@ -455,6 +456,11 @@ export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, 
 
 export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
+  recordTime: z.union([z.string(), z.date()]).optional().transform((val) => {
+    if (val === undefined || val === null) return new Date();
     if (val instanceof Date) return val;
     return new Date(val);
   }),

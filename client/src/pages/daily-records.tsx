@@ -328,7 +328,7 @@ export default function DailyRecords() {
   const formatTime = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return format(date, "HH:mm", { locale: ja });
+      return format(date, "MM/dd HH:mm", { locale: ja });
     } catch {
       return "";
     }
@@ -458,7 +458,7 @@ export default function DailyRecords() {
                   <div className="flex gap-2 mb-2 text-sm items-center">
                     <div className="font-medium text-left w-12 flex-shrink-0">{record.roomNumber || '-'}</div>
                     <div className="font-medium text-left w-20 flex-shrink-0">{record.residentName}</div>
-                    <div className="font-medium text-left w-16 flex-shrink-0">{formatTime(record.recordTime)}</div>
+                    <div className="font-medium text-left w-24 flex-shrink-0 whitespace-nowrap">{formatTime(record.recordTime)}</div>
                     <div className="flex-1 text-right">
                       <span className="inline-block px-1.5 py-0.5 rounded-full text-xs bg-slate-100">
                         {record.recordType}
