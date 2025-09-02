@@ -1503,7 +1503,8 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(rawStaffName);
             const finalStaffName = mappedStaffName || fallbackUserName || rawStaffName;
             
-            const recordTime = getMedicationTime(record.timing);
+            // 頓服の場合は作成日時を使用、その他は固定時刻を使用
+            const recordTime = record.timing === '頓服' ? record.createdAt : getMedicationTime(record.timing);
 
             allRecords.push({
               id: record.id,
@@ -1651,21 +1652,6 @@ export class DatabaseStorage implements IStorage {
             )
           ));
 
-        console.log('📊 全排泄データ取得:', {
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          totalRecords: allExcretionData.length,
-          records: allExcretionData.map(r => ({
-            id: r.id,
-            residentId: r.residentId,
-            type: r.type,
-            recordDate: r.recordDate,
-            consistency: r.consistency,
-            amount: r.amount,
-            urineVolumeCc: r.urineVolumeCc,
-            notes: r.notes
-          }))
-        });
 
         // 記録内容（general_note）と排泄データを組み合わせて処理
         // 利用者ごとにデータをグループ化
@@ -1713,24 +1699,11 @@ export class DatabaseStorage implements IStorage {
             // 時間別に排泄データを整理
             const timeGroupedData: Record<string, { stool?: any, urine?: any }> = {};
 
-            console.log('🔍 relatedExcretionData:', {
-              residentId: residentId,
-              totalRecords: relatedExcretionData.length,
-              records: relatedExcretionData.map(r => ({
-                id: r.id,
-                type: r.type,
-                recordDate: r.recordDate,
-                consistency: r.consistency,
-                amount: r.amount,
-                urineVolumeCc: r.urineVolumeCc
-              }))
-            });
 
             relatedExcretionData.forEach(excretionRecord => {
               // UTCからJSTに変換してからフォーマット
               const jstDate = toZonedTime(new Date(excretionRecord.recordDate), 'Asia/Tokyo');
               const timeKey = format(jstDate, 'HH:mm');
-              console.log('🕐 Processing record:', { timeKey, type: excretionRecord.type, recordDate: excretionRecord.recordDate });
               
               if (!timeGroupedData[timeKey]) {
                 timeGroupedData[timeKey] = {};
@@ -1749,7 +1722,6 @@ export class DatabaseStorage implements IStorage {
               }
             });
 
-            console.log('📊 timeGroupedData:', timeGroupedData);
 
             // フォーマット済みの文字列配列を作成
             const formattedEntries = Object.keys(timeGroupedData)
@@ -1778,7 +1750,6 @@ export class DatabaseStorage implements IStorage {
               })
               .filter(line => line.length > 5); // 時間のみの行（データなし）を除外
 
-            console.log('📝 formattedEntries:', formattedEntries);
 
             const excretionDetails = {
               formattedEntries

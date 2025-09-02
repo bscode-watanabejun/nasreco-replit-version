@@ -510,15 +510,7 @@ export default function DailyRecords() {
                   )}
 
                   {/* 排泄専用：上枠（排泄データ） */}
-                  {record.recordType === '排泄' && (() => {
-                    console.log('🔍 排泄カード表示チェック:', {
-                      recordId: record.id,
-                      hasExcretionDetails: !!record.excretionDetails,
-                      formattedEntries: record.excretionDetails?.formattedEntries,
-                      entriesLength: record.excretionDetails?.formattedEntries?.length || 0
-                    });
-                    return record.excretionDetails && record.excretionDetails.formattedEntries.length > 0;
-                  })() && (
+                  {record.recordType === '排泄' && record.excretionDetails && record.excretionDetails.formattedEntries.length > 0 && (
                     <div className="mb-2">
                       <div className="p-1.5 bg-slate-50 rounded border text-sm">
                         <div className="whitespace-pre-line">

@@ -744,7 +744,6 @@ export default function ExcretionList() {
       if (existingId) {
         // 既存の自立レコードを更新
         await apiRequest(`/api/excretion-records/${existingId}`, 'PATCH', recordData);
-        console.log(`🔄 ${type}自立データを更新:`, existingId);
       } else {
         // 新規の自立レコードを作成
         const newRecord = await apiRequest('/api/excretion-records', 'POST', recordData);
