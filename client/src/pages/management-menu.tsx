@@ -37,7 +37,6 @@ export default function ManagementMenu() {
       description: "退去された方の情報を管理する画面です。過去者の情報照会や、再入居時の情報照会元などが行えます。",
       onClick: () => {
         // TODO: Implement past records management
-        console.log("退去者管理");
       }
     },
     {
@@ -65,7 +64,6 @@ export default function ManagementMenu() {
       description: "システムのマスタ情報を設定する画面です。薬、食事その他など、システム全体で使用するマスタの設定が行えます。",
       onClick: () => {
         // TODO: Implement master settings
-        console.log("マスタ設定");
       }
     },
     {
@@ -75,7 +73,6 @@ export default function ManagementMenu() {
       description: "システムに関する問い合わせを行う画面です。操作方法の質問や不具合の報告などを行えます。",
       onClick: () => {
         // TODO: Implement support/inquiry
-        console.log("問い合わせ");
       }
     }
   ];
@@ -95,7 +92,6 @@ export default function ManagementMenu() {
                   if (selectedDate) params.set('date', selectedDate);
                   if (selectedFloor) params.set('floor', selectedFloor);
                   const targetUrl = `/?${params.toString()}`;
-                  console.log('管理メニューからトップ画面へ遷移:', targetUrl);
                   navigate(targetUrl);
                 }}
                 className="p-2"

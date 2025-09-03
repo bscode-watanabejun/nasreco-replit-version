@@ -380,7 +380,6 @@ export default function CleaningLinenList() {
               if (selectedDateFromUrl) params.set('date', selectedDateFromUrl);
               params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
               const targetUrl = `/?${params.toString()}`;
-              console.log('清拭・リネン一覧からトップ画面へ遷移:', targetUrl);
               setLocation(targetUrl);
             }}
             className="h-8 w-8 p-0"

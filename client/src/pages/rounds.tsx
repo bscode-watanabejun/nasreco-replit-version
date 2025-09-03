@@ -261,7 +261,6 @@ export default function Rounds() {
               params.set('date', selectedDate);
               params.set('floor', selectedFloor);
               const targetUrl = `/?${params.toString()}`;
-              console.log('ラウンド一覧からトップ画面へ遷移:', targetUrl);
               setLocation(targetUrl);
             }}
             className="p-2"

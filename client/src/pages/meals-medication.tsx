@@ -618,7 +618,6 @@ export default function MealsMedicationPage() {
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
               const targetUrl = `/?${params.toString()}`;
-              console.log('食事一覧からトップ画面へ遷移:', targetUrl);
               setLocation(targetUrl);
             }}
             className="p-2"

@@ -311,7 +311,6 @@ export default function NursingJournal() {
     params.set('date', selectedDate);
     params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
     const targetUrl = `/?${params.toString()}`;
-    console.log('看護日誌からトップ画面へ遷移:', targetUrl);
     navigate(targetUrl);
   };
 

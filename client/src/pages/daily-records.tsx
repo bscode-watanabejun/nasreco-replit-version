@@ -30,6 +30,8 @@ interface DailyRecord {
   excretionDetails?: {
     formattedEntries: string[];
   };
+  vitalValues?: string;
+  notes?: string;
 }
 
 const recordTypeColors = {
@@ -270,29 +272,38 @@ export default function DailyRecords() {
 
   // 記録データを取得
   const { data: records = [], isLoading, error } = useQuery({
-    queryKey: ["/api/daily-records", selectedDate],
+    queryKey: ["/api/daily-records", selectedDate, selectedRecordType],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set('date', selectedDate);
       
+      // 夜間フィルタの場合、翌日の早朝記録も取得するためincludeNextDayパラメータを追加
+      if (selectedRecordType === '夜間') {
+        params.set('includeNextDay', 'true');
+      }
+      
       const response = await apiRequest(`/api/daily-records?${params.toString()}`);
       
-      // 排泄記録のデバッグログ
-      const excretionRecords = response.filter((record: DailyRecord) => record.recordType === '排泄');
-      console.log('💧 排泄記録詳細:', excretionRecords.map((record: DailyRecord) => ({
-        id: record.id,
+      // 全記録のデバッグログ
+      console.log(`📋 [${selectedDate}] 取得記録数:`, response.length);
+      console.log('📋 全記録:', response.map((record: DailyRecord) => ({
+        recordType: record.recordType,
         residentName: record.residentName,
         recordTime: record.recordTime,
-        content: record.content,
-        hasExcretionDetails: !!record.excretionDetails,
-        excretionDetails: record.excretionDetails,
-        originalData: record.originalData
+        recordTimeJST: new Date(new Date(record.recordTime).getTime() + 9 * 60 * 60 * 1000).toISOString(),
+        content: record.content?.substring(0, 30)
       })));
+      
+      // 介護記録（様子）のみ抽出
+      const careRecords = response.filter((record: DailyRecord) => record.recordType === '様子' || record.recordType === '介護記録');
+      console.log('👀 介護記録（様子）:', careRecords.length, '件', careRecords);
 
-      // データベースの排泄記録を直接確認
-      apiRequest(`/api/debug-excretion?date=${selectedDate}`)
+      // データベースの介護記録を直接確認
+      apiRequest(`/api/debug-care-records?date=${selectedDate}`)
         .then(debugData => {
-          console.log('🔍 データベース排泄記録:', debugData);
+          console.log('🔍 データベース介護記録:', debugData);
+          console.log('📅 サーバー時刻:', new Date().toISOString());
+          console.log('📅 選択日付:', selectedDate);
         })
         .catch(err => {
           console.error('デバッグAPI呼び出しエラー:', err);
@@ -311,21 +322,54 @@ export default function DailyRecords() {
     if (!records) return [];
 
     return records.filter(record => {
-      const recordTime = new Date(record.recordTime);
-      const hour = recordTime.getHours();
-      const minute = recordTime.getMinutes();
-      const totalMinutes = hour * 60 + minute;
+      // recordTimeはISO文字列形式（例: "2024-09-03T08:45:00.000Z"）
+      const recordDate = new Date(record.recordTime);
       
-      // 8:31〜17:30 = 日中 (511分〜1050分)
-      const isDaytime = totalMinutes >= 511 && totalMinutes <= 1050;
-      const isNighttime = !isDaytime;
+      // JSTで日付と時間を取得
+      // getUTCHours() + 9 でJST時間を取得
+      const jstHour = (recordDate.getUTCHours() + 9) % 24;
+      const jstMinute = recordDate.getUTCMinutes();
+      const totalMinutes = jstHour * 60 + jstMinute;
       
+      // JST日付を計算（時差を考慮）
+      const jstDate = new Date(recordDate.getTime() + 9 * 60 * 60 * 1000);
+      const recordDateStr = format(jstDate, 'yyyy-MM-dd');
+      
+      const selectedDateStr = selectedDate;
+      
+      // デバッグ用：8:00〜9:00の記録をチェック
+      if (jstHour === 8 || (jstHour === 9 && jstMinute === 0)) {
+        console.log('Morning record debug:', {
+          recordType: record.recordType,
+          recordTime: record.recordTime,
+          recordDateStr,
+          selectedDateStr,
+          jstHour, 
+          jstMinute, 
+          totalMinutes,
+          selectedRecordType,
+          isDaytime: totalMinutes >= 511 && totalMinutes <= 1050
+        });
+      }
+
       if (selectedRecordType === "日中") {
-        // 日中フィルタ：8:31〜17:30の時間帯で、バイタル・看護記録・処置以外
-        return isDaytime && !['バイタル', '看護記録', '処置'].includes(record.recordType);
+        // 日中フィルタ：選択日の8:31〜17:30の時間帯
+        const isSameDate = recordDateStr === selectedDateStr;
+        const isDaytime = totalMinutes >= 511 && totalMinutes <= 1050; // 8:31〜17:30
+        return isSameDate && isDaytime && !['バイタル', '看護記録', '処置'].includes(record.recordType);
       } else if (selectedRecordType === "夜間") {
-        // 夜間フィルタ：17:31〜8:30の時間帯で、バイタル・看護記録・処置以外
-        return isNighttime && !['バイタル', '看護記録', '処置'].includes(record.recordType);
+        // 夜間フィルタ：選択日17:31〜翌日8:30の時間帯
+        // 翌日の日付を計算
+        const nextDate = new Date(selectedDate);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const nextDateStr = format(nextDate, 'yyyy-MM-dd');
+        
+        // 選択日の17:31以降
+        const isSelectedDayEvening = recordDateStr === selectedDateStr && totalMinutes >= 1051; // 選択日17:31以降
+        // 翌日の8:30まで
+        const isNextDayEarlyMorning = recordDateStr === nextDateStr && totalMinutes <= 510; // 翌日8:30まで
+        
+        return (isSelectedDayEvening || isNextDayEarlyMorning) && !['バイタル', '看護記録', '処置'].includes(record.recordType);
       } else if (selectedRecordType === "看護") {
         // 看護フィルタ：時間に関係なく、バイタル・看護記録・処置のみ
         return ['バイタル', '看護記録', '処置'].includes(record.recordType);
@@ -346,7 +390,6 @@ export default function DailyRecords() {
     const floorParam = urlParams.get('floor');
     if (floorParam) params.set('floor', floorParam);
     const targetUrl = `/?${params.toString()}`;
-    console.log('今日の記録一覧からトップ画面へ遷移:', targetUrl);
     navigate(targetUrl);
   };
 
@@ -478,9 +521,9 @@ export default function DailyRecords() {
                   recordTypeColors[record.recordType as keyof typeof recordTypeColors] || "bg-slate-50 border-slate-200"
                 )}
               >
-                <CardContent className="p-2">
+                <CardContent className="p-1.5">
                   {/* 上段：居室番号、利用者名、記録時分、記録カテゴリ */}
-                  <div className="flex gap-2 mb-2 text-sm items-center">
+                  <div className="flex gap-2 mb-0.5 text-sm items-center">
                     <div className="font-medium text-left w-12 flex-shrink-0">{record.roomNumber || '-'}</div>
                     <div className="font-medium text-left w-20 flex-shrink-0">{record.residentName}</div>
                     <div className="font-medium text-left w-24 flex-shrink-0 whitespace-nowrap">{formatTime(record.recordTime)}</div>
@@ -494,7 +537,7 @@ export default function DailyRecords() {
                   {/* 中段：処置部位（処置の場合のみ）と記録内容 */}
                   {record.recordType === '処置' && record.originalData?.notes && (
                     <div className="mb-1">
-                      <div className="p-1.5 bg-slate-50 rounded border text-sm">
+                      <div className="p-1 bg-slate-50 rounded border text-sm">
                         {record.originalData.notes}
                       </div>
                     </div>
@@ -502,8 +545,8 @@ export default function DailyRecords() {
 
                   {/* バイタル専用：上枠（バイタル数値） */}
                   {record.recordType === 'バイタル' && record.vitalValues && (
-                    <div className="mb-2">
-                      <div className="p-1.5 bg-slate-50 rounded border text-sm">
+                    <div className="mb-0.5">
+                      <div className="p-1 bg-slate-50 rounded border text-sm">
                         {record.vitalValues}
                       </div>
                     </div>
@@ -511,8 +554,8 @@ export default function DailyRecords() {
 
                   {/* 排泄専用：上枠（排泄データ） */}
                   {record.recordType === '排泄' && record.excretionDetails && record.excretionDetails.formattedEntries.length > 0 && (
-                    <div className="mb-2">
-                      <div className="p-1.5 bg-slate-50 rounded border text-sm">
+                    <div className="mb-0.5">
+                      <div className="p-1 bg-slate-50 rounded border text-sm">
                         <div className="whitespace-pre-line">
                           {record.excretionDetails.formattedEntries.join('\n')}
                         </div>
@@ -521,9 +564,9 @@ export default function DailyRecords() {
                   )}
 
                   {/* 下枠：記録内容（全記録タイプ共通） */}
-                  <div className="mb-2">
+                  <div>
                     <textarea
-                      className="w-full p-1.5 bg-white rounded border text-sm min-h-[4rem] leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full p-1 bg-white rounded border text-sm min-h-[6rem] leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={editingContent[record.id] !== undefined 
                         ? editingContent[record.id]
                         : record.recordType === '処置' 

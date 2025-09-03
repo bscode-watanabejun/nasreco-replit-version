@@ -1673,8 +1673,6 @@ export default function NursingRecordsList() {
             onClick={() => {
               const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
               const targetUrl = `/?date=${selectedDate}&floor=${floorParam}`;
-              console.log('看護記録一覧からトップ画面へ遷移:', targetUrl);
-              console.log('現在の状態 - selectedDate:', selectedDate, 'selectedFloor:', selectedFloor, 'floorParam:', floorParam);
               setLocation(targetUrl);
             }}
             className="p-2"

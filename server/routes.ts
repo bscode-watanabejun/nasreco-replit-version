@@ -1678,10 +1678,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // デバッグ用：介護記録の詳細確認API
+  app.get('/api/debug-care-records', isAuthenticated, async (req, res) => {
+    try {
+      const { date } = req.query;
+      const targetDate = date ? new Date(date as string) : new Date();
+      
+      // 指定日の全介護記録を取得
+      const startDate = new Date(targetDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(targetDate);
+      endDate.setDate(endDate.getDate() + 1);
+      endDate.setHours(23, 59, 59, 999);
+      
+      const records = await storage.getCareRecords(undefined, startDate, endDate);
+      
+      const debugInfo = records.map(r => ({
+        id: r.id,
+        residentId: r.residentId,
+        recordDate: r.recordDate,
+        recordDateISO: new Date(r.recordDate).toISOString(),
+        recordDateJST: new Date(new Date(r.recordDate).getTime() + 9 * 60 * 60 * 1000).toISOString().replace('Z', '+09:00'),
+        description: r.description?.substring(0, 50),
+        staffId: r.staffId
+      }));
+      
+      res.json({
+        date: targetDate.toISOString(),
+        count: records.length,
+        records: debugInfo
+      });
+    } catch (error: any) {
+      console.error("Debug API error:", error);
+      res.status(500).json({ message: "Failed to debug care records" });
+    }
+  });
+
   // 今日の記録一覧取得API
   app.get('/api/daily-records', isAuthenticated, async (req, res) => {
     try {
-      const { date, recordTypes } = req.query;
+      const { date, recordTypes, includeNextDay } = req.query;
       
       if (!date || typeof date !== 'string') {
         return res.status(400).json({ message: '日付パラメータが必要です' });
@@ -1696,8 +1732,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           recordTypesArray = recordTypes as string[];
         }
       }
+      
+      // includeNextDayパラメータがtrueの場合、翌日の早朝記録も含める
+      const includeNextDayRecords = includeNextDay === 'true';
 
-      const records = await storage.getDailyRecords(date, recordTypesArray);
+      const records = await storage.getDailyRecords(date, recordTypesArray, includeNextDayRecords);
       res.json(records);
     } catch (error: any) {
       console.error("Error fetching daily records:", error);

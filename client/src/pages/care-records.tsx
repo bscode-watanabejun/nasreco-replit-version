@@ -1626,7 +1626,6 @@ export default function CareRecords() {
               params.set('date', selectedDate);
               params.set('floor', selectedFloor);
               const targetUrl = `/?${params.toString()}`;
-              console.log('ケア記録からトップ画面へ遷移:', targetUrl);
               setLocation(targetUrl);
             }}
             className="p-2"

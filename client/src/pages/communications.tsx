@@ -299,7 +299,6 @@ export default function Communications() {
               params.set('date', selectedDate);
               params.set('floor', selectedFloor);
               const targetUrl = `/?${params.toString()}`;
-              console.log('連絡事項からトップ画面へ遷移:', targetUrl);
               setLocation(targetUrl);
             }}
             className="text-white hover:bg-blue-700 p-1"

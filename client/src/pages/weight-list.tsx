@@ -1158,7 +1158,6 @@ export default function WeightList() {
                 params.set('date', selectedDate);
                 params.set('floor', selectedFloor);
                 const targetUrl = `/?${params.toString()}`;
-                console.log('体重一覧からトップ画面へ遷移:', targetUrl);
                 setLocation(targetUrl);
               }}
               className="h-8 w-8 p-0"

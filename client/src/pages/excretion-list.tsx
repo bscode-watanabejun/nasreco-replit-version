@@ -1050,7 +1050,6 @@ export default function ExcretionList() {
               params.set('date', selectedDate);
               params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
               const targetUrl = `/?${params.toString()}`;
-              console.log('排泄一覧からトップ画面へ遷移:', targetUrl);
               setLocation(targetUrl);
             }}
             className="p-2"

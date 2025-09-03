@@ -535,7 +535,6 @@ export default function UserInfo() {
               if (selectedDate) params.set('date', selectedDate);
               if (selectedFloor) params.set('floor', selectedFloor);
               const targetUrl = `/?${params.toString()}`;
-              console.log('ご利用者情報からトップ画面へ遷移:', targetUrl);
               navigate(targetUrl);
             }}
             className="h-8 w-8 p-0"

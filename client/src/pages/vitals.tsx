@@ -1286,7 +1286,6 @@ export default function Vitals() {
                 params.set('date', selectedDate);
                 params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
                 const targetUrl = `/?${params.toString()}`;
-                console.log('バイタル一覧からトップ画面へ遷移:', targetUrl);
                 setLocation(targetUrl);
               }}
               className="h-8 w-8 p-0"

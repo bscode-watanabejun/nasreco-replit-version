@@ -173,7 +173,7 @@ export interface IStorage {
   deleteResidentAttachment(id: string): Promise<void>;
 
   // Daily Records operations  
-  getDailyRecords(date: string, recordTypes?: string[]): Promise<any[]>;
+  getDailyRecords(date: string, recordTypes?: string[], includeNextDay?: boolean): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1329,13 +1329,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Daily Records operations - 統合記録取得
-  async getDailyRecords(date: string, recordTypes?: string[]): Promise<any[]> {
+  async getDailyRecords(date: string, recordTypes?: string[], includeNextDay?: boolean): Promise<any[]> {
     const allRecords: any[] = [];
-    const targetDate = new Date(date);
-    const startDate = new Date(targetDate);
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(targetDate);
-    endDate.setHours(23, 59, 59, 999);
+    
+    // JST時刻として日付範囲を設定
+    // dateはyyyy-mm-dd形式の文字列
+    const startDate = new Date(`${date}T00:00:00+09:00`);
+    let endDate: Date;
+    
+    // includeNextDayがtrueの場合、翌日の8:30までの記録も含める
+    if (includeNextDay) {
+      const nextDate = new Date(startDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      endDate = new Date(`${nextDate.toISOString().split('T')[0]}T08:30:59+09:00`);
+    } else {
+      endDate = new Date(`${date}T23:59:59+09:00`);
+    }
+    
+    console.log(`📅 getDailyRecords - date: ${date}, startDate: ${startDate.toISOString()}, endDate: ${endDate.toISOString()}`);
     
     // residentデータを先に取得してキャッシュ
     const residentsData = await this.getResidents();
@@ -1396,6 +1407,7 @@ export class DatabaseStorage implements IStorage {
     // 介護記録
     if (!recordTypes || recordTypes.includes('様子')) {
       try {
+        console.log('👀 介護記録取得開始:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
         const careRecordsData = await db
           .select({
             id: careRecords.id,
@@ -1411,6 +1423,14 @@ export class DatabaseStorage implements IStorage {
             gte(careRecords.recordDate, startDate),
             lte(careRecords.recordDate, endDate)
           ));
+
+        console.log('👀 取得した介護記録件数:', careRecordsData.length);
+        console.log('👀 取得した介護記録詳細:', careRecordsData.map(r => ({
+          id: r.id,
+          recordDate: r.recordDate,
+          recordDateISO: new Date(r.recordDate).toISOString(),
+          description: r.description?.substring(0, 30)
+        })));
 
         careRecordsData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
@@ -1461,13 +1481,30 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
+            // 食事タイミングに応じた時刻マッピング
+            const getMealTime = (timing: string) => {
+              const JST_OFFSET = '+09:00';
+              let hour = 12, minute = 0;
+
+              switch (timing) {
+                case '朝': hour = 8; minute = 0; break;
+                case '10時': hour = 10; minute = 0; break;
+                case '昼': hour = 13; minute = 0; break;
+                case '15時': hour = 15; minute = 0; break;
+                case '夕': hour = 18; minute = 0; break;
+              }
+
+              const jstDateString = `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${JST_OFFSET}`;
+              return new Date(jstDateString);
+            };
+            
             allRecords.push({
               id: record.id,
               recordType: '食事',
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: record.recordDate,
+              recordTime: getMealTime(record.mealType || '昼'),
               content,
               staffName: finalStaffName,
               createdAt: record.createdAt,
