@@ -217,18 +217,19 @@ export default function CleaningLinenList() {
       return { previousData, queryKey };
     },
     onError: (err, newRecord, context) => {
-      // エラー時にロールバック
+      // エラー時にロールバックとサーバーデータ同期
       if (context?.previousData) {
         queryClient.setQueryData(context.queryKey, context.previousData);
       }
-    },
-    onSettled: () => {
-      // 成功・失敗に関わらず、サーバーの最新データで同期
+      // エラー時はサーバーから最新データを取得
       queryClient.invalidateQueries({ 
         queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
       });
+    },
+    onSuccess: (serverResponse, variables, context) => {
+      // 一時的にinvalidateQueriesを使用してデータを再取得
       queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === "/api/cleaning-linen"
+        queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
       });
     },
   });
@@ -251,31 +252,32 @@ export default function CleaningLinenList() {
     // 日付を正規化してタイムゾーンの問題を回避
     const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     const dateStr = format(localDate, 'yyyy-MM-dd');
-    return cleaningLinenRecords.find(r => r.residentId === residentId && r.recordDate === dateStr);
+    
+    const record = cleaningLinenRecords.find(r => {
+      if (r.residentId !== residentId) return false;
+      
+      // recordDateがISO形式の場合、日付部分だけを取得して比較
+      const recordDateStr = r.recordDate.includes('T') ? r.recordDate.split('T')[0] : r.recordDate;
+      return recordDateStr === dateStr;
+    });
+    
+    return record;
   };
 
   const handleCellClick = (residentId: string, date: Date, type: 'cleaning' | 'linen') => {
-    console.log('Cell clicked:', { residentId, date, type });
-    
     // 日付を正規化してタイムゾーンの問題を回避
     const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     const dateStr = format(localDate, 'yyyy-MM-dd');
     const dayOfWeek = getDay(localDate) === 0 ? 6 : getDay(localDate) - 1;
     const existingRecord = getRecordForDate(residentId, localDate);
     
-    console.log('Normalized date info:', { originalDate: date, localDate, dateStr, dayOfWeek });
-    
-    console.log('Existing record:', existingRecord);
-    
     let newValue = "";
     if (type === 'cleaning') {
       const currentValue = existingRecord?.cleaningValue || "";
       newValue = currentValue === "" ? "○" : currentValue === "○" ? "2" : currentValue === "2" ? "3" : "";
-      console.log('Cleaning value change:', currentValue, '->', newValue);
     } else {
       const currentValue = existingRecord?.linenValue || "";
       newValue = currentValue === "" ? "○" : currentValue === "○" ? "2" : currentValue === "2" ? "3" : "";
-      console.log('Linen value change:', currentValue, '->', newValue);
     }
 
     const updateData = {
@@ -287,16 +289,7 @@ export default function CleaningLinenList() {
       recordNote: existingRecord?.recordNote || "",
     };
 
-    console.log('Update data:', updateData);
-    
-    upsertRecordMutation.mutate(updateData, {
-      onSuccess: (data) => {
-        console.log('Mutation successful:', data);
-      },
-      onError: (error) => {
-        console.error('Mutation error:', error);
-      }
-    });
+    upsertRecordMutation.mutate(updateData);
   };
 
   // 利用者の清掃・リネン交換日設定を確認する関数
@@ -370,7 +363,7 @@ export default function CleaningLinenList() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 shadow-md">
+      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 shadow-md sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -390,37 +383,41 @@ export default function CleaningLinenList() {
         </div>
       </header>
 
-      <div className="p-2">
-        {/* 週選択と階数選択 */}
-        <div className="flex items-center justify-between mb-3 bg-white rounded-lg p-2 shadow-sm">
-          <Button 
-            variant="outline" 
-            size="sm" 
+      {/* Filter Controls */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigateWeek('prev')}
+            className="h-6 w-8 px-1 hover:bg-blue-100 -mr-px min-w-0"
             data-testid="button-prev-week"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
           </Button>
-          <span className="font-medium text-xs flex-1 text-center" data-testid="text-week-range">
+          <span className="font-medium text-xs text-center" data-testid="text-week-range">
             {format(selectedWeek, 'M/d', { locale: ja })}-{format(addDays(selectedWeek, 6), 'M/d', { locale: ja })}
           </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => navigateWeek('next')}
+            className="h-6 w-8 px-1 hover:bg-blue-100 -ml-px min-w-0"
             data-testid="button-next-week"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
           </Button>
           <InputWithDropdown
             value={selectedFloor}
             options={floors.map(floor => ({ value: floor, label: floor }))}
             onSave={(value) => setSelectedFloor(value)}
             placeholder="階数選択"
-            className="w-20 h-8 text-xs px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ml-2"
+            className="w-16 sm:w-20 border rounded px-2 py-1 text-xs h-6"
           />
         </div>
+      </div>
 
+      <div className="px-2 pb-2">
         {/* テーブル */}
         <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
           <table className="w-full text-xs border-separate border-spacing-0">
@@ -474,7 +471,6 @@ export default function CleaningLinenList() {
                       const date = addDays(selectedWeek, index);
                       const record = getRecordForDate(resident.id, date);
                       const value = record?.cleaningValue || "";
-                      console.log(`Cell render - Resident: ${resident.name}, Date: ${format(date, 'yyyy-MM-dd')}, Record:`, record, 'Value:', value);
                       return (
                         <td
                           key={`cleaning-${resident.id}-${index}`}

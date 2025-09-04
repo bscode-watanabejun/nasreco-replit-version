@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
@@ -54,6 +53,7 @@ function InputWithDropdown({
   placeholder,
   className,
   disabled = false,
+  disableFocusMove = false,
 }: {
   id?: string;
   value: string;
@@ -62,6 +62,7 @@ function InputWithDropdown({
   placeholder: string;
   className?: string;
   disabled?: boolean;
+  disableFocusMove?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -105,33 +106,36 @@ function InputWithDropdown({
     onSave(selectedValue);
     setOpen(false);
 
-    // 特定の遅延後にフォーカス移動を実行
-    setTimeout(() => {
-      if (inputRef.current) {
-        const allInputs = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            el !== inputRef.current &&
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+    // disableFocusMoveがtrueの場合は自動フォーカス移動を無効化
+    if (!disableFocusMove) {
+      // 特定の遅延後にフォーカス移動を実行
+      setTimeout(() => {
+        if (inputRef.current) {
+          const allInputs = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              el !== inputRef.current &&
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentElement = inputRef.current;
-        const allElements = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
+          const currentElement = inputRef.current;
+          const allElements = Array.from(
+            document.querySelectorAll("input, textarea, select, button"),
+          ).filter(
+            (el) =>
+              !el.hasAttribute("disabled") &&
+              (el as HTMLElement).offsetParent !== null,
+          ) as HTMLElement[];
 
-        const currentIndex = allElements.indexOf(currentElement);
-        if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
-          allElements[currentIndex + 1].focus();
+          const currentIndex = allElements.indexOf(currentElement);
+          if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
+            allElements[currentIndex + 1].focus();
+          }
         }
-      }
-    }, 200);
+      }, 200);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,7 +318,6 @@ function InlineEditableField({
 }
 
 export default function CareRecords() {
-  const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any>(null);
@@ -339,7 +342,6 @@ export default function CareRecords() {
 
   // Debug: ユーザー情報をコンソールに出力
   useEffect(() => {
-    console.log("🔍 Current User in care-records:", currentUser);
   }, [currentUser]);
 
   const form = useForm<CareRecordForm>({
@@ -379,15 +381,11 @@ export default function CareRecords() {
         recordDate: recordDate, // ISO形式の文字列で送信
         notes: data.notes && data.notes.trim() ? data.notes : undefined, // 空の場合はundefinedにする
       };
-      console.log("🚀 Sending care record data:", JSON.stringify(requestData, null, 2));
-      console.log("🚀 recordDate format:", recordDate);
-      await apiRequest("/api/care-records", "POST", requestData);
+      const response = await apiRequest("/api/care-records", "POST", requestData);
+      return response;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
-      if (selectedResident) {
-        queryClient.invalidateQueries({ queryKey: ["/api/care-records", selectedResident.id] });
-      }
+    onMutate: async (newData) => {
+      // フォームをリセットしてモーダルを閉じる
       form.reset({
         residentId: selectedResident?.id || "",
         recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
@@ -397,13 +395,21 @@ export default function CareRecords() {
       });
       setOpen(false);
     },
-    onError: (error: any) => {
+    onError: (error: any, newData, context) => {
       console.error("❌ Care record creation failed:", error);
-      toast({
-        title: "エラー",
-        description: error.message || "介護記録の作成に失敗しました",
-        variant: "destructive",
-      });
+      // モーダルを再度開く
+      setOpen(true);
+      console.error("介護記録の作成エラー:", error);
+    },
+    onSettled: () => {
+      // 最終的にサーバーから最新データを取得（バックグラウンドで）
+      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
+      if (selectedResident) {
+        queryClient.invalidateQueries({ queryKey: ["/api/care-records", selectedResident.id] });
+      }
+    },
+    onSuccess: () => {
+      // トースト表示を削除
     },
   });
 
@@ -451,11 +457,7 @@ export default function CareRecords() {
           return newState;
         });
       }
-      toast({
-        title: "エラー",
-        description: "記録の更新に失敗しました",
-        variant: "destructive",
-      });
+      console.error("記録の更新エラー");
     },
     onSettled: (data, error, variables) => {
       // description更新時のみローカルstateをクリア
@@ -486,11 +488,7 @@ export default function CareRecords() {
       if (context?.previousCareRecords) {
         queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
       }
-      toast({
-        title: "エラー",
-        description: "記録の更新に失敗しました",
-        variant: "destructive",
-      });
+      console.error("記録の更新エラー");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/care-records'] });
@@ -504,11 +502,7 @@ export default function CareRecords() {
   // 新規追加ブロック作成
   const addNewRecordBlock = () => {
     if (!selectedResident && view === 'detail') {
-      toast({
-        title: "エラー",
-        description: "利用者が選択されていません",
-        variant: "destructive",
-      });
+      console.error("利用者が選択されていません");
       return;
     }
     
@@ -907,16 +901,17 @@ export default function CareRecords() {
                           {
                             onSuccess: () => {
                               setSelectedRecordForDetail((prev: any) => ({ ...prev, recordDate: newDate.toISOString() }));
-                              setTimeout(() => document.getElementById('minute-input-detail')?.focus(), 100);
+                              // 詳細画面では自動フォーカス移動を無効化
                             }
                           }
                         );
-                      } else {
-                        setTimeout(() => document.getElementById('minute-input-detail')?.focus(), 100);
                       }
+                      // 詳細画面では自動フォーカス移動を無効化
                     }}
                     placeholder="--"
                     className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={false}
+                    disableFocusMove={true}
                   />
                   <span className="text-xs">:</span>
                   <InputWithDropdown
@@ -934,16 +929,17 @@ export default function CareRecords() {
                           {
                             onSuccess: () => {
                               setSelectedRecordForDetail((prev: any) => ({ ...prev, recordDate: newDate.toISOString() }));
-                              setTimeout(() => document.getElementById('description-textarea-detail')?.focus(), 100);
+                              // 詳細画面では自動フォーカス移動を無効化
                             }
                           }
                         );
-                      } else {
-                        setTimeout(() => document.getElementById('description-textarea-detail')?.focus(), 100);
                       }
+                      // 詳細画面では自動フォーカス移動を無効化
                     }}
                     placeholder="--"
                     className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={false}
+                    disableFocusMove={true}
                   />
                 </div>
                 
@@ -1111,7 +1107,7 @@ export default function CareRecords() {
           <div className="text-center mb-3">
             <h1 className="text-xl font-bold text-slate-800">介護記録</h1>
           </div>
-          <div className="bg-white rounded-lg p-2 mb-3 shadow-sm">
+          <div className="bg-white p-3 shadow-sm border-b">
             <div className="flex gap-2 sm:gap-4 items-center justify-center">
               {/* 日付選択 */}
               <div className="flex items-center space-x-1">
@@ -1370,9 +1366,14 @@ export default function CareRecords() {
                               value={format(new Date(displayDate), "HH", { locale: ja })}
                               options={hourOptions}
                               onSave={(value) => {
-                                const currentDate = new Date(displayDate);
-                                currentDate.setHours(parseInt(value));
-                                const newDateString = currentDate.toISOString();
+                                // 有効な日時を確実に取得
+                                const baseDate = new Date(record.recordDate);
+                                if (isNaN(baseDate.getTime())) {
+                                  console.error("Invalid base date:", record.recordDate);
+                                  return;
+                                }
+                                baseDate.setHours(parseInt(value));
+                                const newDateString = baseDate.toISOString();
                                 setLocalRecordDates(prev => ({ ...prev, [record.id]: newDateString }));
                                 updateMutation.mutate({
                                   id: record.id,
@@ -1392,9 +1393,14 @@ export default function CareRecords() {
 
                                 // 値が実際に変更された場合のみ処理を実行
                                 if (value !== currentMinute) {
-                                  const currentDate = new Date(displayDate);
-                                  currentDate.setMinutes(parseInt(value));
-                                  const newDateString = currentDate.toISOString();
+                                  // 有効な日時を確実に取得
+                                  const baseDate = new Date(record.recordDate);
+                                  if (isNaN(baseDate.getTime())) {
+                                    console.error("Invalid base date:", record.recordDate);
+                                    return;
+                                  }
+                                  baseDate.setMinutes(parseInt(value));
+                                  const newDateString = baseDate.toISOString();
                                   setLocalRecordDates(prev => ({ ...prev, [record.id]: newDateString }));
                                   updateMutation.mutate({
                                     id: record.id,
@@ -1616,7 +1622,7 @@ export default function CareRecords() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -1636,11 +1642,10 @@ export default function CareRecords() {
         </div>
       </div>
 
-      <div className="max-w-full mx-auto p-2">
-
-        {/* Filter Controls */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {/* Filter Controls */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
+          <div className="flex gap-2 items-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -1648,7 +1653,7 @@ export default function CareRecords() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
             
@@ -1663,12 +1668,14 @@ export default function CareRecords() {
                 options={floorOptions}
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
-                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
         </div>
+      </div>
 
+      <div className="max-w-full mx-auto px-2 pb-2">
         {/* Residents Selection Grid */}
         <div className="mb-8">
           {filteredResidents.length === 0 ? (

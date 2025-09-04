@@ -14,5 +14,10 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL
+});
+
+// Neon データベースはGMT固定のため、アプリケーション層でJST変換を行う
+
 export const db = drizzle({ client: pool, schema });

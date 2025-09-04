@@ -30,7 +30,10 @@
       "Bash(then)",
       "Bash(echo:*)",
       "Bash(fi)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(find:*)",
+      "Bash(sed:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": [],

@@ -137,6 +137,7 @@ export default function UserInfoView() {
       .sort((a, b) => (a || 0) - (b || 0))
       .map(floor => ({ value: (floor || 0).toString(), label: `${floor || 0}階` }))
   ];
+  
 
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
@@ -147,9 +148,24 @@ export default function UserInfoView() {
     
     // 階数フィルター
     if (selectedFloor !== "all") {
-      // 利用者のfloor値も正規化（"1F" → "1"）
-      const residentFloor = resident.floor?.toString().replace('F', '');
-      if (residentFloor !== selectedFloor) {
+      if (!resident.floor) {
+        return false;
+      }
+      
+      // 複数のパターンでマッチを試みる
+      const residentFloorStr = resident.floor?.toString();
+      const residentFloorNum = residentFloorStr?.replace(/[^\d]/g, ''); // 数字のみ抽出
+      const selectedFloorNum = selectedFloor.replace(/[^\d]/g, ''); // 数字のみ抽出
+      
+      const matches = 
+        residentFloorStr === selectedFloor || // 完全一致
+        residentFloorNum === selectedFloor || // 数字部分が一致
+        residentFloorNum === selectedFloorNum || // 両方の数字部分が一致
+        residentFloorStr === selectedFloor + 'F' || // selectedFloorにFを追加した形と一致
+        residentFloorStr === selectedFloor + '階'; // selectedFloorに階を追加した形と一致
+      
+      
+      if (!matches) {
         return false;
       }
     }
@@ -178,8 +194,8 @@ export default function UserInfoView() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-orange-500 shadow-sm border-b border-orange-600">
+      {/* Header - Fixed */}
+      <div className="bg-orange-500 shadow-sm border-b border-orange-600 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -206,10 +222,9 @@ export default function UserInfoView() {
         </div>
       </div>
 
-      {/* Filter Controls */}
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 py-2">
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {/* Filter Controls - Fixed */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center flex-wrap">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600" />
@@ -217,7 +232,7 @@ export default function UserInfoView() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
             
@@ -235,12 +250,11 @@ export default function UserInfoView() {
                 className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
-          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 py-4">
+      <div className="max-w-6xl mx-auto px-2 sm:px-4 lg:px-6 py-1 pt-2">
         {/* Residents List */}
         <div className="mb-6">
           {!filteredResidents || filteredResidents.length === 0 ? (

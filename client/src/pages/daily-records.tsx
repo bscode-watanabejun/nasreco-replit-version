@@ -196,8 +196,42 @@ export default function DailyRecords() {
   const [selectedRecordType, setSelectedRecordType] = useState("日中");
   const [cardCheckboxes, setCardCheckboxes] = useState<Record<string, string[]>>({});
 
+  // 日誌チェックボックス状態を取得
+  const { data: journalCheckboxes = [] } = useQuery({
+    queryKey: ["/api/journal-checkboxes", selectedDate],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/journal-checkboxes/${selectedDate}`);
+      return response as Array<{
+        id: string;
+        recordId: string;
+        recordType: string;
+        checkboxType: string;
+        isChecked: boolean;
+        recordDate: string;
+      }>;
+    },
+  });
+
   // ローカル編集状態
   const [editingContent, setEditingContent] = useState<Record<string, string>>({});
+
+  // サーバーからのチェック状態でローカル状態を初期化
+  useEffect(() => {
+    if (journalCheckboxes.length > 0) {
+      const checkboxState: Record<string, string[]> = {};
+      
+      journalCheckboxes.forEach(checkbox => {
+        if (checkbox.isChecked) {
+          if (!checkboxState[checkbox.recordId]) {
+            checkboxState[checkbox.recordId] = [];
+          }
+          checkboxState[checkbox.recordId].push(checkbox.checkboxType);
+        }
+      });
+
+      setCardCheckboxes(checkboxState);
+    }
+  }, [journalCheckboxes]);
 
   // 記録更新用のmutation
   const updateRecordMutation = useMutation({
@@ -270,6 +304,34 @@ export default function DailyRecords() {
     },
   });
 
+  // 日誌チェックボックス更新用のmutation
+  const updateCheckboxMutation = useMutation({
+    mutationFn: async ({ recordId, recordType, checkboxType, isChecked }: {
+      recordId: string;
+      recordType: string;
+      checkboxType: string;
+      isChecked: boolean;
+    }) => {
+      await apiRequest("/api/journal-checkboxes", "POST", {
+        recordId,
+        recordType,
+        checkboxType,
+        isChecked,
+        recordDate: selectedDate
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/journal-checkboxes", selectedDate] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "チェック状態の更新に失敗しました",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
   // 記録データを取得
   const { data: records = [], isLoading, error } = useQuery({
     queryKey: ["/api/daily-records", selectedDate, selectedRecordType],
@@ -284,30 +346,9 @@ export default function DailyRecords() {
       
       const response = await apiRequest(`/api/daily-records?${params.toString()}`);
       
-      // 全記録のデバッグログ
-      console.log(`📋 [${selectedDate}] 取得記録数:`, response.length);
-      console.log('📋 全記録:', response.map((record: DailyRecord) => ({
-        recordType: record.recordType,
-        residentName: record.residentName,
-        recordTime: record.recordTime,
-        recordTimeJST: new Date(new Date(record.recordTime).getTime() + 9 * 60 * 60 * 1000).toISOString(),
-        content: record.content?.substring(0, 30)
-      })));
-      
       // 介護記録（様子）のみ抽出
       const careRecords = response.filter((record: DailyRecord) => record.recordType === '様子' || record.recordType === '介護記録');
-      console.log('👀 介護記録（様子）:', careRecords.length, '件', careRecords);
 
-      // データベースの介護記録を直接確認
-      apiRequest(`/api/debug-care-records?date=${selectedDate}`)
-        .then(debugData => {
-          console.log('🔍 データベース介護記録:', debugData);
-          console.log('📅 サーバー時刻:', new Date().toISOString());
-          console.log('📅 選択日付:', selectedDate);
-        })
-        .catch(err => {
-          console.error('デバッグAPI呼び出しエラー:', err);
-        });
       
       return response as DailyRecord[];
     },
@@ -322,35 +363,18 @@ export default function DailyRecords() {
     if (!records) return [];
 
     return records.filter(record => {
-      // recordTimeはISO文字列形式（例: "2024-09-03T08:45:00.000Z"）
+      // recordTimeはJST表記（+09:00付き）の文字列
       const recordDate = new Date(record.recordTime);
       
-      // JSTで日付と時間を取得
-      // getUTCHours() + 9 でJST時間を取得
-      const jstHour = (recordDate.getUTCHours() + 9) % 24;
-      const jstMinute = recordDate.getUTCMinutes();
-      const totalMinutes = jstHour * 60 + jstMinute;
+      // JST時刻を取得（+09:00付きなのでローカル時刻として正しく解釈される）
+      const hour = recordDate.getHours();
+      const minute = recordDate.getMinutes();
+      const totalMinutes = hour * 60 + minute;
       
-      // JST日付を計算（時差を考慮）
-      const jstDate = new Date(recordDate.getTime() + 9 * 60 * 60 * 1000);
-      const recordDateStr = format(jstDate, 'yyyy-MM-dd');
-      
+      // JST日付を取得
+      const recordDateStr = format(recordDate, 'yyyy-MM-dd');
       const selectedDateStr = selectedDate;
       
-      // デバッグ用：8:00〜9:00の記録をチェック
-      if (jstHour === 8 || (jstHour === 9 && jstMinute === 0)) {
-        console.log('Morning record debug:', {
-          recordType: record.recordType,
-          recordTime: record.recordTime,
-          recordDateStr,
-          selectedDateStr,
-          jstHour, 
-          jstMinute, 
-          totalMinutes,
-          selectedRecordType,
-          isDaytime: totalMinutes >= 511 && totalMinutes <= 1050
-        });
-      }
 
       if (selectedRecordType === "日中") {
         // 日中フィルタ：選択日の8:31〜17:30の時間帯
@@ -375,7 +399,13 @@ export default function DailyRecords() {
         return ['バイタル', '看護記録', '処置'].includes(record.recordType);
       }
       
-      return true;
+      // どの条件にも該当しない記録は除外
+      return false;
+    }).sort((a, b) => {
+      // 居室番号でソート（数値として比較）
+      const roomA = parseInt(a.roomNumber || '0') || 0;
+      const roomB = parseInt(b.roomNumber || '0') || 0;
+      return roomA - roomB;
     });
   }, [records, selectedRecordType]);
 
@@ -424,7 +454,7 @@ export default function DailyRecords() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-slate-800 text-white p-4">
+      <div className="bg-slate-800 text-white p-4 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -438,10 +468,9 @@ export default function DailyRecords() {
         </div>
       </div>
 
-      <div className="max-w-full mx-auto p-2">
-        {/* Filter Controls */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {/* Filter Controls */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -450,7 +479,7 @@ export default function DailyRecords() {
                   variant="ghost"
                   size="sm"
                   onClick={goToPreviousDay}
-                  className="h-6 w-5 p-0 hover:bg-blue-100 -mr-px"
+                  className="h-6 w-8 px-1 hover:bg-blue-100 -mr-px min-w-0"
                 >
                   <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 </Button>
@@ -458,13 +487,13 @@ export default function DailyRecords() {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
+                  className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8 mx-0.5"
                 />
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={goToNextDay}
-                  className="h-6 w-5 p-0 hover:bg-blue-100 -ml-px"
+                  className="h-6 w-8 px-1 hover:bg-blue-100 -ml-px min-w-0"
                 >
                   <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 </Button>
@@ -490,13 +519,14 @@ export default function DailyRecords() {
                 ]}
                 onSave={(value) => setSelectedRecordType(value)}
                 placeholder="記録種別"
-                className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-14 sm:w-16 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
                 enableAutoFocus={false}
               />
             </div>
           </div>
-        </div>
+      </div>
 
+      <div className="max-w-full mx-auto px-2 pb-2">
         {/* 記録一覧 */}
         <div className="space-y-3">
           {isLoading ? (
@@ -624,6 +654,10 @@ export default function DailyRecords() {
                               id={`${record.id}-${type}`}
                               checked={(cardCheckboxes[record.id] || []).includes(type)}
                               onChange={() => {
+                                const isCurrentlyChecked = (cardCheckboxes[record.id] || []).includes(type);
+                                const newCheckedState = !isCurrentlyChecked;
+                                
+                                // ローカル状態を即座に更新
                                 setCardCheckboxes(prev => {
                                   const currentTypes = prev[record.id] || [];
                                   const newTypes = currentTypes.includes(type)
@@ -633,6 +667,14 @@ export default function DailyRecords() {
                                     ...prev,
                                     [record.id]: newTypes
                                   };
+                                });
+
+                                // サーバーに状態を送信
+                                updateCheckboxMutation.mutate({
+                                  recordId: record.id,
+                                  recordType: record.recordType,
+                                  checkboxType: type,
+                                  isChecked: newCheckedState
                                 });
                               }}
                               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"

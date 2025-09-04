@@ -658,7 +658,10 @@ export default function WeightList() {
 
         // 新規作成時にデフォルト値を設定（まだ設定されていない場合）
         if (field !== "measurementDate" && (!existingWeight?.measurementDate)) {
-          newRecordData.measurementDate = `${selectedMonth}-01`;
+          // 現在の日付をデフォルトとして使用
+          const today = new Date();
+          const todayString = format(today, 'yyyy-MM-dd');
+          newRecordData.measurementDate = todayString;
         }
         if (field !== "hour" && existingWeight?.hour === null) {
           newRecordData.hour = 9;
@@ -671,7 +674,15 @@ export default function WeightList() {
         const hour = newRecordData.hour || existingWeight?.hour || 9;
         const minute = newRecordData.minute || existingWeight?.minute || 0;
         const finalMeasurementDate = newRecordData.measurementDate || existingWeight?.measurementDate || `${selectedMonth}-01`;
-        newRecordData.recordTime = new Date(`${finalMeasurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+        // 選択された日時でrecordTimeを構築
+        const today = new Date();
+        const todayString = format(today, 'yyyy-MM-dd');
+        const actualMeasurementDate = newRecordData.measurementDate || todayString;
+        
+        const recordTimeString = `${actualMeasurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`;
+        newRecordData.recordTime = new Date(recordTimeString);
+        newRecordData.measurementDate = actualMeasurementDate;
+        
 
         // データ型を適切に変換
         if (field === "measurementDate") {
@@ -711,7 +722,7 @@ export default function WeightList() {
             if (currentRecord) {
               const hour = currentRecord.hour || 9;
               const minute = currentRecord.minute || 0;
-              updateData.recordTime = new Date(`${value}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+              updateData.recordTime = new Date(`${value}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`);
             }
           }
         } else if (["hour", "minute"].includes(field)) {
@@ -729,8 +740,11 @@ export default function WeightList() {
           if (currentRecord) {
             const hour = field === "hour" ? (updateData.hour || parseInt(value) || 0) : (currentRecord.hour || 0);
             const minute = field === "minute" ? (updateData.minute || parseInt(value) || 0) : (currentRecord.minute || 0);
-            const measurementDate = currentRecord.measurementDate || `${selectedMonth}-01`;
-            updateData.recordTime = new Date(`${measurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`);
+            // 現在の日付を使用
+            const today = new Date();
+            const todayString = format(today, 'yyyy-MM-dd');
+            const measurementDate = currentRecord.measurementDate || todayString;
+            updateData.recordTime = new Date(`${measurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`);
           }
         } else if (field === "weight") {
           if (value && value.trim() !== "") {
@@ -806,17 +820,13 @@ export default function WeightList() {
   // 記録削除用ミューテーション
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      console.log(`[体重記録削除] 削除開始: id=${id}`);
       await apiRequest(`/api/weight-records/${id}`, "DELETE");
-      console.log(`[体重記録削除] 削除完了: id=${id}`);
       return id;
     },
     onSuccess: async (deletedId) => {
-      console.log(`[体重記録削除] 成功: id=${deletedId}`);
       // キャッシュを完全にクリアして強制的に再取得
       queryClient.removeQueries({ queryKey: ["/api/weight-records"] });
       await queryClient.refetchQueries({ queryKey: ["/api/weight-records"] });
-      console.log(`[体重記録削除] データ再取得完了: id=${deletedId}`);
     },
     onError: (error: any, id) => {
       console.error(`[体重記録削除] エラー: id=${id}`, error);
@@ -1144,7 +1154,7 @@ export default function WeightList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <Button
@@ -1169,9 +1179,9 @@ export default function WeightList() {
         </div>
       </div>
 
-      {/* フィルタ条件 */}
-      <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-        <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {/* Filter Controls */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
           {/* 年月選択 */}
           <div className="flex items-center space-x-1">
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -1180,7 +1190,7 @@ export default function WeightList() {
               options={monthOptions}
               onSave={(value) => setSelectedMonth(value)}
               placeholder="年月選択"
-              className="w-24 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-20 sm:w-24 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               enableAutoFocus={false}
             />
           </div>
@@ -1193,7 +1203,7 @@ export default function WeightList() {
               options={floorOptions}
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
-              className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               enableAutoFocus={false}
             />
           </div>

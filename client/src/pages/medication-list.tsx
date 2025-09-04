@@ -645,7 +645,7 @@ export default function MedicationList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -665,10 +665,8 @@ export default function MedicationList() {
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
-
-      {/* 日付とフロア選択 */}
-      <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+      {/* フィルタ項目 */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
         <div className="flex gap-2 sm:gap-4 items-center justify-center">
           {/* 日付選択 */}
           <div className="flex items-center space-x-1">
@@ -717,7 +715,8 @@ export default function MedicationList() {
         </div>
       </div>
 
-      {/* 利用者一覧（服薬記録用） */}
+      <div className="max-w-full mx-auto px-1 pb-1">
+        {/* 利用者一覧（服薬記録用） */}
       <div className="space-y-0 border rounded-lg overflow-hidden">
         {error && (
           <div className="bg-red-50 border-red-200 p-4 text-center rounded-lg mb-4">
@@ -790,9 +789,11 @@ export default function MedicationList() {
                         // 一時的なレコードの自動保存は無効化
                       }}
                       placeholder="タイミング"
-                      className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                      className={`h-6 w-full px-1 text-xs border border-slate-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        true ? 'bg-slate-100 cursor-not-allowed text-slate-600' : 'bg-white'
+                      }`}
                       isTimingField={true}
-                      disabled={false} // 服薬タイミングは常に変更可能
+                      disabled={true} // 服薬タイミングは常に変更不可
                     />
                   </div>
                   
@@ -974,8 +975,8 @@ export default function MedicationList() {
         </div>
       </div>
 
-      {/* 下部余白 */}
-      <div className="h-20"></div>
+        {/* 下部余白 */}
+        <div className="h-20"></div>
       </div>
     </div>
   );

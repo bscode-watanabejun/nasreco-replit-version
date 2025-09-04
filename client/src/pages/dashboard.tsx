@@ -334,53 +334,53 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 h-[calc(100vh-60px)] overflow-hidden">
-        {/* 日付とフロア選択 */}
-        <div className="bg-white rounded-lg p-2 mb-2 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
-            {/* 日付選択 */}
-            <div className="flex items-center space-x-1">
-              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <input
+      {/* 日付とフロア選択 */}
+      <div className="bg-white p-3 shadow-sm border-b">
+        <div className="flex gap-2 items-center justify-center">
+          {/* 日付選択 */}
+          <div className="flex items-center space-x-1">
+            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-6 sm:h-8 px-1 py-0 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
-              />
-            </div>
-            
-            {/* フロア選択 */}
-            <div className="flex items-center space-x-1">
-              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <InputWithDropdown
-                value={(() => {
-                  const option = [
-                    { value: "all", label: "全階" },
-                    { value: "1", label: "1階" },
-                    { value: "2", label: "2階" },
-                    { value: "3", label: "3階" },
-                    { value: "4", label: "4階" },
-                    { value: "5", label: "5階" }
-                  ].find(opt => opt.value === selectedFloor);
-                  return option ? option.label : "全階";
-                })()}
-                options={[
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+            />
+          </div>
+          
+          {/* フロア選択 */}
+          <div className="flex items-center space-x-1">
+            <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+            <InputWithDropdown
+              value={(() => {
+                const option = [
                   { value: "all", label: "全階" },
                   { value: "1", label: "1階" },
                   { value: "2", label: "2階" },
                   { value: "3", label: "3階" },
                   { value: "4", label: "4階" },
                   { value: "5", label: "5階" }
-                ]}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="フロア選択"
-                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+                ].find(opt => opt.value === selectedFloor);
+                return option ? option.label : "全階";
+              })()}
+              options={[
+                { value: "all", label: "全階" },
+                { value: "1", label: "1階" },
+                { value: "2", label: "2階" },
+                { value: "3", label: "3階" },
+                { value: "4", label: "4階" },
+                { value: "5", label: "5階" }
+              ]}
+              onSave={(value) => setSelectedFloor(value)}
+              placeholder="フロア選択"
+                className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
-        
-        <div className="h-[calc(100%-60px)]">
+      </div>
+
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 h-[calc(100vh-120px)] overflow-hidden">
+        <div className="h-full">
           <div>
             {/* Primary Modules - より密なレイアウト */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-2 mb-1 sm:mb-2">

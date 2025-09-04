@@ -4,6 +4,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import puppeteer from "puppeteer";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, excretionRecords } from "../shared/schema";
@@ -14,10 +15,13 @@ import {
   insertCareRecordSchema,
   insertNursingRecordSchema,
   insertVitalSignsSchema,
+  updateVitalSignsSchema,
   insertMealsAndMedicationSchema,
   insertBathingRecordSchema,
   insertExcretionRecordSchema,
+  updateExcretionRecordSchema,
   insertWeightRecordSchema,
+  updateWeightRecordSchema,
   insertCommunicationSchema,
   insertRoundRecordSchema,
   insertMedicationRecordSchema,
@@ -25,6 +29,7 @@ import {
   insertStaffNoticeSchema,
   insertStaffNoticeReadStatusSchema,
   insertCleaningLinenRecordSchema,
+  updateCleaningLinenRecordSchema,
   insertStaffManagementSchema,
   updateStaffManagementSchema,
   insertResidentAttachmentSchema,
@@ -159,13 +164,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized" });
       }
       
-      console.log("🔍 Getting staff user info for:", { staffId: staff.staffId, staffName: staff.staffName });
       
       // 職員IDに対応するusersテーブルのIDを検索
       let correspondingUser = null;
       try {
         correspondingUser = await storage.findUserByStaffInfo(staff.staffId, staff.staffName);
-        console.log("✅ Successfully found corresponding user:", correspondingUser);
       } catch (findError) {
         console.error("❌ Error finding corresponding user:", findError);
         // findUserByStaffInfoでエラーが発生した場合は、correspondingUserをnullのままにする
@@ -253,23 +256,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
-      res.json(records);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching care records:", error);
+      console.error("Error stack:", error.stack);
+      console.error("Query params:", req.query);
       res.status(500).json({ message: "Failed to fetch care records" });
     }
   });
 
   app.post('/api/care-records', isAuthenticated, async (req: any, res) => {
     try {
-      console.log("--- DEBUG START: /api/care-records ---");
-      console.log("Request Body:", JSON.stringify(req.body, null, 2));
-      console.log("Session Staff:", JSON.stringify((req as any).session?.staff, null, 2));
-
       const staffSession = (req as any).session?.staff;
       const staffId = staffSession ? staffSession.id : req.user.claims.sub;
-
-      console.log("Determined staffId:", staffId);
 
       if (!staffId) {
         console.error("Validation failed: staffId is missing.");
@@ -281,17 +287,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         staffId: staffId,
       };
 
-      console.log("Data before validation:", JSON.stringify(requestData, null, 2));
 
       const validatedData = insertCareRecordSchema.parse(requestData);
       
-      console.log("Validation successful. Validated data:", JSON.stringify(validatedData, null, 2));
-
-      const record = await storage.createCareRecord(validatedData);
-      console.log("--- DEBUG END: Record created successfully ---");
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、
+          // 9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // updated_atフィールドが含まれている場合は削除
+      const { updatedAt, updated_at, ...cleanData } = validatedData as any;
+      
+      // created_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+      const jstNow = new Date(now.getTime() + jstOffset);
+      
+      console.log("Setting createdAt to JST:", jstNow.toISOString(), "Local:", jstNow.toString());
+      
+      // 型の問題を回避するためanyでキャスト
+      const recordWithCreatedAt = { ...cleanData, createdAt: jstNow } as any;
+      const record = await storage.createCareRecord(recordWithCreatedAt);
       res.status(201).json(record);
     } catch (error: any) {
-      console.error("--- DEBUG ERROR: /api/care-records ---");
       console.error("Error creating care record:", error);
       if (error.issues) {
         console.error("Validation issues:", JSON.stringify(error.issues, null, 2));
@@ -308,8 +337,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const updateData = { ...req.body };
       if (updateData.recordDate) {
-        updateData.recordDate = new Date(updateData.recordDate);
+        // recordDateをJST時刻として処理
+        console.log("Original recordDate:", updateData.recordDate, "Type:", typeof updateData.recordDate);
+        
+        let parsedDate: Date;
+        if (typeof updateData.recordDate === 'string') {
+          const dateString = updateData.recordDate as string;
+          // フロントエンドから送信される時刻は、JST時刻をUTCのISO形式にしたもの
+          // 例: JST 15:30 → UTC 06:30 として送信される
+          // これを正しいJST時刻に戻すため、9時間加算する
+          parsedDate = new Date(dateString);
+          console.log("Parsed from string (UTC interpreted):", parsedDate);
+          
+          // UTC時刻として解釈されたものを9時間加算してJST時刻に戻す
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          parsedDate = new Date(parsedDate.getTime() + jstOffset);
+          console.log("Adjusted to JST (+9 hours):", parsedDate, "Valid:", !isNaN(parsedDate.getTime()));
+        } else if (updateData.recordDate instanceof Date) {
+          parsedDate = updateData.recordDate;
+          // Dateオブジェクトの場合も同様の調整が必要
+          const jstOffset = 9 * 60 * 60 * 1000;
+          parsedDate = new Date(parsedDate.getTime() + jstOffset);
+          console.log("Date object adjusted to JST (+9 hours):", parsedDate, "Valid:", !isNaN(parsedDate.getTime()));
+        } else {
+          parsedDate = new Date(updateData.recordDate);
+          // その他の場合も同様
+          const jstOffset = 9 * 60 * 60 * 1000;
+          parsedDate = new Date(parsedDate.getTime() + jstOffset);
+          console.log("Other type adjusted to JST (+9 hours):", parsedDate, "Valid:", !isNaN(parsedDate.getTime()));
+        }
+        
+        // 日時の有効性を検証
+        if (isNaN(parsedDate.getTime())) {
+          console.error("Invalid date detected:", updateData.recordDate);
+          return res.status(400).json({ message: "Invalid date value provided" });
+        }
+        console.log("Final parsed date:", parsedDate);
+        
+        updateData.recordDate = parsedDate;
       }
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      updateData.updatedAt = jstNow;
+      
       const record = await storage.updateCareRecord(req.params.id, updateData);
       res.json(record);
     } catch (error: any) {
@@ -327,7 +400,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
-      res.json(records);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching nursing records:", error);
       res.status(500).json({ message: "Failed to fetch nursing records" });
@@ -335,20 +415,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/nursing-records', isAuthenticated, async (req: any, res) => {
-    console.log("🚨 NURSING RECORD CREATE START 🚨");
     try {
       const staffSession = (req as any).session?.staff;
       let nurseId = null;
       
-      console.log("🔍 Checking session type...");
       if (staffSession) {
         // 職員ログインの場合、対応するusersテーブルのIDを取得
-        console.log("📋 Staff session detected");
         const correspondingUser = await storage.findUserByStaffInfo(staffSession.staffId, staffSession.staffName);
         
         if (!correspondingUser) {
-          console.log("⚠️ No corresponding user found in users table for staff login");
-          console.log("⚠️ Creating a temporary user record for this staff member");
           
           // 職員情報を基に一時的なユーザーレコードを作成
           try {
@@ -361,16 +436,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               role: "nurse"
             });
             nurseId = tempUser.id;
-            console.log("✅ Created temporary user:", tempUser);
           } catch (createError) {
             console.error("❌ Failed to create temporary user:", createError);
             // フォールバック：最初に見つかったユーザーを使用
-            console.log("🔄 Using fallback: finding any existing user...");
             try {
               const [fallbackUser] = await db.select().from(users).limit(1);
               if (fallbackUser) {
                 nurseId = fallbackUser.id;
-                console.log("🔄 Using fallback user:", fallbackUser);
               }
             } catch (fallbackError) {
               console.error("❌ Fallback also failed:", fallbackError);
@@ -380,22 +452,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           nurseId = correspondingUser.id;
         }
         
-        console.log("🔥🔥🔥 STAFF LOGIN DEBUG 🔥🔥🔥");
-        console.log("Staff login - staffSession:", staffSession);
-        console.log("Staff login - correspondingUser:", correspondingUser);
-        console.log("Staff login - nurseId to use:", nurseId);
-        console.log("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥");
-      } else {
+        } else {
         // 通常ログインの場合
-        console.log("👤 Regular user session detected");
         nurseId = req.user?.claims?.sub || null;
-        console.log("Regular login - nurseId:", nurseId);
       }
 
       // フロントエンドから送信されたnurseIdも確認（デバッグ用）
-      console.log("🎯 Frontend sent nurseId:", req.body.nurseId);
-      console.log("🎯 Server determined nurseId:", nurseId);
-      console.log("🎯 Final nurseId type:", typeof nurseId);
 
       if (!nurseId) {
         console.error("❌ Validation failed: nurseId is missing or no corresponding user found.");
@@ -403,30 +465,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // nurseIdがusersテーブルに存在するか確認
-      console.log("🔍 Checking if user exists in database...");
-      console.log("🔍 Looking for user ID:", nurseId);
       const userExists = await storage.getUser(nurseId);
-      console.log("👤 User exists check result:", userExists ? "✅ Found" : "❌ Not found");
-      console.log("👤 Found user data:", userExists);
       
       // 存在しない場合は、利用可能なユーザー一覧も出力（デバッグ用）
       if (!userExists) {
         console.error("❌ Validation failed: nurseId does not exist in users table:", nurseId);
         try {
           const allUsers = await db.select().from(users).limit(5);
-          console.log("🔍 Available users in database:");
-          console.log(allUsers);
         } catch (error) {
-          console.log("🔍 Could not fetch user list:", error);
         }
         return res.status(400).json({ message: "指定された看護師IDが存在しません" });
       }
-      console.log("✅ User validation passed, proceeding with record creation...")
 
       const validatedData = insertNursingRecordSchema.parse({
         ...req.body,
         nurseId: nurseId,
       });
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // created_atとupdated_atをJST時刻として明示的に設定
+      const currentTime = new Date();
+      const jstOffset2 = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(currentTime.getTime() + jstOffset2);
+      (validatedData as any).createdAt = jstNow;
+      (validatedData as any).updatedAt = jstNow;
+      
       const record = await storage.createNursingRecord(validatedData);
       res.status(201).json(record);
     } catch (error: any) {
@@ -520,7 +597,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
-      res.json(vitals);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedVitals = vitals.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedVitals);
     } catch (error: any) {
       console.error("Error fetching vital signs:", error);
       res.status(500).json({ message: "Failed to fetch vital signs" });
@@ -555,6 +639,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         staffId: staffId,
       });
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // created_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (validatedData as any).createdAt = jstNow;
+      
       const vitals = await storage.createVitalSigns(validatedData);
       res.status(201).json(vitals);
     } catch (error: any) {
@@ -575,7 +681,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/vital-signs/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertVitalSignsSchema.partial().parse(req.body);
+      const validatedData = updateVitalSignsSchema.parse(req.body);
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+      const jstNow = new Date(now.getTime() + jstOffset);
+      validatedData.updatedAt = jstNow;
+      
       const vitals = await storage.updateVitalSigns(id, validatedData);
       res.json(vitals);
     } catch (error: any) {
@@ -613,7 +741,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mealTime as string || 'all',
         floor as string || 'all'
       );
-      res.json(records);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching meals and medication:", error);
       res.status(500).json({ message: "Failed to fetch meals and medication records" });
@@ -622,9 +757,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/meals-medication', isAuthenticated, async (req: any, res) => {
     try {
-      console.log("🚀 POST /api/meals-medication called (first handler)");
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
-      console.log("Session Staff:", JSON.stringify((req as any).session?.staff, null, 2));
 
       const staffSession = (req as any).session?.staff;
       let staffId = staffSession ? staffSession.id : null;
@@ -636,13 +768,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userBasedStaff = await storage.getStaffByUserId(req.user.claims.sub);
           if (userBasedStaff) {
             staffId = userBasedStaff.id;
-            console.log("🔍 Found staff by user ID:", userBasedStaff.staffName);
           } else {
             // 見つからない場合はデフォルト職員を取得
             const defaultStaff = await storage.getDefaultStaff();
             if (defaultStaff) {
               staffId = defaultStaff.id;
-              console.log("🔍 Using default staff:", defaultStaff.staffName);
             } else {
               console.error("❌ No valid staff found for user:", req.user.claims.sub);
               return res.status(401).json({ message: "有効な職員情報が見つかりません。職員管理で職員を登録するか、職員ログインを行ってください。" });
@@ -654,16 +784,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      console.log("Determined staffId:", staffId);
       
       const validatedData = insertMealsAndMedicationSchema.parse({
         ...req.body,
         staffId: staffId,
       });
-      console.log("Validated data:", JSON.stringify(validatedData, null, 2));
       
-      const record = await storage.createMealsAndMedication(validatedData);
-      console.log("✅ Created record:", JSON.stringify(record, null, 2));
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // updated_atフィールドが含まれている場合は削除し、created_atをJST時刻で設定
+      const { updatedAt, updated_at, ...cleanData } = validatedData as any;
+      
+      // created_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+      const jstNow = new Date(now.getTime() + jstOffset);
+      
+      // 型の問題を回避するためanyでキャスト
+      const recordWithCreatedAt = { ...cleanData, createdAt: jstNow } as any;
+      const record = await storage.createMealsAndMedication(recordWithCreatedAt);
       
       res.status(201).json(record);
     } catch (error: any) {
@@ -725,9 +877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bathing records routes
   app.get('/api/bathing-records', isAuthenticated, async (req, res) => {
     try {
-      console.log("=== GET /api/bathing-records Debug ===");
       const { residentId, startDate, endDate } = req.query;
-      console.log("Query params:", { residentId, startDate, endDate });
       
       const records = await storage.getBathingRecords(
         residentId as string,
@@ -735,10 +885,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate ? new Date(endDate as string) : undefined
       );
       
-      console.log("Records retrieved:", records);
-      console.log("Records length:", records ? records.length : "null/undefined");
-      console.log("Records type:", typeof records);
-      console.log("Is array:", Array.isArray(records));
       
       res.json(records);
     } catch (error: any) {
@@ -749,21 +895,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/bathing-records', isAuthenticated, async (req: any, res) => {
     try {
-      console.log("=== POST /api/bathing-records Debug ===");
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
-      console.log("Query params:", JSON.stringify(req.query, null, 2));
-      console.log("User ID:", req.user?.claims?.sub || "undefined");
-      console.log("ResidentId from body:", req.body.residentId);
-      console.log("ResidentId from query:", req.query.residentId);
       
       const dataToValidate = {
         ...req.body,
         // staffIdはomitされているため、バリデーションに含めない
       };
-      console.log("Data to validate:", JSON.stringify(dataToValidate, null, 2));
       
       const validatedData = insertBathingRecordSchema.partial().parse(dataToValidate);
-      console.log("Validation successful:", JSON.stringify(validatedData, null, 2));
       
       // staffId の決定 - 職員セッションを優先
       const staffSession = (req as any).session?.staff;
@@ -796,7 +934,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recordDate: req.body.recordDate ? new Date(req.body.recordDate) : new Date(),  // recordDateが未定義の場合は現在日時
       };
       
-      console.log("Final recordData:", JSON.stringify(recordData, null, 2));
+      // created_atとupdated_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (recordData as any).createdAt = jstNow;
+      (recordData as any).updatedAt = jstNow;
       
       const record = await storage.createBathingRecord(recordData);
       res.status(201).json(record);
@@ -824,22 +967,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/bathing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      console.log("=== PATCH /api/bathing-records Debug ===");
-      console.log("Request body:", JSON.stringify(req.body, null, 2));
-      console.log("Request body keys:", Object.keys(req.body));
-      console.log("Request body types:", Object.keys(req.body).map(key => `${key}: ${typeof req.body[key]} (${req.body[key]})`));
       
       // residentIdが含まれている場合は別途処理
       const { residentId, ...bodyWithoutResidentId } = req.body;
       const validatedData = insertBathingRecordSchema.partial().parse(bodyWithoutResidentId);
-      console.log("Validation successful:", validatedData);
       
       // residentIdがある場合は手動で追加（空文字列も含む）
       const updateData = {
         ...validatedData,
         ...(residentId !== undefined && { residentId }),
       };
-      console.log("Final update data:", updateData);
+      
+      // updated_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (updateData as any).updatedAt = jstNow;
       
       const record = await storage.updateBathingRecord(id, updateData);
       res.json(record);
@@ -881,7 +1024,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
-      res.json(records);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching excretion records:", error);
       res.status(500).json({ message: "Failed to fetch excretion records" });
@@ -902,6 +1052,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         staffId: staffId,
       });
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // created_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (validatedData as any).createdAt = jstNow;
+      
       const record = await storage.createExcretionRecord(validatedData);
       res.status(201).json(record);
     } catch (error: any) {
@@ -912,7 +1084,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/excretion-records/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const validatedData = insertExcretionRecordSchema.partial().parse(req.body);
+      const validatedData = updateExcretionRecordSchema.parse(req.body);
+      
+      // recordDateをJST時刻として処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000;
+          validatedData.recordDate = new Date(utcTime + jstOffset);
+        }
+      }
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      validatedData.updatedAt = jstNow;
+      
       const record = await storage.updateExcretionRecord(req.params.id, validatedData);
       res.json(record);
     } catch (error: any) {
@@ -930,7 +1122,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate ? new Date(startDate as string) : undefined,
         endDate ? new Date(endDate as string) : undefined
       );
-      res.json(records);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching weight records:", error);
       res.status(500).json({ message: "Failed to fetch weight records" });
@@ -965,6 +1164,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         staffId: staffId,
       });
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // recordTimeはフロントエンドから送信された値をそのまま使用
+      
+      // created_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (validatedData as any).createdAt = jstNow;
+      
       const record = await storage.createWeightRecord(validatedData);
       res.status(201).json(record);
     } catch (error: any) {
@@ -976,7 +1199,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/weight-records/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const validatedData = insertWeightRecordSchema.partial().parse(req.body);
+      const validatedData = updateWeightRecordSchema.parse(req.body);
+      
+      // recordDateをJST時刻として処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000;
+          validatedData.recordDate = new Date(utcTime + jstOffset);
+        }
+      }
+      
+      // recordTimeもフロントエンドから送信された値をそのまま使用
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      validatedData.updatedAt = jstNow;
+      
       const record = await storage.updateWeightRecord(id, validatedData);
       res.json(record);
     } catch (error: any) {
@@ -1074,6 +1319,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         createdBy: createdBy,
       });
+      
+      // created_atとupdated_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (validatedData as any).createdAt = jstNow;
+      (validatedData as any).updatedAt = jstNow;
+      
       const roundRecord = await storage.createRoundRecord(validatedData);
       res.status(201).json(roundRecord);
     } catch (error: any) {
@@ -1101,7 +1354,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timing as string || 'all',
         floor as string || 'all'
       );
-      res.json(records);
+      
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching medication records:", error);
       res.status(500).json({ message: "Failed to fetch medication records" });
@@ -1120,13 +1380,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const userBasedStaff = await storage.getStaffByUserId(req.user.claims.sub);
           if (userBasedStaff) {
             createdBy = userBasedStaff.id;
-            console.log("🔍 Found staff by user ID:", userBasedStaff.staffName);
           } else {
             // 見つからない場合はデフォルト職員を取得
             const defaultStaff = await storage.getDefaultStaff();
             if (defaultStaff) {
               createdBy = defaultStaff.id;
-              console.log("🔍 Using default staff:", defaultStaff.staffName);
             } else {
               console.error("❌ No valid staff found for user:", req.user.claims.sub);
               return res.status(401).json({ message: "有効な職員情報が見つかりません。職員管理で職員を登録するか、職員ログインを行ってください。" });
@@ -1142,11 +1400,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         createdBy: createdBy,
       });
-      console.log('Medication record upsert request:', validatedData);
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // created_atとupdated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+      const jstNow = new Date(now.getTime() + jstOffset);
+      
+      console.log("Setting medication record timestamps to JST:", jstNow.toISOString());
+      
+      // 型の問題を回避するためanyでキャスト
+      const recordWithTimestamps = { 
+        ...validatedData, 
+        createdAt: jstNow,
+        updatedAt: jstNow 
+      } as any;
       
       // Upsert操作を実行（重複がある場合は更新、ない場合は作成）
-      const record = await storage.upsertMedicationRecord(validatedData);
-      console.log('Medication record upserted:', record);
+      const record = await storage.upsertMedicationRecord(recordWithTimestamps);
       res.status(201).json(record);
     } catch (error: any) {
       console.error("Error upserting medication record:", error);
@@ -1159,7 +1444,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 部分更新用のスキーマ - 必須フィールドをオプションにする
       const partialMedicationRecordSchema = insertMedicationRecordSchema.partial();
       const validatedData = partialMedicationRecordSchema.parse(req.body);
-      const record = await storage.updateMedicationRecord(req.params.id, validatedData);
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+      const jstNow = new Date(now.getTime() + jstOffset);
+      
+      // 型の問題を回避するためanyでキャスト
+      const recordWithUpdatedAt = { ...validatedData, updatedAt: jstNow } as any;
+      const record = await storage.updateMedicationRecord(req.params.id, recordWithUpdatedAt);
       res.json(record);
     } catch (error: any) {
       console.error("Error updating medication record:", error);
@@ -1322,7 +1615,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { weekStartDate, floor } = req.query;
       const startDate = new Date(weekStartDate as string);
       const records = await storage.getCleaningLinenRecords(startDate, floor as string);
-      res.json(records);
+      
+      // 全ての時刻フィールドをJST時刻として正しく返すために変換
+      const convertedRecords = records.map(record => ({
+        ...record,
+        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00'),
+        recordTime: record.recordTime ? new Date(record.recordTime).toISOString().replace('Z', '+09:00') : record.recordTime,
+        createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('Z', '+09:00') : record.createdAt,
+        updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString().replace('Z', '+09:00') : record.updatedAt
+      }));
+      
+      res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching cleaning linen records:", error);
       res.status(500).json({ message: "Failed to fetch cleaning linen records" });
@@ -1343,6 +1646,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         staffId: staffId,
       });
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // recordTimeもJST時刻として明示的に処理
+      if (validatedData.recordTime) {
+        if (typeof validatedData.recordTime === 'string') {
+          const timeString = validatedData.recordTime as string;
+          const jstTime = new Date(timeString + (timeString.includes('+') ? '' : '+09:00'));
+          validatedData.recordTime = jstTime;
+        } else if (validatedData.recordTime instanceof Date) {
+          const utcTime = validatedData.recordTime.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000;
+          validatedData.recordTime = new Date(utcTime + jstOffset);
+        }
+      } else {
+        // recordTimeが指定されていない場合、現在のJST時刻を設定
+        const now = new Date();
+        const jstOffset = 9 * 60 * 60 * 1000;
+        validatedData.recordTime = new Date(now.getTime() + jstOffset);
+      }
+      
+      // created_atとupdated_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (validatedData as any).createdAt = jstNow;
+      (validatedData as any).updatedAt = jstNow;
+      
       const record = await storage.createCleaningLinenRecord(validatedData);
       res.status(201).json(record);
     } catch (error: any) {
@@ -1361,10 +1705,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "有効な記録者IDが見つかりません" });
       }
 
-      const validatedData = insertCleaningLinenRecordSchema.partial().parse({
+      const validatedData = updateCleaningLinenRecordSchema.parse({
         ...req.body,
         staffId: staffId,
       });
+      
+      // recordDateをJST時刻として処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000;
+          validatedData.recordDate = new Date(utcTime + jstOffset);
+        }
+      }
+      
+      // recordTimeをJST時刻として処理
+      if (validatedData.recordTime) {
+        if (typeof validatedData.recordTime === 'string') {
+          const timeString = validatedData.recordTime as string;
+          const jstTime = new Date(timeString + (timeString.includes('+') ? '' : '+09:00'));
+          validatedData.recordTime = jstTime;
+        } else if (validatedData.recordTime instanceof Date) {
+          const utcTime = validatedData.recordTime.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000;
+          validatedData.recordTime = new Date(utcTime + jstOffset);
+        }
+      }
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      validatedData.updatedAt = jstNow;
+      
       const record = await storage.updateCleaningLinenRecord(req.params.id, validatedData);
       res.json(record);
     } catch (error: any) {
@@ -1387,6 +1764,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         staffId: staffId,
       });
+      
+      // recordDateをJST時刻として明示的に処理
+      if (validatedData.recordDate) {
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
+          validatedData.recordDate = jstDate;
+        } else if (validatedData.recordDate instanceof Date) {
+          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
+          const utcTime = validatedData.recordDate.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          const jstTime = new Date(utcTime + jstOffset);
+          validatedData.recordDate = jstTime;
+        }
+      }
+      
+      // recordTimeもJST時刻として明示的に処理
+      if (validatedData.recordTime) {
+        if (typeof validatedData.recordTime === 'string') {
+          const timeString = validatedData.recordTime as string;
+          const jstTime = new Date(timeString + (timeString.includes('+') ? '' : '+09:00'));
+          validatedData.recordTime = jstTime;
+        } else if (validatedData.recordTime instanceof Date) {
+          const utcTime = validatedData.recordTime.getTime();
+          const jstOffset = 9 * 60 * 60 * 1000;
+          validatedData.recordTime = new Date(utcTime + jstOffset);
+        }
+      } else {
+        // recordTimeが指定されていない場合、現在のJST時刻を設定
+        const now = new Date();
+        const jstOffset = 9 * 60 * 60 * 1000;
+        validatedData.recordTime = new Date(now.getTime() + jstOffset);
+      }
+      
+      // created_atとupdated_atをJST時刻として明示的に設定
+      const currentTime = new Date();
+      const jstOffset2 = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(currentTime.getTime() + jstOffset2);
+      (validatedData as any).createdAt = jstNow;
+      (validatedData as any).updatedAt = jstNow;
+      
       const record = await storage.upsertCleaningLinenRecord(validatedData);
       res.status(201).json(record);
     } catch (error: any) {
@@ -1741,6 +2159,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error fetching daily records:", error);
       res.status(500).json({ message: "今日の記録一覧の取得に失敗しました" });
+    }
+  });
+
+  // Journal Checkbox API
+  app.get('/api/journal-checkboxes/:date', isAuthenticated, async (req, res) => {
+    try {
+      const { date } = req.params;
+      const checkboxes = await storage.getJournalCheckboxes(date);
+      res.json(checkboxes);
+    } catch (error: any) {
+      console.error("Error fetching journal checkboxes:", error);
+      res.status(500).json({ message: "日誌チェック状態の取得に失敗しました" });
+    }
+  });
+
+  app.post('/api/journal-checkboxes', isAuthenticated, async (req, res) => {
+    try {
+      const { recordId, recordType, checkboxType, isChecked, recordDate } = req.body;
+      
+      if (!recordId || !recordType || !checkboxType || typeof isChecked !== 'boolean' || !recordDate) {
+        return res.status(400).json({ message: "必要なパラメータが不足しています" });
+      }
+
+      await storage.upsertJournalCheckbox(recordId, recordType, checkboxType, isChecked, recordDate);
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating journal checkbox:", error);
+      res.status(500).json({ message: "日誌チェック状態の更新に失敗しました" });
+    }
+  });
+
+  // PDF生成エンドポイント
+  app.post('/api/generate-journal-pdf', isAuthenticated, async (req, res) => {
+    try {
+      const { html } = req.body;
+      
+      if (!html) {
+        console.error('❌ HTML content missing');
+        return res.status(400).json({ error: 'HTML content is required' });
+      }
+
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu'
+        ]
+      });
+      
+      const page = await browser.newPage();
+      
+      await page.setContent(html, {
+        waitUntil: 'domcontentloaded'
+      });
+      
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20mm',
+          right: '15mm',
+          bottom: '20mm',
+          left: '15mm'
+        }
+      });
+      
+      await browser.close();
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="nursing-journal.pdf"');
+      res.send(pdf);
+      
+    } catch (error: any) {
+      console.error('❌ Error generating PDF:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(500).json({ 
+        error: 'Failed to generate PDF', 
+        details: error.message 
+      });
     }
   });
 

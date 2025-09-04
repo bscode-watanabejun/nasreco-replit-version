@@ -342,15 +342,22 @@ export default function TreatmentList() {
     addMutation.mutate(newRecord);
   };
 
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: i.toString().padStart(2, "0") }));
-  const minuteOptions = [0, 15, 30, 45].map((m) => ({ value: m.toString(), label: m.toString().padStart(2, "0") }));
+  const hourOptions = useMemo(() => 
+    Array.from({ length: 24 }, (_, i) => ({ value: i.toString(), label: i.toString().padStart(2, "0") })),
+    []
+  );
+  
+  const minuteOptions = useMemo(() => 
+    [0, 15, 30, 45].map((m) => ({ value: m.toString(), label: m.toString().padStart(2, "0") })),
+    []
+  );
   
   // 利用者オプション
-  const residentOptions = [
+  const residentOptions = useMemo(() => [
     ...residents.map((r: any) => ({ value: r.id, label: r.name }))
-  ];
+  ], [residents]);
   
-  const floorOptions = [
+  const floorOptions = useMemo(() => [
     { value: "全階", label: "全階" },
     ...Array.from(new Set((residents as any[]).map(r => {
       // "1F", "2F" などのF文字を除去して数値のみ取得
@@ -359,11 +366,11 @@ export default function TreatmentList() {
     }).filter(Boolean)))
       .sort((a, b) => (a || 0) - (b || 0))
       .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
-  ];
+  ], [residents]);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <Button 
@@ -384,15 +391,15 @@ export default function TreatmentList() {
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-lg p-2 my-4 mx-2 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
             <div className="flex items-center space-x-1">
@@ -402,12 +409,12 @@ export default function TreatmentList() {
                 options={floorOptions}
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
-                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
                 enableAutoFocus={false}
               />
             </div>
-          </div>
         </div>
+      </div>
       <main className="max-w-4xl mx-auto px-4 py-4 pb-24">
         <div className="space-y-0 border rounded-lg overflow-hidden">
           {localTreatmentRecords.length === 0 ? (

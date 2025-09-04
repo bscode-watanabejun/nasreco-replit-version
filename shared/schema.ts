@@ -169,6 +169,7 @@ export const nursingRecords = pgTable("nursing_records", {
   interventions: text("interventions"),
   outcomes: text("outcomes"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Vital signs
@@ -256,7 +257,7 @@ export const weightRecords = pgTable("weight_records", {
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
-  recordTime: timestamp("record_time").defaultNow(), // 記録時刻（体重一覧で選択した日時）
+  recordTime: timestamp("record_time"), // 記録時刻（体重一覧で選択した日時）
   measurementDate: date("measurement_date"), // 計測日 (recordDateとは別)
   hour: integer("hour"), // 時間 (0-23)
   minute: integer("minute"), // 分 (0, 15, 30, 45)
@@ -279,6 +280,7 @@ export const communications = pgTable("communications", {
   message: text("message").notNull(),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Staff notices/announcements (連絡事項管理)
@@ -304,6 +306,7 @@ export const staffNoticeReadStatus = pgTable("staff_notice_read_status", {
   staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   readAt: timestamp("read_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Insert schemas
@@ -354,6 +357,7 @@ export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
@@ -493,6 +497,7 @@ export const insertCommunicationSchema = createInsertSchema(communications, {
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertStaffNoticeSchema = createInsertSchema(staffNotices, {
@@ -509,6 +514,7 @@ export const insertStaffNoticeSchema = createInsertSchema(staffNotices, {
 export const insertStaffNoticeReadStatusSchema = createInsertSchema(staffNoticeReadStatus, {}).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 // Round Records table - ラウンド記録
@@ -522,6 +528,7 @@ export const roundRecords = pgTable("round_records", {
   positionValue: varchar("position_value"), // 体位交換の場合: '右', '左', '仰'
   createdBy: varchar("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
@@ -529,6 +536,7 @@ export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
 }).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 // Medication Records table - 服薬記録
@@ -571,16 +579,34 @@ export type CareRecord = typeof careRecords.$inferSelect;
 export type InsertCareRecord = z.infer<typeof insertCareRecordSchema>;
 export type NursingRecord = typeof nursingRecords.$inferSelect;
 export type InsertNursingRecord = z.infer<typeof insertNursingRecordSchema>;
+// Update schema for vital signs
+export const updateVitalSignsSchema = insertVitalSignsSchema.partial().extend({
+  updatedAt: z.date().optional(),
+});
+
 export type VitalSigns = typeof vitalSigns.$inferSelect;
 export type InsertVitalSigns = z.infer<typeof insertVitalSignsSchema>;
+export type UpdateVitalSigns = z.infer<typeof updateVitalSignsSchema>;
 export type MealsAndMedication = typeof mealsAndMedication.$inferSelect;
 export type InsertMealsAndMedication = z.infer<typeof insertMealsAndMedicationSchema>;
 export type BathingRecord = typeof bathingRecords.$inferSelect;
 export type InsertBathingRecord = z.infer<typeof insertBathingRecordSchema>;
+// Update schema for excretion records
+export const updateExcretionRecordSchema = insertExcretionRecordSchema.partial().extend({
+  updatedAt: z.date().optional(),
+});
+
 export type ExcretionRecord = typeof excretionRecords.$inferSelect;
 export type InsertExcretionRecord = z.infer<typeof insertExcretionRecordSchema>;
+export type UpdateExcretionRecord = z.infer<typeof updateExcretionRecordSchema>;
+// Update schema for weight records
+export const updateWeightRecordSchema = insertWeightRecordSchema.partial().extend({
+  updatedAt: z.date().optional(),
+});
+
 export type WeightRecord = typeof weightRecords.$inferSelect;
 export type InsertWeightRecord = z.infer<typeof insertWeightRecordSchema>;
+export type UpdateWeightRecord = z.infer<typeof updateWeightRecordSchema>;
 export type Communication = typeof communications.$inferSelect;
 export type InsertCommunication = z.infer<typeof insertCommunicationSchema>;
 export type StaffNotice = typeof staffNotices.$inferSelect;
@@ -658,8 +684,14 @@ export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenR
   staffId: z.string().min(1, "スタッフIDは必須です"),
 }).omit({ id: true, createdAt: true, updatedAt: true });
 
+// Update schema for cleaning linen records
+export const updateCleaningLinenRecordSchema = insertCleaningLinenRecordSchema.partial().extend({
+  updatedAt: z.date().optional(),
+});
+
 export type CleaningLinenRecord = typeof cleaningLinenRecords.$inferSelect;
 export type InsertCleaningLinenRecord = z.infer<typeof insertCleaningLinenRecordSchema>;
+export type UpdateCleaningLinenRecord = z.infer<typeof updateCleaningLinenRecordSchema>;
 
 // Staff Management table
 export const staffManagement = pgTable("staff_management", {
@@ -731,3 +763,30 @@ export const insertResidentAttachmentSchema = createInsertSchema(residentAttachm
 
 export type ResidentAttachment = typeof residentAttachments.$inferSelect;
 export type InsertResidentAttachment = z.infer<typeof insertResidentAttachmentSchema>;
+
+// Journal Checkboxes table (日誌チェック状態管理)
+export const journalCheckboxes = pgTable("journal_checkboxes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recordDate: date("record_date").notNull(), // 記録日
+  recordId: varchar("record_id").notNull(), // 記録ID（care_records, nursing_records, etc.の各ID）
+  recordType: varchar("record_type").notNull(), // 記録タイプ（care_records, nursing_records, etc.）
+  checkboxType: varchar("checkbox_type").notNull(), // チェックタイプ（日中、夜間、看護）
+  isChecked: boolean("is_checked").notNull().default(false), // チェック状態
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Journal Checkboxes insert schema
+export const insertJournalCheckboxSchema = createInsertSchema(journalCheckboxes, {
+  recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
+  recordId: z.string().min(1, "記録IDは必須です"),
+  recordType: z.string().min(1, "記録タイプは必須です"),
+  checkboxType: z.enum(["日中", "夜間", "看護"], { message: "有効なチェックタイプを選択してください" }),
+  isChecked: z.boolean(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type JournalCheckbox = typeof journalCheckboxes.$inferSelect;
+export type InsertJournalCheckbox = z.infer<typeof insertJournalCheckboxSchema>;

@@ -1186,7 +1186,7 @@ export default function NursingRecordsList() {
           <div className="text-center mb-3">
             <h1 className="text-xl font-bold text-slate-800">介護記録</h1>
           </div>
-          <div className="bg-white rounded-lg p-2 mb-3 shadow-sm">
+          <div className="bg-white p-3 shadow-sm border-b">
             <div className="flex gap-2 sm:gap-4 items-center justify-center">
               {/* 日付選択 */}
               <div className="flex items-center space-x-1">
@@ -1665,7 +1665,7 @@ export default function NursingRecordsList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -1683,10 +1683,10 @@ export default function NursingRecordsList() {
         </div>
       </div>
 
-      <div className="max-w-full mx-auto p-2">
+      <div className="max-w-full mx-auto px-1 pb-1">
 
         {/* Filter Controls */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+        <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
           <div className="flex gap-2 sm:gap-4 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
@@ -1695,7 +1695,7 @@ export default function NursingRecordsList() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
             
@@ -1720,9 +1720,9 @@ export default function NursingRecordsList() {
                   id="bathing-only-filter"
                   checked={showBathingOnly}
                   onChange={(e) => setShowBathingOnly(e.target.checked)}
-                  className="h-4 w-4 sm:h-5 sm:w-5"
+                  className="h-3 w-3 sm:h-4 sm:w-4"
                 />
-                <span className="ml-1 text-[10px] sm:text-sm text-slate-700">
+                <span className="ml-1 text-[10px] sm:text-xs text-slate-700">
                   入浴チェックのみ
                 </span>
               </label>

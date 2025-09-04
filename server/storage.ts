@@ -17,6 +17,7 @@ import {
   cleaningLinenRecords,
   staffManagement,
   residentAttachments,
+  journalCheckboxes,
   type User,
   type UpsertUser,
   type Resident,
@@ -54,6 +55,8 @@ import {
   type UpdateStaffManagement,
   type ResidentAttachment,
   type InsertResidentAttachment,
+  type JournalCheckbox,
+  type InsertJournalCheckbox,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
@@ -74,13 +77,44 @@ export interface IStorage {
   deleteResident(id: string): Promise<void>;
 
   // Care record operations
-  getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<CareRecord[]>;
+  getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+    id: string;
+    residentId: string;
+    staffId: string;
+    recordDate: Date;
+    category: string;
+    description: string;
+    notes: string | null;
+    createdAt: Date | null;
+  }[]>;
   createCareRecord(record: InsertCareRecord): Promise<CareRecord>;
   updateCareRecord(id: string, data: Partial<InsertCareRecord>): Promise<CareRecord>;
 
   // Nursing record operations
-  getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<NursingRecord[]>;
-  getNursingRecordById(id: string): Promise<NursingRecord | null>;
+  getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+    id: string;
+    residentId: string | null;
+    nurseId: string;
+    recordDate: Date;
+    category: string;
+    description: string | null;
+    notes: string | null;
+    interventions: string | null;
+    outcomes: string | null;
+    createdAt: Date | null;
+  }[]>;
+  getNursingRecordById(id: string): Promise<{
+    id: string;
+    residentId: string | null;
+    nurseId: string;
+    recordDate: Date;
+    category: string;
+    description: string | null;
+    notes: string | null;
+    interventions: string | null;
+    outcomes: string | null;
+    createdAt: Date | null;
+  } | null>;
   createNursingRecord(record: InsertNursingRecord): Promise<NursingRecord>;
   updateNursingRecord(id: string, record: Partial<InsertNursingRecord>): Promise<NursingRecord>;
   deleteNursingRecord(id: string): Promise<void>;
@@ -105,7 +139,19 @@ export interface IStorage {
   deleteBathingRecord(id: string): Promise<void>;
 
   // Excretion record operations
-  getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<ExcretionRecord[]>;
+  getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+    id: string;
+    residentId: string;
+    staffId: string;
+    recordDate: Date;
+    type: string;
+    consistency: string | null;
+    amount: string | null;
+    urineVolumeCc: number | null;
+    assistance: string | null;
+    notes: string | null;
+    createdAt: Date | null;
+  }[]>;
   createExcretionRecord(record: InsertExcretionRecord): Promise<ExcretionRecord>;
   updateExcretionRecord(id: string, record: Partial<InsertExcretionRecord>): Promise<ExcretionRecord>;
 
@@ -117,11 +163,25 @@ export interface IStorage {
 
   // Communication operations
   getCommunications(residentId?: string, startDate?: Date, endDate?: Date): Promise<Communication[]>;
+
+  // Journal checkbox operations
+  getJournalCheckboxes(recordDate: string): Promise<JournalCheckbox[]>;
+  upsertJournalCheckbox(recordId: string, recordType: string, checkboxType: string, isChecked: boolean, recordDate: string): Promise<void>;
   createCommunication(communication: InsertCommunication): Promise<Communication>;
   markCommunicationAsRead(id: string): Promise<void>;
 
   // Round record operations
-  getRoundRecords(recordDate: Date): Promise<RoundRecord[]>;
+  getRoundRecords(recordDate: Date): Promise<{
+    id: string;
+    residentId: string;
+    recordDate: string;
+    hour: number;
+    recordType: string;
+    staffName: string;
+    positionValue: string | null;
+    createdBy: string;
+    createdAt: Date | null;
+  }[]>;
   createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord>;
   deleteRoundRecord(id: string): Promise<void>;
 
@@ -141,7 +201,15 @@ export interface IStorage {
   getStaffNotices(facilityId?: string): Promise<StaffNotice[]>;
   createStaffNotice(notice: InsertStaffNotice): Promise<StaffNotice>;
   deleteStaffNotice(id: string): Promise<void>;
-  getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]>;
+  getStaffNoticeReadStatus(noticeId: string): Promise<{
+    id: string;
+    noticeId: string;
+    staffId: string;
+    readAt: Date | null;
+    createdAt: Date | null;
+    staffName: string | null;
+    staffLastName: string | null;
+  }[]>;
   markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus>;
   markStaffNoticeAsUnread(noticeId: string, staffId: string): Promise<void>;
   getUnreadStaffNoticesCount(staffId: string): Promise<number>;
@@ -199,24 +267,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async findUserByStaffInfo(staffId: string, staffName: string): Promise<User | undefined> {
-    console.log("🔍 🆕 UPDATED findUserByStaffInfo called with:", { staffId, staffName });
-    
     // パラメータの安全性チェック - null, undefined, 空文字列を厳密にチェック
     if (!staffId || staffId === null || staffId === undefined || typeof staffId !== 'string' || staffId.trim() === '') {
-      console.log("⚠️ Invalid staffId for findUserByStaffInfo:", { staffId, type: typeof staffId });
       return undefined;
     }
 
     // staffNameも安全性チェック
     const safeStaffName = staffName && typeof staffName === 'string' ? staffName.trim() : '';
-    console.log("🔍 Cleaned parameters:", { staffId: staffId.trim(), staffName: safeStaffName });
 
     try {
       // 段階的に検索を試行（最も安全な方法から）
       const cleanStaffId = staffId.trim();
       
       // 1. 正確なemailマッチを試行
-      console.log("🔍 Step 1: Trying exact email match");
       let [user] = await db
         .select()
         .from(users)
@@ -224,25 +287,21 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
       
       if (user) {
-        console.log("✅ Found user by exact email:", user);
         return user;
       }
 
       // 2. staffIdがそのままemailに含まれている場合を検索（likeを使わない方法）
-      console.log("🔍 Step 2: Trying to find users containing staffId in email");
       const allUsers = await db.select().from(users);
       const emailMatchUser = allUsers.find(u => 
         u.email && u.email.includes(cleanStaffId)
       );
       
       if (emailMatchUser) {
-        console.log("✅ Found user by email containing staffId:", emailMatchUser);
         return emailMatchUser;
       }
 
       // 3. staffNameがある場合、名前での検索を試行
       if (safeStaffName && safeStaffName.length > 0) {
-        console.log("🔍 Step 3: Trying name-based search");
         const firstName = safeStaffName.split(' ')[0] || safeStaffName;
         
         if (firstName && firstName.length > 0) {
@@ -253,7 +312,6 @@ export class DatabaseStorage implements IStorage {
             .limit(1);
             
           if (user) {
-            console.log("✅ Found user by firstName:", user);
             return user;
           }
           
@@ -263,13 +321,11 @@ export class DatabaseStorage implements IStorage {
           );
           
           if (nameMatchUser) {
-            console.log("✅ Found user by firstName containing:", nameMatchUser);
             return nameMatchUser;
           }
         }
       }
 
-      console.log("❌ No user found for staffId:", cleanStaffId);
       return undefined;
       
     } catch (error) {
@@ -322,7 +378,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Care record operations
-  async getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<CareRecord[]> {
+  async getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+    id: string;
+    residentId: string;
+    staffId: string;
+    recordDate: Date;
+    category: string;
+    description: string;
+    notes: string | null;
+    createdAt: Date | null;
+  }[]> {
     const conditions = [];
 
     if (residentId) {
@@ -335,7 +400,16 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(careRecords.recordDate, endDate));
     }
 
-    return await db.select()
+    return await db.select({
+      id: careRecords.id,
+      residentId: careRecords.residentId,
+      staffId: careRecords.staffId,
+      recordDate: careRecords.recordDate,
+      category: careRecords.category,
+      description: careRecords.description,
+      notes: careRecords.notes,
+      createdAt: careRecords.createdAt,
+    })
       .from(careRecords)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(careRecords.recordDate));
@@ -356,7 +430,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Nursing record operations
-  async getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<NursingRecord[]> {
+  async getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+    id: string;
+    residentId: string | null;
+    nurseId: string;
+    recordDate: Date;
+    category: string;
+    description: string | null;
+    notes: string | null;
+    interventions: string | null;
+    outcomes: string | null;
+    createdAt: Date | null;
+  }[]> {
     const conditions = [];
 
     if (residentId) {
@@ -369,15 +454,48 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(nursingRecords.recordDate, endDate));
     }
 
-    return await db.select()
+    return await db.select({
+      id: nursingRecords.id,
+      residentId: nursingRecords.residentId,
+      nurseId: nursingRecords.nurseId,
+      recordDate: nursingRecords.recordDate,
+      category: nursingRecords.category,
+      description: nursingRecords.description,
+      notes: nursingRecords.notes,
+      interventions: nursingRecords.interventions,
+      outcomes: nursingRecords.outcomes,
+      createdAt: nursingRecords.createdAt,
+    })
       .from(nursingRecords)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(nursingRecords.recordDate));
   }
 
-  async getNursingRecordById(id: string): Promise<NursingRecord | null> {
+  async getNursingRecordById(id: string): Promise<{
+    id: string;
+    residentId: string | null;
+    nurseId: string;
+    recordDate: Date;
+    category: string;
+    description: string | null;
+    notes: string | null;
+    interventions: string | null;
+    outcomes: string | null;
+    createdAt: Date | null;
+  } | null> {
     const record = await db
-      .select()
+      .select({
+        id: nursingRecords.id,
+        residentId: nursingRecords.residentId,
+        nurseId: nursingRecords.nurseId,
+        recordDate: nursingRecords.recordDate,
+        category: nursingRecords.category,
+        description: nursingRecords.description,
+        notes: nursingRecords.notes,
+        interventions: nursingRecords.interventions,
+        outcomes: nursingRecords.outcomes,
+        createdAt: nursingRecords.createdAt,
+      })
       .from(nursingRecords)
       .where(eq(nursingRecords.id, id))
       .limit(1);
@@ -432,7 +550,7 @@ export class DatabaseStorage implements IStorage {
   async updateVitalSigns(id: string, data: Partial<InsertVitalSigns>): Promise<VitalSigns> {
     const [record] = await db
       .update(vitalSigns)
-      .set({ ...data, updatedAt: new Date() })
+      .set(data) // dataに含まれるupdatedAtを使用
       .where(eq(vitalSigns.id, id))
       .returning();
     return record;
@@ -592,7 +710,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Excretion record operations
-  async getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<ExcretionRecord[]> {
+  async getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+    id: string;
+    residentId: string;
+    staffId: string;
+    recordDate: Date;
+    type: string;
+    consistency: string | null;
+    amount: string | null;
+    urineVolumeCc: number | null;
+    assistance: string | null;
+    notes: string | null;
+    createdAt: Date | null;
+  }[]> {
     const conditions = [];
 
     if (residentId) {
@@ -605,7 +735,19 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(excretionRecords.recordDate, endDate));
     }
 
-    return await db.select()
+    return await db.select({
+      id: excretionRecords.id,
+      residentId: excretionRecords.residentId,
+      staffId: excretionRecords.staffId,
+      recordDate: excretionRecords.recordDate,
+      type: excretionRecords.type,
+      consistency: excretionRecords.consistency,
+      amount: excretionRecords.amount,
+      urineVolumeCc: excretionRecords.urineVolumeCc,
+      assistance: excretionRecords.assistance,
+      notes: excretionRecords.notes,
+      createdAt: excretionRecords.createdAt,
+    })
       .from(excretionRecords)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(excretionRecords.recordDate));
@@ -653,7 +795,7 @@ export class DatabaseStorage implements IStorage {
   async updateWeightRecord(id: string, record: Partial<InsertWeightRecord>): Promise<WeightRecord> {
     const [updatedRecord] = await db
       .update(weightRecords)
-      .set({ ...record, updatedAt: new Date() })
+      .set(record) // recordに含まれるupdatedAtを使用
       .where(eq(weightRecords.id, id))
       .returning();
     return updatedRecord;
@@ -694,9 +836,29 @@ export class DatabaseStorage implements IStorage {
 
 
   // Round record operations
-  async getRoundRecords(recordDate: Date): Promise<RoundRecord[]> {
+  async getRoundRecords(recordDate: Date): Promise<{
+    id: string;
+    residentId: string;
+    recordDate: string;
+    hour: number;
+    recordType: string;
+    staffName: string;
+    positionValue: string | null;
+    createdBy: string;
+    createdAt: Date | null;
+  }[]> {
     const formattedDate = recordDate.toISOString().split('T')[0];
-    return await db.select().from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
+    return await db.select({
+      id: roundRecords.id,
+      residentId: roundRecords.residentId,
+      recordDate: roundRecords.recordDate,
+      hour: roundRecords.hour,
+      recordType: roundRecords.recordType,
+      staffName: roundRecords.staffName,
+      positionValue: roundRecords.positionValue,
+      createdBy: roundRecords.createdBy,
+      createdAt: roundRecords.createdAt,
+    }).from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
   }
 
   async createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord> {
@@ -747,11 +909,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
       .where(and(...conditions));
       
-    console.log('Raw results from DB:', JSON.stringify(results, null, 2));
-
     const flattenedResults = results;
-
-    console.log('Final flattened results on server:', JSON.stringify(flattenedResults, null, 2));
     return flattenedResults;
   }
 
@@ -785,7 +943,7 @@ export class DatabaseStorage implements IStorage {
           notes: sql`EXCLUDED.notes`,
           result: sql`EXCLUDED.result`,
           createdBy: sql`EXCLUDED.created_by`,
-          updatedAt: sql`NOW()`
+          updatedAt: sql`EXCLUDED.updated_at`
         }
       })
       .returning();
@@ -861,7 +1019,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(staffNotices.id, id));
   }
 
-  async getStaffNoticeReadStatus(noticeId: string): Promise<StaffNoticeReadStatus[]> {
+  async getStaffNoticeReadStatus(noticeId: string): Promise<{
+    id: string;
+    noticeId: string;
+    staffId: string;
+    readAt: Date | null;
+    createdAt: Date | null;
+    staffName: string | null;
+    staffLastName: string | null;
+  }[]> {
     return await db.select({
       id: staffNoticeReadStatus.id,
       noticeId: staffNoticeReadStatus.noticeId,
@@ -1013,9 +1179,15 @@ export class DatabaseStorage implements IStorage {
 
   async updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord> {
     const updateData: any = {
-      ...record,
-      updatedAt: new Date()
+      ...record
     };
+    
+    // updatedAtフィールドが設定されていない場合のみJST時刻を設定
+    if (!updateData.updatedAt) {
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      updateData.updatedAt = new Date(now.getTime() + jstOffset);
+    }
     
     if (record.recordDate) {
       updateData.recordDate = record.recordDate.toISOString().split('T')[0];
@@ -1057,7 +1229,11 @@ export class DatabaseStorage implements IStorage {
           recordNote: record.recordNote,
           recordTime: hasContentChange ? recordTime : existing[0].recordTime, // 内容変更時のみrecordTimeを更新
           staffId: record.staffId,
-          updatedAt: new Date(),
+          updatedAt: (record as any).updatedAt || (() => {
+            const now = new Date();
+            const jstOffset = 9 * 60 * 60 * 1000;
+            return new Date(now.getTime() + jstOffset);
+          })(), // JST時刻で更新
         })
         .where(eq(cleaningLinenRecords.id, existing[0].id))
         .returning();
@@ -1219,14 +1395,8 @@ export class DatabaseStorage implements IStorage {
 
   // Meals Medication operations (新スキーマ)
   async getMealsMedication(recordDate: string, mealTime: string, floor: string): Promise<any[]> {
-    console.log(`📋 getMealsMedication called with:`, {
-      recordDate,
-      mealTime,
-      floor
-    });
     
     const targetDate = new Date(recordDate + 'T00:00:00');
-    console.log(`📅 Target date:`, targetDate);
     
     let whereConditions = and(
       eq(mealsAndMedication.recordDate, targetDate),
@@ -1235,7 +1405,6 @@ export class DatabaseStorage implements IStorage {
 
     // mealTimeが指定されている場合は条件に追加
     if (mealTime && mealTime !== 'all') {
-      console.log(`🍽️ Filtering by mealTime: ${mealTime}`);
       whereConditions = and(
         whereConditions,
         eq(mealsAndMedication.mealType, mealTime)
@@ -1243,7 +1412,6 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (floor !== 'all') {
-      console.log(`🏢 Filtering by floor: ${floor}`);
       whereConditions = and(
         whereConditions,
         eq(residents.floor, floor)
@@ -1273,8 +1441,6 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(residents, eq(mealsAndMedication.residentId, residents.id))
       .where(whereConditions);
 
-    console.log(`🔍 Query results count: ${results.length}`);
-    console.log(`📊 Raw results:`, JSON.stringify(results, null, 2));
     
     return results;
   }
@@ -1332,21 +1498,20 @@ export class DatabaseStorage implements IStorage {
   async getDailyRecords(date: string, recordTypes?: string[], includeNextDay?: boolean): Promise<any[]> {
     const allRecords: any[] = [];
     
-    // JST時刻として日付範囲を設定
-    // dateはyyyy-mm-dd形式の文字列
-    const startDate = new Date(`${date}T00:00:00+09:00`);
+    // DBがJST設定なので、ローカル時刻として日付範囲を設定
+    const startDate = new Date(`${date}T00:00:00`);
     let endDate: Date;
     
     // includeNextDayがtrueの場合、翌日の8:30までの記録も含める
     if (includeNextDay) {
-      const nextDate = new Date(startDate);
-      nextDate.setDate(nextDate.getDate() + 1);
-      endDate = new Date(`${nextDate.toISOString().split('T')[0]}T08:30:59+09:00`);
+      const targetDate = new Date(date);
+      targetDate.setDate(targetDate.getDate() + 1);
+      const nextDateStr = targetDate.toISOString().split('T')[0];
+      endDate = new Date(`${nextDateStr}T08:30:59`);
     } else {
-      endDate = new Date(`${date}T23:59:59+09:00`);
+      endDate = new Date(`${date}T23:59:59`);
     }
     
-    console.log(`📅 getDailyRecords - date: ${date}, startDate: ${startDate.toISOString()}, endDate: ${endDate.toISOString()}`);
     
     // residentデータを先に取得してキャッシュ
     const residentsData = await this.getResidents();
@@ -1407,7 +1572,6 @@ export class DatabaseStorage implements IStorage {
     // 介護記録
     if (!recordTypes || recordTypes.includes('様子')) {
       try {
-        console.log('👀 介護記録取得開始:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
         const careRecordsData = await db
           .select({
             id: careRecords.id,
@@ -1424,13 +1588,6 @@ export class DatabaseStorage implements IStorage {
             lte(careRecords.recordDate, endDate)
           ));
 
-        console.log('👀 取得した介護記録件数:', careRecordsData.length);
-        console.log('👀 取得した介護記録詳細:', careRecordsData.map(r => ({
-          id: r.id,
-          recordDate: r.recordDate,
-          recordDateISO: new Date(r.recordDate).toISOString(),
-          description: r.description?.substring(0, 30)
-        })));
 
         careRecordsData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
@@ -1439,13 +1596,20 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
+            // DBから取得したJST時刻をそのまま使用（タイムゾーンオフセットなし）
+            const recordDate = new Date(record.recordDate);
+            
+            // DBの値が既にJST時刻（11:45）として正しく保存されているので、
+            // toISOString()でUTC表記にしてZを+09:00に置換するだけ
+            const jstTimeString = recordDate.toISOString().replace('Z', '+09:00');
+            
             allRecords.push({
               id: record.id,
               recordType: '様子',
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: record.recordDate,
+              recordTime: jstTimeString,
               content: record.description,
               staffName: finalStaffName,
               createdAt: record.createdAt,
@@ -1461,19 +1625,103 @@ export class DatabaseStorage implements IStorage {
     // 食事記録 - スタンプされている記録のみ表示
     if (!recordTypes || recordTypes.includes('食事')) {
       try {
+        // 基本的な食事記録取得（朝食は除外 - 別途専用処理）
         const mealsData = await db
-          .select()
+          .select({
+            id: mealsAndMedication.id,
+            residentId: mealsAndMedication.residentId,
+            staffId: mealsAndMedication.staffId,
+            recordDate: mealsAndMedication.recordDate,
+            type: mealsAndMedication.type,
+            mealType: mealsAndMedication.mealType,
+            mainAmount: mealsAndMedication.mainAmount,
+            sideAmount: mealsAndMedication.sideAmount,
+            waterIntake: mealsAndMedication.waterIntake,
+            supplement: mealsAndMedication.supplement,
+            staffName: mealsAndMedication.staffName,
+            notes: mealsAndMedication.notes,
+            createdAt: mealsAndMedication.createdAt,
+          })
           .from(mealsAndMedication)
           .where(and(
             gte(mealsAndMedication.recordDate, startDate),
             lte(mealsAndMedication.recordDate, endDate),
             eq(mealsAndMedication.type, 'meal'),
+            not(eq(mealsAndMedication.mealType, '朝')), // 朝食は除外
             // スタンプされている記録のみ
             isNotNull(mealsAndMedication.staffName),
             not(eq(mealsAndMedication.staffName, ''))
           ));
+        
+        // 朝食記録を別途取得
+        let breakfastData: any[] = [];
+        if (includeNextDay) {
+          // 夜間フィルタの場合、翌日の朝食記録を取得
+          const nextDayStart = new Date(endDate);
+          nextDayStart.setHours(0, 0, 0, 0);
+          const nextDayEnd = new Date(endDate);
+          nextDayEnd.setHours(23, 59, 59, 999);
+          
+          breakfastData = await db
+            .select({
+              id: mealsAndMedication.id,
+              residentId: mealsAndMedication.residentId,
+              staffId: mealsAndMedication.staffId,
+              recordDate: mealsAndMedication.recordDate,
+              type: mealsAndMedication.type,
+              mealType: mealsAndMedication.mealType,
+              mainAmount: mealsAndMedication.mainAmount,
+              sideAmount: mealsAndMedication.sideAmount,
+              waterIntake: mealsAndMedication.waterIntake,
+              supplement: mealsAndMedication.supplement,
+              staffName: mealsAndMedication.staffName,
+              notes: mealsAndMedication.notes,
+              createdAt: mealsAndMedication.createdAt,
+            })
+            .from(mealsAndMedication)
+            .where(and(
+              gte(mealsAndMedication.recordDate, nextDayStart),
+              lte(mealsAndMedication.recordDate, nextDayEnd),
+              eq(mealsAndMedication.type, 'meal'),
+              eq(mealsAndMedication.mealType, '朝'),
+              // スタンプされている記録のみ
+              isNotNull(mealsAndMedication.staffName),
+              not(eq(mealsAndMedication.staffName, ''))
+            ));
+        } else {
+          // 日中/夜間フィルタの場合、当日の朝食記録を取得
+          breakfastData = await db
+            .select({
+              id: mealsAndMedication.id,
+              residentId: mealsAndMedication.residentId,
+              staffId: mealsAndMedication.staffId,
+              recordDate: mealsAndMedication.recordDate,
+              type: mealsAndMedication.type,
+              mealType: mealsAndMedication.mealType,
+              mainAmount: mealsAndMedication.mainAmount,
+              sideAmount: mealsAndMedication.sideAmount,
+              waterIntake: mealsAndMedication.waterIntake,
+              supplement: mealsAndMedication.supplement,
+              staffName: mealsAndMedication.staffName,
+              notes: mealsAndMedication.notes,
+              createdAt: mealsAndMedication.createdAt,
+            })
+            .from(mealsAndMedication)
+            .where(and(
+              gte(mealsAndMedication.recordDate, startDate),
+              lte(mealsAndMedication.recordDate, endDate),
+              eq(mealsAndMedication.type, 'meal'),
+              eq(mealsAndMedication.mealType, '朝'),
+              // スタンプされている記録のみ
+              isNotNull(mealsAndMedication.staffName),
+              not(eq(mealsAndMedication.staffName, ''))
+            ));
+        }
+        
+        // 両方の結果をマージ
+        const allMealsData = [...mealsData, ...breakfastData];
 
-        mealsData.forEach(record => {
+        allMealsData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
           if (resident) {
             const content = record.notes || '';
@@ -1481,9 +1729,8 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(record.staffId);
             const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
             
-            // 食事タイミングに応じた時刻マッピング
+            // 食事タイミングに応じた時刻マッピング（JST基準）
             const getMealTime = (timing: string) => {
-              const JST_OFFSET = '+09:00';
               let hour = 12, minute = 0;
 
               switch (timing) {
@@ -1494,9 +1741,20 @@ export class DatabaseStorage implements IStorage {
                 case '夕': hour = 18; minute = 0; break;
               }
 
-              const jstDateString = `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${JST_OFFSET}`;
-              return new Date(jstDateString);
+              // recordDateから日付部分を取得し、指定時刻を設定
+              const recordDateObj = new Date(record.recordDate);
+              const year = recordDateObj.getFullYear();
+              const month = recordDateObj.getMonth();
+              const day = recordDateObj.getDate();
+              
+              return new Date(year, month, day, hour, minute, 0);
             };
+            
+            const mealTime = getMealTime(record.mealType || '昼');
+            
+            // JST時刻をJST表記で送信（+09:00付き）
+            const jstTimeString = mealTime.toISOString().replace('Z', '+09:00');
+            
             
             allRecords.push({
               id: record.id,
@@ -1504,7 +1762,7 @@ export class DatabaseStorage implements IStorage {
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: getMealTime(record.mealType || '昼'),
+              recordTime: jstTimeString,
               content,
               staffName: finalStaffName,
               createdAt: record.createdAt,
@@ -1542,6 +1800,9 @@ export class DatabaseStorage implements IStorage {
             
             // 頓服の場合は作成日時を使用、その他は固定時刻を使用
             const recordTime = record.timing === '頓服' ? record.createdAt : getMedicationTime(record.timing);
+            
+            // JST時刻をJST表記で送信（+09:00付き）
+            const jstTimeString = new Date(recordTime || new Date()).toISOString().replace('Z', '+09:00');
 
             allRecords.push({
               id: record.id,
@@ -1549,7 +1810,7 @@ export class DatabaseStorage implements IStorage {
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: recordTime,
+              recordTime: jstTimeString,
               content: `${record.timing}: ${content}`,
               staffName: finalStaffName,
               createdAt: record.createdAt,
@@ -1600,18 +1861,9 @@ export class DatabaseStorage implements IStorage {
 
             // バイタル一覧画面と同じ記録日時の表示を作成
             let recordTimeDisplay = record.recordDate;
-            console.log(`🔍 バイタル記録の時刻情報:`, {
-              id: record.id,
-              timing: record.timing,
-              hour: record.hour,
-              minute: record.minute,
-              recordDate: record.recordDate
-            });
             
             if (record.timing && record.hour !== null && record.minute !== null) {
               // timing + 時:分 の形式で表示
-              console.log(`🕐 時刻設定前 - baseDate:`, new Date(record.recordDate));
-              console.log(`🕐 時刻設定前 - hour:${record.hour}, minute:${record.minute}`);
               
               // JST での日時文字列を直接作成してからDateオブジェクト化
               const baseDate = new Date(record.recordDate);
@@ -1625,24 +1877,22 @@ export class DatabaseStorage implements IStorage {
               const jstDateString = `${year}-${month}-${day}T${hour}:${minute}:00+09:00`;
               recordTimeDisplay = new Date(jstDateString);
               
-              console.log(`🎯 JST文字列:`, jstDateString);
-              console.log(`✅ 作成した記録時刻:`, recordTimeDisplay);
-              console.log(`✅ 表示用時刻文字列:`, recordTimeDisplay.toLocaleString('ja-JP'));
             } else if (record.timing) {
               // timingのみの場合はrecordDateを使用
               recordTimeDisplay = record.recordDate;
-              console.log(`⚠️ timing のみ利用:`, recordTimeDisplay);
             } else {
-              console.log(`❌ 時刻情報なし、recordDate使用:`, recordTimeDisplay);
             }
 
+            // JST時刻をJST表記で送信（+09:00付き）
+            const jstTimeString = new Date(recordTimeDisplay).toISOString().replace('Z', '+09:00');
+            
             allRecords.push({
               id: record.id,
               recordType: 'バイタル',
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: recordTimeDisplay,
+              recordTime: jstTimeString,
               timing: record.timing, // バイタル一覧との互換性のため追加
               hour: record.hour,     // バイタル一覧との互換性のため追加  
               minute: record.minute, // バイタル一覧との互換性のため追加
@@ -1668,7 +1918,19 @@ export class DatabaseStorage implements IStorage {
         extendedStartDate.setDate(extendedStartDate.getDate() - 1); // 前日も含める
         
         const excretionNotesData = await db
-          .select()
+          .select({
+            id: excretionRecords.id,
+            residentId: excretionRecords.residentId,
+            staffId: excretionRecords.staffId,
+            recordDate: excretionRecords.recordDate,
+            type: excretionRecords.type,
+            consistency: excretionRecords.consistency,
+            amount: excretionRecords.amount,
+            urineVolumeCc: excretionRecords.urineVolumeCc,
+            assistance: excretionRecords.assistance,
+            notes: excretionRecords.notes,
+            createdAt: excretionRecords.createdAt,
+          })
           .from(excretionRecords)
           .where(and(
             gte(excretionRecords.recordDate, extendedStartDate),
@@ -1678,7 +1940,19 @@ export class DatabaseStorage implements IStorage {
 
         // 同日の全排泄データも取得（便記録・尿記録）
         const allExcretionData = await db
-          .select()
+          .select({
+            id: excretionRecords.id,
+            residentId: excretionRecords.residentId,
+            staffId: excretionRecords.staffId,
+            recordDate: excretionRecords.recordDate,
+            type: excretionRecords.type,
+            consistency: excretionRecords.consistency,
+            amount: excretionRecords.amount,
+            urineVolumeCc: excretionRecords.urineVolumeCc,
+            assistance: excretionRecords.assistance,
+            notes: excretionRecords.notes,
+            createdAt: excretionRecords.createdAt,
+          })
           .from(excretionRecords)
           .where(and(
             gte(excretionRecords.recordDate, startDate),
@@ -1792,13 +2066,16 @@ export class DatabaseStorage implements IStorage {
               formattedEntries
             };
             
+            // JST時刻をJST表記で送信（+09:00付き）
+            const jstTimeString = new Date(recordTime).toISOString().replace('Z', '+09:00');
+            
             allRecords.push({
               id: notesRecord?.id || `excretion-${residentId}`,
               recordType: '排泄',
               residentId: residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: recordTime,
+              recordTime: jstTimeString,
               content,
               staffName: finalStaffName,
               createdAt: notesRecord?.createdAt || new Date(),
@@ -1850,13 +2127,16 @@ export class DatabaseStorage implements IStorage {
               }
             }
 
+            // JST時刻をJST表記で送信（+09:00付き）
+            const jstTimeString = new Date(recordTime).toISOString().replace('Z', '+09:00');
+            
             allRecords.push({
               id: record.id,
               recordType: '清掃リネン',
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: recordTime,
+              recordTime: jstTimeString,
               content: content.trim(),
               staffName: finalStaffName, 
               createdAt: record.createdAt,
@@ -1913,13 +2193,16 @@ export class DatabaseStorage implements IStorage {
               }
             }
 
+            // JST時刻をJST表記で送信（+09:00付き）
+            const jstTimeString = new Date(recordTime).toISOString().replace('Z', '+09:00');
+            
             allRecords.push({
               id: record.id,
               recordType: '体重',
               residentId: record.residentId,
               roomNumber: resident.roomNumber,
               residentName: resident.name,
-              recordTime: recordTime,
+              recordTime: jstTimeString,
               content: content.trim(),
               staffName: record.staffName,
               createdAt: record.createdAt,
@@ -1939,7 +2222,18 @@ export class DatabaseStorage implements IStorage {
         
         // 看護記録を取得
         const nursingData = await db
-          .select()
+          .select({
+            id: nursingRecords.id,
+            residentId: nursingRecords.residentId,
+            nurseId: nursingRecords.nurseId,
+            recordDate: nursingRecords.recordDate,
+            category: nursingRecords.category,
+            description: nursingRecords.description,
+            notes: nursingRecords.notes,
+            interventions: nursingRecords.interventions,
+            outcomes: nursingRecords.outcomes,
+            createdAt: nursingRecords.createdAt,
+          })
           .from(nursingRecords)
           .where(and(
             gte(nursingRecords.recordDate, startDate),
@@ -1950,8 +2244,6 @@ export class DatabaseStorage implements IStorage {
         const allUsers = await db.select().from(users);
         const usersMap = new Map(allUsers.map(user => [user.id, user.firstName || user.email || user.id]));
         
-        console.log(`看護記録取得結果: ${nursingData.length}件`);
-        
         // 処置関連の記録を特別にログ出力
         const treatmentRecords = nursingData.filter(r => 
           r.category === '処置' || 
@@ -1959,10 +2251,6 @@ export class DatabaseStorage implements IStorage {
           (r.notes && r.interventions) ||
           r.description?.includes('処置')
         );
-        console.log(`処置関連記録数: ${treatmentRecords.length}件`);
-        treatmentRecords.forEach(r => {
-          console.log(`  処置記録: ID=${r.id}, category="${r.category}", notes="${r.notes}", interventions="${r.interventions}"`);
-        });
 
         nursingData.forEach(record => {
           const resident = record.residentId ? residentsMap.get(record.residentId) : null;
@@ -2018,13 +2306,16 @@ export class DatabaseStorage implements IStorage {
             content = record.description || '';
           }
 
+          // JST時刻をJST表記で送信（+09:00付き）
+          const jstTimeString = new Date(record.recordDate).toISOString().replace('Z', '+09:00');
+          
           allRecords.push({
             id: record.id,
             recordType,
             residentId: record.residentId,
             roomNumber: resident?.roomNumber || '',
             residentName: resident?.name || '全体',
-            recordTime: record.recordDate,
+            recordTime: jstTimeString,
             content: content.trim(),
             staffName: staffName, // 職員名を表示
             createdAt: record.createdAt,
@@ -2040,6 +2331,52 @@ export class DatabaseStorage implements IStorage {
     allRecords.sort((a, b) => new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime());
 
     return allRecords;
+  }
+
+  // Journal checkbox operations
+  async getJournalCheckboxes(recordDate: string): Promise<JournalCheckbox[]> {
+    return await db.select()
+      .from(journalCheckboxes)
+      .where(eq(journalCheckboxes.recordDate, recordDate));
+  }
+
+  async upsertJournalCheckbox(
+    recordId: string,
+    recordType: string,
+    checkboxType: string,
+    isChecked: boolean,
+    recordDate: string
+  ): Promise<void> {
+    // 既存のチェック状態を取得
+    const existing = await db.select()
+      .from(journalCheckboxes)
+      .where(
+        and(
+          eq(journalCheckboxes.recordId, recordId),
+          eq(journalCheckboxes.recordType, recordType),
+          eq(journalCheckboxes.checkboxType, checkboxType),
+          eq(journalCheckboxes.recordDate, recordDate)
+        )
+      );
+
+    if (existing.length > 0) {
+      // 更新
+      await db.update(journalCheckboxes)
+        .set({
+          isChecked: isChecked,
+          updatedAt: new Date()
+        })
+        .where(eq(journalCheckboxes.id, existing[0].id));
+    } else {
+      // 新規作成
+      await db.insert(journalCheckboxes).values({
+        recordId,
+        recordType,
+        checkboxType,
+        isChecked,
+        recordDate
+      });
+    }
   }
 }
 

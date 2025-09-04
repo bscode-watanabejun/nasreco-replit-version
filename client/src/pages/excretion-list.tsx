@@ -727,9 +727,11 @@ export default function ExcretionList() {
       const existingId = existingIds[existingIdField];
       
       // 自立データの場合、hour は -1 なので現在時刻を使用
-      const recordDateTime = hour === -1 ? new Date() : (() => {
+      const recordDateTime = (() => {
         const dt = new Date(selectedDate);
-        dt.setHours(hour, 0, 0, 0);
+        // hour=-1（自立）の場合は12時、それ以外は指定時間
+        const saveHour = hour === -1 ? 12 : hour;
+        dt.setHours(saveHour, 0, 0, 0);
         return dt;
       })();
       
@@ -738,7 +740,7 @@ export default function ExcretionList() {
         recordDate: recordDateTime.toISOString(),
         type: type === 'stool' ? 'bowel_movement' : 'urination',
         assistance: value,
-        notes: `${hour === -1 ? '自立' : hour + '時'}の${type === 'stool' ? '便' : '尿'}記録`
+        notes: hour === -1 ? '' : `${hour}時の${type === 'stool' ? '便' : '尿'}記録`
       };
       
       if (existingId) {
@@ -1040,7 +1042,7 @@ export default function ExcretionList() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -1064,8 +1066,7 @@ export default function ExcretionList() {
       </div>
 
       {/* フィルタ条件 */}
-      <div className="px-4">
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
         <div className="flex gap-2 sm:gap-4 items-center justify-center">
           {/* 日付選択 */}
           <div className="flex items-center space-x-1">
@@ -1097,7 +1098,6 @@ export default function ExcretionList() {
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-        </div>
         </div>
       </div>
 

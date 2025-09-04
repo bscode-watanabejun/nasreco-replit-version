@@ -118,7 +118,8 @@ export default function Rounds() {
     queryKey: ['/api/round-records', selectedDate],
     queryFn: async () => {
       const response = await fetch(`/api/round-records?recordDate=${selectedDate}`);
-      return response.json();
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -126,9 +127,9 @@ export default function Rounds() {
   const residentIds = residents.map(r => r.id);
   
   // ラウンド記録を選択された階数の利用者に絞り込み
-  const roundRecords = allRoundRecords.filter(record => 
+  const roundRecords = Array.isArray(allRoundRecords) ? allRoundRecords.filter(record => 
     residentIds.includes(record.residentId)
-  );
+  ) : [];
 
   // ラウンド記録作成のミューテーション
   const createRoundMutation = useMutation({
@@ -161,8 +162,66 @@ export default function Rounds() {
       });
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/round-records', selectedDate] });
+    onMutate: async (newRecord) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/round-records', selectedDate] });
+      
+      // 現在のデータのスナップショットを取得
+      const queryKey = ['/api/round-records', selectedDate];
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      // 楽観的に新規レコードを追加
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        
+        // 新しいラウンド記録を作成（一時的なIDを付与）
+        const optimisticRecord = {
+          id: `temp-${Date.now()}`,
+          residentId: newRecord.residentId,
+          recordDate: selectedDate,
+          hour: newRecord.hour,
+          recordType: newRecord.recordType,
+          positionValue: newRecord.positionValue,
+          staffName: (() => {
+            if ((user as any)?.staffName) {
+              return (user as any).staffName.charAt(0);
+            }
+            if ((user as any)?.firstName) {
+              return (user as any).firstName.charAt(0);
+            }
+            return '?';
+          })(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        return [...old, optimisticRecord];
+      });
+      
+      return { previousData };
+    },
+    onError: (_, __, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(['/api/round-records', selectedDate], context.previousData);
+      }
+    },
+    onSuccess: (serverRecord, variables, context) => {
+      // 成功時は一時的なレコードを実際のサーバーレコードに置き換え
+      queryClient.setQueryData(['/api/round-records', selectedDate], (old: any) => {
+        if (!old) return old;
+        
+        return old.map((record: any) => {
+          // 一時IDのレコードを実際のサーバーレコードに置き換え
+          if (record.id?.startsWith('temp-') && 
+              record.residentId === variables.residentId && 
+              record.hour === variables.hour &&
+              record.recordType === variables.recordType) {
+            return serverRecord;
+          }
+          return record;
+        });
+      });
     },
   });
 
@@ -172,8 +231,30 @@ export default function Rounds() {
       const response = await fetch(`/api/round-records/${id}`, { method: 'DELETE' });
       return response.json();
     },
+    onMutate: async (deletedId) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/round-records', selectedDate] });
+      
+      // 現在のデータのスナップショットを取得
+      const queryKey = ['/api/round-records', selectedDate];
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      // 楽観的に削除
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.filter((record: any) => record.id !== deletedId);
+      });
+      
+      return { previousData };
+    },
+    onError: (_, __, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(['/api/round-records', selectedDate], context.previousData);
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/round-records', selectedDate] });
+      // 削除が成功したので何もしない（楽観的更新で既に削除済み）
     },
   });
 
@@ -250,8 +331,8 @@ export default function Rounds() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-2">
+      {/* ヘッダー - Fixed */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sticky top-0 z-50">
         <div className="flex items-center gap-2 mb-2">
           <Button
             variant="ghost"
@@ -271,12 +352,10 @@ export default function Rounds() {
           <h1 className="text-xl font-bold text-slate-800">ラウンド一覧</h1>
         </div>
       </div>
-      
-      <div className="max-w-full mx-auto p-1">
 
-        {/* 日付とフロア選択 */}
-        <div className="bg-white rounded-lg p-1 mb-2 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {/* Filter Controls - Fixed */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -284,7 +363,7 @@ export default function Rounds() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
             
@@ -314,14 +393,15 @@ export default function Rounds() {
                 ]}
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="フロア選択"
-                className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
 
 
           </div>
-        </div>
+      </div>
 
+      <div className="max-w-full mx-auto px-1 pb-1">
         {/* ラウンド記録テーブル */}
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -330,13 +410,11 @@ export default function Rounds() {
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="sticky left-0 bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 text-left min-w-[70px] z-20">
-                      <div className="text-[9px] text-gray-600">部屋</div>
-                      <div className="text-[9px] text-gray-600">名前</div>
                     </th>
                     <th className="sticky left-[70px] bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 min-w-[30px] z-10"></th>
                     {hours.map(hour => (
                       <th key={hour} className="border-r border-gray-200 px-0.5 py-0.5 min-w-[30px]">
-                        <div className="text-[9px] text-gray-600">{hour}</div>
+                        <div className="text-sm font-bold text-gray-700">{hour}</div>
                       </th>
                     ))}
                   </tr>

@@ -242,7 +242,6 @@ export default function NursingRecords() {
     if (nursingRecords && Array.isArray(nursingRecords)) {
       // 開発時のみログ出力
       if (process.env.NODE_ENV === 'development') {
-        console.log("看護記録データを取得:", nursingRecords.length, "件");
       }
     }
   }, [nursingRecords]);
@@ -261,20 +260,8 @@ export default function NursingRecords() {
 
   // デバッグ: ユーザー情報をログ出力
   useEffect(() => {
-    console.log("=== User debug info ===");
-    console.log("currentUser:", currentUser);
-    console.log("staffUser:", staffUser);
-    console.log("effectiveUser:", effectiveUser);
-    console.log("effectiveUser keys:", effectiveUser ? Object.keys(effectiveUser) : "no keys");
     if (effectiveUser) {
-      console.log("firstName:", effectiveUser.firstName);
-      console.log("email:", effectiveUser.email);
-      console.log("staffName:", (effectiveUser as any).staffName);
-      console.log("id:", effectiveUser.id);
-      console.log("userId:", (effectiveUser as any).userId);
-      console.log("nurseId to use:", (effectiveUser as any).userId || effectiveUser.id);
     }
-    console.log("=======================");
   }, [currentUser, staffUser, effectiveUser]);
 
   // 利用者の添付ファイルを取得
@@ -328,18 +315,13 @@ export default function NursingRecords() {
 
   const createMutation = useMutation({
     mutationFn: async (data: NursingRecordForm) => {
-      const nurseId = (effectiveUser as any)?.userId || effectiveUser?.id;
+      const nurseId = (effectiveUser as any)?.userId || (effectiveUser as any)?.id;
       const payload = {
         ...data,
         nurseId: nurseId,
         recordDate: new Date(data.recordDate),
       };
       
-      console.log("=== Frontend sending nursing record ===");
-      console.log("effectiveUser:", effectiveUser);
-      console.log("nurseId to send:", nurseId);
-      console.log("Full payload:", payload);
-      console.log("===========================================");
       
       await apiRequest("/api/nursing-records", "POST", payload);
     },
@@ -597,7 +579,6 @@ export default function NursingRecords() {
       return;
     }
     
-    console.log("Effective user info:", effectiveUser);
     
     // 現在時刻を取得
     const now = new Date();
@@ -620,7 +601,7 @@ export default function NursingRecords() {
     const newBlock = {
       id: `${selectedResident.id}-${Date.now()}`,
       residentId: selectedResident.id,
-      nurseId: (effectiveUser as any).userId || effectiveUser.id, // 職員ログイン時はuserId、通常ログイン時はidを使用
+      nurseId: (effectiveUser as any).userId || (effectiveUser as any).id, // 職員ログイン時はuserId、通常ログイン時はidを使用
       category: "看護記録",
       recordDate: recordDate.toISOString(),
       description: "",
@@ -669,7 +650,7 @@ export default function NursingRecords() {
     const newBlock = {
       id: `medical-${selectedResident.id}-${Date.now()}`,
       residentId: selectedResident.id,
-      nurseId: (effectiveUser as any).userId || effectiveUser.id, // 職員ログイン時はuserId、通常ログイン時はidを使用
+      nurseId: (effectiveUser as any).userId || (effectiveUser as any).id, // 職員ログイン時はuserId、通常ログイン時はidを使用
       category: "医療記録",
       recordDate: recordDate.toISOString(),
       description: "",
@@ -718,7 +699,7 @@ export default function NursingRecords() {
     const newBlock = {
       id: `treatment-${selectedResident.id}-${Date.now()}`,
       residentId: selectedResident.id,
-      nurseId: (effectiveUser as any).userId || effectiveUser.id, // 職員ログイン時はuserId、通常ログイン時はidを使用
+      nurseId: (effectiveUser as any).userId || (effectiveUser as any).id, // 職員ログイン時はuserId、通常ログイン時はidを使用
       category: "処置",
       recordDate: recordDate.toISOString(),
       description: "",
@@ -790,7 +771,6 @@ export default function NursingRecords() {
     
     // 開発時のみデバッグ情報を出力
     if (process.env.NODE_ENV === 'development') {
-      console.log(`看護記録ソート: ${filtered.length}件 (${selectedDate})`);
     }
   }, [nursingRecords, selectedDate, selectedResident?.id]);
 
@@ -814,7 +794,6 @@ export default function NursingRecords() {
     
     // 開発時のみデバッグ情報を出力
     if (process.env.NODE_ENV === 'development') {
-      console.log(`医療記録ソート: ${filtered.length}件 (${selectedDate})`);
     }
   }, [nursingRecords, selectedDate, selectedResident?.id]);
 
@@ -838,7 +817,6 @@ export default function NursingRecords() {
     
     // 開発時のみデバッグ情報を出力
     if (process.env.NODE_ENV === 'development') {
-      console.log(`処置ソート: ${filtered.length}件 (${selectedDate})`);
     }
   }, [nursingRecords, selectedDate, selectedResident?.id]);
 
@@ -1276,8 +1254,8 @@ export default function NursingRecords() {
           <div className="text-center mb-3">
             <h1 className="text-xl font-bold text-slate-800">看護記録</h1>
           </div>
-          <div className="bg-white rounded-lg p-2 mb-3 shadow-sm">
-            <div className="flex gap-2 sm:gap-4 items-center justify-center">
+          <div className="bg-white p-3 shadow-sm border-b">
+            <div className="flex gap-2 items-center justify-center flex-wrap">
               {/* 日付選択 */}
               <div className="flex items-center space-x-1">
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -1285,7 +1263,7 @@ export default function NursingRecords() {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                  className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
                 />
               </div>
             </div>
@@ -1401,7 +1379,7 @@ export default function NursingRecords() {
                                   recordDate: new Date(block.recordDate).toISOString(),
                                   category: 'observation',
                                   description: e.target.value,
-                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
+                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -1699,7 +1677,7 @@ export default function NursingRecords() {
                                   recordDate: new Date(block.recordDate).toISOString(),
                                   category: '医療記録',
                                   description: e.target.value,
-                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
+                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -2002,7 +1980,7 @@ export default function NursingRecords() {
                                   category: '処置',
                                   description: description,
                                   notes: e.target.value,
-                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
+                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -2043,7 +2021,7 @@ export default function NursingRecords() {
                                   category: '処置',
                                   description: e.target.value,
                                   notes: notes,
-                                  nurseId: (effectiveUser as any)?.userId || effectiveUser?.id,
+                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
                                 };
                                 createMutation.mutate(submitData, {
                                   onSuccess: () => {
@@ -2461,7 +2439,7 @@ export default function NursingRecords() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-green-50 to-emerald-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -2480,10 +2458,9 @@ export default function NursingRecords() {
         </div>
       </div>
 
-      <div className="max-w-full mx-auto p-2">
-        {/* Filter Controls */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      {/* Filter Controls */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -2491,7 +2468,7 @@ export default function NursingRecords() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
               />
             </div>
             
@@ -2510,10 +2487,11 @@ export default function NursingRecords() {
               />
             </div>
           </div>
-        </div>
+      </div>
 
+      <div className="max-w-full mx-auto px-1 pb-1">
         {/* Residents Selection Grid */}
-        <div className="mb-8">
+        <div className="mb-0">
           {filteredResidents.length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">

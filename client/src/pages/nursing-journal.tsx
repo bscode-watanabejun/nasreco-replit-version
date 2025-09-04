@@ -3,6 +3,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   Popover,
   PopoverContent,
@@ -24,6 +26,11 @@ interface DailyRecord {
   staffName: string;
   createdAt: string;
   originalData?: any;
+  vitalValues?: string;
+  excretionDetails?: {
+    formattedEntries: string[];
+  };
+  notes?: string;
 }
 
 interface Resident {
@@ -180,7 +187,7 @@ export default function NursingJournal() {
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
-  const [selectedRecordType, setSelectedRecordType] = useState("all");
+  const [selectedRecordType, setSelectedRecordType] = useState("日中");
   const [selectedFloor, setSelectedFloor] = useState(() => {
     const floorParam = urlParams.get('floor');
     if (floorParam === 'all') return '全階';
@@ -199,6 +206,23 @@ export default function NursingJournal() {
       return response as Resident[];
     },
     enabled: !!isAuthenticated,
+  });
+
+  // 日誌チェックボックス状態を取得
+  const { data: journalCheckboxes = [] } = useQuery({
+    queryKey: ["/api/journal-checkboxes", selectedDate],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/journal-checkboxes/${selectedDate}`);
+      return response as Array<{
+        id: string;
+        recordId: string;
+        recordType: string;
+        checkboxType: string;
+        isChecked: boolean;
+        recordDate: string;
+      }>;
+    },
+    enabled: !!isAuthenticated && !!selectedDate,
   });
 
   // 記録データを取得（「今日の記録一覧」画面と同様）
@@ -240,27 +264,15 @@ export default function NursingJournal() {
 
   // チェックボックスでフィルタされた記録（日中、夜間、看護のチェックが付いた記録のみ）
   const filteredJournalRecords = useMemo(() => {
-    if (!records) return [];
+    if (!records || !journalCheckboxes) return [];
     
-    // URLパラメータから選択された記録IDを取得（将来的な実装）
-    // 現在は仕様上、「今日の記録一覧」画面でチェックされた記録を表示する想定
-    // この実装では全ての記録を対象にして、フィルタで絞り込む
+    // 選択されたフィルタタイプ（日中、夜間、看護）にチェックが入った記録のみを取得
+    const checkedRecordIds = journalCheckboxes
+      .filter(checkbox => checkbox.isChecked && checkbox.checkboxType === selectedRecordType)
+      .map(checkbox => checkbox.recordId);
     
-    let filtered = records;
-
-    // 記録種別フィルタ
-    if (selectedRecordType !== "all") {
-      const recordTypeMapping = {
-        "日中": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"],
-        "夜間": ["様子", "服薬", "食事", "清掃リネン", "体重", "排泄"], // 夜間も同じ記録タイプ
-        "看護": ["看護記録", "医療記録", "処置", "バイタル", "入浴"]
-      };
-
-      const targetTypes = recordTypeMapping[selectedRecordType as keyof typeof recordTypeMapping];
-      if (targetTypes) {
-        filtered = filtered.filter(record => targetTypes.includes(record.recordType));
-      }
-    }
+    // チェックされた記録IDに一致する記録をフィルタ
+    let filtered = records.filter(record => checkedRecordIds.includes(record.id));
 
     // 階数フィルタ
     if (selectedFloor !== "全階") {
@@ -274,8 +286,13 @@ export default function NursingJournal() {
       });
     }
 
-    return filtered;
-  }, [records, selectedRecordType, selectedFloor, residents]);
+    // 居室番号でソート（数値として比較）
+    return filtered.sort((a, b) => {
+      const roomA = parseInt(a.roomNumber || '0') || 0;
+      const roomB = parseInt(b.roomNumber || '0') || 0;
+      return roomA - roomB;
+    });
+  }, [records, journalCheckboxes, selectedRecordType, selectedFloor, residents]);
 
   // 入居者数・入院者数・入院者名を計算
   const residentStats = useMemo(() => {
@@ -340,22 +357,57 @@ export default function NursingJournal() {
     } else {
       // ログイン者の名前を設定
       const userData = user as any;
-      const userName = userData?.firstName && userData?.lastName 
-        ? `${userData.firstName} ${userData.lastName}`
-        : userData?.email || "ログインユーザー";
+      const userName = userData?.staffName || 
+        (userData?.firstName && userData?.lastName
+          ? `${userData.lastName} ${userData.firstName}`
+          : userData?.email || "スタッフ");
       setEnteredBy(userName);
     }
   };
 
   const handlePrint = () => {
-    // 印刷機能（一旦ブラウザの印刷ダイアログを表示）
-    window.print();
+    // データがない場合のチェック
+    if (filteredJournalRecords.length === 0) {
+      alert('印刷する記録がありません。');
+      return;
+    }
+
+    // 印刷用コンテンツを表示してブラウザの印刷機能を使用
+    const printContent = document.getElementById('print-content');
+    if (printContent) {
+      // 印刷コンテンツを表示
+      printContent.classList.remove('hidden');
+      printContent.classList.add('block');
+      
+      // 通常のコンテンツを非表示
+      const normalContent = document.querySelector('.print\\:hidden');
+      if (normalContent) {
+        normalContent.classList.add('hidden');
+      }
+      
+      // 印刷実行
+      setTimeout(() => {
+        window.print();
+        
+        // 印刷後に元の表示に戻す
+        setTimeout(() => {
+          printContent.classList.add('hidden');
+          printContent.classList.remove('block');
+          
+          if (normalContent) {
+            normalContent.classList.remove('hidden');
+          }
+        }, 100);
+      }, 100);
+    } else {
+      window.print();
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-slate-800 text-white p-4">
+      <div className="bg-slate-800 text-white p-4 sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -369,10 +421,9 @@ export default function NursingJournal() {
         </div>
       </div>
 
-      <div className="max-w-full mx-auto p-2">
-        {/* フィルタコントロール */}
-        <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-          <div className="flex gap-1 sm:gap-2 items-center justify-center">
+      {/* Filter Controls */}
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-0.5">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -381,7 +432,7 @@ export default function NursingJournal() {
                   variant="ghost"
                   size="sm"
                   onClick={goToPreviousDay}
-                  className="h-6 w-5 p-0 hover:bg-blue-100 -mr-px"
+                  className="h-6 w-8 px-1 hover:bg-blue-100 -mr-px min-w-0"
                 >
                   <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 </Button>
@@ -389,13 +440,13 @@ export default function NursingJournal() {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-0.5 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
+                  className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8 mx-0.5"
                 />
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={goToNextDay}
-                  className="h-6 w-5 p-0 hover:bg-blue-100 -ml-px"
+                  className="h-6 w-8 px-1 hover:bg-blue-100 -ml-px min-w-0"
                 >
                   <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 </Button>
@@ -408,22 +459,20 @@ export default function NursingJournal() {
               <InputWithDropdown
                 value={(() => {
                   const option = [
-                    { value: "all", label: "全て" },
                     { value: "日中", label: "日中" },
                     { value: "夜間", label: "夜間" },
                     { value: "看護", label: "看護" }
                   ].find(opt => opt.value === selectedRecordType);
-                  return option ? option.label : "全て";
+                  return option ? option.label : "日中";
                 })()}
                 options={[
-                  { value: "all", label: "全て" },
                   { value: "日中", label: "日中" },
                   { value: "夜間", label: "夜間" },
                   { value: "看護", label: "看護" }
                 ]}
                 onSave={(value) => setSelectedRecordType(value)}
                 placeholder="日誌種別"
-                className="w-12 sm:w-24 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-14 sm:w-16 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
                 enableAutoFocus={false}
               />
             </div>
@@ -436,15 +485,16 @@ export default function NursingJournal() {
                 options={floorOptions}
                 onSave={(value) => setSelectedFloor(value)}
                 placeholder="階数選択"
-                className="w-14 sm:w-24 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
                 enableAutoFocus={false}
               />
             </div>
           </div>
-        </div>
+      </div>
 
+      <div className="max-w-full mx-auto px-2 pb-2">
         {/* メインエリア */}
-        <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
+        <div className="bg-white p-3 shadow-sm border-b">
           {/* 記入者 */}
           <div className="flex items-center gap-2 mb-4">
             <label className="text-sm font-medium text-slate-700 min-w-[60px]">記入者</label>
@@ -496,10 +546,167 @@ export default function NursingJournal() {
           </div>
         </div>
 
-        {/* 日誌記録エリア（印刷用レイアウト） */}
-        <div className="bg-white rounded-lg p-4 shadow-sm print:shadow-none mb-20">
-          <div className="text-center py-8">
-            <p className="text-slate-600">日誌内容は印刷時に表示されます</p>
+        {/* 日誌記録エリア */}
+        <div className="space-y-3 mb-20">
+          {/* 印刷用レイアウト */}
+          <div id="print-content" className="hidden print:block print:space-y-0">
+            {/* 印刷用ヘッダー */}
+            <div className="text-center mb-4">
+              <h1 className="text-xl font-bold">日誌 ー {selectedRecordType}</h1>
+            </div>
+            
+            {/* 日付、記入者、統計情報 */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="font-medium">日付： {format(new Date(selectedDate), "yyyy年MM月dd日 EEEE", { locale: ja })}</div>
+                  <div className="mt-2">
+                    <div className="inline-block">入居者数：{residentStats.totalResidents}　</div>
+                    <div className="inline-block">入院者数：{residentStats.hospitalizedCount}</div>
+                  </div>
+                  <div className="mt-1">
+                    入院者名：{residentStats.hospitalizedNames.length > 0 ? residentStats.hospitalizedNames.join("、") : "なし"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-right">
+                    記入者：{enteredBy || "_________________"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 記録テーブル */}
+            {filteredJournalRecords.length > 0 && (
+              <table className="w-full border-collapse border border-black text-sm">
+                <thead>
+                  <tr>
+                    <th className="border border-black p-2 text-center" style={{width: '120px'}}>ご利用者</th>
+                    <th className="border border-black p-2 text-center" style={{width: '100px'}}>日時</th>
+                    <th className="border border-black p-2 text-center">内容</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredJournalRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td className="border border-black p-2 text-center" style={{width: '120px'}}>
+                        <div>{record.roomNumber} {record.residentName}</div>
+                      </td>
+                      <td className="border border-black p-2 text-center" style={{width: '100px'}}>
+                        {format(new Date(selectedDate), "d(E)", { locale: ja })} {formatTime(record.recordTime)}
+                      </td>
+                      <td className="border border-black p-2 text-left">
+                        {record.recordType === '処置' 
+                          ? (record.originalData?.description || record.originalData?.interventions || '')
+                          : record.recordType === 'バイタル' 
+                            ? ((record as any).notes || '')
+                            : (record.content || '')
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            
+            {filteredJournalRecords.length === 0 && (
+              <div className="text-center py-8">
+                <p>選択された日誌種別にチェックされた記録がありません</p>
+              </div>
+            )}
+          </div>
+
+          {/* 通常表示用レイアウト */}
+          <div className="print:hidden">
+            {filteredJournalRecords.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-slate-600">選択された日誌種別にチェックされた記録がありません</p>
+              </div>
+            ) : (
+              filteredJournalRecords.map((record) => {
+                const resident = residents.find(r => r.id === record.residentId);
+                
+                // 記録タイプ別の色設定（daily-records.tsxと同じ）
+                const recordTypeColors: { [key: string]: string } = {
+                  '様子': 'bg-blue-50 border-blue-200',
+                  '食事': 'bg-orange-50 border-orange-200',
+                  '服薬': 'bg-purple-50 border-purple-200',
+                  'バイタル': 'bg-red-50 border-red-200',
+                  '排泄': 'bg-yellow-50 border-yellow-200',
+                  '清掃リネン': 'bg-green-50 border-green-200',
+                  '入浴': 'bg-cyan-50 border-cyan-200',
+                  '体重': 'bg-pink-50 border-pink-200',
+                  '看護記録': 'bg-indigo-50 border-indigo-200',
+                  '医療記録': 'bg-teal-50 border-teal-200',
+                  '処置': 'bg-violet-50 border-violet-200'
+                };
+                
+                return (
+                  <Card 
+                    key={record.id} 
+                    className={cn(
+                      "border-l-4",
+                      recordTypeColors[record.recordType as keyof typeof recordTypeColors] || "bg-slate-50 border-slate-200"
+                    )}
+                  >
+                    <CardContent className="p-1.5">
+                      {/* 上段：居室番号、利用者名、記録時分、記録カテゴリ */}
+                      <div className="flex gap-2 mb-0.5 text-sm items-center">
+                        <div className="font-medium text-left w-12 flex-shrink-0">{record.roomNumber || '-'}</div>
+                        <div className="font-medium text-left w-20 flex-shrink-0">{record.residentName}</div>
+                        <div className="font-medium text-left w-24 flex-shrink-0 whitespace-nowrap">{formatTime(record.recordTime)}</div>
+                        <div className="flex-1 text-right">
+                          <span className="inline-block px-1.5 py-0.5 rounded-full text-xs bg-slate-100">
+                            {record.recordType}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 中段：処置部位（処置の場合のみ）と記録内容 */}
+                      {record.recordType === '処置' && record.originalData?.notes && (
+                        <div className="mb-1">
+                          <div className="p-1 bg-slate-50 rounded border text-sm">
+                            {record.originalData.notes}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* バイタル専用：上枠（バイタル数値） */}
+                      {record.recordType === 'バイタル' && (record as any).vitalValues && (
+                        <div className="mb-0.5">
+                          <div className="p-1 bg-slate-50 rounded border text-sm">
+                            {(record as any).vitalValues}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 排泄専用：上枠（排泄データ） */}
+                      {record.recordType === '排泄' && (record as any).excretionDetails && (record as any).excretionDetails.formattedEntries?.length > 0 && (
+                        <div className="mb-0.5">
+                          <div className="p-1 bg-slate-50 rounded border text-sm">
+                            <div className="whitespace-pre-line">
+                              {(record as any).excretionDetails.formattedEntries.join('\n')}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 下枠：記録内容（全記録タイプ共通） */}
+                      <div>
+                        <div className="w-full p-1 bg-white rounded border text-sm min-h-[6rem] leading-relaxed">
+                          {record.recordType === '処置' 
+                            ? (record.originalData?.description || record.originalData?.interventions || '')
+                            : record.recordType === 'バイタル' 
+                              ? ((record as any).notes || '') // バイタルの場合はnotesのみ表示
+                              : (record.content || '')
+                          }
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -516,6 +723,123 @@ export default function NursingJournal() {
           </Button>
         </div>
       </div>
+      
+      {/* 印刷用スタイル */}
+      <style>{`
+        @media print {
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          /* ヘッダー、フィルター、フッターを非表示 */
+          .bg-slate-800,
+          .bg-white.rounded-lg.p-2.mb-4.shadow-sm,
+          .bg-white.rounded-lg.p-4.mb-4.shadow-sm,
+          .fixed.bottom-0 {
+            display: none !important;
+          }
+          
+          #print-content {
+            display: block !important;
+          }
+          
+          .print\\:hidden {
+            display: none !important;
+          }
+          
+          .text-center {
+            text-align: center;
+          }
+          
+          .mb-4 {
+            margin-bottom: 20px;
+          }
+          
+          .text-xl {
+            font-size: 18px;
+          }
+          
+          .font-bold {
+            font-weight: bold;
+          }
+          
+          .flex {
+            display: flex;
+          }
+          
+          .justify-between {
+            justify-content: space-between;
+          }
+          
+          .font-medium {
+            font-weight: 500;
+          }
+          
+          .mt-2 {
+            margin-top: 8px;
+          }
+          
+          .mt-1 {
+            margin-top: 4px;
+          }
+          
+          .inline-block {
+            display: inline-block;
+          }
+          
+          .text-right {
+            text-align: right;
+          }
+          
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-top: 20px;
+          }
+          
+          th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+            vertical-align: top;
+            page-break-inside: avoid;
+          }
+          
+          th {
+            background-color: #f5f5f5 !important;
+            font-weight: bold;
+            text-align: center;
+          }
+          
+          th:first-child, td:first-child {
+            width: 120px;
+            text-align: center;
+          }
+          
+          th:nth-child(2), td:nth-child(2) {
+            width: 100px;
+            text-align: center;
+          }
+          
+          th:nth-child(3) {
+            text-align: center;
+          }
+          
+          td:nth-child(3) {
+            text-align: left;
+          }
+          
+          .text-xs {
+            font-size: 10px;
+          }
+          
+          .py-8 {
+            padding: 40px 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -12,12 +12,10 @@ export default function DateFilter() {
 
   const handleDateClick = () => {
     // Open date picker - for now just console log
-    console.log("Date picker clicked");
   };
 
   const handleFloorClick = () => {
     // Open floor selector - for now just console log
-    console.log("Floor selector clicked");
   };
 
   return (

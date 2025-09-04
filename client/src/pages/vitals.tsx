@@ -1275,7 +1275,7 @@ export default function Vitals() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4">
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <Button
@@ -1298,8 +1298,8 @@ export default function Vitals() {
       </div>
 
       {/* フィルタ条件 */}
-      <div className="bg-white rounded-lg p-2 mb-4 shadow-sm">
-        <div className="flex gap-2 sm:gap-4 items-center justify-center">
+      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+        <div className="flex gap-2 items-center justify-center">
           {/* 日付選択 */}
           <div className="flex items-center space-x-1">
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -1307,7 +1307,7 @@ export default function Vitals() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
+              className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
             />
           </div>
 
@@ -1318,7 +1318,7 @@ export default function Vitals() {
               options={timingOptions}
               onSave={(value) => setSelectedTiming(value)}
               placeholder="時間"
-              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
             />
           </div>
 
@@ -1330,7 +1330,7 @@ export default function Vitals() {
               options={floorOptions}
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
-              className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
             />
           </div>
         </div>
