@@ -920,8 +920,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (recordData as any).createdAt = jstNow;
       (recordData as any).updatedAt = jstNow;
       
-      const record = await storage.createBathingRecord(recordData);
-      res.status(201).json(record);
+      // 既存レコードの検索（同じ利用者、同じ日付）
+      const existingRecord = await storage.getBathingRecords(
+        recordData.residentId,
+        recordData.recordDate,
+        recordData.recordDate
+      );
+      
+      if (existingRecord && existingRecord.length > 0) {
+        // 既存レコードがある場合は更新
+        const updatedRecord = await storage.updateBathingRecord(existingRecord[0].id, recordData);
+        res.status(200).json(updatedRecord);
+      } else {
+        // 既存レコードがない場合は新規作成
+        const record = await storage.createBathingRecord(recordData);
+        res.status(201).json(record);
+      }
     } catch (error: any) {
       console.error("=== POST Validation Error ===");
       console.error("Error creating bathing record:", error);
@@ -1323,6 +1337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to delete round record" });
     }
   });
+
 
   // Medication Records routes
   app.get('/api/medication-records', isAuthenticated, async (req, res) => {

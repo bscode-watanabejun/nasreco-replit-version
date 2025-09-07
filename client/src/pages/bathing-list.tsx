@@ -366,7 +366,7 @@ function BathingCard({
 
   const handleBlur = (field: string, value: any) => {
     if (value !== record[field]) {
-      handleFieldUpdate(record.residentId, field, value);
+      handleFieldUpdate(record.id, field, value);
       if (value && value.toString().trim() !== "") {
         handleSaveRecord(record.residentId, field, value);
       }
@@ -386,10 +386,35 @@ function BathingCard({
             </div>
             
             {/* 利用者名 */}
-            <div className="font-medium text-xs sm:text-sm truncate w-16 sm:w-24 flex-shrink-0">
-              <span className="text-slate-800">
-                {resident?.name || "未選択"}
-              </span>
+            <div className="font-medium text-sm sm:text-base truncate w-20 sm:w-28 flex-shrink-0">
+              {record.residentId ? (
+                <span className="text-slate-800">
+                  {resident?.name || "未選択"}
+                </span>
+              ) : (
+                <Select
+                  value={resident?.name || ""}
+                  onValueChange={(selectedName) => {
+                    const selectedResident = residents.find((r: any) => r.name === selectedName);
+                    if (selectedResident) {
+                      handleFieldUpdate(record.id, "residentId", selectedResident.id);
+                      // 利用者選択時は保存しない（他のフィールド入力時に自動保存）
+                    }
+                  }}
+                  data-testid={`select-resident-${record.id}`}
+                >
+                  <SelectTrigger className="w-full h-7 text-xs border-0 bg-transparent p-0 focus:ring-0">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {residents.map((r: any) => (
+                      <SelectItem key={r.id} value={r.name}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
           
@@ -401,7 +426,7 @@ function BathingCard({
                 value={record.hour?.toString() || ""}
                 options={hourOptions}
                 onSave={(value) => {
-                  handleFieldUpdate(record.residentId, "hour", value);
+                  handleFieldUpdate(record.id, "hour", value);
                   if (value && value !== "" && value !== "empty") {
                     handleSaveRecord(record.residentId, "hour", value);
                   }
@@ -414,7 +439,7 @@ function BathingCard({
                 value={record.minute?.toString() || ""}
                 options={minuteOptions}
                 onSave={(value) => {
-                  handleFieldUpdate(record.residentId, "minute", value);
+                  handleFieldUpdate(record.id, "minute", value);
                   if (value && value !== "" && value !== "empty") {
                     handleSaveRecord(record.residentId, "minute", value);
                   }
@@ -429,7 +454,7 @@ function BathingCard({
               value={record.bathType || ""}
               options={bathTypeOptions}
               onSave={(value) => {
-                handleFieldUpdate(record.residentId, "bathType", value);
+                handleFieldUpdate(record.id, "bathType", value);
                 if (value && value !== "" && value !== "empty") {
                   handleSaveRecord(record.residentId, "bathType", value);
                 }
@@ -444,7 +469,7 @@ function BathingCard({
               value={staffName}
               onChange={(e) => {
                 setStaffName(e.target.value);
-                handleFieldUpdate(record.residentId, "staffName", e.target.value);
+                handleFieldUpdate(record.id, "staffName", e.target.value);
               }}
               onBlur={(e) => {
                 const value = e.target.value;
@@ -459,7 +484,7 @@ function BathingCard({
                   // セッション職員情報があるか確認
                   const newStaffName = user?.staffName || user?.firstName || 'スタッフ';
                   setStaffName(newStaffName);
-                  handleFieldUpdate(record.residentId, "staffName", newStaffName);
+                  handleFieldUpdate(record.id, "staffName", newStaffName);
                 }
               }}
               placeholder=""
@@ -499,7 +524,7 @@ function BathingCard({
               }
               options={temperatureOptions}
               onSave={(value) => {
-                handleFieldUpdate(record.residentId, "temperature", value);
+                handleFieldUpdate(record.id, "temperature", value);
                 if (value && value !== "" && value !== "empty") {
                   handleSaveRecord(record.residentId, "temperature", value);
                 }
@@ -517,7 +542,7 @@ function BathingCard({
                 value={record.bloodPressureSystolic?.toString() || ""}
                 options={systolicBPOptions}
                 onSave={(value) => {
-                  handleFieldUpdate(record.residentId, "bloodPressureSystolic", value);
+                  handleFieldUpdate(record.id, "bloodPressureSystolic", value);
                   if (value && value !== "" && value !== "empty") {
                     handleSaveRecord(record.residentId, "bloodPressureSystolic", value);
                   }
@@ -530,7 +555,7 @@ function BathingCard({
                 value={record.bloodPressureDiastolic?.toString() || ""}
                 options={diastolicBPOptions}
                 onSave={(value) => {
-                  handleFieldUpdate(record.residentId, "bloodPressureDiastolic", value);
+                  handleFieldUpdate(record.id, "bloodPressureDiastolic", value);
                   if (value && value !== "" && value !== "empty") {
                     handleSaveRecord(record.residentId, "bloodPressureDiastolic", value);
                   }
@@ -548,7 +573,7 @@ function BathingCard({
               value={record.pulseRate?.toString() || ""}
               options={pulseOptions}
               onSave={(value) => {
-                handleFieldUpdate(record.residentId, "pulseRate", value);
+                handleFieldUpdate(record.id, "pulseRate", value);
                 if (value && value !== "" && value !== "empty") {
                   handleSaveRecord(record.residentId, "pulseRate", value);
                 }
@@ -565,7 +590,7 @@ function BathingCard({
               value={record.oxygenSaturation?.toString() || ""}
               options={spo2Options}
               onSave={(value) => {
-                handleFieldUpdate(record.residentId, "oxygenSaturation", value);
+                handleFieldUpdate(record.id, "oxygenSaturation", value);
                 if (value && value !== "" && value !== "empty") {
                   handleSaveRecord(record.residentId, "oxygenSaturation", value);
                 }
@@ -584,7 +609,7 @@ function BathingCard({
               residentId={record.residentId}
               initialValue={notes}
               onSave={(value) => {
-                handleFieldUpdate(record.residentId, "notes", value);
+                handleFieldUpdate(record.id, "notes", value);
                 if (value && value.trim()) {
                   handleSaveRecord(record.residentId, "notes", value);
                 }
@@ -791,15 +816,33 @@ export default function BathingList() {
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
         
+        let foundMatch = false;
         // temp-で始まる一時レコードを実際のIDに置き換え
-        return old.map((record: any) => {
-          if (record.id?.startsWith('temp-') && 
+        const updated = old.map((record: any) => {
+          const dateMatch = format(new Date(record.recordDate), 'yyyy-MM-dd') === format(new Date(variables.recordDate), 'yyyy-MM-dd');
+          const condition = record.id?.startsWith('temp-') && 
               record.residentId === variables.residentId && 
-              format(new Date(record.recordDate), 'yyyy-MM-dd') === format(new Date(variables.recordDate), 'yyyy-MM-dd')) {
-            return { ...record, ...serverResponse, id: serverResponse.id };
+              dateMatch;
+          
+          if (condition) {
+            foundMatch = true;
+            return { 
+              ...record, 
+              ...serverResponse, 
+              id: serverResponse.id,
+              // isUserAddedフラグを維持
+              isUserAdded: record.isUserAdded || false
+            };
           }
           return record;
         });
+        
+        // マッチする一時レコードがない場合は新規追加
+        if (!foundMatch) {
+          updated.push(serverResponse);
+        }
+        
+        return updated;
       });
     },
     onError: (error: any) => {
@@ -851,62 +894,110 @@ export default function BathingList() {
     },
   });
 
-  // フィールド更新（楽観的更新のみ）- 食事一覧と同じパターン
-  const handleFieldUpdate = (residentId: string, field: string, value: any) => {
+  // フィールド更新（楽観的更新のみ）- 服薬一覧と同じパターン
+  const handleFieldUpdate = (recordId: string, field: string, value: any) => {
+    console.log(`Updating field ${field} for record ${recordId} with value:`, value);
 
     const queryKey = ["/api/bathing-records"];
     
-    // 食事一覧と同じ楽観的更新
+    // 利用者変更時の特別処理（服薬一覧と同じ）
+    if (field === 'residentId') {
+      // 利用者情報を追加して楽観的更新
+      const resident = residents?.find(r => r.id === value);
+      
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        
+        return old.map((record: any) => 
+          record.id === recordId ? {
+            ...record,
+            [field]: value,
+            // 利用者情報も同時に更新
+            residentName: resident?.name || '',
+            roomNumber: resident?.roomNumber || '',
+            floor: resident?.floor || ''
+          } : record
+        );
+      });
+      return;
+    }
+    
+    // 通常のフィールド更新（服薬一覧と同じ）
     queryClient.setQueryData(queryKey, (old: any) => {
       if (!old) return old;
       
-      // 既存のレコードを探す（食事一覧と同じ条件）
-      const existingIndex = old.findIndex((record: any) => 
-        record.residentId === residentId && 
-        format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
-      );
-      
-      if (existingIndex >= 0) {
-        // 既存レコードを更新
-        const updated = [...old];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
+      return old.map((record: any) => 
+        record.id === recordId ? {
+          ...record,
           [field]: value === "empty" ? "" : value
-        };
-        return updated;
-      } else {
-        // 新規レコードを追加（食事一覧と同じパターン）
-        const newRecord = {
-          id: `temp-${Date.now()}`,
-          residentId,
-          // staffIdはサーバー側で自動設定するため、フロントでは送信しない
-          recordDate: new Date(selectedDate),
-          timing: "午前",
-          hour: field === 'hour' ? (value === "empty" ? "" : value) : '',
-          minute: field === 'minute' ? (value === "empty" ? "" : value) : '',
-          staffName: field === 'staffName' ? (value === "empty" ? "" : value) : '',
-          bathType: field === 'bathType' ? (value === "empty" ? "" : value) : '',
-          temperature: field === 'temperature' ? (value === "empty" ? "" : value) : '',
-          weight: '',
-          bloodPressureSystolic: field === 'bloodPressureSystolic' ? (value === "empty" ? "" : value) : '',
-          bloodPressureDiastolic: field === 'bloodPressureDiastolic' ? (value === "empty" ? "" : value) : '',
-          pulseRate: field === 'pulseRate' ? (value === "empty" ? "" : value) : '',
-          oxygenSaturation: field === 'oxygenSaturation' ? (value === "empty" ? "" : value) : '',
-          notes: field === 'notes' ? value : '',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        return [...old, newRecord];
-      }
+        } : record
+      );
     });
-    
-    // 自動保存は無効化 - 重複登録を防ぐため（食事一覧と同じ）
   };
 
   // 食事一覧と同じシンプルなパターンに統一（重複防止キャッシュは削除）
 
   // DB保存処理（食事一覧と完全に同じパターンに変更）
   const lastSaveRef = useRef<Record<string, any>>({});
+
+  // 複数フィールドを一括保存する関数
+  const handleSaveMultipleFields = (residentId: string, fields: Record<string, any>) => {
+    // React Queryのキャッシュから現在のデータを取得（楽観的更新含む）
+    const currentCachedData = queryClient.getQueryData(["/api/bathing-records"]) as any[] || [];
+    
+    // 楽観的更新を含むキャッシュから検索
+    const existingRecord = currentCachedData.find((record: any) => 
+      record.residentId === residentId && 
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+    );
+    
+    // レコードデータ作成（既存の値を保持しつつ、指定されたフィールドを更新）
+    const recordData = {
+      residentId,
+      recordDate: new Date(selectedDate),
+      timing: "午前",
+      hour: fields.hour !== undefined ? (fields.hour === "empty" ? "" : fields.hour) : (existingRecord?.hour || ""),
+      minute: fields.minute !== undefined ? (fields.minute === "empty" ? "" : fields.minute) : (existingRecord?.minute || ""),
+      staffName: fields.staffName !== undefined ? (fields.staffName === "empty" ? "" : fields.staffName) : (existingRecord?.staffName || ""),
+      bathType: fields.bathType !== undefined ? (fields.bathType === "empty" ? "" : fields.bathType) : (existingRecord?.bathType || ""),
+      temperature: fields.temperature !== undefined ? (fields.temperature === "empty" ? "" : fields.temperature) : (existingRecord?.temperature || ""),
+      weight: existingRecord?.weight || "",
+      bloodPressureSystolic: fields.bloodPressureSystolic !== undefined ? (fields.bloodPressureSystolic === "empty" ? "" : fields.bloodPressureSystolic) : (existingRecord?.bloodPressureSystolic || ""),
+      bloodPressureDiastolic: fields.bloodPressureDiastolic !== undefined ? (fields.bloodPressureDiastolic === "empty" ? "" : fields.bloodPressureDiastolic) : (existingRecord?.bloodPressureDiastolic || ""),
+      pulseRate: fields.pulseRate !== undefined ? (fields.pulseRate === "empty" ? "" : fields.pulseRate) : (existingRecord?.pulseRate || ""),
+      oxygenSaturation: fields.oxygenSaturation !== undefined ? (fields.oxygenSaturation === "empty" ? "" : fields.oxygenSaturation) : (existingRecord?.oxygenSaturation || ""),
+      notes: fields.notes !== undefined ? fields.notes : (existingRecord?.notes || ""),
+    };
+
+    // 更新/作成判定
+    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+      updateMutation.mutate({ id: existingRecord.id, data: recordData });
+    } else {
+      createMutation.mutate(recordData);
+    }
+
+    // バイタルデータをバイタル一覧にも同時登録
+    if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'oxygenSaturation', 'notes', 'hour', 'minute', 'staffName'].some(field => fields[field] !== undefined) && Object.values(fields).some(value => value && value !== "empty")) {
+      const bathingHour = fields.hour !== undefined ? fields.hour : recordData.hour;
+      
+      const vitalData = {
+        residentId,
+        recordDate: new Date(selectedDate),
+        timing: getTimingFromBathingTime(bathingHour, recordData),
+        hour: fields.hour !== undefined ? (fields.hour === "empty" ? null : parseInt(fields.hour, 10)) : (recordData.hour ? parseInt(recordData.hour, 10) : null),
+        minute: fields.minute !== undefined ? (fields.minute === "empty" ? null : parseInt(fields.minute, 10)) : (recordData.minute ? parseInt(recordData.minute, 10) : null),
+        staffName: fields.staffName !== undefined ? (fields.staffName === "empty" ? null : fields.staffName) : recordData.staffName,
+        temperature: fields.temperature !== undefined ? (fields.temperature === "empty" ? null : parseFloat(fields.temperature)) : (recordData.temperature ? parseFloat(recordData.temperature) : null),
+        bloodPressureSystolic: fields.bloodPressureSystolic !== undefined ? (fields.bloodPressureSystolic === "empty" ? null : parseInt(fields.bloodPressureSystolic, 10)) : (recordData.bloodPressureSystolic ? parseInt(recordData.bloodPressureSystolic, 10) : null),
+        bloodPressureDiastolic: fields.bloodPressureDiastolic !== undefined ? (fields.bloodPressureDiastolic === "empty" ? null : parseInt(fields.bloodPressureDiastolic, 10)) : (recordData.bloodPressureDiastolic ? parseInt(recordData.bloodPressureDiastolic, 10) : null),
+        pulseRate: fields.pulseRate !== undefined ? (fields.pulseRate === "empty" ? null : parseInt(fields.pulseRate, 10)) : (recordData.pulseRate ? parseInt(recordData.pulseRate, 10) : null),
+        oxygenSaturation: fields.oxygenSaturation !== undefined ? (fields.oxygenSaturation === "empty" ? null : parseFloat(fields.oxygenSaturation)) : (recordData.oxygenSaturation ? parseFloat(recordData.oxygenSaturation) : null),
+        notes: fields.notes !== undefined ? fields.notes : recordData.notes,
+      };
+      
+      upsertVitalMutation.mutate({ vitalData });
+    }
+  };
 
   const handleSaveRecord = (residentId: string, field: string, value: any) => {
     const saveKey = `${residentId}-${field}`;
@@ -922,83 +1013,90 @@ export default function BathingList() {
     // React Queryのキャッシュから現在のデータを取得（楽観的更新含む）
     const currentCachedData = queryClient.getQueryData(["/api/bathing-records"]) as any[] || [];
     
+    // React Queryキャッシュからレコード検索
     
-    // 楽観的更新を含むキャッシュから検索
-    const existingRecord = currentCachedData.find((record: any) => 
+    // 楽観的更新を含むキャッシュから検索：実際のレコードを優先
+    const realRecord = currentCachedData.find((record: any) => 
       record.residentId === residentId && 
-      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate &&
+      record.id && !record.id.startsWith('temp-')
     );
     
+    const tempRecord = currentCachedData.find((record: any) => 
+      record.residentId === residentId && 
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate &&
+      record.id && record.id.startsWith('temp-')
+    );
+    
+    // 実際のレコードがあればそれを使用、なければ一時的カードを使用
+    const existingRecord = realRecord || tempRecord;
+    
 
-    // 食事一覧と同じレコードデータ作成方式
-    const recordData = {
+    // 変更されたフィールドの値
+    const fieldValue = value === "empty" ? "" : value;
+
+    // recordDataの作成：更新時は変更フィールドのみ、新規作成時は全フィールド
+    const recordData: any = {
       residentId,
-      // staffIdはサーバー側で自動設定するため、フロントでは送信しない
       recordDate: new Date(selectedDate),
       timing: "午前",
-      hour: existingRecord?.hour || "",
-      minute: existingRecord?.minute || "",
-      staffName: existingRecord?.staffName || "",
-      bathType: existingRecord?.bathType || "",
-      temperature: existingRecord?.temperature || "",
-      weight: existingRecord?.weight || "",
-      bloodPressureSystolic: existingRecord?.bloodPressureSystolic || "",
-      bloodPressureDiastolic: existingRecord?.bloodPressureDiastolic || "",
-      pulseRate: existingRecord?.pulseRate || "",
-      oxygenSaturation: existingRecord?.oxygenSaturation || "",
-      notes: existingRecord?.notes || "",
     };
 
-    // フィールドを更新（食事一覧と同じ方式）
-    if (field === 'hour') {
-      recordData.hour = value === "empty" ? "" : value;
-    } else if (field === 'minute') {
-      recordData.minute = value === "empty" ? "" : value;
-    } else if (field === 'staffName') {
-      recordData.staffName = value === "empty" ? "" : value;
-    } else if (field === 'bathType') {
-      recordData.bathType = value === "empty" ? "" : value;
-    } else if (field === 'temperature') {
-      recordData.temperature = value === "empty" ? "" : value;
-    } else if (field === 'bloodPressureSystolic') {
-      recordData.bloodPressureSystolic = value === "empty" ? "" : value;
-    } else if (field === 'bloodPressureDiastolic') {
-      recordData.bloodPressureDiastolic = value === "empty" ? "" : value;
-    } else if (field === 'pulseRate') {
-      recordData.pulseRate = value === "empty" ? "" : value;
-    } else if (field === 'oxygenSaturation') {
-      recordData.oxygenSaturation = value === "empty" ? "" : value;
-    } else if (field === 'notes') {
-      recordData.notes = value;
+    if (!existingRecord || existingRecord.id?.startsWith('temp-')) {
+      // 新規作成時：全フィールドを含める
+      recordData.hour = field === 'hour' ? fieldValue : (existingRecord?.hour ?? "");
+      recordData.minute = field === 'minute' ? fieldValue : (existingRecord?.minute ?? "");
+      recordData.staffName = field === 'staffName' ? fieldValue : (existingRecord?.staffName ?? "");
+      recordData.bathType = field === 'bathType' ? fieldValue : (existingRecord?.bathType ?? "");
+      recordData.temperature = field === 'temperature' ? fieldValue : (existingRecord?.temperature ?? "");
+      recordData.weight = field === 'weight' ? fieldValue : (existingRecord?.weight ?? "");
+      recordData.bloodPressureSystolic = field === 'bloodPressureSystolic' ? fieldValue : (existingRecord?.bloodPressureSystolic ?? "");
+      recordData.bloodPressureDiastolic = field === 'bloodPressureDiastolic' ? fieldValue : (existingRecord?.bloodPressureDiastolic ?? "");
+      recordData.pulseRate = field === 'pulseRate' ? fieldValue : (existingRecord?.pulseRate ?? "");
+      recordData.oxygenSaturation = field === 'oxygenSaturation' ? fieldValue : (existingRecord?.oxygenSaturation ?? "");
+      recordData.notes = field === 'notes' ? fieldValue : (existingRecord?.notes ?? "");
+    } else {
+      // 更新時：変更されたフィールドのみ
+      recordData[field] = fieldValue;
     }
 
     
-    // 食事一覧と同じ更新/作成判定
+    // 更新/作成判定：実際のレコードがあれば更新、なければ作成
     if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+      // 実際のDBレコードの場合は更新API使用
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
+      // 一時的カードまたは新規カードの場合：サーバー側で既存レコード検索後、更新または作成
       createMutation.mutate(recordData);
     }
 
     // バイタルデータをバイタル一覧にも同時登録
     if (['temperature', 'bloodPressureSystolic', 'bloodPressureDiastolic', 'pulseRate', 'oxygenSaturation', 'notes', 'hour', 'minute', 'staffName'].includes(field) && value && value !== "empty") {
-      // 入浴時間からタイミングを判定（hour項目の場合は更新後の値を使用）
-      const bathingHour = field === 'hour' ? value : recordData.hour;
+      // 入浴時間からタイミングを判定（existingRecordを優先使用）
+      const bathingHour = field === 'hour' ? value : (existingRecord?.hour ?? "");
+      
+      // existingRecordを優先してフィールド値を取得
+      const getFieldValue = (fieldName: string, currentValue: any) => {
+        if (field === fieldName) {
+          return currentValue === "empty" ? null : currentValue;
+        }
+        return existingRecord?.[fieldName] ?? null;
+      };
       
       const vitalData = {
         residentId,
         recordDate: new Date(selectedDate),
-        timing: getTimingFromBathingTime(bathingHour, recordData), // 入浴時間に応じてタイミングを判定
+        timing: getTimingFromBathingTime(bathingHour, existingRecord || {}), // existingRecordを使用
         // staffIdはサーバー側で自動設定するため、フロントでは送信しない
-        hour: field === 'hour' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.hour ? parseInt(recordData.hour, 10) : null),
-        minute: field === 'minute' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.minute ? parseInt(recordData.minute, 10) : null),
-        staffName: field === 'staffName' ? (value === "empty" ? null : value) : recordData.staffName,
-        temperature: field === 'temperature' ? (value === "empty" ? null : parseFloat(value)) : (recordData.temperature ? parseFloat(recordData.temperature) : null),
-        bloodPressureSystolic: field === 'bloodPressureSystolic' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.bloodPressureSystolic ? parseInt(recordData.bloodPressureSystolic, 10) : null),
-        bloodPressureDiastolic: field === 'bloodPressureDiastolic' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.bloodPressureDiastolic ? parseInt(recordData.bloodPressureDiastolic, 10) : null),
-        pulseRate: field === 'pulseRate' ? (value === "empty" ? null : parseInt(value, 10)) : (recordData.pulseRate ? parseInt(recordData.pulseRate, 10) : null),
-        oxygenSaturation: field === 'oxygenSaturation' ? (value === "empty" ? null : parseFloat(value)) : (recordData.oxygenSaturation ? parseFloat(recordData.oxygenSaturation) : null),
-        notes: field === 'notes' ? value : recordData.notes,
+        hour: (() => { const val = getFieldValue('hour', value); return val && val !== "" ? parseInt(val, 10) : null; })(),
+        minute: (() => { const val = getFieldValue('minute', value); return val && val !== "" ? parseInt(val, 10) : null; })(),
+        staffName: getFieldValue('staffName', value),
+        temperature: (() => { const val = getFieldValue('temperature', value); return val && val !== "" ? parseFloat(val) : null; })(),
+        bloodPressureSystolic: (() => { const val = getFieldValue('bloodPressureSystolic', value); return val && val !== "" ? parseInt(val, 10) : null; })(),
+        bloodPressureDiastolic: (() => { const val = getFieldValue('bloodPressureDiastolic', value); return val && val !== "" ? parseInt(val, 10) : null; })(),
+        pulseRate: (() => { const val = getFieldValue('pulseRate', value); return val && val !== "" ? parseInt(val, 10) : null; })(),
+        oxygenSaturation: (() => { const val = getFieldValue('oxygenSaturation', value); return val && val !== "" ? parseFloat(val) : null; })(),
+        notes: getFieldValue('notes', value),
       };
       
       // バイタル一覧にも登録
@@ -1148,8 +1246,22 @@ export default function BathingList() {
         ? `${user.lastName} ${user.firstName}`
         : user?.email || "スタッフ");
       
-    const record = bathingRecords.find((r: any) => r.id === recordId);
-    if (!record) return;
+    // 一時レコードの場合は、bathingRecordsから検索せずに引数から取得
+    let record;
+    if (recordId.startsWith('temp-')) {
+      // 一時レコードの場合は基本情報のみを持つオブジェクトを作成
+      record = {
+        id: recordId,
+        residentId: residentId,
+        staffName: "",
+        hour: null,
+        minute: null
+      };
+    } else {
+      // 通常レコードの場合は既存の検索ロジック
+      record = bathingRecords.find((r: any) => r.id === recordId);
+      if (!record) return;
+    }
     
     const effectiveResidentId = residentId || record.residentId;
     
@@ -1179,33 +1291,60 @@ export default function BathingList() {
       handleFieldUpdate(effectiveResidentId, "staffName", "");
       handleFieldUpdate(effectiveResidentId, "hour", null);
       handleFieldUpdate(effectiveResidentId, "minute", null);
-      // 保存処理も実行
-      handleSaveRecord(effectiveResidentId, "staffName", "");
-      handleSaveRecord(effectiveResidentId, "hour", "");
-      handleSaveRecord(effectiveResidentId, "minute", "");
+      // 保存処理を一括で実行
+      handleSaveMultipleFields(effectiveResidentId, {
+        staffName: "",
+        hour: "",
+        minute: ""
+      });
     } else {
       // 承認者名が空の場合：承認者名と現在時刻を自動入力
       const currentTime = getCurrentTimeOptions();
       handleFieldUpdate(effectiveResidentId, "staffName", staffName);
       handleFieldUpdate(effectiveResidentId, "hour", currentTime.hour);
       handleFieldUpdate(effectiveResidentId, "minute", currentTime.minute);
-      // 保存処理も実行
-      handleSaveRecord(effectiveResidentId, "staffName", staffName);
-      handleSaveRecord(effectiveResidentId, "hour", currentTime.hour.toString());
-      handleSaveRecord(effectiveResidentId, "minute", currentTime.minute.toString());
+      // 保存処理を一括で実行
+      handleSaveMultipleFields(effectiveResidentId, {
+        staffName: staffName,
+        hour: currentTime.hour.toString(),
+        minute: currentTime.minute.toString()
+      });
     }
   };
 
   // 新規入浴記録追加機能
   const addNewRecord = () => {
+    const newTempId = `temp-empty-${Date.now()}`;
     const newRecord = {
+      id: newTempId,
       residentId: null,
       recordDate: selectedDate,
       timing: "午前",
-      hour: new Date().getHours().toString(),
-      minute: (Math.round(new Date().getMinutes() / 15) * 15).toString(),
+      hour: null,
+      minute: null,
+      staffName: "",
+      bathType: "",
+      temperature: "",
+      weight: "",
+      bloodPressureSystolic: "",
+      bloodPressureDiastolic: "",
+      pulseRate: "",
+      oxygenSaturation: "",
+      notes: "",
+      rejectionReason: null,
+      nursingCheck: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isTemporary: true,
+      isUserAdded: true, // 新規追加カードのフラグ
     };
-    createMutation.mutate(newRecord);
+
+    // 楽観的更新で即座に画面に空のカードを表示
+    const queryKey = ["/api/bathing-records"];
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!old) return [newRecord];
+      return [...old, newRecord];
+    });
   };
 
   // 選択日付から曜日を取得し、入浴日フィールドを判定
@@ -1828,14 +1967,17 @@ export default function BathingList() {
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <InputWithDropdown
+              <select
                 value={selectedFloor}
-                options={floorOptions}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="フロア選択"
-                className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
-                enableAutoFocus={false}
-              />
+                onChange={(e) => setSelectedFloor(e.target.value)}
+                className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {floorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
         </div>
       </div>
@@ -1852,9 +1994,17 @@ export default function BathingList() {
               <p>選択した条件の利用者がいません</p>
             </div>
           ) : (
-            // 食事一覧と同じ利用者ベースのレンダリングに変更
+            // レコードベースの統合表示
             (() => {
               const bathDayField = getBathDayField(selectedDate);
+              
+              // 1. 該当日付のレコードを取得
+              const todayRecords = bathingRecords.filter((record: any) => {
+                const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
+                return recordDate === selectedDate;
+              });
+              
+              // 2. 入浴日設定のある利用者から、レコードが存在しない利用者用の一時レコードを生成
               const filteredResidents = (residents as any[]).filter((resident: any) => {
                 // フロアフィルタ
                 if (selectedFloor !== "全階") {
@@ -1870,45 +2020,76 @@ export default function BathingList() {
                 
                 // 入浴日フィルタ（該当曜日にチェックONの利用者のみ）
                 return resident[bathDayField] === true;
-              })
-              // 居室番号の若い順にソート
-              .sort((a: any, b: any) => {
-                const roomA = parseInt(a.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
-                const roomB = parseInt(b.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+              });
+              
+              // レコードが存在しない利用者用の一時レコード生成
+              const missingResidentRecords = filteredResidents
+                .filter((resident: any) => 
+                  !todayRecords.some((record: any) => record.residentId === resident.id)
+                )
+                .map((resident: any) => ({
+                  id: `temp-${resident.id}`,
+                  residentId: resident.id,
+                  isTemporary: true,
+                  recordDate: selectedDate,
+                  staffName: "",
+                  hour: null,
+                  minute: null
+                }));
+              
+              // 3. 全レコードを統合（既存レコード + 一時レコード）
+              const allRecords = [...todayRecords, ...missingResidentRecords];
+              
+              // 4. レコードをソート（居室番号順、ユーザー追加カード→最後固定）
+              const sortedRecords = allRecords.sort((a: any, b: any) => {
+                // ユーザー追加カード（isUserAddedフラグ）は常に最後に表示
+                const isUserAddedA = a.isUserAdded === true;
+                const isUserAddedB = b.isUserAdded === true;
+                
+                if (isUserAddedA && !isUserAddedB) return 1;  // Aがユーザー追加 → 後ろ
+                if (!isUserAddedA && isUserAddedB) return -1; // Bがユーザー追加 → 前
+                if (isUserAddedA && isUserAddedB) {
+                  // 両方ユーザー追加の場合は追加順（IDベース）
+                  return a.id.localeCompare(b.id);
+                }
+                
+                // 通常レコード同士の場合は利用者の居室番号でソート
+                const residentA = residents?.find((r: any) => r.id === a.residentId);
+                const residentB = residents?.find((r: any) => r.id === b.residentId);
+                
+                if (!residentA && !residentB) return 0;
+                if (!residentA) return 1;
+                if (!residentB) return -1;
+                
+                const roomA = parseInt(residentA.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+                const roomB = parseInt(residentB.roomNumber?.toString().replace(/[^\d]/g, '') || "0", 10);
+                
                 return roomA - roomB;
               });
               
-              return filteredResidents;
-            })().map((resident: any) => {
-                // 同一利用者の既存レコードを検索（食事一覧と同じパターン）
-                const existingRecord = bathingRecords.find((r: any) => 
-                  r.residentId === resident.id && 
-                  format(new Date(r.recordDate), 'yyyy-MM-dd') === selectedDate
-                );
-                
-                return (
-                  <BathingCard
-                    key={resident.id} // 利用者IDをキーに使用（食事一覧と同じ）
-                    record={existingRecord || { residentId: resident.id, isTemporary: true }} // 既存レコードまたは一時レコード
-                    residents={residents as any[]}
-                    currentUser={currentUser}
-                    inputBaseClass={inputBaseClass}
-                    hourOptions={hourOptions}
-                    minuteOptions={minuteOptions}
-                    bathTypeOptions={bathTypeOptions}
-                    temperatureOptions={temperatureOptions}
-                    systolicBPOptions={systolicBPOptions}
-                    diastolicBPOptions={diastolicBPOptions}
-                    pulseOptions={pulseOptions}
-                    spo2Options={spo2Options}
-                    handleFieldUpdate={handleFieldUpdate}
-                    handleSaveRecord={handleSaveRecord}
-                    handleStaffStamp={handleStaffStamp}
-                    deleteMutation={deleteMutation}
-                    changeResidentMutation={handleFieldUpdate}
-                  />
-                );
-              })
+              return sortedRecords.map((record: any) => (
+                <BathingCard
+                  key={record.id}
+                  record={record}
+                  residents={residents as any[]}
+                  currentUser={currentUser}
+                  inputBaseClass={inputBaseClass}
+                  hourOptions={hourOptions}
+                  minuteOptions={minuteOptions}
+                  bathTypeOptions={bathTypeOptions}
+                  temperatureOptions={temperatureOptions}
+                  systolicBPOptions={systolicBPOptions}
+                  diastolicBPOptions={diastolicBPOptions}
+                  pulseOptions={pulseOptions}
+                  spo2Options={spo2Options}
+                  handleFieldUpdate={handleFieldUpdate}
+                  handleSaveRecord={handleSaveRecord}
+                  handleStaffStamp={handleStaffStamp}
+                  deleteMutation={deleteMutation}
+                  changeResidentMutation={handleFieldUpdate}
+                />
+              ));
+            })()
           )}
         </div>
       </main>
