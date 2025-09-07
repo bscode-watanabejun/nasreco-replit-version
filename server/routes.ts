@@ -7,7 +7,7 @@ import fs from "fs";
 import puppeteer from "puppeteer";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, excretionRecords } from "../shared/schema";
+import { users, excretionRecords, staffManagement } from "../shared/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import {
@@ -394,12 +394,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Nursing records routes
   app.get('/api/nursing-records', isAuthenticated, async (req, res) => {
     try {
-      const { residentId, startDate, endDate } = req.query;
-      const records = await storage.getNursingRecords(
-        residentId as string,
-        startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
-      );
+      const { residentId, startDate, endDate, floor } = req.query;
+      const records = residentId || startDate || endDate 
+        ? await storage.getNursingRecords(
+            residentId as string,
+            startDate ? new Date(startDate as string) : undefined,
+            endDate ? new Date(endDate as string) : undefined
+          )
+        : await storage.getAllNursingRecords(floor as string);
       
       // recordDateをJST時刻として正しく返すために変換
       const convertedRecords = records.map(record => ({
@@ -420,39 +422,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let nurseId = null;
       
       if (staffSession) {
-        // 職員ログインの場合、対応するusersテーブルのIDを取得
-        const correspondingUser = await storage.findUserByStaffInfo(staffSession.staffId, staffSession.staffName);
-        
-        if (!correspondingUser) {
-          
-          // 職員情報を基に一時的なユーザーレコードを作成
-          try {
-            const tempUser = await storage.upsertUser({
-              id: staffSession.staffId, // staffIdをユーザーIDとして使用
-              email: `${staffSession.staffId}@temp.staff`,
-              firstName: staffSession.staffName || "Unknown",
-              lastName: "",
-              profileImageUrl: null,
-              role: "nurse"
-            });
-            nurseId = tempUser.id;
-          } catch (createError) {
-            console.error("❌ Failed to create temporary user:", createError);
-            // フォールバック：最初に見つかったユーザーを使用
-            try {
-              const [fallbackUser] = await db.select().from(users).limit(1);
-              if (fallbackUser) {
-                nurseId = fallbackUser.id;
-              }
-            } catch (fallbackError) {
-              console.error("❌ Fallback also failed:", fallbackError);
-            }
-          }
-        } else {
-          nurseId = correspondingUser.id;
-        }
-        
-        } else {
+        // 職員ログインの場合、staff_management.idを直接使用
+        nurseId = staffSession.id;
+      } else {
         // 通常ログインの場合
         nurseId = req.user?.claims?.sub || null;
       }
@@ -464,17 +436,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "有効な看護師IDが見つかりません" });
       }
 
-      // nurseIdがusersテーブルに存在するか確認
-      const userExists = await storage.getUser(nurseId);
+      // nurseIdがstaff_managementテーブルに存在するか確認
+      const staffExists = await db.select().from(staffManagement).where(eq(staffManagement.id, nurseId)).limit(1);
       
-      // 存在しない場合は、利用可能なユーザー一覧も出力（デバッグ用）
-      if (!userExists) {
-        console.error("❌ Validation failed: nurseId does not exist in users table:", nurseId);
-        try {
-          const allUsers = await db.select().from(users).limit(5);
-        } catch (error) {
-        }
-        return res.status(400).json({ message: "指定された看護師IDが存在しません" });
+      if (staffExists.length === 0) {
+        console.error("❌ Validation failed: nurseId does not exist in staff_management table:", nurseId);
+        return res.status(400).json({ message: "指定された職員IDが存在しません" });
       }
 
       const validatedData = insertNursingRecordSchema.parse({
@@ -1349,11 +1316,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/medication-records', isAuthenticated, async (req, res) => {
     try {
       const { recordDate, timing, floor } = req.query;
-      const records = await storage.getMedicationRecords(
-        recordDate as string || new Date().toISOString().split('T')[0],
-        timing as string || 'all',
-        floor as string || 'all'
-      );
+      
+      // パラメータが指定されていない場合は全データを取得
+      const records = recordDate 
+        ? await storage.getMedicationRecords(
+            recordDate as string,
+            timing as string || 'all',
+            floor as string || 'all'
+          )
+        : await storage.getAllMedicationRecords(floor as string);
       
       // recordDateをJST時刻として正しく返すために変換
       const convertedRecords = records.map(record => ({
@@ -1613,6 +1584,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/cleaning-linen', isAuthenticated, async (req, res) => {
     try {
       const { weekStartDate, floor } = req.query;
+      
+      // weekStartDateが指定されていない場合は全データを取得
+      if (!weekStartDate) {
+        const records = await storage.getAllCleaningLinenRecords(floor as string);
+        
+        // 全ての時刻フィールドをJST時刻として正しく返すために変換
+        const convertedRecords = records.map(record => ({
+          ...record,
+          recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00'),
+          recordTime: record.recordTime ? new Date(record.recordTime).toISOString().replace('Z', '+09:00') : record.recordTime,
+          createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('Z', '+09:00') : record.createdAt,
+          updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString().replace('Z', '+09:00') : record.updatedAt
+        }));
+        
+        res.json(convertedRecords);
+        return;
+      }
+      
+      // weekStartDateが指定されている場合は週単位で取得
       const startDate = new Date(weekStartDate as string);
       const records = await storage.getCleaningLinenRecords(startDate, floor as string);
       

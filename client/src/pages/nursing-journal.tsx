@@ -732,20 +732,21 @@ export default function NursingJournal() {
             print-color-adjust: exact;
           }
           
-          /* ヘッダー、フィルター、フッターを非表示 */
+          /* ヘッダー、ナビゲーション、フィルター、フッター等を非表示 */
           .bg-slate-800,
-          .bg-white.rounded-lg.p-2.mb-4.shadow-sm,
-          .bg-white.rounded-lg.p-4.mb-4.shadow-sm,
-          .fixed.bottom-0 {
+          .sticky,
+          .fixed,
+          .print\\:hidden,
+          .bg-white.p-3.shadow-sm.border-b,
+          nav,
+          header {
             display: none !important;
           }
           
+          /* 印刷用コンテンツのみ表示 */
           #print-content {
             display: block !important;
-          }
-          
-          .print\\:hidden {
-            display: none !important;
+            width: 100%;
           }
           
           .text-center {

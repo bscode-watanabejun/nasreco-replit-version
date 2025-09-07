@@ -597,7 +597,7 @@ export default function NursingRecordsList() {
       const submitData = {
         ...updatedBlock,
         residentId: selectedResident.id,
-        category: 'observation', // デフォルトカテゴリ
+        category: '看護記録', // デフォルトカテゴリ
       };
       
       createMutation.mutate(submitData);
@@ -1088,7 +1088,7 @@ export default function NursingRecordsList() {
                           createMutation.mutate({
                             residentId: selectedResident?.id,
                             recordDate: currentRecord.recordDate,
-                            category: 'observation',
+                            category: '看護記録',
                             description: e.target.value,
                             notes: '',
                           });
@@ -1245,7 +1245,7 @@ export default function NursingRecordsList() {
                               const submitData = {
                                 residentId: selectedResident.id,
                                 recordDate: currentDate.toISOString(),
-                                category: 'observation',
+                                category: '看護記録',
                                 description: block.description,
                                 notes: '',
                               };
@@ -1284,7 +1284,7 @@ export default function NursingRecordsList() {
                                 const submitData = {
                                   residentId: selectedResident.id,
                                   recordDate: currentDate.toISOString(),
-                                  category: 'observation',
+                                  category: '看護記録',
                                   description: block.description,
                                   notes: '',
                                 };
@@ -1345,7 +1345,7 @@ export default function NursingRecordsList() {
                             const submitData = {
                               residentId: selectedResident.id,
                               recordDate: new Date(block.recordDate).toISOString(),
-                              category: 'observation',
+                              category: '看護記録',
                               description: e.target.value,
                               notes: '',
                             };
@@ -1771,65 +1771,10 @@ export default function NursingRecordsList() {
                             return bathingDate === selectedDate;
                           });
                           
-                          // デバッグ用：鈴木みどりのデータを詳細調査
-                          if (resident.name === "鈴木 みどり") {
-                            console.log("=== 鈴木みどりの詳細調査 ===");
-                            console.log("選択日付:", selectedDate);
-                            console.log("利用者ID:", resident.id);
-                            console.log("利用者名:", resident.name);
-                            console.log("全入浴記録:", bathingRecordsArray);
-                            
-                            // 鈴木みどりの全入浴記録（日付フィルターなし）
-                            const allBathingForResident = bathingRecordsArray.filter((bathing: any) => {
-                              return bathing.residentId === resident.id;
-                            });
-                            console.log("鈴木みどりの全入浴記録:", allBathingForResident);
-                            
-                            console.log("選択日付の入浴記録:", residentBathingForDate);
-                            console.log("入浴記録数:", residentBathingForDate.length);
-                            
-                            residentBathingForDate.forEach((bathing, index) => {
-                              console.log(`入浴記録${index + 1}:`, {
-                                id: bathing.id,
-                                temperature: bathing.temperature,
-                                bloodPressureSystolic: bathing.bloodPressureSystolic,
-                                bloodPressureDiastolic: bathing.bloodPressureDiastolic,
-                                pulseRate: bathing.pulseRate,
-                                oxygenSaturation: bathing.oxygenSaturation,
-                                recordDate: bathing.recordDate,
-                                residentId: bathing.residentId,
-                                hasCompleteVitals: !!(bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation),
-                                allFields: bathing
-                              });
-                            });
-                          }
-                          
                           // バイタルが全項目入力されているかチェック（入浴記録のバイタル項目）
                           const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
                             bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
                           );
-                          
-                          // デバッグ用：特定住民のバイタル判定結果
-                          if (resident.name === "鈴木 みどり" || resident.name === "堀口 健一") {
-                            console.log(`=== ${resident.name}の詳細調査 ===`);
-                            console.log("選択日付:", selectedDate);
-                            console.log("住民ID:", resident.id);
-                            console.log("該当日の入浴記録数:", residentBathingForDate.length);
-                            console.log("バイタル完了判定:", hasCompleteVitals);
-                            console.log("看護チェック状態:", nursingChecks[resident.id]);
-                            
-                            // 各レコードのバイタル詳細チェック
-                            residentBathingForDate.forEach((bathing, index) => {
-                              console.log(`レコード${index + 1}の詳細チェック:`, {
-                                recordDate: bathing.recordDate,
-                                temperature: { value: bathing.temperature, hasValue: !!bathing.temperature },
-                                bloodPressureSystolic: { value: bathing.bloodPressureSystolic, hasValue: !!bathing.bloodPressureSystolic },
-                                pulseRate: { value: bathing.pulseRate, hasValue: !!bathing.pulseRate },
-                                oxygenSaturation: { value: bathing.oxygenSaturation, hasValue: !!bathing.oxygenSaturation },
-                                allComplete: !!(bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation)
-                              });
-                            });
-                          }
                           
                           // バイタル全項目入力済みの場合
                           if (hasCompleteVitals) {

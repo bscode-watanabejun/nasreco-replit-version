@@ -161,7 +161,7 @@ export const careRecords = pgTable("care_records", {
 export const nursingRecords = pgTable("nursing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").references(() => residents.id), // notNull()を削除してオプショナルに
-  nurseId: varchar("nurse_id").notNull().references(() => users.id),
+  nurseId: varchar("nurse_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
   category: varchar("category").notNull(), // assessment, intervention, evaluation
   description: text("description"), // notNull()を削除して空白での登録を可能に
@@ -745,7 +745,7 @@ export const residentAttachments = pgTable("resident_attachments", {
   filePath: varchar("file_path").notNull(), // サーバー上のファイルパス
   fileSize: integer("file_size").notNull(), // ファイルサイズ（バイト）
   mimeType: varchar("mime_type").notNull(), // ファイルタイプ
-  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id), // アップロードしたユーザー
+  uploadedBy: varchar("uploaded_by").notNull().references(() => staffManagement.id), // アップロードした職員
   description: text("description"), // ファイルの説明
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

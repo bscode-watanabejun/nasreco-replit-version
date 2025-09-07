@@ -103,6 +103,7 @@ export interface IStorage {
     outcomes: string | null;
     createdAt: Date | null;
   }[]>;
+  getAllNursingRecords(floor?: string): Promise<any[]>;
   getNursingRecordById(id: string): Promise<{
     id: string;
     residentId: string | null;
@@ -187,6 +188,7 @@ export interface IStorage {
 
   // Medication record operations
   getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<MedicationRecord[]>;
+  getAllMedicationRecords(floor?: string): Promise<MedicationRecord[]>;
   createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
   upsertMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord>;
   updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord>;
@@ -216,6 +218,7 @@ export interface IStorage {
 
   // Cleaning Linen operations
   getCleaningLinenRecords(weekStartDate: Date, floor?: string): Promise<CleaningLinenRecord[]>;
+  getAllCleaningLinenRecords(floor?: string): Promise<CleaningLinenRecord[]>;
   createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
   updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord>;
   upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
@@ -874,7 +877,73 @@ export class DatabaseStorage implements IStorage {
     await db.delete(roundRecords).where(eq(roundRecords.id, id));
   }
 
+  // Nursing record operations - parameterless query for all records
+  async getAllNursingRecords(floor?: string): Promise<any[]> {
+    const results = await db.select({
+      // nursing_records のフィールド
+      id: nursingRecords.id,
+      residentId: nursingRecords.residentId,
+      nurseId: nursingRecords.nurseId,
+      recordDate: nursingRecords.recordDate,
+      category: nursingRecords.category,
+      description: nursingRecords.description,
+      notes: nursingRecords.notes,
+      interventions: nursingRecords.interventions,
+      outcomes: nursingRecords.outcomes,
+      createdAt: nursingRecords.createdAt,
+      // residents のフィールド
+      residentName: residents.name,
+      roomNumber: residents.roomNumber,
+      floor: residents.floor,
+      // staffManagement (nurse) のフィールド
+      staffName: staffManagement.staffName,
+    })
+    .from(nursingRecords)
+    .leftJoin(residents, eq(nursingRecords.residentId, residents.id))
+    .leftJoin(staffManagement, eq(nursingRecords.nurseId, staffManagement.id))
+    .orderBy(desc(nursingRecords.recordDate));
+
+    // 階数でフィルタリング（JavaScriptで処理）
+    if (floor && floor !== "all" && floor !== "全階") {
+      return results.filter(record => record.floor === floor);
+    }
+
+    return results;
+  }
+
   // Medication record operations
+  async getAllMedicationRecords(floor?: string): Promise<any[]> {
+    const results = await db.select({
+      // medication_records のフィールド
+      id: medicationRecords.id,
+      residentId: medicationRecords.residentId,
+      recordDate: medicationRecords.recordDate,
+      timing: medicationRecords.timing,
+      confirmer1: medicationRecords.confirmer1,
+      confirmer2: medicationRecords.confirmer2,
+      notes: medicationRecords.notes,
+      type: medicationRecords.type,
+      result: medicationRecords.result,
+      createdBy: medicationRecords.createdBy,
+      createdAt: medicationRecords.createdAt,
+      updatedAt: medicationRecords.updatedAt,
+      // residents のフィールド
+      residentName: residents.name,
+      roomNumber: residents.roomNumber,
+      floor: residents.floor,
+    })
+    .from(medicationRecords)
+    .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
+    .orderBy(desc(medicationRecords.recordDate));
+
+    // 階数でフィルタリング（JavaScriptで処理）
+    if (floor && floor !== "all" && floor !== "全階") {
+      return results.filter(record => record.floor === floor);
+    }
+
+    return results;
+  }
+
   async getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<any[]> {
     const conditions = [eq(medicationRecords.recordDate, recordDate)];
     
@@ -1084,7 +1153,44 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Cleaning Linen operations
+  async getAllCleaningLinenRecords(floor?: string): Promise<CleaningLinenRecord[]> {
+    const results = await db.select({
+      id: cleaningLinenRecords.id,
+      residentId: cleaningLinenRecords.residentId,
+      recordDate: cleaningLinenRecords.recordDate,
+      recordTime: cleaningLinenRecords.recordTime,
+      dayOfWeek: cleaningLinenRecords.dayOfWeek,
+      cleaningValue: cleaningLinenRecords.cleaningValue,
+      linenValue: cleaningLinenRecords.linenValue,
+      recordNote: cleaningLinenRecords.recordNote,
+      staffId: cleaningLinenRecords.staffId,
+      createdAt: cleaningLinenRecords.createdAt,
+      updatedAt: cleaningLinenRecords.updatedAt,
+      residentName: residents.name,
+      residentFloor: residents.floor,
+      residentRoom: residents.roomNumber,
+      staffName: users.firstName,
+    })
+    .from(cleaningLinenRecords)
+    .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
+    .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
+    .orderBy(desc(cleaningLinenRecords.recordDate));
+
+    // 階数でフィルタリング（JavaScriptで処理）
+    if (floor && floor !== "all" && floor !== "全階") {
+      return results.filter(record => record.residentFloor === floor);
+    }
+
+    return results;
+  }
+
   async getCleaningLinenRecords(weekStartDate: Date, floor?: string): Promise<CleaningLinenRecord[]> {
+    // 日付の妥当性チェック
+    if (!weekStartDate || isNaN(weekStartDate.getTime())) {
+      console.error('Invalid weekStartDate:', weekStartDate);
+      return [];
+    }
+    
     const weekEndDate = new Date(weekStartDate);
     weekEndDate.setDate(weekStartDate.getDate() + 6);
 

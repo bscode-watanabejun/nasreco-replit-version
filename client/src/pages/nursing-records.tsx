@@ -1377,7 +1377,7 @@ export default function NursingRecords() {
                                 const submitData = {
                                   residentId: selectedResident.id,
                                   recordDate: new Date(block.recordDate).toISOString(),
-                                  category: 'observation',
+                                  category: '看護記録',
                                   description: e.target.value,
                                   nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
                                 };

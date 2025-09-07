@@ -29,6 +29,8 @@ import NursingRecords from "@/pages/nursing-records";
 import TreatmentList from "@/pages/treatment-list";
 import DailyRecords from "@/pages/daily-records";
 import NursingJournal from "@/pages/nursing-journal";
+import CheckListMenu from "@/pages/check-list-menu";
+import CareRecordsCheck from "@/pages/care-records-check";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -78,6 +80,8 @@ function Router() {
           <Route path="/treatment-list" component={TreatmentList} />
           <Route path="/daily-records" component={DailyRecords} />
           <Route path="/nursing-journal" component={NursingJournal} />
+          <Route path="/check-list-menu" component={CheckListMenu} />
+          <Route path="/care-records-check" component={CareRecordsCheck} />
           <Route component={NotFound} />
         </>
       )}

@@ -318,7 +318,7 @@ export default function Dashboard() {
       description: "確認事項・点検項目",
       color: "pink",
       span: 2,
-      path: "/checklists"
+      path: "/check-list-menu"
     },
     {
       icon: Settings,
@@ -379,8 +379,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 h-[calc(100vh-120px)] overflow-hidden">
-        <div className="h-full">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 h-[calc(100vh-120px)] overflow-y-auto">
+        <div>
           <div>
             {/* Primary Modules - より密なレイアウト */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-2 mb-1 sm:mb-2">
