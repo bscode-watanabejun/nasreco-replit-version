@@ -104,14 +104,31 @@ export default function Rounds() {
     queryKey: ['/api/residents'],
   });
 
-  // 選択された階数に基づいてフィルタリング
-  const residents = allResidents.filter(resident => {
-    if (selectedFloor === 'all') return true;
-    // 数値と文字列（"1F", "2F"など）の両方に対応
-    return resident.floor === selectedFloor || 
-           resident.floor === `${selectedFloor}F` ||
-           resident.floor === selectedFloor.toString();
-  });
+  // 選択された階数に基づいてフィルタリングし、居室番号順でソート
+  const residents = allResidents
+    .filter(resident => {
+      if (selectedFloor === 'all') return true;
+      // データベースの「1階」「2階」形式と選択値「1」「2」を比較
+      return resident.floor === `${selectedFloor}階` || 
+             resident.floor === selectedFloor || 
+             resident.floor === `${selectedFloor}F`;
+    })
+    .sort((a, b) => {
+      // 居室番号を数値として比較（文字列の場合は文字列比較）
+      const roomA = a.roomNumber || '';
+      const roomB = b.roomNumber || '';
+      
+      // 数値部分を抽出して比較
+      const numA = parseInt(roomA.replace(/[^\d]/g, '')) || 0;
+      const numB = parseInt(roomB.replace(/[^\d]/g, '')) || 0;
+      
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      
+      // 数値が同じ場合は文字列として比較
+      return roomA.localeCompare(roomB);
+    });
 
   // ラウンド記録を取得（選択された日付の記録のみ、フィルタリングは後で適用）
   const { data: allRoundRecords = [], isLoading } = useQuery<RoundRecord[]>({
