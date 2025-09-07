@@ -495,6 +495,35 @@ export default function CareRecords() {
     },
   });
 
+  // 記録削除用ミューテーション
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/care-records/${id}`, "DELETE");
+    },
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/care-records'] });
+      const previousCareRecords = queryClient.getQueryData(['/api/care-records']);
+      
+      // 楽観的更新: 削除対象の記録を除外
+      queryClient.setQueryData(['/api/care-records'], (old: any[] | undefined) => {
+        if (!old) return [];
+        return old.filter(record => record.id !== id);
+      });
+      
+      return { previousCareRecords };
+    },
+    onError: (err, id, context) => {
+      // エラー時は元のデータに戻す
+      if (context?.previousCareRecords) {
+        queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
+      }
+      console.error("記録の削除エラー");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/care-records'] });
+    },
+  });
+
   const onSubmit = (data: CareRecordForm) => {
     createMutation.mutate(data);
   };
@@ -535,6 +564,17 @@ export default function CareRecords() {
     setNewRecordBlocks(prev => [...prev, newBlock]);
   };
 
+  // 新規記録ブロック削除
+  const removeNewRecordBlock = (blockId: string) => {
+    setNewRecordBlocks(prev => prev.filter(block => block.id !== blockId));
+    // ローカル状態もクリア
+    setLocalNewBlockDescriptions(prev => {
+      const newDescriptions = { ...prev };
+      delete newDescriptions[blockId];
+      return newDescriptions;
+    });
+  };
+
   // インライン新規記録作成ハンドラー
   const handleNewRecordEdit = (blockId: string, field: string, value: string) => {
     setNewRecordBlocks(prev => 
@@ -562,7 +602,7 @@ export default function CareRecords() {
       const submitData = {
         ...updatedBlock,
         residentId: selectedResident.id,
-        category: 'observation', // デフォルトカテゴリ
+        category: '介護記録', // デフォルトカテゴリ
       };
       
       createMutation.mutate(submitData);
@@ -1009,7 +1049,7 @@ export default function CareRecords() {
                           createMutation.mutate({
                             residentId: selectedResident?.id,
                             recordDate: currentRecord.recordDate,
-                            category: 'observation',
+                            category: '介護記録',
                             description: e.target.value,
                             notes: '',
                           });
@@ -1166,7 +1206,7 @@ export default function CareRecords() {
                               const submitData = {
                                 residentId: selectedResident.id,
                                 recordDate: currentDate.toISOString(),
-                                category: 'observation',
+                                category: '介護記録',
                                 description: block.description,
                                 notes: '',
                               };
@@ -1205,7 +1245,7 @@ export default function CareRecords() {
                                 const submitData = {
                                   residentId: selectedResident.id,
                                   recordDate: currentDate.toISOString(),
-                                  category: 'observation',
+                                  category: '介護記録',
                                   description: block.description,
                                   notes: '',
                                 };
@@ -1279,7 +1319,7 @@ export default function CareRecords() {
                             const submitData = {
                               residentId: selectedResident.id,
                               recordDate: new Date(block.recordDate).toISOString(),
-                              category: 'observation',
+                              category: '介護記録',
                               description: e.target.value,
                               notes: '',
                             };
@@ -1313,33 +1353,28 @@ export default function CareRecords() {
                       />
                     </div>
 
-                    {/* アイコンボタン */}
-                    <div className="flex flex-col justify-center gap-1 flex-shrink-0">
+                    {/* アイコンボタン - 3つ縦並び */}
+                    <div className="flex flex-col justify-center gap-6 sm:-space-y-4 flex-shrink-0">
                       <Button 
                         variant="ghost" 
-                        size="sm" 
-                        className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
-                        onClick={() => {
-                          // 新規ブロックを一時的な記録として詳細画面に渡す
-                          setSelectedRecordForDetail({
-                            ...block,
-                            recordDate: block.recordDate
-                          });
-                          setShowRecordDetail(true);
-                        }}
+                        className="text-gray-400 hover:bg-gray-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0 cursor-not-allowed"
+                        disabled
                       >
                         <Info className="w-3 h-3" />
                       </Button>
                       <Button 
                         variant="ghost" 
-                        size="sm" 
-                        className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
-                        onClick={() => {
-                          setSelectedRecordContent(block.description);
-                          setContentDialogOpen(true);
-                        }}
+                        className="text-gray-400 hover:bg-gray-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0 cursor-not-allowed"
+                        disabled
                       >
                         <Search className="w-3 h-3" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        className="text-red-600 hover:bg-red-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0"
+                        onClick={() => removeNewRecordBlock(block.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
                   </div>
@@ -1357,7 +1392,7 @@ export default function CareRecords() {
                   <div key={record.id} className={`${(adjustedIndex > 0 || filteredNewRecordBlocks.length > 0) ? 'border-t' : ''} bg-white`}>
                     <div className="p-2">
                       {/* 1行目：時間 + 記録内容 + アクションボタン */}
-                      <div className="flex items-center gap-2 h-20">
+                      <div className="flex items-center gap-2 h-24">
                         {/* 左側：時間、カテゴリ、記録者を縦並び */}
                         <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
                           {/* 時間 */}
@@ -1481,19 +1516,18 @@ export default function CareRecords() {
                               // カーソルアウト時に保存処理を実行
                               updateMutation.mutate({ id: record.id, field: 'description', value: e.target.value });
                             }}
-                            className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                            className="h-24 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
                             placeholder="記録を入力..."
                             rows={4}
                             data-record-id={record.id}
                           />
                         </div>
 
-                        {/* アイコンボタン */}
-                        <div className="flex flex-col justify-center gap-1 flex-shrink-0">
+                        {/* アイコンボタン - 3つ縦並び */}
+                        <div className="flex flex-col justify-center gap-6 sm:-space-y-4 flex-shrink-0">
                           <Button 
                             variant="ghost" 
-                            size="sm" 
-                            className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
+                            className="text-blue-600 hover:bg-blue-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0"
                             onClick={() => {
                               setSelectedRecordForDetail(record);
                               setShowRecordDetail(true);
@@ -1503,8 +1537,7 @@ export default function CareRecords() {
                           </Button>
                           <Button 
                             variant="ghost" 
-                            size="sm" 
-                            className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
+                            className="text-blue-600 hover:bg-blue-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0"
                             onClick={() => {
                               setSelectedRecordContent(record.description);
                               setContentDialogOpen(true);
@@ -1512,6 +1545,35 @@ export default function CareRecords() {
                           >
                             <Search className="w-3 h-3" />
                           </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                className="text-red-600 hover:bg-red-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>記録削除の確認</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  この介護記録を削除してもよろしいですか？この操作は取り消せません。
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => {
+                                    deleteMutation.mutate(record.id);
+                                  }}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  削除
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </div>
                     </div>

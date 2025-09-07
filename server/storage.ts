@@ -89,6 +89,7 @@ export interface IStorage {
   }[]>;
   createCareRecord(record: InsertCareRecord): Promise<CareRecord>;
   updateCareRecord(id: string, data: Partial<InsertCareRecord>): Promise<CareRecord>;
+  deleteCareRecord(id: string): Promise<void>;
 
   // Nursing record operations
   getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
@@ -430,6 +431,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(careRecords.id, id))
       .returning();
     return record;
+  }
+
+  async deleteCareRecord(id: string): Promise<void> {
+    await db.delete(careRecords).where(eq(careRecords.id, id));
   }
 
   // Nursing record operations

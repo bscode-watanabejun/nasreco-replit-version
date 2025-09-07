@@ -391,6 +391,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 介護記録削除
+  app.delete('/api/care-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteCareRecord(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting care record:", error);
+      res.status(500).json({ message: "Failed to delete care record" });
+    }
+  });
+
   // Nursing records routes
   app.get('/api/nursing-records', isAuthenticated, async (req, res) => {
     try {
