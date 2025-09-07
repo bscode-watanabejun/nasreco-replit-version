@@ -86,12 +86,27 @@ function InputWithDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 値が外部から変更された場合に同期
   useEffect(() => {
     setInputValue(value);
   }, [value]);
+
+  useEffect(() => {
+    const checkFocus = () => {
+      if (inputRef.current) {
+        setIsFocused(document.activeElement === inputRef.current);
+      }
+    };
+    document.addEventListener('focusin', checkFocus);
+    document.addEventListener('focusout', checkFocus);
+    return () => {
+      document.removeEventListener('focusin', checkFocus);
+      document.removeEventListener('focusout', checkFocus);
+    };
+  }, []);
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
@@ -144,41 +159,43 @@ function InputWithDropdown({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          readOnly
-          onFocus={() => !disabled && !disableFocusMove && setOpen(true)}
-          onClick={(e) => {
-            if (disableFocusMove && !disabled) {
-              // フィルタ条件項目の場合はクリックでプルダウンを開く
-              setOpen(!open);
-            } else {
-              e.preventDefault();
-            }
-          }}
-          placeholder={placeholder}
-          className={`${className} ${disabled ? 'cursor-not-allowed bg-slate-100' : ''}`}
-          disabled={disabled}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-32 p-0.5" align="center">
-        <div className="space-y-0 max-h-40 overflow-y-auto">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleSelect(option.value)}
-              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            readOnly
+            onFocus={() => !disabled && !disableFocusMove && setOpen(true)}
+            onClick={(e) => {
+              if (disableFocusMove && !disabled) {
+                // フィルタ条件項目の場合はクリックでプルダウンを開く
+                setOpen(!open);
+              } else {
+                e.preventDefault();
+              }
+            }}
+            placeholder={placeholder}
+            className={`${className} ${disabled ? 'cursor-not-allowed bg-slate-100' : ''}`}
+            disabled={disabled}
+          />
+        </PopoverTrigger>
+        <PopoverContent className="w-32 p-0.5" align="center">
+          <div className="space-y-0 max-h-40 overflow-y-auto">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 

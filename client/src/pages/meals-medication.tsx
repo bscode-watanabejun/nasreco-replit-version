@@ -94,12 +94,27 @@ function InputWithDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 値が外部から変更された場合に同期
   useEffect(() => {
     setInputValue(value);
   }, [value]);
+
+  useEffect(() => {
+    const checkFocus = () => {
+      if (inputRef.current) {
+        setIsFocused(document.activeElement === inputRef.current);
+      }
+    };
+    document.addEventListener('focusin', checkFocus);
+    document.addEventListener('focusout', checkFocus);
+    return () => {
+      document.removeEventListener('focusin', checkFocus);
+      document.removeEventListener('focusout', checkFocus);
+    };
+  }, []);
 
   const handleSelect = (selectedValue: string) => {
     const selectedOption = options.find(opt => opt.value === selectedValue);
@@ -131,6 +146,7 @@ function InputWithDropdown({
   };
 
   return (
+    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <input
@@ -151,20 +167,21 @@ function InputWithDropdown({
             className={className}
           />
         </PopoverTrigger>
-      <PopoverContent className="w-32 p-0.5" align="center">
-        <div className="space-y-0 max-h-40 overflow-y-auto">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleSelect(option.value)}
-              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+        <PopoverContent className="w-32 p-0.5" align="center">
+          <div className="space-y-0 max-h-40 overflow-y-auto">
+            {options.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
