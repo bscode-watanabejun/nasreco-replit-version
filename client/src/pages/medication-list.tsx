@@ -244,9 +244,8 @@ export default function MedicationList() {
     queryKey: ["/api/residents"]
   });
 
-
   // 服薬記録データ取得
-  const { data: medicationRecords = [], isLoading, error } = useQuery<MedicationRecordWithResident[]>({
+  const { data: medicationRecords = [], isLoading, error, refetch } = useQuery<MedicationRecordWithResident[]>({
     queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -262,8 +261,17 @@ export default function MedicationList() {
       }
       const data = await response.json();
       return data;
-    }
+    },
+    staleTime: 0, // キャッシュを即座に古いものとする
+    gcTime: 1000 * 60, // 1分後にガベージコレクション（旧cacheTime）
+    refetchOnMount: 'always', // マウント時に必ずリフェッチ
   });
+
+  // フィルタ条件変更時の強制リフレッシュ
+  useEffect(() => {
+    // フィルタ条件が変更されたら必ずリフェッチ
+    refetch();
+  }, [selectedDate, selectedTiming, selectedFloor, refetch]);
 
   // 表示用の服薬記録データを作成（既存レコードのみ表示）
   const displayMedicationRecords = (() => {
@@ -285,19 +293,28 @@ export default function MedicationList() {
       const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
       const previousData = queryClient.getQueryData(queryKey);
       
-      // 楽観的に更新（新規作成）
+      // 楽観的に更新（新規作成、プレースホルダー対応）
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return [newRecord];
         
-        // 既存の記録があるかチェック
+        // 既存の記録があるかチェック（プレースホルダー含む）
         const existingIndex = old.findIndex((record: any) => 
           record.residentId === newRecord.residentId && record.timing === newRecord.timing
         );
         
         if (existingIndex >= 0) {
-          // 既存レコードを更新
+          // 既存レコード（プレースホルダー含む）を実レコードで置き換え
           const updated = [...old];
-          updated[existingIndex] = { ...updated[existingIndex], ...newRecord, id: updated[existingIndex].id };
+          const existingRecord = updated[existingIndex];
+          
+          // プレースホルダーまたは既存レコードを新しいデータで更新
+          updated[existingIndex] = { 
+            ...existingRecord,
+            ...newRecord, 
+            id: existingRecord.id && !existingRecord.id.startsWith('temp-')
+              ? existingRecord.id  // 既存のID（プレースホルダー含む）を保持
+              : `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`  // temp-IDの場合のみ新しい一時IDを生成
+          };
           return updated;
         } else {
           // 新規レコードを追加
@@ -441,7 +458,7 @@ export default function MedicationList() {
 
   // fetchExistingDataForResident関数は削除（使用されなくなったため）
 
-  // フィールド保存（食事一覧と同じアプローチ）
+  // フィールド保存（プレースホルダーカード対応版）
   const handleSaveRecord = (residentId: string, field: string, value: string) => {
     console.log(`handleSaveRecord called:`, {
       residentId,
@@ -465,7 +482,8 @@ export default function MedicationList() {
       id: r.id,
       residentId: r.residentId, 
       timing: r.timing,
-      temp: r.id?.startsWith('temp-')
+      isPlaceholder: r.id?.startsWith('placeholder-'),
+      isTemp: r.id?.startsWith('temp-')
     })));
     
     // レコードデータを作成
@@ -498,17 +516,19 @@ export default function MedicationList() {
     
     console.log('Record data to save:', recordData);
     
-    // 既存レコードがあるか確認（一時レIDでない実レコード）
-    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+    // 既存レコードがあるか確認（プレースホルダーや一時レコード以外の実レコード）
+    if (existingRecord && existingRecord.id && 
+        !existingRecord.id.startsWith('temp-') && 
+        !existingRecord.id.startsWith('placeholder-')) {
       console.log('Updating existing record with ID:', existingRecord.id);
       updateMutation.mutate({ id: existingRecord.id, data: recordData });
     } else {
-      console.log('Creating new record');
+      console.log('Creating new record (from placeholder or temp)');
       createMutation.mutate(recordData);
     }
   };
 
-  // フィールド更新（一時レコード用）
+  // フィールド更新（プレースホルダーカード対応版）
   const handleFieldUpdate = async (recordId: string, field: keyof InsertMedicationRecord, value: any) => {
     console.log(`Updating field ${field} for record ${recordId} with value:`, value);
     
@@ -540,6 +560,28 @@ export default function MedicationList() {
       return;
     }
     
+    // プレースホルダーカードの場合は楽観的更新
+    if (recordId && recordId.startsWith('placeholder-')) {
+      const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id === recordId) {
+            return { ...record, [field]: value };
+          }
+          return record;
+        });
+      });
+      
+      // プレースホルダーからresidentIdを抽出（UUID対応）
+      const residentId = recordId.replace(/^placeholder-([^-]+(?:-[^-]+)*)-[^-]+$/, '$1');
+      
+      // プレースホルダーカードでは自動保存を無効化（明示的な保存操作のみ）
+      // handleSaveRecordの呼び出しを削除して、重複レコード作成を防ぐ
+      console.log(`Placeholder field ${field} updated for resident ${residentId} - no auto-save`);
+      return;
+    }
+    
     // 一時的なIDの場合は楽観的更新のみ
     if (recordId && recordId.startsWith('temp-')) {
       const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
@@ -556,7 +598,7 @@ export default function MedicationList() {
       // 自動保存は無効化 - 明示的な保存操作のみ実行
       // ここで自動保存するとフィールドごとに新規レコードが作成される
       console.log('Field update completed - no auto-save to prevent duplicates');
-    } else if (recordId && !recordId.startsWith('temp-')) {
+    } else if (recordId && !recordId.startsWith('temp-') && !recordId.startsWith('placeholder-')) {
       // 実レコードの場合は通常更新
       const updateData = { [field]: value };
       console.log('Updating existing record:', updateData);
@@ -594,19 +636,29 @@ export default function MedicationList() {
     
     console.log(`Setting ${confirmerField} to: ${newConfirmer} for record ${recordId}`);
     
-    // 既存レコード（一時的でない）があるか確認
-    if (existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+    // 既存レコード（一時的・プレースホルダー以外）があるか確認
+    if (existingRecord.id && 
+        !existingRecord.id.startsWith('temp-') && 
+        !existingRecord.id.startsWith('placeholder-')) {
       // 既存レコードを更新
       const updateData = { [confirmerField]: newConfirmer };
       console.log('Updating existing record confirmer:', existingRecord.id, updateData);
       updateMutation.mutate({ id: existingRecord.id, data: updateData });
     } else {
-      // 新規レコード（一時的）の場合
-      // 利用者が選択されているか確認
+      // 新規レコード（一時的またはプレースホルダー）の場合
+      // プレースホルダーカードの場合は常に利用者が設定されている
       if (existingRecord.residentId) {
         // 利用者が選択されていれば、レコードを作成
+        let actualResidentId = existingRecord.residentId;
+        
+        // プレースホルダーカードの場合はIDから利用者IDを抽出（UUID対応）
+        if (recordId.startsWith('placeholder-')) {
+          actualResidentId = recordId.replace(/^placeholder-([^-]+(?:-[^-]+)*)-[^-]+$/, '$1');
+          console.log('Extracted residentId from placeholder:', actualResidentId);
+        }
+        
         const recordData: InsertMedicationRecord = {
-          residentId: existingRecord.residentId,
+          residentId: actualResidentId,
           recordDate: new Date(selectedDate),
           timing: selectedTiming,
           type: existingRecord?.type || '服薬',
@@ -615,7 +667,7 @@ export default function MedicationList() {
           notes: existingRecord?.notes || '',
           result: existingRecord?.result || ''
         };
-        console.log('Creating new record for confirmer stamp on temp record:', recordData);
+        console.log('Creating new record for confirmer stamp:', recordData);
         createMutation.mutate(recordData);
       } else {
         // 利用者が未選択の場合は、キャッシュ内のレコードを直接更新
@@ -756,6 +808,15 @@ export default function MedicationList() {
             console.log('Rendering displayMedicationRecords:', JSON.stringify(displayMedicationRecords, null, 2));
             return displayMedicationRecords
             .sort((a: MedicationRecordWithResident, b: MedicationRecordWithResident) => {
+              // 一時カード（temp-）は最後に表示
+              const isATemp = a.id.startsWith('temp-');
+              const isBTemp = b.id.startsWith('temp-');
+              
+              if (isATemp && !isBTemp) return 1;  // aが一時カードならbの後
+              if (!isATemp && isBTemp) return -1; // bが一時カードならaの前
+              if (isATemp && isBTemp) return 0;   // 両方一時カードなら順序維持
+              
+              // 両方が通常カードの場合は部屋番号でソート
               const roomA = parseInt(a.roomNumber || "0");
               const roomB = parseInt(b.roomNumber || "0");
               return roomA - roomB;
@@ -868,10 +929,15 @@ export default function MedicationList() {
                           delete newState[record.id];
                           return newState;
                         });
-                        // メモが入力された場合は保存を実行
-                        if (value && value.trim() && record.residentId) {
+                        // メモが入力された場合は保存を実行（プレースホルダーカード以外）
+                        if (value && value.trim() && record.residentId && !record.id.startsWith('placeholder-')) {
                           console.log('Saving notes on blur:', value);
                           handleSaveRecord(record.residentId, "notes", value);
+                        } else if (record.id.startsWith('placeholder-') && value && value.trim()) {
+                          // プレースホルダーカードの場合は、正しいresidentIdを抽出して保存
+                          const actualResidentId = record.id.replace(/^placeholder-([^-]+(?:-[^-]+)*)-[^-]+$/, '$1');
+                          console.log('Saving placeholder notes on blur:', value, 'for resident:', actualResidentId);
+                          handleSaveRecord(actualResidentId, "notes", value);
                         }
                       }}
                       className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
@@ -911,10 +977,15 @@ export default function MedicationList() {
                         console.log('Result changed for record', record.id, 'to:', value);
                         const actualValue = value === "空欄" ? "" : value;
                         handleFieldUpdate(record.id, "result", actualValue);
-                        // 結果が選択された場合は保存を実行
-                        if (actualValue && record.residentId) {
+                        // 結果が選択された場合は保存を実行（プレースホルダーカード以外）
+                        if (actualValue && record.residentId && !record.id.startsWith('placeholder-')) {
                           console.log('Saving result on change:', actualValue);
                           handleSaveRecord(record.residentId, "result", actualValue);
+                        } else if (record.id.startsWith('placeholder-') && actualValue) {
+                          // プレースホルダーカードの場合は、正しいresidentIdを抽出して保存
+                          const actualResidentId = record.id.replace(/^placeholder-([^-]+(?:-[^-]+)*)-[^-]+$/, '$1');
+                          console.log('Saving placeholder result on change:', actualValue, 'for resident:', actualResidentId);
+                          handleSaveRecord(actualResidentId, "result", actualValue);
                         }
                       }}
                       placeholder="結果"

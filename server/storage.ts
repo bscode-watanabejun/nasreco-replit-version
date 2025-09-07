@@ -950,6 +950,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMedicationRecords(recordDate: string, timing: string, floor: string): Promise<any[]> {
+    // 服薬タイミングと利用者の服薬時間帯設定のマッピング
+    const getTimingFieldMapping = (timing: string) => {
+      const mappings: Record<string, string[]> = {
+        "起床後": ["medicationOther"],
+        "朝前": ["medicationMorningBefore"], 
+        "朝後": ["medicationMorning"],
+        "昼前": ["medicationOther"],
+        "昼後": ["medicationBedtime"],
+        "夕前": ["medicationEveningBefore"],
+        "夕後": ["medicationEvening"],
+        "眠前": ["medicationOther"],
+        "頓服": ["medicationOther"]
+      };
+      return mappings[timing] || [];
+    };
+
+    // 曜日から服薬時間フィールドを取得（修正：medicationTime*フィールド群を使用）
+    const getWeeklyFieldFromDate = (dateString: string): string => {
+      const date = new Date(dateString);
+      const dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, etc.
+      const weeklyFields = [
+        'medicationTimeSunday',    // Week → Time に変更
+        'medicationTimeMonday',    // Week → Time に変更
+        'medicationTimeTuesday',   // Week → Time に変更
+        'medicationTimeWednesday', // Week → Time に変更
+        'medicationTimeThursday',  // Week → Time に変更
+        'medicationTimeFriday',    // Week → Time に変更
+        'medicationTimeSaturday'   // Week → Time に変更
+      ];
+      return weeklyFields[dayOfWeek];
+    };
+
+    // 1. 既存の服薬記録を取得
     const conditions = [eq(medicationRecords.recordDate, recordDate)];
     
     if (timing && timing !== 'all') {
@@ -960,7 +993,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(residents.floor, floor));
     }
 
-    const results = await db.select({
+    const existingRecords = await db.select({
       // medication_records のフィールド
       id: medicationRecords.id,
       residentId: medicationRecords.residentId,
@@ -982,9 +1015,81 @@ export class DatabaseStorage implements IStorage {
       .from(medicationRecords)
       .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
       .where(and(...conditions));
+
+    // 2. 条件に合致する利用者の初期表示カードを生成
+    if (timing && timing !== 'all') {
+      // 利用者を取得（フロアフィルタ適用）
+      let residentConditions = [eq(residents.isActive, true)];
+      if (floor && floor !== 'all') {
+        residentConditions.push(eq(residents.floor, floor));
+      }
+
+      const allResidents = await db.select().from(residents).where(and(...residentConditions));
       
-    const flattenedResults = results;
-    return flattenedResults;
+      const timingFields = getTimingFieldMapping(timing);
+      const weeklyField = getWeeklyFieldFromDate(recordDate);
+      
+      // 既存記録がある利用者のIDセット
+      const existingRecordResidentIds = new Set(existingRecords.map(r => r.residentId));
+      
+      // 条件に合致する利用者の空カードを生成
+      const additionalCards = [];
+      
+      for (const resident of allResidents) {
+        // 既に記録がある場合はスキップ
+        if (existingRecordResidentIds.has(resident.id)) {
+          continue;
+        }
+        
+        // 服薬時間帯設定をチェック
+        let hasTimingSetting = false;
+        if (timingFields.length > 0) {
+          for (const field of timingFields) {
+            if (resident[field as keyof typeof resident]) {
+              hasTimingSetting = true;
+              break;
+            }
+          }
+        }
+        
+        // 週次設定をチェック
+        const hasWeeklySetting = resident[weeklyField as keyof typeof resident] === true;
+        
+        // 両方の条件に合致する場合のみカードを生成
+        if (hasTimingSetting && hasWeeklySetting) {
+          additionalCards.push({
+            id: `placeholder-${resident.id}-${timing}`,
+            residentId: resident.id,
+            recordDate: recordDate,
+            timing: timing,
+            confirmer1: null,
+            confirmer2: null,
+            notes: null,
+            type: "服薬", // デフォルトタイプ
+            result: null,
+            createdBy: null,
+            createdAt: null,
+            updatedAt: null,
+            residentName: resident.name,
+            roomNumber: resident.roomNumber,
+            floor: resident.floor,
+          });
+        }
+      }
+      
+      // 既存記録と生成されたカードを結合
+      const allRecords = [...existingRecords, ...additionalCards];
+      
+      // 居室番号でソート
+      return allRecords.sort((a, b) => {
+        const roomA = parseInt(a.roomNumber || "0");
+        const roomB = parseInt(b.roomNumber || "0");
+        return roomA - roomB;
+      });
+    }
+    
+    // timing が 'all' の場合は既存の記録のみ返す
+    return existingRecords;
   }
 
   async createMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
