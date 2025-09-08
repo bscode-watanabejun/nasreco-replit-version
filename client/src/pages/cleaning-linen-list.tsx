@@ -226,11 +226,9 @@ export default function CleaningLinenList() {
         queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
       });
     },
-    onSuccess: (serverResponse, variables, context) => {
-      // 一時的にinvalidateQueriesを使用してデータを再取得
-      queryClient.invalidateQueries({ 
-        queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
-      });
+    onSuccess: () => {
+      // 楽観的更新の結果をそのまま使用し、即座にUI反映
+      // サーバー同期はエラー時のみ実行
     },
   });
 
