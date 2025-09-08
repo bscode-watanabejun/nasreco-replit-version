@@ -2106,8 +2106,8 @@ export class DatabaseStorage implements IStorage {
               const hour = String(record.hour).padStart(2, '0');
               const minute = String(record.minute).padStart(2, '0');
               
-              // JST時刻として解釈されるような文字列を作成
-              const jstDateString = `${year}-${month}-${day}T${hour}:${minute}:00+09:00`;
+              // JST時刻を直接設定（タイムゾーン情報なし）
+              const jstDateString = `${year}-${month}-${day}T${hour}:${minute}:00`;
               recordTimeDisplay = new Date(jstDateString);
               
             } else if (record.timing) {
