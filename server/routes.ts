@@ -497,6 +497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/nursing-records/:id', isAuthenticated, async (req: any, res) => {
     try {
+      // まずvalidationを通す
       const validatedData = insertNursingRecordSchema.partial().parse(req.body);
       
       // Check if there are any fields to update
@@ -504,6 +505,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (fieldsToUpdate.length === 0) {
         return res.status(400).json({ message: "No valid fields provided for update" });
       }
+      
+      // recordDateがある場合はJST時刻として処理
+      if (validatedData.recordDate) {
+        console.log("Original recordDate:", validatedData.recordDate, "Type:", typeof validatedData.recordDate);
+        
+        let parsedDate: Date;
+        if (typeof validatedData.recordDate === 'string') {
+          const dateString = validatedData.recordDate as string;
+          // フロントエンドから送信される時刻は、JST時刻をUTCのISO形式にしたもの
+          // 例: JST 15:30 → UTC 06:30 として送信される
+          // これを正しいJST時刻に戻すため、9時間加算する
+          parsedDate = new Date(dateString);
+          console.log("Parsed from string (UTC interpreted):", parsedDate);
+          
+          // UTC時刻として解釈されたものを9時間加算してJST時刻に戻す
+          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+          parsedDate = new Date(parsedDate.getTime() + jstOffset);
+          console.log("Adjusted to JST (+9 hours):", parsedDate, "Valid:", !isNaN(parsedDate.getTime()));
+        } else if (validatedData.recordDate instanceof Date) {
+          parsedDate = validatedData.recordDate;
+          // Dateオブジェクトの場合も同様の調整が必要
+          const jstOffset = 9 * 60 * 60 * 1000;
+          parsedDate = new Date(parsedDate.getTime() + jstOffset);
+          console.log("Date object adjusted to JST (+9 hours):", parsedDate, "Valid:", !isNaN(parsedDate.getTime()));
+        } else {
+          parsedDate = new Date(validatedData.recordDate);
+          // その他の場合も同様
+          const jstOffset = 9 * 60 * 60 * 1000;
+          parsedDate = new Date(parsedDate.getTime() + jstOffset);
+          console.log("Other type adjusted to JST (+9 hours):", parsedDate, "Valid:", !isNaN(parsedDate.getTime()));
+        }
+        
+        // 日時の有効性を検証
+        if (isNaN(parsedDate.getTime())) {
+          console.error("Invalid date detected:", validatedData.recordDate);
+          return res.status(400).json({ message: "Invalid date value provided" });
+        }
+        console.log("Final parsed date:", parsedDate);
+        
+        validatedData.recordDate = parsedDate;
+      }
+      
+      // updated_atを現在のJST時刻で明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+      (validatedData as any).updatedAt = jstNow;
       
       const record = await storage.updateNursingRecord(req.params.id, validatedData);
       res.json(record);
