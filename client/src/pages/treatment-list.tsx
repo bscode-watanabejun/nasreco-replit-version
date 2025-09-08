@@ -203,7 +203,15 @@ export default function TreatmentList() {
     queryKey: ["/api/nursing-records"],
   });
 
-  const { data: currentUser } = useQuery({ queryKey: ["/api/auth/user"] });
+  // 職員認証を優先して使用
+  const { data: staffUser } = useQuery({ queryKey: ["/api/auth/staff-user"] });
+  const { data: replitUser } = useQuery({ 
+    queryKey: ["/api/auth/user"],
+    enabled: !staffUser // 職員ログイン時は無効化
+  });
+  
+  // 職員ログインを優先、フォールバックでReplitユーザーを使用
+  const currentUser = staffUser || replitUser;
 
   // ローカル状態でフィルタされた処置記録を管理
   const [localTreatmentRecords, setLocalTreatmentRecords] = useState<any[]>([]);
@@ -330,9 +338,19 @@ export default function TreatmentList() {
     const recordDate = new Date(selectedDate);
     recordDate.setHours(currentHour, closestMinute, 0, 0);
 
+    // 職員ログイン時はstaffManagement.id、Replitユーザーの場合はuserIdを使用
+    let nurseId = "unknown";
+    if (staffUser) {
+      // 職員ログイン時：staffManagement.idを使用
+      nurseId = (staffUser as any)?.id || "unknown";
+    } else if (replitUser) {
+      // Replitユーザー：userIdを使用
+      nurseId = (replitUser as any)?.id || "unknown";
+    }
+
     const newRecord = {
       // residentIdは一旦省略（未選択状態）
-      nurseId: (currentUser as any)?.id || "unknown",
+      nurseId: nurseId,
       category: "処置",
       recordDate: recordDate.toISOString(),
       description: "", // 処置内容は空文字列（プレースホルダー表示のため）
@@ -484,7 +502,7 @@ export default function TreatmentList() {
                                 {/* 入力者 */}
                                 <input
                                   type="text"
-                                  value={(currentUser as any)?.firstName || (currentUser as any)?.email?.split('@')[0] || "不明"}
+                                  value={record.staffName || "不明"}
                                   readOnly
                                   className="h-6 w-16 px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                                 />
