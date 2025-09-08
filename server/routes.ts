@@ -1119,7 +1119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // recordDateをJST時刻として正しく返すために変換
       const convertedRecords = records.map(record => ({
         ...record,
-        recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
+        recordDate: record.recordDate ? new Date(record.recordDate).toISOString().replace('Z', '+09:00') : null
       }));
       
       res.json(convertedRecords);
@@ -1175,11 +1175,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // recordTimeはフロントエンドから送信された値をそのまま使用
       
-      // created_atをJST時刻として明示的に設定
+      // created_atとupdated_atをJST時刻として明示的に設定
       const now = new Date();
       const jstOffset = 9 * 60 * 60 * 1000;
       const jstNow = new Date(now.getTime() + jstOffset);
       (validatedData as any).createdAt = jstNow;
+      (validatedData as any).updatedAt = jstNow;
       
       const record = await storage.createWeightRecord(validatedData);
       res.status(201).json(record);

@@ -256,11 +256,7 @@ export const weightRecords = pgTable("weight_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").references(() => staffManagement.id),
-  recordDate: timestamp("record_date").notNull(),
-  recordTime: timestamp("record_time"), // 記録時刻（体重一覧で選択した日時）
-  measurementDate: date("measurement_date"), // 計測日 (recordDateとは別)
-  hour: integer("hour"), // 時間 (0-23)
-  minute: integer("minute"), // 分 (0, 15, 30, 45)
+  recordDate: timestamp("record_date"), // 記録日時（年月日時分を一元管理）- optionalに変更
   staffName: varchar("staff_name"), // 承認者名
   weight: decimal("weight", { precision: 5, scale: 2 }), // 体重（必須から任意に変更）
   notes: text("notes"), // 記録
@@ -460,28 +456,12 @@ export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, 
 });
 
 export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
-  recordDate: z.union([z.string(), z.date()]).transform((val) => {
-    if (val instanceof Date) return val;
-    return new Date(val);
-  }),
-  recordTime: z.union([z.string(), z.date()]).optional().transform((val) => {
-    if (val === undefined || val === null) return new Date();
+  recordDate: z.union([z.string(), z.date(), z.null()]).optional().transform((val) => {
+    if (val === null || val === undefined || val === '') return null;
     if (val instanceof Date) return val;
     return new Date(val);
   }),
   staffId: z.string().optional(), // オプションに変更（サーバー側で設定）
-  measurementDate: z.union([z.string(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return val;
-  }),
-  hour: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
-  minute: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
-    if (val === null || val === undefined || val === '') return null;
-    return typeof val === 'number' ? val : parseInt(val, 10);
-  }),
   weight: z.union([z.string(), z.number(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     return typeof val === 'number' ? val.toString() : val;

@@ -2384,21 +2384,10 @@ export class DatabaseStorage implements IStorage {
           if (resident) {
             const content = record.notes || '';
             
-            // 体重記録の時刻処理を修正
-            // recordTimeが存在する場合はそれを使用、ない場合はhour/minuteから時刻を構築
-            let recordTime;
-            if (record.recordTime && record.recordTime instanceof Date) {
-              recordTime = record.recordTime;
-            } else if (record.recordTime) {
-              // 文字列の場合は日付に変換
-              recordTime = new Date(record.recordTime);
-            } else if (record.hour !== null && record.minute !== null) {
-              // hour/minuteフィールドから時刻を構築
-              recordTime = new Date(`${date}T${String(record.hour).padStart(2, '0')}:${String(record.minute).padStart(2, '0')}:00`);
-            } else {
-              // どちらもない場合はrecordDateを使用
-              recordTime = new Date(record.recordDate);
-            }
+            // 体重記録の時刻処理を簡素化
+            // recordDateをそのまま使用（nullの場合はスキップ）
+            if (!record.recordDate) return;
+            const recordTime = new Date(record.recordDate);
             
             const timeCategory = getTimeCategory(recordTime);
             

@@ -291,7 +291,7 @@ export default function NursingRecords() {
       category: "看護記録",
       description: "",
     });
-  }, [selectedDate, selectedResident?.id, form]);
+  }, [selectedDate, selectedResident?.id]);
 
   // URLパラメータから利用者IDが指定されている場合、該当する利用者を選択し詳細画面を表示
   useEffect(() => {
@@ -303,7 +303,7 @@ export default function NursingRecords() {
         form.setValue('residentId', resident.id);
       }
     }
-  }, [residentIdFromUrl, residents, form]);
+  }, [residentIdFromUrl, residents]);
 
   // 選択された記録が変更されたら、編集用のstateを初期化
   useEffect(() => {
