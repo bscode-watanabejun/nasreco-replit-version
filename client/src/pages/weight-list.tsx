@@ -40,6 +40,58 @@ import {
 import { format, addMonths, subMonths } from "date-fns";
 import { ja } from "date-fns/locale";
 
+// 全角数字を半角数字に変換するユーティリティ関数
+const convertZenkakuToHankaku = (text: string): string => {
+  return text.replace(/[０-９．]/g, (char) => {
+    const zenkakuNums = '０１２３４５６７８９．';
+    const hankakuNums = '0123456789.';
+    const index = zenkakuNums.indexOf(char);
+    return index !== -1 ? hankakuNums[index] : char;
+  });
+};
+
+// JST時間変換ユーティリティ関数
+const toJSTDatetimeLocal = (date: string | Date | null): string => {
+  if (!date) return "";
+  
+  try {
+    const utcDate = new Date(date);
+    // Invalid Dateかどうかをチェック
+    if (isNaN(utcDate.getTime())) {
+      console.warn("Invalid date received:", date);
+      return "";
+    }
+    
+    // JST（UTC+9）に変換
+    const jstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+    return jstDate.toISOString().slice(0, 16);
+  } catch (error) {
+    console.error("Error in toJSTDatetimeLocal:", error, "date:", date);
+    return "";
+  }
+};
+
+const fromDatetimeLocalToJST = (value: string): Date | null => {
+  // 空値の場合はnullを返す
+  if (!value || value.trim() === "") {
+    return null;
+  }
+  
+  try {
+    // datetime-local値をJST時間として解釈
+    const jstDate = new Date(value + ":00+09:00");
+    // Invalid Dateかどうかをチェック
+    if (isNaN(jstDate.getTime())) {
+      console.warn("Invalid datetime-local value received:", value);
+      return null;
+    }
+    return jstDate;
+  } catch (error) {
+    console.error("Error in fromDatetimeLocalToJST:", error, "value:", value);
+    return null;
+  }
+};
+
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
   value,
@@ -282,8 +334,6 @@ function WeightCard({
   residents,
   selectedMonth,
   inputBaseClass,
-  hourOptions,
-  minuteOptions,
   localNotes,
   setLocalNotes,
   localWeight,
@@ -297,8 +347,6 @@ function WeightCard({
   residents: any[];
   selectedMonth: string;
   inputBaseClass: string;
-  hourOptions: any[];
-  minuteOptions: any[];
   localNotes: Record<string, string>;
   setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   localWeight: Record<string, string>;
@@ -344,15 +392,18 @@ function WeightCard({
                 }));
               }}
               onBlur={(e) => {
-                const newValue = e.target.value;
-                if (newValue !== (weight.weight?.toString() || "")) {
+                const rawValue = e.target.value;
+                const convertedValue = convertZenkakuToHankaku(rawValue.trim());
+                
+                if (convertedValue !== (weight.weight?.toString() || "")) {
                   updateMutation.mutate({
                     id: weight.id,
                     field: "weight",
-                    value: newValue,
+                    value: convertedValue,
                     residentId: weight.residentId,
                   });
                 }
+                
                 // ローカル状態をクリア
                 setLocalWeight((prev) => {
                   const updated = { ...prev };
@@ -380,57 +431,29 @@ function WeightCard({
           </div>
         </div>
 
-        {/* 中段：計測日、時、分、承認者、承認アイコン */}
+        {/* 中段：記録日時、承認者、承認アイコン */}
         <div className="flex items-center mb-3">
           <div className="flex items-center gap-1">
             <input
-              type="date"
-              value={weight.measurementDate || ""}
+              type="datetime-local"
+              value={toJSTDatetimeLocal(weight.recordDate)}
               onChange={(e) => {
-                updateMutation.mutate({
-                  id: weight.id,
-                  field: "measurementDate",
-                  value: e.target.value,
-                  residentId: weight.residentId,
-                });
+                try {
+                  const jstDate = fromDatetimeLocalToJST(e.target.value);
+                  updateMutation.mutate({
+                    id: weight.id,
+                    field: "recordDate",
+                    value: jstDate ? jstDate.toISOString() : "",
+                    residentId: weight.residentId,
+                  });
+                } catch (error) {
+                  console.error("Error handling datetime-local change:", error, "value:", e.target.value);
+                }
               }}
-              className={`w-32 ${inputBaseClass} ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
+              className={`w-44 ${inputBaseClass} ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
             />
           </div>
-          <div className="flex items-center gap-0.5 ml-2 mr-2">
-              <InputWithDropdown
-                value={weight.hour?.toString() || ""}
-                options={hourOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: weight.id,
-                    field: "hour",
-                    value,
-                    residentId: weight.residentId,
-                  })
-                }
-                placeholder="--"
-                className={`w-8 ${inputBaseClass}`}
-                disabled={!isResidentSelected}
-              />
-              <span className="text-xs">:</span>
-              <InputWithDropdown
-                value={weight.minute?.toString() || ""}
-                options={minuteOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: weight.id,
-                    field: "minute",
-                    value,
-                    residentId: weight.residentId,
-                  })
-                }
-                placeholder="--"
-                className={`w-8 ${inputBaseClass}`}
-                disabled={!isResidentSelected}
-              />
-            </div>
           <div className="flex items-center gap-1 text-sm ml-auto">
             <input
               type="text"
@@ -574,6 +597,7 @@ export default function WeightList() {
   const [, setLocation] = useLocation();
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [localWeight, setLocalWeight] = useState<Record<string, string>>({});
+  
 
   // 共通スタイル定数
   const inputBaseClass =
@@ -621,17 +645,20 @@ export default function WeightList() {
     queryKey: ["/api/auth/user"],
   });
 
+
   // 記録更新用ミューテーション（楽観的更新対応）
   const updateMutation = useMutation({
     mutationFn: async ({
       id,
       field,
       value,
+      updates,
       residentId,
     }: {
       id: string;
-      field: string;
-      value: string;
+      field?: string;
+      value?: string;
+      updates?: Record<string, any>;
       residentId?: string;
     }) => {
       // 一時的なレコード（IDがtempで始まる）の場合は新規作成
@@ -643,123 +670,105 @@ export default function WeightList() {
           throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
         }
 
-        // 既存の体重記録から measurementDate を取得
+        // 既存の一時的レコードから他のフィールドを保持
         const existingWeight = filteredWeightRecords.find((w: any) => w.id === id);
-        const existingMeasurementDate = existingWeight?.measurementDate;
-        
-        // measurementDate が設定されていればそれを recordDate に使用、未設定なら月の1日を使用
-        const recordDate = existingMeasurementDate ? new Date(existingMeasurementDate) : new Date(selectedMonth + "-01");
-
         const newRecordData: any = {
           residentId: residentIdFromTemp,
-          recordDate: recordDate,
-          [field]: value,
+          // 既存の値を保持
+          weight: existingWeight?.weight || null,
+          notes: existingWeight?.notes || null,
+          staffName: existingWeight?.staffName || null,
+          recordDate: existingWeight?.recordDate || null,
         };
 
-        // 新規作成時にデフォルト値を設定（まだ設定されていない場合）
-        if (field !== "measurementDate" && (!existingWeight?.measurementDate)) {
-          // 現在の日付をデフォルトとして使用
-          const today = new Date();
-          const todayString = format(today, 'yyyy-MM-dd');
-          newRecordData.measurementDate = todayString;
+        // 複数フィールド更新または単一フィールド更新
+        if (updates) {
+          // 複数フィールド更新の場合
+          Object.assign(newRecordData, updates);
+        } else if (field && value !== undefined) {
+          // 単一フィールド更新の場合
+          newRecordData[field] = value;
         }
-        if (field !== "hour" && existingWeight?.hour === null) {
-          newRecordData.hour = 9;
+
+        // recordDateが未設定の場合は体重入力時のみ現在のローカル時刻を設定
+        if ((field === "weight" || updates?.weight) && !existingWeight?.recordDate && !newRecordData.recordDate) {
+          newRecordData.recordDate = new Date();
         }
-        if (field !== "minute" && existingWeight?.minute === null) {
-          newRecordData.minute = 0;
-        }
-        
-        // recordTime を hour/minute から構築
-        const hour = newRecordData.hour || existingWeight?.hour || 9;
-        const minute = newRecordData.minute || existingWeight?.minute || 0;
-        const finalMeasurementDate = newRecordData.measurementDate || existingWeight?.measurementDate || `${selectedMonth}-01`;
-        // 選択された日時でrecordTimeを構築
-        const today = new Date();
-        const todayString = format(today, 'yyyy-MM-dd');
-        const actualMeasurementDate = newRecordData.measurementDate || todayString;
-        
-        const recordTimeString = `${actualMeasurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`;
-        newRecordData.recordTime = new Date(recordTimeString);
-        newRecordData.measurementDate = actualMeasurementDate;
         
 
         // データ型を適切に変換
-        if (field === "measurementDate") {
-          newRecordData[field] = value;
-          // measurementDate が設定された場合は recordDate も同じ日付に更新
+        if (field === "recordDate") {
           if (value && value.trim() !== "") {
-            newRecordData.recordDate = new Date(value);
-          }
-        } else if (["hour", "minute"].includes(field)) {
-          if (value && value.trim() !== "") {
-            const intValue = parseInt(value);
-            if (!isNaN(intValue)) {
-              newRecordData[field] = intValue;
-            }
+            newRecordData[field] = new Date(value);
+          } else {
+            newRecordData[field] = null;
           }
         } else if (field === "weight") {
           if (value && value.trim() !== "") {
             newRecordData[field] = value;
           }
-        } else {
+        } else if (field) {
           // その他のフィールド（notes, staffName等）はそのまま設定
           newRecordData[field] = value;
         }
 
-        await apiRequest("/api/weight-records", "POST", newRecordData);
+        // 複数フィールド更新の場合のデータ型変換
+        if (updates) {
+          if (updates.recordDate) {
+            if (updates.recordDate instanceof Date) {
+              newRecordData.recordDate = updates.recordDate;
+            } else if (typeof updates.recordDate === 'string' && updates.recordDate.trim() !== "") {
+              newRecordData.recordDate = new Date(updates.recordDate);
+            } else {
+              newRecordData.recordDate = null;
+            }
+          }
+          // その他のフィールドはそのまま（staffName, weight, notes等）
+        }
+
+        const response = await apiRequest("/api/weight-records", "POST", newRecordData);
+        return { type: "create", tempId: id, newRecord: response };
       } else {
         // 既存レコードの更新
-        const updateData: any = { [field]: value };
-        if (field === "measurementDate") {
+        let updateData: any = {};
+        
+        if (updates) {
+          // 複数フィールド更新の場合
+          updateData = { ...updates };
+          // データ型変換
+          if (updates.recordDate) {
+            if (updates.recordDate instanceof Date) {
+              updateData.recordDate = updates.recordDate;
+            } else if (typeof updates.recordDate === 'string' && updates.recordDate.trim() !== "") {
+              updateData.recordDate = new Date(updates.recordDate);
+            } else {
+              updateData.recordDate = null;
+            }
+          }
+        } else if (field && value !== undefined) {
+          // 単一フィールド更新の場合
           updateData[field] = value;
-          // measurementDate が設定された場合は recordDate も同じ日付に更新
-          if (value && value.trim() !== "") {
-            updateData.recordDate = new Date(value);
-            
-            // recordTime も更新
-            const currentRecord = weightRecords.find((w: any) => w.id === id);
-            if (currentRecord) {
-              const hour = currentRecord.hour || 9;
-              const minute = currentRecord.minute || 0;
-              updateData.recordTime = new Date(`${value}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`);
+          if (field === "recordDate") {
+            if (value && value.trim() !== "") {
+              updateData[field] = new Date(value);
+            } else {
+              updateData[field] = null;
             }
-          }
-        } else if (["hour", "minute"].includes(field)) {
-          if (value && value.trim() !== "") {
-            const intValue = parseInt(value);
-            if (!isNaN(intValue)) {
-              updateData[field] = intValue;
+          } else if (field === "weight") {
+            if (value && value.trim() !== "") {
+              updateData[field] = value;
+            } else {
+              updateData[field] = null;
             }
-          } else {
-            updateData[field] = null;
-          }
-          
-          // hour/minute が更新された場合、recordTime も更新
-          const currentRecord = weightRecords.find((w: any) => w.id === id);
-          if (currentRecord) {
-            const hour = field === "hour" ? (updateData.hour || parseInt(value) || 0) : (currentRecord.hour || 0);
-            const minute = field === "minute" ? (updateData.minute || parseInt(value) || 0) : (currentRecord.minute || 0);
-            // 現在の日付を使用
-            const today = new Date();
-            const todayString = format(today, 'yyyy-MM-dd');
-            const measurementDate = currentRecord.measurementDate || todayString;
-            updateData.recordTime = new Date(`${measurementDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+09:00`);
-          }
-        } else if (field === "weight") {
-          if (value && value.trim() !== "") {
-            updateData[field] = value;
-          } else {
-            updateData[field] = null;
           }
         }
-        // その他のフィールド（notes, staffName等）は最初の { [field]: value } でそのまま設定される
 
         await apiRequest(`/api/weight-records/${id}`, "PATCH", updateData);
+        return { type: "update", recordId: id };
       }
     },
     // 楽観的更新の実装
-    onMutate: async ({ id, field, value }) => {
+    onMutate: async ({ id, field, value, updates }) => {
       // 進行中のクエリをキャンセル
       await queryClient.cancelQueries({ queryKey: ["/api/weight-records"] });
       
@@ -771,18 +780,91 @@ export default function WeightList() {
         if (!old) return old;
         
         if (id.startsWith("temp-")) {
-          // 新規作成の場合：一時的なレコードを更新
-          return old.map((weight: any) => {
+          // 新規作成の場合：一時的なレコードを探すか作成
+          let found = false;
+          const updated = old.map((weight: any) => {
             if (weight.id === id) {
-              return { ...weight, [field]: value };
+              found = true;
+              let newWeight = { ...weight };
+              
+              if (updates) {
+                // 複数フィールド更新の場合
+                Object.assign(newWeight, updates);
+              } else if (field && value !== undefined) {
+                // 単一フィールド更新の場合
+                let updateValue: any = value;
+                // recordDateの削除時は明示的にnullを設定
+                if (field === "recordDate" && (!value || value.trim() === "")) {
+                  updateValue = null;
+                }
+                newWeight[field] = updateValue;
+              }
+              
+              return newWeight;
             }
             return weight;
           });
+          
+          // 一時レコードが見つからない場合は新規作成
+          if (!found) {
+            // temp-{residentId}-{year}-{month}から正しくresidentIdを抽出
+            // 例: temp-fc32a27d-9559-4700-9e02-b0dac899c851-2025-09
+            const parts = id.split("-");
+            const residentId = parts.slice(1, -2).join("-"); // 最初のtemp-と最後の-year-monthを除く
+            
+            const newTempRecord: any = {
+              id,
+              residentId,
+              recordDate: null,
+              staffName: null,
+              weight: null,
+              notes: null,
+              createdAt: null,
+              updatedAt: null,
+              isTemporary: true,
+            };
+            
+            if (updates) {
+              // 複数フィールド更新の場合
+              Object.assign(newTempRecord, updates);
+            } else if (field && value !== undefined) {
+              // 単一フィールド更新の場合
+              let updateValue: any = value;
+              if (field === "recordDate" && (!value || value.trim() === "")) {
+                updateValue = null;
+              }
+              newTempRecord[field] = updateValue;
+              
+              // 体重入力時は自動で記録日を設定
+              if (field === "weight") {
+                newTempRecord.recordDate = new Date();
+              }
+            }
+            
+            updated.push(newTempRecord);
+          }
+          
+          return updated;
         } else {
           // 既存レコード更新の場合
           return old.map((weight: any) => {
             if (weight.id === id) {
-              return { ...weight, [field]: value };
+              let newWeight = { ...weight };
+              
+              if (updates) {
+                // 複数フィールド更新の場合
+                Object.assign(newWeight, updates);
+              } else if (field && value !== undefined) {
+                // 単一フィールド更新の場合
+                let updateValue: any = value;
+                // recordDateの削除時は明示的にnullを設定
+                if (field === "recordDate" && (!value || value.trim() === "")) {
+                  updateValue = null;
+                }
+                newWeight[field] = updateValue;
+              }
+              
+              return newWeight;
             }
             return weight;
           });
@@ -808,12 +890,33 @@ export default function WeightList() {
       // エラー時のみサーバーから最新データを取得
       queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
     },
-    onSuccess: (_, variables) => {
-      // 新規作成の場合のみinvalidateを実行（一時的IDを実際のIDに置き換えるため）
-      if (variables.id.startsWith("temp-")) {
-        queryClient.invalidateQueries({ queryKey: ["/api/weight-records"] });
+    onSuccess: (result, variables) => {
+      if (result?.type === "create") {
+        
+        // 新規作成の場合：楽観的更新されたデータを維持し、IDとサーバー情報のみ更新
+        queryClient.setQueryData(["/api/weight-records"], (old: any) => {
+          if (!old) return old;
+          
+          const updated = old.map((weight: any) => {
+            if (weight.id === result.tempId) {
+              
+              // 楽観的更新された内容を維持し、サーバーからのIDと日時情報のみ更新
+              const updatedWeight = {
+                ...weight, // 楽観的更新された内容を維持
+                id: result.newRecord.id, // 実際のIDに更新
+                createdAt: result.newRecord.createdAt, // サーバーから返された作成日時
+                updatedAt: result.newRecord.updatedAt, // サーバーから返された更新日時
+              };
+              
+              return updatedWeight;
+            }
+            return weight;
+          });
+          
+          return updated;
+        });
       }
-      // 既存レコード更新の場合は楽観的更新のみで完了（invalidateしない）
+      // 既存レコード更新の場合は楽観的更新のみで完了（変更不要）
     },
   });
 
@@ -900,17 +1003,6 @@ export default function WeightList() {
     { value: "5階", label: "5階" },
   ];
 
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
-    value: i.toString(),
-    label: i.toString().padStart(2, "0"),
-  }));
-  const minuteOptions = [
-    { value: "0", label: "00" },
-    { value: "15", label: "15" },
-    { value: "30", label: "30" },
-    { value: "45", label: "45" },
-  ];
-
   // スタッフ印機能
   const handleStaffStamp = async (weightId: string, residentId?: string) => {
     const user = currentUser as any;
@@ -924,59 +1016,28 @@ export default function WeightList() {
     const weight = filteredWeightRecords.find((w: any) => w.id === weightId);
     if (!weight) return;
 
-    const currentHour = weight.hour?.toString() || "";
-    const currentMinute = weight.minute?.toString() || "";
     const currentStaffName = weight.staffName || "";
     
-    // 現在時刻を取得
-    const now = new Date();
-    const currentHourStr = now.getHours().toString();
-    const currentMinuteStr = Math.floor(now.getMinutes() / 15) * 15 === now.getMinutes() 
-      ? now.getMinutes().toString() 
-      : (Math.floor(now.getMinutes() / 15) * 15).toString();
-
     let updateData: any = {};
 
-    // 時分、承認者名の両方が空白の場合
-    if (!currentHour && !currentMinute && !currentStaffName) {
+    // 承認者名が空白の場合は現在時刻とスタッフ名を設定、入っている場合はクリア
+    if (!currentStaffName) {
       updateData = {
-        hour: currentHourStr,
-        minute: currentMinuteStr,
+        recordDate: new Date(),
         staffName: staffName
       };
-    }
-    // 時分が空白で承認者名が入っている場合
-    else if (!currentHour && !currentMinute && currentStaffName) {
+    } else {
       updateData = {
-        staffName: ""
-      };
-    }
-    // 時分が入っていて、承認者名が空白の場合
-    else if ((currentHour || currentMinute) && !currentStaffName) {
-      updateData = {
-        hour: currentHourStr,
-        minute: currentMinuteStr,
-        staffName: staffName
-      };
-    }
-    // 時分と承認者名の両方が入っている場合
-    else if ((currentHour || currentMinute) && currentStaffName) {
-      updateData = {
-        hour: "",
-        minute: "",
         staffName: ""
       };
     }
 
-    // 複数フィールドを同時に更新
-    for (const [field, value] of Object.entries(updateData)) {
-      updateMutation.mutate({
-        id: weightId,
-        field,
-        value: value as string,
-        residentId,
-      });
-    }
+    // 複数フィールドを一括更新
+    updateMutation.mutate({
+      id: weightId,
+      updates: updateData,
+      residentId,
+    });
   };
 
   // 新規記録追加（空のカードを最下部に追加）
@@ -998,15 +1059,11 @@ export default function WeightList() {
     queryClient.setQueryData(["/api/weight-records"], (old: any) => {
       if (!old) return old;
       
-      // 新しい空のレコードを作成（デフォルト値を設定）
-      const defaultMeasurementDate = `${selectedMonth}-01`; // フィルタ項目の年月の1日
+      // 新しい空のレコードを作成（初期値は空白に設定）
       const newEmptyRecord = {
         id: tempId,
         residentId: "", // 空の状態に設定
-        recordDate: selectedMonth,
-        measurementDate: defaultMeasurementDate, // デフォルト：月の1日
-        hour: 9, // デフォルト：9時
-        minute: 0, // デフォルト：0分
+        recordDate: null, // 初期値：空白
         staffName: null,
         weight: null,
         notes: null,
@@ -1020,8 +1077,11 @@ export default function WeightList() {
     });
   };
 
-  // フィルタリングロジック
+  // フィルタリングロジック（楽観的更新データを考慮）
   const getFilteredWeightRecords = () => {
+    // 楽観的更新データを含む最新のキャッシュから取得
+    const cacheData = queryClient.getQueryData(["/api/weight-records"]) as any[];
+    const currentWeightRecords = cacheData || weightRecords;
     const filteredResidents = (residents as any[]).filter((resident: any) => {
       if (selectedFloor === "全階") return true;
 
@@ -1040,9 +1100,24 @@ export default function WeightList() {
       return false;
     });
 
-    const existingWeights = (weightRecords as any[]).filter((weight: any) => {
-      const weightMonth = format(new Date(weight.recordDate), "yyyy-MM");
-      if (weightMonth !== selectedMonth) return false;
+    const existingWeights = (currentWeightRecords as any[]).filter((weight: any) => {
+      // recordDateがnullの場合は体重や他のデータがあるかチェック
+      if (!weight.recordDate) {
+        // 体重、メモ、承認者のいずれかがあれば表示対象とする
+        const hasData = weight.weight || weight.notes || weight.staffName;
+        return hasData;
+      }
+      
+      try {
+        const recordDate = new Date(weight.recordDate);
+        if (isNaN(recordDate.getTime())) return false;
+        
+        const weightMonth = format(recordDate, "yyyy-MM");
+        if (weightMonth !== selectedMonth) return false;
+      } catch (error) {
+        console.warn("Invalid recordDate in weight record:", weight.recordDate, error);
+        return false;
+      }
 
       // フロアフィルタリング（空のresidentIdの場合は通す）
       if (weight.residentId !== "") {
@@ -1063,20 +1138,26 @@ export default function WeightList() {
         (weight: any) => weight.residentId === resident.id,
       );
       if (!hasRecord) {
-        weightsWithEmpty.push({
-          id: `temp-${resident.id}-${selectedMonth}`,
+        // 既存の一時的なレコードから値を取得（楽観的更新データを考慮）
+        const tempId = `temp-${resident.id}-${selectedMonth}`;
+        const existingTempRecord = currentWeightRecords.find(
+          (weight: any) => weight.id === tempId
+        );
+        
+        const tempRecord = {
+          id: tempId,
           residentId: resident.id,
-          recordDate: selectedMonth,
-          measurementDate: `${selectedMonth}-01`, // デフォルト：月の1日
-          hour: 9, // デフォルト：9時
-          minute: 0, // デフォルト：0分
-          staffName: null,
-          weight: null,
-          notes: null,
-          createdAt: null,
-          updatedAt: null,
+          // 既存の一時的なレコードがあればその値を使用、なければ初期値
+          recordDate: existingTempRecord?.recordDate || null,
+          staffName: existingTempRecord?.staffName || null,
+          weight: existingTempRecord?.weight || null,
+          notes: existingTempRecord?.notes || null,
+          createdAt: existingTempRecord?.createdAt || null,
+          updatedAt: existingTempRecord?.updatedAt || null,
           isTemporary: true,
-        });
+        };
+        
+        weightsWithEmpty.push(tempRecord);
       }
     });
 
@@ -1103,8 +1184,11 @@ export default function WeightList() {
     return uniqueWeights;
   };
 
+  // キャッシュデータの変更を検知するために、直接取得
+  const cacheData = queryClient.getQueryData(["/api/weight-records"]) as any[];
+  
   const filteredWeightRecords = useMemo(() => {
-    return getFilteredWeightRecords().sort((a: any, b: any) => {
+    const result = getFilteredWeightRecords().sort((a: any, b: any) => {
       const residentA = (residents as any[]).find(
         (r: any) => r.id === a.residentId,
       );
@@ -1115,7 +1199,9 @@ export default function WeightList() {
       const roomB = parseInt(residentB?.roomNumber || "0");
       return roomA - roomB;
     });
-  }, [residents, weightRecords, selectedMonth, selectedFloor]);
+    
+    return result;
+  }, [residents, selectedMonth, selectedFloor, cacheData]);
 
   // 年月選択肢を生成（過去1年から未来6ヶ月）
   const generateMonthOptions = () => {
@@ -1224,8 +1310,6 @@ export default function WeightList() {
               residents={residents as any[]}
               selectedMonth={selectedMonth}
               inputBaseClass={inputBaseClass}
-              hourOptions={hourOptions}
-              minuteOptions={minuteOptions}
               localNotes={localNotes}
               setLocalNotes={setLocalNotes}
               localWeight={localWeight}
