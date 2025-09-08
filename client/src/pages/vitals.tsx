@@ -133,6 +133,7 @@ function InputWithDropdown({
   placeholder,
   className,
   disabled = false,
+  disableFocusMove = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
@@ -140,10 +141,10 @@ function InputWithDropdown({
   placeholder: string;
   className?: string;
   disabled?: boolean;
+  disableFocusMove?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
-  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 値が外部から変更された場合に同期
@@ -151,31 +152,6 @@ function InputWithDropdown({
     setInputValue(value);
   }, [value]);
 
-  // アクティブ要素を監視してフォーカス状態を更新
-  useEffect(() => {
-    const checkFocus = () => {
-      if (inputRef.current) {
-        setIsFocused(document.activeElement === inputRef.current);
-      }
-    };
-
-    // 初回チェック
-    checkFocus();
-
-    // フォーカス変更を監視
-    const handleFocusChange = () => {
-      checkFocus();
-    };
-
-    // document全体でfocus/blurイベントを監視
-    document.addEventListener('focusin', handleFocusChange);
-    document.addEventListener('focusout', handleFocusChange);
-
-    return () => {
-      document.removeEventListener('focusin', handleFocusChange);
-      document.removeEventListener('focusout', handleFocusChange);
-    };
-  }, []);
 
   const handleSelect = (selectedValue: string) => {
     if (disabled) return;
@@ -183,18 +159,12 @@ function InputWithDropdown({
     onSave(selectedValue);
     setOpen(false);
 
+    // フォーカス移動が無効化されている場合はスキップ
+    if (disableFocusMove) return;
+    
     // 特定の遅延後にフォーカス移動を実行
     setTimeout(() => {
       if (inputRef.current) {
-        const allInputs = Array.from(
-          document.querySelectorAll("input, textarea, select, button"),
-        ).filter(
-          (el) =>
-            el !== inputRef.current &&
-            !el.hasAttribute("disabled") &&
-            (el as HTMLElement).offsetParent !== null,
-        ) as HTMLElement[];
-
         const currentElement = inputRef.current;
         const allElements = Array.from(
           document.querySelectorAll("input, textarea, select, button"),
@@ -212,53 +182,20 @@ function InputWithDropdown({
     }, 200);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (disabled) return;
-    setInputValue(e.target.value);
-  };
-
-  const handleInputBlur = () => {
-    if (disabled) return;
-    onSave(inputValue);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (disabled) return;
-    if (e.key === "Enter") {
-      onSave(inputValue);
-      setOpen(false);
-    } else if (e.key === "Escape") {
-      setInputValue(value);
-      setOpen(false);
-    }
-  };
 
   return (
-    <div className={`relative ${isFocused || open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
+    <div className={`relative ${open ? 'ring-2 ring-blue-200 rounded' : ''} transition-all`}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <input
             ref={inputRef}
             type="text"
             value={inputValue}
-            onChange={handleInputChange}
-            onFocus={() => {
-              if (!disabled) {
-                setOpen(true);
-                setIsFocused(true);
-              }
-            }}
-            onBlur={(e) => {
-              // プルダウンが開いている場合はフォーカスを維持
-              if (!open) {
-                setTimeout(() => setIsFocused(false), 50);
-              }
-              handleInputBlur();
-            }}
-            onKeyDown={handleKeyDown}
+            readOnly
+            onFocus={() => !disabled && setOpen(true)}
             onClick={(e) => e.preventDefault()}
             placeholder={placeholder}
-            className={`${className} ${disabled ? 'cursor-not-allowed' : ''} ${isFocused || open ? '!border-blue-500' : ''} transition-all outline-none`}
+            className={`${className} ${disabled ? 'cursor-not-allowed' : ''} ${open ? '!border-blue-500' : ''} transition-all outline-none`}
             disabled={disabled}
           />
         </PopoverTrigger>
@@ -380,9 +317,13 @@ function VitalCard({
   localBloodSugar,
   setLocalBloodSugar,
   updateMutation,
+  handleFieldUpdate,
+  handleSaveRecord,
   handleStaffStamp,
   deleteMutation,
   changeResidentMutation,
+  createMutation,
+  selectedDate,
 }: {
   vital: any;
   residents: any[];
@@ -401,9 +342,13 @@ function VitalCard({
   localBloodSugar: Record<string, string>;
   setLocalBloodSugar: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   updateMutation: any;
+  handleFieldUpdate: (vitalId: string, field: string, value: string) => void;
+  handleSaveRecord: (vitalId: string, field: string, value: string) => void;
   handleStaffStamp: (vitalId: string, residentId?: string) => void;
   deleteMutation: any;
   changeResidentMutation: any;
+  createMutation: any;
+  selectedDate: string;
 }) {
   const resident = residents.find((r: any) => r.id === vital.residentId);
   
@@ -411,7 +356,7 @@ function VitalCard({
   const isResidentSelected = vital.residentId && vital.residentId !== "";
 
   return (
-    <Card className="bg-white shadow-sm">
+    <Card className="bg-white shadow-sm" data-vital-id={vital.id}>
       <CardContent className="p-3">
         {/* ヘッダー：居室番号、利用者名、時間、記入者 */}
         <div className="flex items-center justify-between mb-3">
@@ -420,9 +365,16 @@ function VitalCard({
               {resident?.roomNumber || "未設定"}
             </div>
             <div className="font-medium text-sm truncate w-20 sm:w-24">
-              <span className="text-slate-800">
-                {resident?.name || "未選択"}
-              </span>
+              <InlineEditableField
+                value={resident?.name || ""}
+                placeholder="利用者選択"
+                type="select"
+                options={residents.map((r: any) => ({ value: r.id, label: r.name }))}
+                onSave={(residentId: string) => {
+                  changeResidentMutation.mutate({ vitalId: vital.id, newResidentId: residentId });
+                }}
+                disabled={false}
+              />
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm">
@@ -433,14 +385,12 @@ function VitalCard({
               <InputWithDropdown
                 value={vital.hour?.toString() || ""}
                 options={hourOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "hour",
-                    value,
-                    residentId: vital.residentId,
-                  })
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(vital.id, "hour", value);
+                  if (value && value !== "") {
+                    handleSaveRecord(vital.id, "hour", value);
+                  }
+                }}
                 placeholder="--"
                 className={`w-8 ${inputBaseClass}`}
                 disabled={!isResidentSelected}
@@ -449,14 +399,12 @@ function VitalCard({
               <InputWithDropdown
                 value={vital.minute?.toString() || ""}
                 options={minuteOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "minute",
-                    value,
-                    residentId: vital.residentId,
-                  })
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(vital.id, "minute", value);
+                  if (value && value !== "") {
+                    handleSaveRecord(vital.id, "minute", value);
+                  }
+                }}
                 placeholder="--"
                 className={`w-8 ${inputBaseClass}`}
                 disabled={!isResidentSelected}
@@ -468,9 +416,7 @@ function VitalCard({
               onChange={(e) =>
                 updateMutation.mutate({
                   id: vital.id,
-                  field: "staffName",
-                  value: e.target.value,
-                  residentId: vital.residentId,
+                  data: { staffName: e.target.value }
                 })
               }
               placeholder="記入者"
@@ -517,14 +463,19 @@ function VitalCard({
                   : ""
               }
               options={temperatureOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "temperature",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
+              onSave={(value) => {
+                handleFieldUpdate(vital.id, "temperature", value);
+                if (value && value !== "") {
+                  // 新規カードの場合は遅延実行
+                  if (vital.id?.startsWith('temp-')) {
+                    setTimeout(() => {
+                      handleSaveRecord(vital.id, "temperature", value);
+                    }, 300);
+                  } else {
+                    handleSaveRecord(vital.id, "temperature", value);
+                  }
+                }
+              }}
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
               disabled={!isResidentSelected}
@@ -539,14 +490,19 @@ function VitalCard({
               <InputWithDropdown
                 value={vital.bloodPressureSystolic?.toString() || ""}
                 options={systolicBPOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "bloodPressureSystolic",
-                    value,
-                    residentId: vital.residentId,
-                  })
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(vital.id, "bloodPressureSystolic", value);
+                  if (value && value !== "") {
+                    // 新規カードの場合は遅延実行
+                    if (vital.id?.startsWith('temp-')) {
+                      setTimeout(() => {
+                        handleSaveRecord(vital.id, "bloodPressureSystolic", value);
+                      }, 300);
+                    } else {
+                      handleSaveRecord(vital.id, "bloodPressureSystolic", value);
+                    }
+                  }
+                }}
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
                 disabled={!isResidentSelected}
@@ -555,14 +511,19 @@ function VitalCard({
               <InputWithDropdown
                 value={vital.bloodPressureDiastolic?.toString() || ""}
                 options={diastolicBPOptions}
-                onSave={(value) =>
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "bloodPressureDiastolic",
-                    value,
-                    residentId: vital.residentId,
-                  })
-                }
+                onSave={(value) => {
+                  handleFieldUpdate(vital.id, "bloodPressureDiastolic", value);
+                  if (value && value !== "") {
+                    // 新規カードの場合は遅延実行
+                    if (vital.id?.startsWith('temp-')) {
+                      setTimeout(() => {
+                        handleSaveRecord(vital.id, "bloodPressureDiastolic", value);
+                      }, 300);
+                    } else {
+                      handleSaveRecord(vital.id, "bloodPressureDiastolic", value);
+                    }
+                  }
+                }}
                 placeholder="--"
                 className={`w-10 ${inputBaseClass}`}
                 disabled={!isResidentSelected}
@@ -577,14 +538,19 @@ function VitalCard({
             <InputWithDropdown
               value={vital.pulseRate?.toString() || ""}
               options={pulseOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "pulseRate",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
+              onSave={(value) => {
+                handleFieldUpdate(vital.id, "pulseRate", value);
+                if (value && value !== "") {
+                  // 新規カードの場合は遅延実行
+                  if (vital.id?.startsWith('temp-')) {
+                    setTimeout(() => {
+                      handleSaveRecord(vital.id, "pulseRate", value);
+                    }, 300);
+                  } else {
+                    handleSaveRecord(vital.id, "pulseRate", value);
+                  }
+                }
+              }}
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
               disabled={!isResidentSelected}
@@ -604,14 +570,19 @@ function VitalCard({
                   : ""
               }
               options={spo2Options}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "oxygenSaturation",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
+              onSave={(value) => {
+                handleFieldUpdate(vital.id, "oxygenSaturation", value);
+                if (value && value !== "") {
+                  // 新規カードの場合は遅延実行
+                  if (vital.id?.startsWith('temp-')) {
+                    setTimeout(() => {
+                      handleSaveRecord(vital.id, "oxygenSaturation", value);
+                    }, 300);
+                  } else {
+                    handleSaveRecord(vital.id, "oxygenSaturation", value);
+                  }
+                }
+              }}
               placeholder="--"
               className={`w-12 ${inputBaseClass}`}
               disabled={!isResidentSelected}
@@ -641,12 +612,33 @@ function VitalCard({
               onBlur={(e) => {
                 const newValue = e.target.value;
                 if (newValue !== (vital.bloodSugar?.toString() || "")) {
-                  updateMutation.mutate({
-                    id: vital.id,
-                    field: "bloodSugar",
-                    value: newValue,
-                    residentId: vital.residentId,
-                  });
+                  // 新規レコードか既存レコードかを判定
+                  if (vital.id?.startsWith('temp-')) {
+                    // 新規レコード作成
+                    const recordData = {
+                      residentId: vital.residentId,
+                      recordDate: vital.recordDate || new Date(selectedDate),
+                      timing: selectedTiming,
+                      hour: vital.hour || null,
+                      minute: vital.minute || null,
+                      staffName: vital.staffName || null,
+                      temperature: vital.temperature || null,
+                      bloodPressureSystolic: vital.bloodPressureSystolic || null,
+                      bloodPressureDiastolic: vital.bloodPressureDiastolic || null,
+                      pulseRate: vital.pulseRate || null,
+                      respirationRate: vital.respirationRate || null,
+                      oxygenSaturation: vital.oxygenSaturation || null,
+                      bloodSugar: newValue === '' ? null : newValue,
+                      notes: vital.notes || null,
+                    };
+                    createMutation.mutate(recordData);
+                  } else {
+                    // 既存レコード更新
+                    updateMutation.mutate({
+                      id: vital.id,
+                      data: { bloodSugar: newValue === '' ? null : newValue }
+                    });
+                  }
                 }
                 // ローカル状態をクリア
                 setLocalBloodSugar((prev) => {
@@ -681,14 +673,19 @@ function VitalCard({
             <InputWithDropdown
               value={vital.respirationRate?.toString() || ""}
               options={respirationOptions}
-              onSave={(value) =>
-                updateMutation.mutate({
-                  id: vital.id,
-                  field: "respirationRate",
-                  value,
-                  residentId: vital.residentId,
-                })
-              }
+              onSave={(value) => {
+                handleFieldUpdate(vital.id, "respirationRate", value);
+                if (value && value !== "") {
+                  // 新規カードの場合は遅延実行
+                  if (vital.id?.startsWith('temp-')) {
+                    setTimeout(() => {
+                      handleSaveRecord(vital.id, "respirationRate", value);
+                    }, 300);
+                  } else {
+                    handleSaveRecord(vital.id, "respirationRate", value);
+                  }
+                }
+              }}
               placeholder="--"
               className={`w-8 ${inputBaseClass}`}
               disabled={!isResidentSelected}
@@ -716,9 +713,7 @@ function VitalCard({
                 if (newValue !== (vital.notes || "")) {
                   updateMutation.mutate({
                     id: vital.id,
-                    field: "notes",
-                    value: newValue,
-                    residentId: vital.residentId,
+                    data: { notes: newValue }
                   });
                 }
               }}
@@ -856,64 +851,221 @@ export default function Vitals() {
     queryKey: ["/api/auth/user"],
   });
 
+  // 楽観的更新内でレコード統合を行う関数（食事画面と同じパターン）
+  const handleFieldUpdate = (vitalId: string, field: string, value: string) => {
+    // 現在のバイタルから利用者IDを取得
+    const currentVital = filteredVitalSigns.find((v: any) => v.id === vitalId);
+    if (!currentVital?.residentId) return;
 
-  // 記録更新用ミューテーション（シンプル版）
-  const updateMutation = useMutation({
-    mutationFn: async ({
-      id,
-      field,
-      value,
-      residentId,
-    }: {
-      id: string;
-      field: string;
-      value: string;
-      residentId?: string;
-    }) => {
-      // 一時的なレコード（IDがtempで始まる）の場合は新規作成
-      if (id.startsWith("temp-")) {
-        const residentIdFromTemp = residentId || id.split("-")[1];
-        if (!residentIdFromTemp || residentIdFromTemp === 'undefined' || residentIdFromTemp === 'null') {
-          throw new Error('利用者情報が正しく設定されていません。ページを再読み込みしてください。');
-        }
-        const newRecordData: any = {
-          residentId: residentIdFromTemp,
+    const residentId = currentVital.residentId;
+    const queryKey = ["/api/vital-signs", selectedDate];
+    
+    // 楽観的更新（食事画面と同じパターン）
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!old) return old;
+      
+      // 既存のレコードを探す（同じ利用者・日付・時間帯）
+      const existingIndex = old.findIndex((record: any) => 
+        record.residentId === residentId && 
+        record.timing === selectedTiming &&
+        format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+      );
+      
+      if (existingIndex >= 0) {
+        // 既存レコードを更新
+        const updated = [...old];
+        const fieldMapping: Record<string, string> = {
+          'hour': 'hour',
+          'minute': 'minute',
+          'temperature': 'temperature',
+          'bloodPressureSystolic': 'bloodPressureSystolic',
+          'bloodPressureDiastolic': 'bloodPressureDiastolic',
+          'pulseRate': 'pulseRate',
+          'respirationRate': 'respirationRate',
+          'oxygenSaturation': 'oxygenSaturation',
+          'bloodSugar': 'bloodSugar',
+          'staffName': 'staffName',
+          'notes': 'notes'
+        };
+        
+        const dbField = fieldMapping[field] || field;
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          [dbField]: value === "" ? null : value
+        };
+        return updated;
+      } else {
+        // 新規レコードを追加
+        const newRecord = {
+          id: `temp-${Date.now()}`,
+          residentId,
           recordDate: new Date(selectedDate),
           timing: selectedTiming,
-          [field]: value,
+          hour: field === 'hour' ? (value === '' ? null : parseInt(value)) : null,
+          minute: field === 'minute' ? (value === '' ? null : parseInt(value)) : null,
+          staffName: field === 'staffName' ? value : null,
+          temperature: field === 'temperature' ? (value === '' ? null : parseFloat(value)) : null,
+          bloodPressureSystolic: field === 'bloodPressureSystolic' ? (value === '' ? null : parseInt(value)) : null,
+          bloodPressureDiastolic: field === 'bloodPressureDiastolic' ? (value === '' ? null : parseInt(value)) : null,
+          pulseRate: field === 'pulseRate' ? (value === '' ? null : parseInt(value)) : null,
+          respirationRate: field === 'respirationRate' ? (value === '' ? null : parseInt(value)) : null,
+          oxygenSaturation: field === 'oxygenSaturation' ? (value === '' ? null : parseFloat(value)) : null,
+          bloodSugar: field === 'bloodSugar' ? (value === '' ? null : parseFloat(value)) : null,
+          notes: field === 'notes' ? value : null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         };
-        await apiRequest("/api/vital-signs", "POST", newRecordData);
-      } else {
-        // 既存レコードの更新
-        const updateData: any = { [field]: value };
-        await apiRequest(`/api/vital-signs/${id}`, "PATCH", updateData);
+        return [...old, newRecord];
       }
-    },
-    onSuccess: (_, variables) => {
-      // Always invalidate the query on success to get fresh data from the server
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs", selectedDate] });
+    });
+  };
 
-      // Clear the local state for the field that was just updated
-      if (variables.field === 'notes') {
-        setLocalNotes(prev => {
-          const newState = { ...prev };
-          delete newState[variables.id];
-          return newState;
-        });
-      }
-      if (variables.field === 'bloodSugar') {
-        setLocalBloodSugar(prev => {
-          const newState = { ...prev };
-          delete newState[variables.id];
-          return newState;
-        });
-      }
+  // 手動でDB保存を実行する関数（食事画面と同じシンプル方式）
+  const handleSaveRecord = (vitalId: string, field: string, value: string) => {
+    // 現在のバイタルレコードを取得
+    const currentVital = filteredVitalSigns.find((v: any) => v.id === vitalId);
+    
+    if (!currentVital || !currentVital.residentId) {
+      return; // 利用者が未選択の場合は何もしない
+    }
+
+    // 同じ利用者・日付・時間帯の既存レコードを検索
+    const existingRecord = filteredVitalSigns.find((v: any) => 
+      v.residentId === currentVital.residentId && 
+      v.timing === selectedTiming && 
+      format(new Date(v.recordDate), 'yyyy-MM-dd') === selectedDate &&
+      !v.id.startsWith('temp-') // 実IDのレコードのみ
+    );
+
+    // 全フィールドを保持して、対象フィールドのみ更新
+    const recordData: any = {
+      residentId: currentVital.residentId,
+      recordDate: new Date(selectedDate),
+      timing: selectedTiming,
+      hour: existingRecord?.hour || currentVital.hour || null,
+      minute: existingRecord?.minute || currentVital.minute || null,
+      staffName: existingRecord?.staffName || currentVital.staffName || null,
+      temperature: existingRecord?.temperature || currentVital.temperature || null,
+      bloodPressureSystolic: existingRecord?.bloodPressureSystolic || currentVital.bloodPressureSystolic || null,
+      bloodPressureDiastolic: existingRecord?.bloodPressureDiastolic || currentVital.bloodPressureDiastolic || null,
+      pulseRate: existingRecord?.pulseRate || currentVital.pulseRate || null,
+      respirationRate: existingRecord?.respirationRate || currentVital.respirationRate || null,
+      oxygenSaturation: existingRecord?.oxygenSaturation || currentVital.oxygenSaturation || null,
+      bloodSugar: existingRecord?.bloodSugar || currentVital.bloodSugar || null,
+      notes: existingRecord?.notes || currentVital.notes || null,
+    };
+
+    // フィールドを更新（食事画面と同じパターン）
+    if (field === 'hour') {
+      recordData.hour = value === '' ? null : parseInt(value);
+    } else if (field === 'minute') {
+      recordData.minute = value === '' ? null : parseInt(value);
+    } else if (field === 'staffName') {
+      recordData.staffName = value;
+    } else if (field === 'temperature') {
+      recordData.temperature = value === '' ? null : parseFloat(value);
+    } else if (field === 'bloodPressureSystolic') {
+      recordData.bloodPressureSystolic = value === '' ? null : parseInt(value);
+    } else if (field === 'bloodPressureDiastolic') {
+      recordData.bloodPressureDiastolic = value === '' ? null : parseInt(value);
+    } else if (field === 'pulseRate') {
+      recordData.pulseRate = value === '' ? null : parseInt(value);
+    } else if (field === 'respirationRate') {
+      recordData.respirationRate = value === '' ? null : parseInt(value);
+    } else if (field === 'oxygenSaturation') {
+      recordData.oxygenSaturation = value === '' ? null : parseFloat(value);
+    } else if (field === 'bloodSugar') {
+      recordData.bloodSugar = value === '' ? null : value;
+    } else if (field === 'notes') {
+      recordData.notes = value;
+    }
+
+    // insert/update判定（食事画面と同じロジック）
+    if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('temp-')) {
+      // 既存レコードの更新
+      updateMutation.mutate({ id: existingRecord.id, data: recordData });
+    } else {
+      // 新規レコード作成
+      createMutation.mutate(recordData);
+    }
+  };
+
+  // 新規記録作成用ミューテーション（食事画面と同じパターン）
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest('/api/vital-signs', 'POST', data);
     },
-    onError: (error: any) => {
-      console.error('Update error:', error);
+    onMutate: async (newData) => {
+      const queryKey = ["/api/vital-signs", selectedDate];
+      const previousData = queryClient.getQueryData(queryKey);
+      return { previousData };
+    },
+    onSuccess: (serverResponse, variables, context) => {
+      // 食事画面と同じシンプルなパターン：tempIdのレコードを実際のIDに置き換えるのみ
+      const queryKey = ["/api/vital-signs", selectedDate];
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        
+        // tempIdのレコードを実際のIDに置き換え
+        return old.map((record: any) => {
+          if (record.id?.startsWith('temp-') && 
+              record.residentId === variables.residentId && 
+              record.timing === variables.timing) {
+            return { ...record, ...serverResponse, id: serverResponse.id };
+          }
+          return record;
+        });
+      });
+    },
+    onError: (error: any, variables, context) => {
+      if (context?.previousData) {
+        const queryKey = ["/api/vital-signs", selectedDate];
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+      
       toast({
         title: "エラー",
-        description: error.message || "更新に失敗しました。",
+        description: error.message || "記録の作成に失敗しました。",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // 記録更新用ミューテーション（食事画面と同じパターン）
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return apiRequest(`/api/vital-signs/${id}`, 'PATCH', data);
+    },
+    onMutate: async ({ id, data }) => {
+      const queryKey = ["/api/vital-signs", selectedDate];
+      const previousData = queryClient.getQueryData(queryKey);
+      
+      // 楽観的更新実行
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((record: any) => {
+          if (record.id === id) {
+            return { ...record, ...data };
+          }
+          return record;
+        });
+      });
+      
+      return { previousData };
+    },
+    onSuccess: () => {
+      // 楽観的更新を使用しているため、成功時の無効化は不要
+    },
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        const queryKey = ["/api/vital-signs", selectedDate];
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+      
+      toast({
+        title: "エラー",
+        description: error.message || "記録の更新に失敗しました。",
         variant: "destructive",
       });
     },
@@ -965,7 +1117,17 @@ export default function Vitals() {
       });
       
       // ロールバック用のコンテキストを返す
-      return { previousVitalSigns };
+      return { previousVitalSigns, vitalId };
+    },
+    onSuccess: (data, { vitalId }) => {
+      // 利用者選択後、最初の入力項目（時間）に自動フォーカス
+      setTimeout(() => {
+        const vitalCard = document.querySelector(`[data-vital-id="${vitalId}"]`);
+        const firstInput = vitalCard?.querySelector('input:not([disabled])');
+        if (firstInput) {
+          (firstInput as HTMLElement).focus();
+        }
+      }, 100);
     },
     onError: (error: any, _, context) => {
       // エラー時に前の状態に戻す
@@ -981,10 +1143,6 @@ export default function Vitals() {
       });
       
       // エラー時もサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
-    },
-    onSuccess: () => {
-      // 成功時はサーバーから最新データを取得して確実に同期
       queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
     },
   });
@@ -1104,13 +1262,31 @@ export default function Vitals() {
       };
     }
 
-    // 複数フィールドを同時に更新
-    for (const [field, value] of Object.entries(updateData)) {
+    // 新規カードか既存カードかを判定
+    if (vitalId?.startsWith('temp-')) {
+      // 新規カードの場合：createMutationを使用
+      const recordData = {
+        residentId: residentId || vital.residentId,
+        recordDate: vital.recordDate || new Date(selectedDate),
+        timing: selectedTiming,
+        hour: updateData.hour !== undefined ? (updateData.hour === "" ? null : parseInt(updateData.hour)) : vital.hour,
+        minute: updateData.minute !== undefined ? (updateData.minute === "" ? null : parseInt(updateData.minute)) : vital.minute,
+        staffName: updateData.staffName !== undefined ? updateData.staffName : vital.staffName,
+        temperature: vital.temperature || null,
+        bloodPressureSystolic: vital.bloodPressureSystolic || null,
+        bloodPressureDiastolic: vital.bloodPressureDiastolic || null,
+        pulseRate: vital.pulseRate || null,
+        respirationRate: vital.respirationRate || null,
+        oxygenSaturation: vital.oxygenSaturation || null,
+        bloodSugar: vital.bloodSugar || null,
+        notes: vital.notes || null,
+      };
+      createMutation.mutate(recordData);
+    } else {
+      // 既存カードの場合：updateMutationを使用
       updateMutation.mutate({
         id: vitalId,
-        field,
-        value: value as string,
-        residentId,
+        data: updateData
       });
     }
   };
@@ -1319,6 +1495,7 @@ export default function Vitals() {
               onSave={(value) => setSelectedTiming(value)}
               placeholder="時間"
               className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+              disableFocusMove={true}
             />
           </div>
 
@@ -1331,6 +1508,7 @@ export default function Vitals() {
               onSave={(value) => setSelectedFloor(value)}
               placeholder="フロア選択"
               className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+              disableFocusMove={true}
             />
           </div>
         </div>
@@ -1363,9 +1541,13 @@ export default function Vitals() {
               localBloodSugar={localBloodSugar}
               setLocalBloodSugar={setLocalBloodSugar}
               updateMutation={updateMutation}
+              handleFieldUpdate={handleFieldUpdate}
+              handleSaveRecord={handleSaveRecord}
               handleStaffStamp={handleStaffStamp}
               deleteMutation={deleteMutation}
               changeResidentMutation={changeResidentMutation}
+              createMutation={createMutation}
+              selectedDate={selectedDate}
             />
           ))
         )}

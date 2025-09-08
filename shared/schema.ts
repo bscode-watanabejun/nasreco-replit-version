@@ -129,10 +129,10 @@ export const residents = pgTable("residents", {
   medicationWeekMonday: boolean("medication_week_monday").default(false), // 月曜日
   medicationWeekTuesday: boolean("medication_week_tuesday").default(false), // 火曜日
   medicationWeekWednesday: boolean("medication_week_wednesday").default(false), // 水曜日
-  medicationWeekThursday: boolean("medication_week_thursday").default(false), // 金曜日
-  medicationWeekFriday: boolean("medication_week_friday").default(false), // 土曜日
-  medicationWeekSaturday: boolean("medication_week_saturday").default(false), // 日曜日
-  medicationWeekSunday: boolean("medication_week_sunday").default(false), // 土曜日
+  medicationWeekThursday: boolean("medication_week_thursday").default(false), // 木曜日
+  medicationWeekFriday: boolean("medication_week_friday").default(false), // 金曜日
+  medicationWeekSaturday: boolean("medication_week_saturday").default(false), // 土曜日
+  medicationWeekSunday: boolean("medication_week_sunday").default(false), // 日曜日
   
   // 腹膜透析時間
   medicationFrequency: varchar("medication_frequency"), // 月次
