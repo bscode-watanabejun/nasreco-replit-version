@@ -1757,7 +1757,6 @@ export class DatabaseStorage implements IStorage {
 
     // 服薬記録の時間マッピング
     const getMedicationTime = (timing: string, customTime?: string) => {
-      const JST_OFFSET = '+09:00';
       let hour = 12, minute = 0;
 
       switch (timing) {
@@ -1780,7 +1779,8 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      const jstDateString = `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${JST_OFFSET}`;
+      // JST時刻を直接設定（タイムゾーン情報なし）
+      const jstDateString = `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
       return new Date(jstDateString);
     };
 
@@ -2007,6 +2007,7 @@ export class DatabaseStorage implements IStorage {
 
         medicationData.forEach(record => {
           const resident = residentsMap.get(record.residentId);
+          
           if (resident) {
             const content = record.notes || '';
             const rawStaffName = record.confirmer1 || record.confirmer2 || '';
@@ -2014,8 +2015,24 @@ export class DatabaseStorage implements IStorage {
             const fallbackUserName = usersMap.get(rawStaffName);
             const finalStaffName = mappedStaffName || fallbackUserName || rawStaffName;
             
-            // 頓服の場合は作成日時を使用、その他は固定時刻を使用
-            const recordTime = record.timing === '頓服' ? record.createdAt : getMedicationTime(record.timing);
+            // 昼前、夕前、頓服の場合は記録日時を使用、その他は固定時刻を使用
+            let recordTime;
+            if (record.timing === '昼前' || record.timing === '夕前' || record.timing === '頓服') {
+              // createdAtの時刻部分とrecordDateの日付部分を組み合わせる
+              if (record.createdAt) {
+                const createdTime = new Date(record.createdAt);
+                const hour = createdTime.getHours();
+                const minute = createdTime.getMinutes();
+                const second = createdTime.getSeconds();
+                // recordDateの日付に作成時刻を設定
+                recordTime = new Date(`${record.recordDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`);
+              } else {
+                // createdAtがない場合はデフォルトの時刻を使用
+                recordTime = getMedicationTime(record.timing);
+              }
+            } else {
+              recordTime = getMedicationTime(record.timing);
+            }
             
             // JST時刻をJST表記で送信（+09:00付き）
             const jstTimeString = new Date(recordTime || new Date()).toISOString().replace('Z', '+09:00');
