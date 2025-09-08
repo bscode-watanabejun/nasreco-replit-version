@@ -4,3 +4,4 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gzattachfile_for_claude/
+attachfile_for_claude/
