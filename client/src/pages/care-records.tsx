@@ -342,7 +342,39 @@ export default function CareRecords() {
 
   // Debug: ユーザー情報をコンソールに出力
   useEffect(() => {
+    console.log("Current User:", currentUser);
   }, [currentUser]);
+
+  // Debug: selectedResident情報をコンソールに出力
+  useEffect(() => {
+    if (selectedResident) {
+      console.log("Selected Resident:", selectedResident);
+      console.log("Selected Resident Gender:", selectedResident.gender);
+      console.log("Selected Resident Gender Type:", typeof selectedResident.gender);
+    }
+  }, [selectedResident]);
+
+  // 性別判定のヘルパー関数
+  const getGenderDisplay = (gender: string | null | undefined): string => {
+    if (!gender) return "未設定";
+    
+    const genderStr = gender.toString().toLowerCase().trim();
+    
+    // 英語の性別表記
+    if (genderStr === 'male' || genderStr === 'man' || genderStr === 'm') return '男性';
+    if (genderStr === 'female' || genderStr === 'woman' || genderStr === 'f') return '女性';
+    
+    // 日本語の性別表記
+    if (genderStr === '男性' || genderStr === '男' || genderStr === 'おとこ') return '男性';
+    if (genderStr === '女性' || genderStr === '女' || genderStr === 'おんな') return '女性';
+    
+    // その他の可能性のある表記
+    if (genderStr.includes('male') || genderStr.includes('男')) return '男性';
+    if (genderStr.includes('female') || genderStr.includes('女')) return '女性';
+    
+    // どれにも該当しない場合は元の値を返すか「未設定」
+    return gender.toString() || "未設定";
+  };
 
   const form = useForm<CareRecordForm>({
     resolver: zodResolver(careRecordSchema),
@@ -912,7 +944,7 @@ export default function CareRecords() {
             <div className="text-lg font-medium text-slate-800">
               {selectedResident?.roomNumber || "未設定"}: {selectedResident?.name}　　
               <span className="text-sm font-normal">
-                {selectedResident?.gender === 'male' ? '男性' : selectedResident?.gender === 'female' ? '女性' : '未設定'} {selectedResident?.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident?.careLevel || '未設定'}
+                {getGenderDisplay(selectedResident?.gender)} {selectedResident?.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident?.careLevel || '未設定'}
               </span>
             </div>
           </div>
@@ -1165,7 +1197,7 @@ export default function CareRecords() {
             <div className="text-lg font-medium text-slate-800">
               {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　　
               <span className="text-sm font-normal">
-                {selectedResident.gender === 'male' ? '男性' : selectedResident.gender === 'female' ? '女性' : '未設定'} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
+                {getGenderDisplay(selectedResident.gender)} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
               </span>
             </div>
           </div>

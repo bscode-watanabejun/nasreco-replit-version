@@ -258,6 +258,28 @@ export default function NursingRecords() {
   // 実際に使用するユーザー情報（職員ログインの場合はstaffUser、通常ログインの場合はcurrentUser）
   const effectiveUser = staffUser || currentUser;
 
+  // 性別判定のヘルパー関数
+  const getGenderDisplay = (gender: string | null | undefined): string => {
+    if (!gender) return "未設定";
+    
+    const genderStr = gender.toString().toLowerCase().trim();
+    
+    // 英語の性別表記
+    if (genderStr === 'male' || genderStr === 'man' || genderStr === 'm') return '男性';
+    if (genderStr === 'female' || genderStr === 'woman' || genderStr === 'f') return '女性';
+    
+    // 日本語の性別表記
+    if (genderStr === '男性' || genderStr === '男' || genderStr === 'おとこ') return '男性';
+    if (genderStr === '女性' || genderStr === '女' || genderStr === 'おんな') return '女性';
+    
+    // その他の可能性のある表記
+    if (genderStr.includes('male') || genderStr.includes('男')) return '男性';
+    if (genderStr.includes('female') || genderStr.includes('女')) return '女性';
+    
+    // どれにも該当しない場合は元の値を返すか「未設定」
+    return gender.toString() || "未設定";
+  };
+
   // デバッグ: ユーザー情報をログ出力
   useEffect(() => {
     if (effectiveUser) {
@@ -863,7 +885,7 @@ export default function NursingRecords() {
             <div className="text-lg font-medium text-slate-800">
               {selectedResident?.roomNumber || "未設定"}: {selectedResident?.name}　　
               <span className="text-sm font-normal">
-                {selectedResident?.gender === 'male' ? '男性' : selectedResident?.gender === 'female' ? '女性' : '未設定'} {selectedResident?.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident?.careLevel || '未設定'}
+                {getGenderDisplay(selectedResident?.gender)} {selectedResident?.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident?.careLevel || '未設定'}
               </span>
             </div>
           </div>
@@ -1130,7 +1152,7 @@ export default function NursingRecords() {
             <div className="text-lg font-medium text-slate-800">
               {selectedResident.roomNumber || "未設定"}: {selectedResident.name}　　
               <span className="text-sm font-normal">
-                {selectedResident.gender === 'male' ? '男性' : selectedResident.gender === 'female' ? '女性' : '未設定'} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
+                {getGenderDisplay(selectedResident.gender)} {selectedResident.age ? `${selectedResident.age}歳` : '未設定'} {selectedResident.careLevel || '未設定'}
               </span>
             </div>
           </div>

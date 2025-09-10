@@ -40,6 +40,60 @@ import {
 import { format, addMonths, subMonths } from "date-fns";
 import { ja } from "date-fns/locale";
 
+// 記録内容用のIME対応textareaコンポーネント（入浴一覧と同じ）
+function NotesInput({
+  initialValue,
+  onSave,
+  disabled = false,
+  className = "",
+}: {
+  initialValue: string;
+  onSave: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const [isComposing, setIsComposing] = useState(false);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+  };
+
+  const handleBlur = () => {
+    // カーソルアウト時に保存
+    onSave(value);
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+    setValue(e.currentTarget.value);
+  };
+
+  return (
+    <textarea
+      value={value}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      placeholder="記録内容"
+      className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none ${className}`}
+      rows={1}
+      style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
+      disabled={disabled}
+    />
+  );
+}
+
 // 全角数字を半角数字に変換するユーティリティ関数
 const convertZenkakuToHankaku = (text: string): string => {
   return text.replace(/[０-９．]/g, (char) => {
@@ -48,6 +102,49 @@ const convertZenkakuToHankaku = (text: string): string => {
     const index = zenkakuNums.indexOf(char);
     return index !== -1 ? hankakuNums[index] : char;
   });
+};
+
+// 体重入力値のバリデーションとフォーマット
+const validateAndFormatWeight = (input: string): string => {
+  if (!input || input.trim() === '') return '';
+  
+  // 全角を半角に変換
+  let formatted = convertZenkakuToHankaku(input.trim());
+  
+  // 数字と小数点以外を除去
+  formatted = formatted.replace(/[^0-9.]/g, '');
+  
+  // 小数点が複数ある場合は最初の一つだけ残す
+  const parts = formatted.split('.');
+  if (parts.length > 2) {
+    formatted = parts[0] + '.' + parts.slice(1).join('');
+  }
+  
+  // 先頭の0を除去（ただし "0." や "0" は保持）
+  if (formatted.length > 1 && formatted[0] === '0' && formatted[1] !== '.') {
+    formatted = formatted.substring(1);
+  }
+  
+  return formatted;
+};
+
+// 最終的な体重値のフォーマット（保存時）
+const finalFormatWeight = (input: string): string => {
+  const validated = validateAndFormatWeight(input);
+  if (!validated) return '';
+  
+  // 末尾の小数点を除去
+  if (validated.endsWith('.')) {
+    return validated.slice(0, -1);
+  }
+  
+  // 数値として無効な場合は空文字を返す
+  const numValue = parseFloat(validated);
+  if (isNaN(numValue) || numValue < 0 || numValue > 999) {
+    return '';
+  }
+  
+  return validated;
 };
 
 // JST時間変換ユーティリティ関数
@@ -91,6 +188,136 @@ const fromDatetimeLocalToJST = (value: string): Date | null => {
     return null;
   }
 };
+
+// 15分間隔の日時選択コンポーネント
+function DateTimeSelector({
+  value,
+  onChange,
+  disabled = false,
+  className = "",
+}: {
+  value: string | null;
+  onChange: (dateTime: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  // 日時を分解（value が null の場合は現在時刻を使用）
+  const parseDateTime = (dateTimeStr: string | null) => {
+    if (!dateTimeStr) return { date: '', time: '', minute: '00' };
+    
+    try {
+      const dt = new Date(dateTimeStr);
+      if (isNaN(dt.getTime())) return { date: '', time: '', minute: '00' };
+      
+      // JSTに変換
+      const jstDate = new Date(dt.getTime() + (9 * 60 * 60 * 1000));
+      const date = jstDate.toISOString().slice(0, 10); // YYYY-MM-DD
+      const hour = jstDate.getUTCHours().toString().padStart(2, '0');
+      const minute = jstDate.getUTCMinutes();
+      
+      // 分を15分間隔に丸める
+      const roundedMinute = Math.round(minute / 15) * 15;
+      const finalMinute = roundedMinute >= 60 ? '00' : roundedMinute.toString().padStart(2, '0');
+      
+      return {
+        date,
+        time: hour,
+        minute: finalMinute
+      };
+    } catch (error) {
+      return { date: '', time: '', minute: '00' };
+    }
+  };
+
+  const { date, time, minute } = parseDateTime(value);
+  
+  // 時刻選択肢（00-23）
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: i.toString().padStart(2, '0'),
+    label: i.toString().padStart(2, '0')
+  }));
+  
+  // 分選択肢（15分間隔）
+  const minuteOptions = [
+    { value: '00', label: '00' },
+    { value: '15', label: '15' },
+    { value: '30', label: '30' },
+    { value: '45', label: '45' }
+  ];
+
+  const handleDateChange = (newDate: string) => {
+    if (!newDate) return;
+    
+    // 時・分が未設定の場合はデフォルト値を使用
+    const defaultTime = time || new Date().getHours().toString().padStart(2, '0');
+    const defaultMinute = minute || '00';
+    
+    const dateTimeStr = `${newDate}T${defaultTime}:${defaultMinute}:00+09:00`;
+    const jstDate = new Date(dateTimeStr);
+    onChange(jstDate.toISOString());
+  };
+
+  const handleTimeChange = (newTime: string) => {
+    if (!newTime) return;
+    
+    // 日付・分が未設定の場合はデフォルト値を使用
+    const defaultDate = date || new Date().toISOString().slice(0, 10);
+    const defaultMinute = minute || '00';
+    
+    const dateTimeStr = `${defaultDate}T${newTime}:${defaultMinute}:00+09:00`;
+    const jstDate = new Date(dateTimeStr);
+    onChange(jstDate.toISOString());
+  };
+
+  const handleMinuteChange = (newMinute: string) => {
+    if (!newMinute) return;
+    
+    // 日付・時が未設定の場合はデフォルト値を使用
+    const defaultDate = date || new Date().toISOString().slice(0, 10);
+    const defaultTime = time || new Date().getHours().toString().padStart(2, '0');
+    
+    const dateTimeStr = `${defaultDate}T${defaultTime}:${newMinute}:00+09:00`;
+    const jstDate = new Date(dateTimeStr);
+    onChange(jstDate.toISOString());
+  };
+
+  return (
+    <div className={`flex gap-1 ${className}`}>
+      {/* 日付選択 */}
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => handleDateChange(e.target.value)}
+        className="w-28 h-8 px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+      />
+      
+      {/* 時選択 */}
+      <InputWithDropdown
+        value={time}
+        options={hourOptions}
+        onSave={handleTimeChange}
+        placeholder="時"
+        className="w-10 h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+        enableAutoFocus={true}
+      />
+      
+      <span className="text-xs text-slate-600 flex items-center">:</span>
+      
+      {/* 分選択（15分間隔） */}
+      <InputWithDropdown
+        value={minute}
+        options={minuteOptions}
+        onSave={handleMinuteChange}
+        placeholder="分"
+        className="w-10 h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+        enableAutoFocus={true}
+      />
+    </div>
+  );
+}
 
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
@@ -334,8 +561,6 @@ function WeightCard({
   residents,
   selectedMonth,
   inputBaseClass,
-  localNotes,
-  setLocalNotes,
   localWeight,
   setLocalWeight,
   updateMutation,
@@ -347,8 +572,6 @@ function WeightCard({
   residents: any[];
   selectedMonth: string;
   inputBaseClass: string;
-  localNotes: Record<string, string>;
-  setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   localWeight: Record<string, string>;
   setLocalWeight: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   updateMutation: any;
@@ -380,36 +603,47 @@ function WeightCard({
             <span className="text-xs font-medium text-blue-600">体重</span>
             <input
               type="text"
+              inputMode="decimal"
+              pattern="[0-9]*\.?[0-9]*"
               value={
                 localWeight[weight.id] !== undefined
                   ? localWeight[weight.id]
                   : weight.weight?.toString() || ""
               }
               onChange={(e) => {
+                const validatedValue = validateAndFormatWeight(e.target.value);
                 setLocalWeight((prev) => ({
                   ...prev,
-                  [weight.id]: e.target.value,
+                  [weight.id]: validatedValue,
                 }));
               }}
               onBlur={(e) => {
                 const rawValue = e.target.value;
-                const convertedValue = convertZenkakuToHankaku(rawValue.trim());
+                const finalValue = finalFormatWeight(rawValue);
                 
-                if (convertedValue !== (weight.weight?.toString() || "")) {
+                // 最終フォーマット後の値でローカル状態も更新
+                setLocalWeight((prev) => ({
+                  ...prev,
+                  [weight.id]: finalValue,
+                }));
+                
+                if (finalValue !== (weight.weight?.toString() || "")) {
                   updateMutation.mutate({
                     id: weight.id,
                     field: "weight",
-                    value: convertedValue,
+                    value: finalValue,
                     residentId: weight.residentId,
                   });
                 }
                 
-                // ローカル状態をクリア
-                setLocalWeight((prev) => {
-                  const updated = { ...prev };
-                  delete updated[weight.id];
-                  return updated;
-                });
+                // 少し遅延後にローカル状態をクリア
+                setTimeout(() => {
+                  setLocalWeight((prev) => {
+                    const updated = { ...prev };
+                    delete updated[weight.id];
+                    return updated;
+                  });
+                }, 100);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -424,7 +658,7 @@ function WeightCard({
                   e.currentTarget.blur();
                 }
               }}
-              placeholder="--"
+              placeholder="例: 65.5"
               className={`w-16 ${inputBaseClass} text-left ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
             />
@@ -434,24 +668,18 @@ function WeightCard({
         {/* 中段：記録日時、承認者、承認アイコン */}
         <div className="flex items-center mb-3">
           <div className="flex items-center gap-1">
-            <input
-              type="datetime-local"
-              value={toJSTDatetimeLocal(weight.recordDate)}
-              onChange={(e) => {
-                try {
-                  const jstDate = fromDatetimeLocalToJST(e.target.value);
-                  updateMutation.mutate({
-                    id: weight.id,
-                    field: "recordDate",
-                    value: jstDate ? jstDate.toISOString() : "",
-                    residentId: weight.residentId,
-                  });
-                } catch (error) {
-                  console.error("Error handling datetime-local change:", error, "value:", e.target.value);
-                }
+            <DateTimeSelector
+              value={weight.recordDate}
+              onChange={(dateTimeISO) => {
+                updateMutation.mutate({
+                  id: weight.id,
+                  field: "recordDate",
+                  value: dateTimeISO,
+                  residentId: weight.residentId,
+                });
               }}
-              className={`w-44 ${inputBaseClass} ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
+              className={!isResidentSelected ? 'cursor-not-allowed opacity-50' : ''}
             />
           </div>
           <div className="flex items-center gap-1 text-sm ml-auto">
@@ -498,20 +726,9 @@ function WeightCard({
         {/* 下段：記録、削除 */}
         <div className="flex gap-1 items-center">
           <div className="flex items-center gap-1 flex-1">
-            <textarea
-              value={
-                localNotes[weight.id] !== undefined
-                  ? localNotes[weight.id]
-                  : weight.notes || ""
-              }
-              onChange={(e) => {
-                setLocalNotes((prev) => ({
-                  ...prev,
-                  [weight.id]: e.target.value,
-                }));
-              }}
-              onBlur={(e) => {
-                const newValue = e.target.value;
+            <NotesInput
+              initialValue={weight.notes || ""}
+              onSave={(newValue) => {
                 if (newValue !== (weight.notes || "")) {
                   updateMutation.mutate({
                     id: weight.id,
@@ -520,35 +737,9 @@ function WeightCard({
                     residentId: weight.residentId,
                   });
                 }
-                // 保存処理完了後にローカル状態をクリア（少し遅延）
-                setTimeout(() => {
-                  setLocalNotes((prev) => {
-                    const updated = { ...prev };
-                    delete updated[weight.id];
-                    return updated;
-                  });
-                }, 100);
               }}
-              onKeyDown={(e) => {
-                // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                } else if (e.key === "Escape") {
-                  // Escapeキー：変更を破棄して元の値に戻す
-                  setLocalNotes((prev) => {
-                    const updated = { ...prev };
-                    delete updated[weight.id];
-                    return updated;
-                  });
-                  e.currentTarget.blur();
-                }
-              }}
-              placeholder="記録内容"
-              className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
-              rows={1}
-              style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
               disabled={!isResidentSelected}
+              className={!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}
             />
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -595,7 +786,6 @@ function WeightCard({
 export default function WeightList() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [localWeight, setLocalWeight] = useState<Record<string, string>>({});
   
 
@@ -1310,8 +1500,6 @@ export default function WeightList() {
               residents={residents as any[]}
               selectedMonth={selectedMonth}
               inputBaseClass={inputBaseClass}
-              localNotes={localNotes}
-              setLocalNotes={setLocalNotes}
               localWeight={localWeight}
               setLocalWeight={setLocalWeight}
               updateMutation={updateMutation}
