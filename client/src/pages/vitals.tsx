@@ -40,6 +40,60 @@ import {
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
+// 記録内容用のIME対応textareaコンポーネント（入浴一覧と同じ）
+function NotesInput({
+  initialValue,
+  onSave,
+  disabled = false,
+  className = "",
+}: {
+  initialValue: string;
+  onSave: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const [isComposing, setIsComposing] = useState(false);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+  };
+
+  const handleBlur = () => {
+    // カーソルアウト時に保存
+    onSave(value);
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+    setValue(e.currentTarget.value);
+  };
+
+  return (
+    <textarea
+      value={value}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      placeholder="記録内容"
+      className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none ${className}`}
+      rows={1}
+      style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
+      disabled={disabled}
+    />
+  );
+}
+
 // インライン編集用のコンポーネント
 function InlineEditableField({
   value,
@@ -125,6 +179,7 @@ function InlineEditableField({
   );
 }
 
+
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
   value,
@@ -200,7 +255,7 @@ function InputWithDropdown({
           />
         </PopoverTrigger>
         <PopoverContent className="w-32 p-0.5" align="center">
-          <div className="space-y-0 max-h-40 overflow-y-auto">
+          <div className="space-y-0 max-h-60 overflow-y-auto">
             {options.map((option) => (
               <button
                 key={option.value}
@@ -312,8 +367,6 @@ function VitalCard({
   pulseOptions,
   spo2Options,
   respirationOptions,
-  localNotes,
-  setLocalNotes,
   localBloodSugar,
   setLocalBloodSugar,
   updateMutation,
@@ -337,8 +390,6 @@ function VitalCard({
   pulseOptions: any[];
   spo2Options: any[];
   respirationOptions: any[];
-  localNotes: Record<string, string>;
-  setLocalNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   localBloodSugar: Record<string, string>;
   setLocalBloodSugar: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   updateMutation: any;
@@ -365,16 +416,9 @@ function VitalCard({
               {resident?.roomNumber || "未設定"}
             </div>
             <div className="font-medium text-sm truncate w-20 sm:w-24">
-              <InlineEditableField
-                value={resident?.name || ""}
-                placeholder="利用者選択"
-                type="select"
-                options={residents.map((r: any) => ({ value: r.id, label: r.name }))}
-                onSave={(residentId: string) => {
-                  changeResidentMutation.mutate({ vitalId: vital.id, newResidentId: residentId });
-                }}
-                disabled={false}
-              />
+              <span className="text-slate-800">
+                {resident?.name || "未選択"}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-1 text-sm">
@@ -598,6 +642,7 @@ function VitalCard({
             </span>
             <input
               type="text"
+              inputMode="numeric"
               value={
                 localBloodSugar[vital.id] !== undefined
                   ? localBloodSugar[vital.id]
@@ -696,20 +741,9 @@ function VitalCard({
             <span className="text-xs font-medium text-blue-600">
               記録
             </span>
-            <textarea
-              value={
-                localNotes[vital.id] !== undefined
-                  ? localNotes[vital.id]
-                  : vital.notes || ""
-              }
-              onChange={(e) => {
-                setLocalNotes((prev) => ({
-                  ...prev,
-                  [vital.id]: e.target.value,
-                }));
-              }}
-              onBlur={(e) => {
-                const newValue = e.target.value;
+            <NotesInput
+              initialValue={vital.notes || ""}
+              onSave={(newValue) => {
                 if (newValue !== (vital.notes || "")) {
                   updateMutation.mutate({
                     id: vital.id,
@@ -717,25 +751,6 @@ function VitalCard({
                   });
                 }
               }}
-              onKeyDown={(e) => {
-                // Shiftキーを押しながらEnterで改行、Enterのみで確定（複数行対応）
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                } else if (e.key === "Escape") {
-                  // Escapeキー：変更を破棄して元の値に戻す
-                  setLocalNotes((prev) => {
-                    const updated = { ...prev };
-                    delete updated[vital.id];
-                    return updated;
-                  });
-                  e.currentTarget.blur();
-                }
-              }}
-              placeholder="記録内容"
-              className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none`}
-              rows={1}
-              style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
               disabled={!isResidentSelected}
             />
             <AlertDialog>
@@ -787,7 +802,6 @@ function VitalCard({
 export default function Vitals() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [localBloodSugar, setLocalBloodSugar] = useState<Record<string, string>>({});
 
   // 共通スタイル定数
@@ -1536,8 +1550,6 @@ export default function Vitals() {
               pulseOptions={pulseOptions}
               spo2Options={spo2Options}
               respirationOptions={respirationOptions}
-              localNotes={localNotes}
-              setLocalNotes={setLocalNotes}
               localBloodSugar={localBloodSugar}
               setLocalBloodSugar={setLocalBloodSugar}
               updateMutation={updateMutation}

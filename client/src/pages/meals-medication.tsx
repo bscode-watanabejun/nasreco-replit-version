@@ -24,15 +24,17 @@ interface MealsMedicationWithResident extends MealsAndMedication {
   floor: string;
 }
 
-// 記録内容用のIME対応textareaコンポーネント
+// 記録内容用のIME対応textareaコンポーネント（他画面と統一）
 function NotesInput({
-  residentId,
   initialValue,
   onSave,
+  disabled = false,
+  className = "",
 }: {
-  residentId: string;
   initialValue: string;
   onSave: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
 }) {
   const [value, setValue] = useState(initialValue);
   const [isComposing, setIsComposing] = useState(false);
@@ -68,8 +70,10 @@ function NotesInput({
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
       placeholder="記録内容"
-      className="min-h-[24px] text-xs w-full px-1 py-1 text-left border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+      className={`flex-1 min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none ${className}`}
       rows={1}
+      style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
+      disabled={disabled}
     />
   );
 }
@@ -167,13 +171,13 @@ function InputWithDropdown({
             className={className}
           />
         </PopoverTrigger>
-        <PopoverContent className="w-32 p-0.5" align="center">
-          <div className="space-y-0 max-h-40 overflow-y-auto">
+        <PopoverContent className="w-48 p-0.5" align="center">
+          <div className="space-y-0 max-h-60 overflow-y-auto">
             {options.map((option) => (
               <button
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
-                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
+                className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.5rem]"
               >
                 {option.label}
               </button>
@@ -868,9 +872,8 @@ export default function MealsMedicationPage() {
                   </div>
                   
                   {/* 記録内容 */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <NotesInput
-                      residentId={resident.id}
                       initialValue={(() => {
                         const value = getMealCategoryValue(existingRecord, 'notes');
                         return value === "empty" ? "" : value;
@@ -881,6 +884,7 @@ export default function MealsMedicationPage() {
                           handleSaveRecord(resident.id, 'notes', value);
                         }
                       }}
+                      className="w-full"
                     />
                   </div>
                 </div>

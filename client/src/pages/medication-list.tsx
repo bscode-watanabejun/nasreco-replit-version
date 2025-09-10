@@ -32,6 +32,60 @@ import type { MedicationRecord, InsertMedicationRecord, Resident } from "@shared
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
 
+// 記録内容用のIME対応textareaコンポーネント（入浴一覧と同じ）
+function NotesInput({
+  initialValue,
+  onSave,
+  disabled = false,
+  className = "",
+}: {
+  initialValue: string;
+  onSave: (value: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const [isComposing, setIsComposing] = useState(false);
+
+  // 値が外部から変更された場合に同期
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+  };
+
+  const handleBlur = () => {
+    // カーソルアウト時に保存
+    onSave(value);
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+    setValue(e.currentTarget.value);
+  };
+
+  return (
+    <textarea
+      value={value}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      placeholder="記録内容"
+      className={`w-full min-w-0 border rounded px-2 py-1 text-xs resize-none text-left align-top transition-colors focus:border-blue-500 focus:outline-none ${className}`}
+      rows={1}
+      style={{ minHeight: "32px", maxHeight: "64px", overflow: "auto" }}
+      disabled={disabled}
+    />
+  );
+}
+
 const timingOptions = [
   { value: "起床後", label: "起床後" },
   { value: "朝前", label: "朝前" },
@@ -235,8 +289,7 @@ export default function MedicationList() {
     return '全階';
   });
   
-  // ローカル状態管理（編集中のメモ）
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  // ローカル状態管理は不要（NotesInputコンポーネントが内部管理）
   // savedTempRecordsは不要になったので削除
 
   // 利用者データ取得
@@ -912,26 +965,13 @@ export default function MedicationList() {
                 </div>
 
                 {/* 2段目：記録・種類・結果・削除アイコン */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
                   {/* 記録 */}
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={localNotes[record.id] !== undefined ? localNotes[record.id] : (record.notes || "")}
-                      onChange={(e) => {
-                        setLocalNotes(prev => ({
-                          ...prev,
-                          [record.id]: e.target.value
-                        }));
-                      }}
-                      onBlur={(e) => {
-                        const value = e.target.value;
+                  <div className="flex-grow min-w-0" style={{ flex: '999 1 0%' }}>
+                    <NotesInput
+                      initialValue={record.notes || ""}
+                      onSave={(value) => {
                         handleFieldUpdate(record.id, "notes", value);
-                        setLocalNotes(prev => {
-                          const newState = { ...prev };
-                          delete newState[record.id];
-                          return newState;
-                        });
                         // メモが入力された場合は保存を実行（プレースホルダーカード以外）
                         if (value && value.trim() && record.residentId && !record.id.startsWith('placeholder-')) {
                           console.log('Saving notes on blur:', value);
@@ -943,15 +983,12 @@ export default function MedicationList() {
                           handleSaveRecord(actualResidentId, "notes", value);
                         }
                       }}
-                      className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
-                      placeholder="記録を入力..."
-                      data-testid={`input-notes-${record.id}`}
                       disabled={false}
                     />
                   </div>
                   
                   {/* 種類 */}
-                  <div className="w-12 flex-shrink-0">
+                  <div className="w-10 flex-shrink-0">
                     <InputWithDropdown
                       value={record.type}
                       options={typeOptions}
@@ -968,7 +1005,7 @@ export default function MedicationList() {
                   </div>
                   
                   {/* 結果 */}
-                  <div className="w-12 flex-shrink-0">
+                  <div className="w-10 flex-shrink-0">
                     <InputWithDropdown
                       value={record.result || ""}
                       options={resultOptions.map(option => ({
