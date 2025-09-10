@@ -130,6 +130,7 @@ export interface IStorage {
 
   // Meals and medication operations
   getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]>;
+  getMealsAndMedicationById(id: string): Promise<MealsAndMedication | null>;
   createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication>;
   updateMealsAndMedication(id: string, record: InsertMealsAndMedication): Promise<MealsAndMedication>;
   getMealList(recordDate: string, mealTime: string, floor: string): Promise<any[]>;
@@ -594,6 +595,15 @@ export class DatabaseStorage implements IStorage {
       .from(mealsAndMedication)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(mealsAndMedication.recordDate));
+  }
+
+  async getMealsAndMedicationById(id: string): Promise<MealsAndMedication | null> {
+    const [record] = await db
+      .select()
+      .from(mealsAndMedication)
+      .where(eq(mealsAndMedication.id, id))
+      .limit(1);
+    return record || null;
   }
 
   async createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication> {

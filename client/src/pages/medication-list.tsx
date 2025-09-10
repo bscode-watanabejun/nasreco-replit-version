@@ -834,7 +834,7 @@ export default function MedicationList() {
                   </div>
                   
                   {/* 利用者名 */}
-                  <div className="w-16 flex-shrink-0">
+                  <div className="w-24 flex-shrink-0">
                     <InputWithDropdown
                       value={(() => {
                         const name = residents?.find(r => r.id === record.residentId)?.name || record.residentName || "";
@@ -874,6 +874,9 @@ export default function MedicationList() {
                       disabled={true} // 服薬タイミングは常に変更不可
                     />
                   </div>
+                  
+                  {/* スペーサー（確認者を右寄せ） */}
+                  <div className="flex-1"></div>
                   
                   {/* 確認者1 */}
                   <div className="w-16 flex-shrink-0">

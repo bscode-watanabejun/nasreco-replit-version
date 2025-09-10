@@ -860,8 +860,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/meals-medication/:id', isAuthenticated, async (req: any, res) => {
     try {
+      // 既存のレコードを取得
+      const existingRecord = await storage.getMealsAndMedicationById(req.params.id);
+      if (!existingRecord) {
+        return res.status(404).json({ message: "Record not found" });
+      }
+
       const staffSession = (req as any).session?.staff;
-      let staffId = staffSession ? staffSession.id : null;
+      let staffId = req.body.staffId || existingRecord.staffId || (staffSession ? staffSession.id : null);
 
       // 職員セッションがない場合、デフォルト職員またはユーザー職員を探す
       if (!staffId) {
@@ -882,10 +888,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const validatedData = insertMealsAndMedicationSchema.parse({
-        ...req.body,
+      // 既存データと新しいデータをマージ（送信されたフィールドのみ更新）
+      const mergedData = {
+        residentId: existingRecord.residentId,
+        recordDate: existingRecord.recordDate,
+        type: existingRecord.type,
+        mealType: existingRecord.mealType,
+        mainAmount: existingRecord.mainAmount,
+        sideAmount: existingRecord.sideAmount,
+        waterIntake: existingRecord.waterIntake,
+        supplement: existingRecord.supplement,
+        staffName: existingRecord.staffName,
+        notes: existingRecord.notes,
+        ...req.body,  // 送信されたフィールドで上書き
         staffId: staffId,
-      });
+      };
+
+      const validatedData = insertMealsAndMedicationSchema.parse(mergedData);
       const record = await storage.updateMealsAndMedication(req.params.id, validatedData);
       res.json(record);
     } catch (error: any) {

@@ -503,7 +503,7 @@ export default function ExcretionList() {
       const endDate = new Date(selectedDate);
       endDate.setHours(23, 59, 59, 999);
       const startDate = new Date(selectedDate);
-      startDate.setDate(endDate.getDate() - 6);
+      startDate.setDate(endDate.getDate() - 29); // 過去30日間のデータを取得
       startDate.setHours(0, 0, 0, 0);
       
       const response = await fetch(`/api/excretion-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
@@ -1259,10 +1259,18 @@ export default function ExcretionList() {
                   <tbody>
                     {filteredResidents.map((resident: Resident) => {
                       // 合計データの計算
-                      const stoolCount = hours.filter(hour => {
+                      const stoolCount = hours.reduce((total, hour) => {
                         const data = getCellData(resident.id, hour);
-                        return data.stoolState || data.stoolAmount;
-                      }).length;
+                        // 便量が「多」または「中」の場合のみカウント
+                        if (data.stoolAmount === '多' || data.stoolAmount === '中') {
+                          return total + 1;
+                        }
+                        return total;
+                      }, 0) + (() => {
+                        // 自立便を追加
+                        const independentStool = getAssistanceData(resident.id, 'stool');
+                        return (independentStool && !isNaN(parseInt(independentStool))) ? parseInt(independentStool) : 0;
+                      })();
                       
                       const urineCount = hours.reduce((total, hour) => {
                         const data = getCellData(resident.id, hour);
@@ -1284,12 +1292,16 @@ export default function ExcretionList() {
                         }
                       }, 0);
                       
-                      // 最終便からの経過日数を計算
+                      // 最終便からの経過日数を計算（便量が「多」または「中」の場合のみカウント）
                       const today = new Date(selectedDate);
                       let daysSinceLastStool = '';
                       if (excretionRecords) {
                         const residentStoolRecords = excretionRecords
-                          .filter((r: any) => r.residentId === resident.id && r.type === 'bowel_movement')
+                          .filter((r: any) => 
+                            r.residentId === resident.id && 
+                            r.type === 'bowel_movement' &&
+                            (r.amount === '多' || r.amount === '中')
+                          )
                           .sort((a: any, b: any) => new Date(b.recordDate).getTime() - new Date(a.recordDate).getTime());
 
                         if (residentStoolRecords.length > 0) {
@@ -1317,17 +1329,17 @@ export default function ExcretionList() {
                         const residentRecords = records.filter((r: any) => r.residentId === residentId);
                         
                         if (residentRecords.length === 0) {
-                          return "傾向：過去1週間の記録が\nありません。\n注意：記録漏れの可能性があります。";
+                          return "傾向：過去30日間の記録が\nありません。\n注意：記録漏れの可能性があります。";
                         }
 
                         const stoolRecords = residentRecords.filter((r: any) => r.type === 'bowel_movement');
                         const urineRecords = residentRecords.filter((r: any) => r.type === 'urination');
 
-                        let trend = `傾向：過去1週間で${stoolRecords.length}回の排便、${urineRecords.length}回の排尿がありました。`;
+                        let trend = `傾向：過去30日間で${stoolRecords.length}回の排便、${urineRecords.length}回の排尿がありました。`;
                         let attention = "注意：";
 
                         if (stoolRecords.length === 0) {
-                          attention += "1週間排便がありません。便秘の可能性があります。";
+                          attention += "30日間排便がありません。重度の便秘の可能性があります。";
                         } else {
                           const wateryStool = stoolRecords.some((r: any) => r.consistency === '水様便');
                           if (wateryStool) {
@@ -1336,7 +1348,7 @@ export default function ExcretionList() {
                           }
                         }
 
-                        if (urineRecords.length < 7) {
+                        if (urineRecords.length < 30) {
                             attention += "尿の回数が少ないようです。水分摂取量を確認してください。";
                         }
                         
