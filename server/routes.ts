@@ -817,18 +817,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         staffId: staffId,
       });
       
-      // recordDateをJST時刻として明示的に処理
+      // recordDateを日付のみ（時刻00:00:00）に正規化
       if (validatedData.recordDate) {
         if (typeof validatedData.recordDate === 'string') {
           const dateString = validatedData.recordDate as string;
-          const jstDate = new Date(dateString + (dateString.includes('+') ? '' : '+09:00'));
-          validatedData.recordDate = jstDate;
+          const dateOnly = new Date(dateString);
+          dateOnly.setUTCHours(0, 0, 0, 0);
+          validatedData.recordDate = dateOnly;
         } else if (validatedData.recordDate instanceof Date) {
-          // フロントエンドがJSTのつもりで送信したがUTCとして解釈されている場合、9時間加算してJST時刻に修正
-          const utcTime = validatedData.recordDate.getTime();
-          const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
-          const jstTime = new Date(utcTime + jstOffset);
-          validatedData.recordDate = jstTime;
+          // 日付のみを保持し、時刻を00:00:00に正規化
+          const dateOnly = new Date(validatedData.recordDate);
+          dateOnly.setUTCHours(0, 0, 0, 0);
+          validatedData.recordDate = dateOnly;
         }
       }
       
