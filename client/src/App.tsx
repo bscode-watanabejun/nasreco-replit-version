@@ -33,6 +33,7 @@ import CheckListMenu from "@/pages/check-list-menu";
 import CareRecordsCheck from "@/pages/care-records-check";
 import MealWaterCheckList from "@/pages/meal-water-check-list";
 import ExcretionCheckList from "@/pages/excretion-check-list";
+import BathingCheckList from "@/pages/bathing-check-list";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -86,6 +87,7 @@ function Router() {
           <Route path="/care-records-check" component={CareRecordsCheck} />
           <Route path="/meal-water-check-list" component={MealWaterCheckList} />
           <Route path="/excretion-check-list" component={ExcretionCheckList} />
+          <Route path="/bathing-check-list" component={BathingCheckList} />
           <Route component={NotFound} />
         </>
       )}
