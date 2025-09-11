@@ -541,22 +541,27 @@ export default function UserInfoView() {
                 </CardContent>
               </Card>
 
-              {/* 服薬時間帯 月次 */}
+              {/* 服薬時間帯　月次 */}
               <Card>
                 <CardContent className="p-3">
-                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">服薬時間帯 月次</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">経口 (昼)</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.mealLunch)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">経口 (夕)</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.mealDinner)}</p>
-                    </div>
+                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">服薬時間帯　月次</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">月次</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{selectedResident.medicationFrequency || "未設定"}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">食事</label>
+                      <div className="flex space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-slate-600 dark:text-slate-400">経管:</span>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.mealLunch)}</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-slate-600 dark:text-slate-400">経口:</span>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.mealDinner)}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
