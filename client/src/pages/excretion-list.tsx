@@ -366,8 +366,17 @@ function ExcretionDialog({
             <input
               ref={urineCCRef}
               type="number"
+              step="0.1"
+              inputMode="decimal"
+              pattern="[0-9]*[.]?[0-9]*"
               value={urineCC}
-              onChange={(e) => setUrineCC(e.target.value)}
+              onChange={(e) => {
+                // 数字と小数点のみを許可
+                const value = e.target.value;
+                if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                  setUrineCC(value);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && urineCC) {
                   moveToNextField('urineCC');
@@ -1168,7 +1177,9 @@ export default function ExcretionList() {
                       <td className="border-r border-gray-200 border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">便</td>
                       <td className="border-r border-gray-200 border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
                         <input
-                          type="text"
+                          type="number"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={getAssistanceData(resident.id, 'stool')}
                           onChange={(e) => {
                             const key = `${resident.id}--1`;
@@ -1212,7 +1223,9 @@ export default function ExcretionList() {
                       <td className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden font-bold bg-gray-100 sticky left-12 z-10">尿</td>
                       <td className="border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">
                         <input
-                          type="text"
+                          type="number"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={getAssistanceData(resident.id, 'urine')}
                           onChange={(e) => {
                             const key = `${resident.id}--1`;
