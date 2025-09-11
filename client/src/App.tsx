@@ -10,7 +10,6 @@ import CareRecords from "@/pages/care-records";
 import Vitals from "@/pages/vitals";
 import MealsMedication from "@/pages/meals-medication";
 import MedicationList from "@/pages/medication-list";
-import UserInfo from "@/pages/user-info";
 import UserInfoView from "@/pages/user-info-view";
 import UserInfoManagement from "@/pages/user-info-management";
 import Rounds from "@/pages/rounds";
@@ -34,6 +33,7 @@ import CareRecordsCheck from "@/pages/care-records-check";
 import MealWaterCheckList from "@/pages/meal-water-check-list";
 import ExcretionCheckList from "@/pages/excretion-check-list";
 import BathingCheckList from "@/pages/bathing-check-list";
+import MedicationCheckList from "@/pages/medication-check-list";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -88,6 +88,7 @@ function Router() {
           <Route path="/meal-water-check-list" component={MealWaterCheckList} />
           <Route path="/excretion-check-list" component={ExcretionCheckList} />
           <Route path="/bathing-check-list" component={BathingCheckList} />
+          <Route path="/medication-check-list" component={MedicationCheckList} />
           <Route component={NotFound} />
         </>
       )}

@@ -963,15 +963,15 @@ export class DatabaseStorage implements IStorage {
     // 服薬タイミングと利用者の服薬時間帯設定のマッピング
     const getTimingFieldMapping = (timing: string) => {
       const mappings: Record<string, string[]> = {
-        "起床後": ["medicationOther"],
+        "起床後": ["medicationWakeup"],
         "朝前": ["medicationMorningBefore"], 
         "朝後": ["medicationMorning"],
-        "昼前": ["medicationOther"],
+        "昼前": ["medicationNoonBefore"],
         "昼後": ["medicationBedtime"],
         "夕前": ["medicationEveningBefore"],
         "夕後": ["medicationEvening"],
-        "眠前": ["medicationOther"],
-        "頓服": ["medicationOther"]
+        "眠前": ["medicationSleep"],
+        "頓服": ["medicationAsNeeded"]
       };
       return mappings[timing] || [];
     };
@@ -1098,7 +1098,98 @@ export class DatabaseStorage implements IStorage {
       });
     }
     
-    // timing が 'all' の場合は既存の記録のみ返す
+    // timing が 'all' の場合は全ての服薬時間帯に対してプレースホルダーカードを生成
+    if (timing === 'all') {
+      // 全利用者を取得
+      const residentsConditions = [];
+      if (floor && floor !== 'all') {
+        residentsConditions.push(eq(residents.floor, floor));
+      }
+      
+      const allResidents = residentsConditions.length > 0
+        ? await db.select().from(residents).where(and(...residentsConditions))
+        : await db.select().from(residents);
+      
+      // 曜日から服薬時間フィールドを取得
+      const weeklyField = getWeeklyFieldFromDate(recordDate);
+      
+      // 全ての服薬時間帯
+      const allTimings = ["起床後", "朝前", "朝後", "昼前", "昼後", "夕前", "夕後", "眠前", "頓服"];
+      
+      // 既存記録がある利用者と時間帯の組み合わせをセットで管理
+      const existingRecordKeys = new Set(
+        existingRecords.map(r => `${r.residentId}-${r.timing}`)
+      );
+      
+      // 条件に合致する利用者の空カードを生成
+      const additionalCards = [];
+      
+      for (const resident of allResidents) {
+        for (const currentTiming of allTimings) {
+          // 既に記録がある場合はスキップ
+          const recordKey = `${resident.id}-${currentTiming}`;
+          if (existingRecordKeys.has(recordKey)) {
+            continue;
+          }
+          
+          // 現在の時間帯に対応するフィールドを取得
+          const currentTimingFields = getTimingFieldMapping(currentTiming);
+          
+          // 服薬時間帯設定をチェック
+          let hasTimingSetting = false;
+          if (currentTimingFields.length > 0) {
+            for (const field of currentTimingFields) {
+              if (resident[field as keyof typeof resident]) {
+                hasTimingSetting = true;
+                break;
+              }
+            }
+          }
+          
+          // 週次設定をチェック
+          const hasWeeklySetting = resident[weeklyField as keyof typeof resident] === true;
+          
+          // 両方の条件に合致する場合のみカードを生成
+          if (hasTimingSetting && hasWeeklySetting) {
+            additionalCards.push({
+              id: `placeholder-${resident.id}-${currentTiming}`,
+              residentId: resident.id,
+              recordDate: recordDate,
+              timing: currentTiming,
+              confirmer1: null,
+              confirmer2: null,
+              notes: null,
+              type: "服薬", // デフォルトタイプ
+              result: null,
+              createdBy: null,
+              createdAt: null,
+              updatedAt: null,
+              residentName: resident.name,
+              roomNumber: resident.roomNumber,
+              floor: resident.floor,
+            });
+          }
+        }
+      }
+      
+      // 既存記録と生成されたカードを結合
+      const allRecords = [...existingRecords, ...additionalCards];
+      
+      // 居室番号と服薬時間帯でソート
+      return allRecords.sort((a, b) => {
+        const roomA = parseInt(a.roomNumber || "0");
+        const roomB = parseInt(b.roomNumber || "0");
+        if (roomA !== roomB) return roomA - roomB;
+        
+        // 服薬時間帯の順序でソート
+        const timingOrder = ["起床後", "朝前", "朝後", "昼前", "昼後", "夕前", "夕後", "眠前", "頓服"];
+        const timingIndexA = timingOrder.indexOf(a.timing);
+        const timingIndexB = timingOrder.indexOf(b.timing);
+        return timingIndexA - timingIndexB;
+      });
+    }
+    
+    // その他の場合は既存の記録のみ返す
     return existingRecords;
   }
 
