@@ -325,11 +325,11 @@ export default function UserInfoView() {
                   <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">基本情報</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">部屋番号</label>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">居室番号</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.roomNumber)}</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">フロア</label>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">階</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.floor)}</p>
                     </div>
                     <div>
@@ -345,6 +345,10 @@ export default function UserInfoView() {
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatDate(selectedResident.admissionDate)}</p>
                     </div>
                     <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">退居日</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatDate(selectedResident.retirementDate)}</p>
+                    </div>
+                    <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">生年月日</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatDate(selectedResident.dateOfBirth)}</p>
                     </div>
@@ -356,14 +360,6 @@ export default function UserInfoView() {
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">郵便番号</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.postalCode)}</p>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">要介護度</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.careLevel)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">割合</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.careLevelRatio)}</p>
-                    </div>
                     <div className="col-span-2 sm:col-span-3">
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">住所</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.address)}</p>
@@ -373,7 +369,15 @@ export default function UserInfoView() {
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.attendingPhysician)}</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">保険番号</label>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">介護度</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.careLevel)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">割合</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.careLevelRatio)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">被保険者番号</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.insuranceNumber)}</p>
                     </div>
                     <div>
@@ -383,10 +387,6 @@ export default function UserInfoView() {
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">介護認定期間 To</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatDate(selectedResident.careAuthorizationPeriodEnd)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">退去日</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatDate(selectedResident.retirementDate)}</p>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">入院</label>
@@ -406,19 +406,19 @@ export default function UserInfoView() {
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">緊急連絡先1</h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">氏名</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">氏名1</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact1Name)}</p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">続柄</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">続柄1</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact1Relationship)}</p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話番号1</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話1-1</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact1Phone1)}</p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話番号2</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話1-2</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact1Phone2)}</p>
                         </div>
                         <div className="col-span-2 sm:col-span-3">
@@ -433,19 +433,19 @@ export default function UserInfoView() {
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">緊急連絡先2</h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">氏名</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">氏名2</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact2Name)}</p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">続柄</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">続柄2</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact2Relationship)}</p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話番号1</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話2-1</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact2Phone1)}</p>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話番号2</label>
+                          <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">電話2-2</label>
                           <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatString(selectedResident.emergencyContact2Phone2)}</p>
                         </div>
                         <div className="col-span-2 sm:col-span-3">
@@ -464,20 +464,20 @@ export default function UserInfoView() {
                   <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">服薬時間帯</h3>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝後</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationMorning)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕後</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationEvening)}</p>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">起床後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationWakeup)}</p>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝前</label>
                       <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationMorningBefore)}</p>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕前</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationEveningBefore)}</p>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationMorning)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">昼前</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationNoonBefore)}</p>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">昼後</label>
@@ -485,44 +485,24 @@ export default function UserInfoView() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕前</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationOther)}</p>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationEveningBefore)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationEvening)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">眠前</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationSleep)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">頓服</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.medicationAsNeeded)}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* 目薬時間帯 */}
-              <Card>
-                <CardContent className="p-3">
-                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">目薬時間帯</h3>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝後</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsMorning)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕後</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsEvening)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝前</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsMorningBefore)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕前</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsEveningBefore)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">昼後</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsBedtime)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕前</label>
-                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsOther)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
               {/* 服薬時間帯 週次 */}
               <Card>
@@ -582,10 +562,55 @@ export default function UserInfoView() {
                 </CardContent>
               </Card>
 
-              {/* 週間服薬 */}
+              {/* 点眼時間帯 */}
               <Card>
                 <CardContent className="p-3">
-                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">週間服薬</h3>
+                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">点眼時間帯</h3>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">起床後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsWakeup)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝前</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsMorningBefore)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">朝後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsMorning)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">昼前</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsNoonBefore)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">昼後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsBedtime)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕前</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsEveningBefore)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">夕後</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsEvening)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">眠前</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsSleep)}</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">頓服</label>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">{formatBoolean(selectedResident.eyeDropsAsNeeded)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 点眼時間帯　週次 */}
+              <Card>
+                <CardContent className="p-3">
+                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">点眼時間帯　週次</h3>
                   <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">月曜日</label>
@@ -619,10 +644,10 @@ export default function UserInfoView() {
                 </CardContent>
               </Card>
 
-              {/* 清拭・リネン交換日 */}
+              {/* 清掃・リネン交換日 */}
               <Card>
                 <CardContent className="p-3">
-                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">清拭・リネン交換日</h3>
+                  <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">清掃・リネン交換日</h3>
                   <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                     <div>
                       <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">月曜日</label>
@@ -732,11 +757,11 @@ export default function UserInfoView() {
                 </CardContent>
               </Card>
 
-              {/* その他の特記事項 */}
+              {/* 備考 */}
               {selectedResident.notes && (
                 <Card>
                   <CardContent className="p-3">
-                    <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">その他の特記事項</h3>
+                    <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">備考</h3>
                     <p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
                       {selectedResident.notes}
                     </p>
