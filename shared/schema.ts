@@ -76,20 +76,26 @@ export const residents = pgTable("residents", {
   emergencyContact2Address: text("emergency_contact2_address"), // 住所
   
   // 服薬情報
-  medicationMorning: boolean("medication_morning").default(false), // 朝後
-  medicationEvening: boolean("medication_evening").default(false), // 夕後
+  medicationWakeup: boolean("medication_wakeup").default(false), // 起床後
   medicationMorningBefore: boolean("medication_morning_before").default(false), // 朝前
-  medicationEveningBefore: boolean("medication_evening_before").default(false), // 夕前
+  medicationMorning: boolean("medication_morning").default(false), // 朝後
+  medicationNoonBefore: boolean("medication_noon_before").default(false), // 昼前
   medicationBedtime: boolean("medication_bedtime").default(false), // 昼後
-  medicationOther: boolean("medication_other").default(false), // 夕前
+  medicationEveningBefore: boolean("medication_evening_before").default(false), // 夕前
+  medicationEvening: boolean("medication_evening").default(false), // 夕後
+  medicationSleep: boolean("medication_sleep").default(false), // 眠前
+  medicationAsNeeded: boolean("medication_as_needed").default(false), // 頓服
   
   // 点眼情報
-  eyeDropsMorning: boolean("eye_drops_morning").default(false), // 朝後
-  eyeDropsEvening: boolean("eye_drops_evening").default(false), // 夕後
+  eyeDropsWakeup: boolean("eye_drops_wakeup").default(false), // 起床後
   eyeDropsMorningBefore: boolean("eye_drops_morning_before").default(false), // 朝前
-  eyeDropsEveningBefore: boolean("eye_drops_evening_before").default(false), // 夕前
+  eyeDropsMorning: boolean("eye_drops_morning").default(false), // 朝後
+  eyeDropsNoonBefore: boolean("eye_drops_noon_before").default(false), // 昼前
   eyeDropsBedtime: boolean("eye_drops_bedtime").default(false), // 昼後
-  eyeDropsOther: boolean("eye_drops_other").default(false), // 夕前
+  eyeDropsEveningBefore: boolean("eye_drops_evening_before").default(false), // 夕前
+  eyeDropsEvening: boolean("eye_drops_evening").default(false), // 夕後
+  eyeDropsSleep: boolean("eye_drops_sleep").default(false), // 眠前
+  eyeDropsAsNeeded: boolean("eye_drops_as_needed").default(false), // 頓服
   
   // 清拭情報
   bathingSunday: boolean("bathing_sunday").default(false), // 月曜日

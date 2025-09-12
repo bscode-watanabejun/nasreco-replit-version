@@ -1204,31 +1204,45 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertMedicationRecord(record: InsertMedicationRecord): Promise<MedicationRecord> {
-    const recordToUpsert = {
-      ...record,
-      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
-      createdBy: record.createdBy || 'unknown' // Ensure createdBy is not undefined
-    };
-    
-    
-    // PostgreSQLのON CONFLICTを使用してupsert操作を実行
-    const [upsertedRecord] = await db
-      .insert(medicationRecords)
-      .values([recordToUpsert])
-      .onConflictDoUpdate({
-        target: [medicationRecords.residentId, medicationRecords.recordDate, medicationRecords.timing, medicationRecords.type],
-        set: {
-          confirmer1: sql`EXCLUDED.confirmer1`,
-          confirmer2: sql`EXCLUDED.confirmer2`,
-          notes: sql`EXCLUDED.notes`,
-          result: sql`EXCLUDED.result`,
-          createdBy: sql`EXCLUDED.created_by`,
-          updatedAt: sql`EXCLUDED.updated_at`
-        }
-      })
-      .returning();
+    try {
+      const recordToUpsert = {
+        ...record,
+        recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+        createdBy: record.createdBy || 'unknown' // Ensure createdBy is not undefined
+      };
       
-    return upsertedRecord;
+      console.log("🔄 DB Upserting record:", recordToUpsert);
+      
+      // PostgreSQLのON CONFLICTを使用してupsert操作を実行
+      const result = await db
+        .insert(medicationRecords)
+        .values([recordToUpsert])
+        .onConflictDoUpdate({
+          target: [medicationRecords.residentId, medicationRecords.recordDate, medicationRecords.timing, medicationRecords.type],
+          set: {
+            confirmer1: sql`EXCLUDED.confirmer1`,
+            confirmer2: sql`EXCLUDED.confirmer2`,
+            notes: sql`EXCLUDED.notes`,
+            result: sql`EXCLUDED.result`,
+            createdBy: sql`EXCLUDED.created_by`,
+            updatedAt: sql`EXCLUDED.updated_at`
+          }
+        })
+        .returning();
+        
+      console.log("🔄 DB Upsert result:", result);
+      
+      if (!result || result.length === 0) {
+        throw new Error("Upsert operation returned no results");
+      }
+      
+      const upsertedRecord = result[0];
+      console.log("✅ DB Upserted record:", upsertedRecord);
+      return upsertedRecord;
+    } catch (error) {
+      console.error("❌ Error in upsertMedicationRecord:", error);
+      throw error;
+    }
   }
 
   async updateMedicationRecord(id: string, record: Partial<InsertMedicationRecord>): Promise<MedicationRecord> {

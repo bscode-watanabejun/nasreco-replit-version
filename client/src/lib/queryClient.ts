@@ -46,11 +46,26 @@ export async function apiRequest(
   // FormDataの場合は、Content-Typeヘッダーを設定しない（ブラウザが自動設定）
   const isFormData = data instanceof FormData;
   
+  console.log('🌐 API Request:', {
+    url,
+    method,
+    data,
+    isFormData
+  });
+  
   const res = await fetch(url, {
     method,
     headers: data && !isFormData ? { "Content-Type": "application/json" } : {},
     body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
+  });
+
+  console.log('📡 API Response:', {
+    url,
+    status: res.status,
+    statusText: res.statusText,
+    contentType: res.headers.get('content-type'),
+    contentLength: res.headers.get('content-length')
   });
 
   await throwIfResNotOk(res);
@@ -67,11 +82,26 @@ export async function apiRequest(
   }
   
   try {
-    const responseData = await res.json();
+    const responseText = await res.text();
+    console.log('📄 Response text:', responseText);
+    
+    if (!responseText) {
+      console.warn('❌ Empty response body received');
+      return null;
+    }
+    
+    const responseData = JSON.parse(responseText);
+    console.log('✅ Parsed response data:', responseData);
     return responseData;
   } catch (error) {
     // JSONパースに失敗した場合は空のレスポンスとして扱う
-    console.warn('JSONパースに失敗しました。空のレスポンスとして処理します。', error);
+    console.error('❌ JSON parse failed:', {
+      error,
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      headers: Object.fromEntries(res.headers.entries())
+    });
     return null;
   }
 }

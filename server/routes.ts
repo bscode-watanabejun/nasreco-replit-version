@@ -1435,6 +1435,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/medication-records', isAuthenticated, async (req: any, res) => {
+    console.log('🎯 POST /api/medication-records - Request received:', {
+      body: req.body,
+      user: req.user?.claims?.sub
+    });
+    
     try {
       const staffSession = (req as any).session?.staff;
       let createdBy = staffSession ? staffSession.id : null;
@@ -1497,16 +1502,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any;
       
       // Upsert操作を実行（重複がある場合は更新、ない場合は作成）
+      console.log("📝 Upserting medication record with data:", recordWithTimestamps);
       const record = await storage.upsertMedicationRecord(recordWithTimestamps);
+      console.log("✅ Upsert result:", record);
+      
+      if (!record) {
+        console.error("❌ Upsert returned null/undefined record");
+        return res.status(500).json({ message: "Failed to create/update medication record" });
+      }
+      
+      console.log('🎉 Sending successful response:', record);
       res.status(201).json(record);
     } catch (error: any) {
-      console.error("Error upserting medication record:", error);
+      console.error("❌ Error upserting medication record:", error);
       res.status(400).json({ message: "Invalid medication record data", error: error.message });
     }
   });
 
   app.put('/api/medication-records/:id', isAuthenticated, async (req: any, res) => {
+    console.log('🎯 PUT /api/medication-records/:id - Request received:', {
+      id: req.params.id,
+      body: req.body,
+      isPlaceholder: req.params.id?.startsWith('placeholder-')
+    });
+    
     try {
+      // プレースホルダーIDの場合はエラーを返す
+      if (req.params.id?.startsWith('placeholder-')) {
+        console.error('❌ Cannot update record with placeholder ID:', req.params.id);
+        return res.status(400).json({ 
+          message: "Cannot update record with placeholder ID. Use POST to create new record." 
+        });
+      }
+      
       // 部分更新用のスキーマ - 必須フィールドをオプションにする
       const partialMedicationRecordSchema = insertMedicationRecordSchema.partial();
       const validatedData = partialMedicationRecordSchema.parse(req.body);
@@ -1519,9 +1547,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 型の問題を回避するためanyでキャスト
       const recordWithUpdatedAt = { ...validatedData, updatedAt: jstNow } as any;
       const record = await storage.updateMedicationRecord(req.params.id, recordWithUpdatedAt);
+      
+      if (!record) {
+        console.error('❌ Record not found for ID:', req.params.id);
+        return res.status(404).json({ message: "Record not found" });
+      }
+      
+      console.log('✅ PUT successful:', record);
       res.json(record);
     } catch (error: any) {
-      console.error("Error updating medication record:", error);
+      console.error("❌ Error updating medication record:", error);
       res.status(400).json({ message: "Invalid medication record data", error: error.message });
     }
   });
