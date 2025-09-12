@@ -682,11 +682,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // created_atをJST時刻として明示的に設定
+      // created_atとupdated_atをJST時刻として明示的に設定
       const now = new Date();
       const jstOffset = 9 * 60 * 60 * 1000;
       const jstNow = new Date(now.getTime() + jstOffset);
       (validatedData as any).createdAt = jstNow;
+      (validatedData as any).updatedAt = jstNow;
       
       const vitals = await storage.createVitalSigns(validatedData);
       res.status(201).json(vitals);
