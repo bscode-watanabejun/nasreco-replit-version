@@ -1410,16 +1410,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Medication Records routes
   app.get('/api/medication-records', isAuthenticated, async (req, res) => {
     try {
-      const { recordDate, timing, floor } = req.query;
+      const { recordDate, dateFrom, dateTo, timing, floor } = req.query;
       
+      let records;
+      
+      // 日付範囲が指定されている場合は一括取得
+      if (dateFrom && dateTo) {
+        records = await storage.getMedicationRecordsByDateRange(
+          dateFrom as string,
+          dateTo as string,
+          timing as string || 'all',
+          floor as string || 'all'
+        );
+      }
+      // 単一日付が指定されている場合は従来の方法
+      else if (recordDate) {
+        records = await storage.getMedicationRecords(
+          recordDate as string,
+          timing as string || 'all',
+          floor as string || 'all'
+        );
+      }
       // パラメータが指定されていない場合は全データを取得
-      const records = recordDate 
-        ? await storage.getMedicationRecords(
-            recordDate as string,
-            timing as string || 'all',
-            floor as string || 'all'
-          )
-        : await storage.getAllMedicationRecords(floor as string);
+      else {
+        records = await storage.getAllMedicationRecords(floor as string);
+      }
       
       // recordDateをJST時刻として正しく返すために変換
       const convertedRecords = records.map(record => ({

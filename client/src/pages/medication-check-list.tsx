@@ -241,42 +241,29 @@ export default function MedicationCheckList() {
     queryFn: () => apiRequest("/api/residents"),
   });
 
-  // 服薬記録データの取得（日付範囲で取得）
+  // 服薬記録データの取得（日付範囲で一括取得）
   const { data: medicationRecords = [], isLoading } = useQuery<MedicationRecordWithResident[]>({
-    queryKey: ["medication-records-all", dateFrom, dateTo],
+    queryKey: ["medication-records-range", dateFrom, dateTo],
     queryFn: async () => {
-      // 日付範囲内の全ての服薬記録を取得
-      const allRecords: MedicationRecordWithResident[] = [];
-      
-      // 日付をループして各日のデータを取得
-      let currentDate = parseISO(dateFrom);
-      const endDate = parseISO(dateTo);
-      
-      while (currentDate <= endDate) {
-        const dateStr = format(currentDate, "yyyy-MM-dd");
+      try {
+        const response = await fetch(`/api/medication-records?dateFrom=${dateFrom}&dateTo=${dateTo}&timing=all&floor=all`, {
+          credentials: 'include'
+        });
         
-        try {
-          const response = await fetch(`/api/medication-records?recordDate=${dateStr}&timing=all&floor=all`, {
-            credentials: 'include'
-          });
-          
-          if (response.ok) {
-            const dayRecords = await response.json();
-            allRecords.push(...dayRecords);
-          }
-        } catch (error) {
-          console.error(`Error fetching records for ${dateStr}:`, error);
+        if (response.ok) {
+          const records = await response.json();
+          return records;
+        } else {
+          console.error('Failed to fetch medication records:', response.statusText);
+          return [];
         }
-        
-        // 次の日へ
-        currentDate = new Date(currentDate);
-        currentDate.setDate(currentDate.getDate() + 1);
+      } catch (error) {
+        console.error('Error fetching medication records:', error);
+        return [];
       }
-      
-      return allRecords;
     },
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 5 * 60 * 1000,    // 5分間はキャッシュから取得
+    gcTime: 30 * 60 * 1000,      // 30分間メモリに保持
   });
 
   // フィルタリングされたデータ
@@ -311,7 +298,7 @@ export default function MedicationCheckList() {
       return apiRequest(`/api/medication-records/${id}`, "PUT", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["medication-records-all"] });
+      queryClient.invalidateQueries({ queryKey: ["medication-records-range"] });
     },
   });
 
@@ -320,7 +307,7 @@ export default function MedicationCheckList() {
       return apiRequest("/api/medication-records", "POST", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["medication-records-all"] });
+      queryClient.invalidateQueries({ queryKey: ["medication-records-range"] });
     },
   });
 
