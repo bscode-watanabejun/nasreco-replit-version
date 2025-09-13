@@ -1729,12 +1729,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cleaning Linen routes (清掃リネン管理)
   app.get('/api/cleaning-linen', isAuthenticated, async (req, res) => {
     try {
-      const { weekStartDate, floor } = req.query;
-      
-      // weekStartDateが指定されていない場合は全データを取得
-      if (!weekStartDate) {
-        const records = await storage.getAllCleaningLinenRecords(floor as string);
-        
+      const { weekStartDate, floor, startDate, endDate } = req.query;
+
+      // 新規：startDate/endDate パラメータによる期間フィルタリング（チェック一覧画面用）
+      if (startDate && endDate) {
+        const records = await storage.getCleaningLinenRecordsByDateRange(
+          new Date(startDate as string),
+          new Date(endDate as string),
+          floor as string
+        );
+
         // 全ての時刻フィールドをJST時刻として正しく返すために変換
         const convertedRecords = records.map(record => ({
           ...record,
@@ -1743,15 +1747,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('Z', '+09:00') : record.createdAt,
           updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString().replace('Z', '+09:00') : record.updatedAt
         }));
-        
+
         res.json(convertedRecords);
         return;
       }
-      
-      // weekStartDateが指定されている場合は週単位で取得
-      const startDate = new Date(weekStartDate as string);
-      const records = await storage.getCleaningLinenRecords(startDate, floor as string);
-      
+
+      // 既存：weekStartDateが指定されていない場合は全データを取得
+      if (!weekStartDate) {
+        const records = await storage.getAllCleaningLinenRecords(floor as string);
+
+        // 全ての時刻フィールドをJST時刻として正しく返すために変換
+        const convertedRecords = records.map(record => ({
+          ...record,
+          recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00'),
+          recordTime: record.recordTime ? new Date(record.recordTime).toISOString().replace('Z', '+09:00') : record.recordTime,
+          createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('Z', '+09:00') : record.createdAt,
+          updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString().replace('Z', '+09:00') : record.updatedAt
+        }));
+
+        res.json(convertedRecords);
+        return;
+      }
+
+      // 既存：weekStartDateが指定されている場合は週単位で取得
+      const weekStart = new Date(weekStartDate as string);
+      const records = await storage.getCleaningLinenRecords(weekStart, floor as string);
+
       // 全ての時刻フィールドをJST時刻として正しく返すために変換
       const convertedRecords = records.map(record => ({
         ...record,
@@ -1760,7 +1781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('Z', '+09:00') : record.createdAt,
         updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString().replace('Z', '+09:00') : record.updatedAt
       }));
-      
+
       res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching cleaning linen records:", error);
@@ -1946,6 +1967,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error upserting cleaning linen record:", error);
       res.status(400).json({ message: "Invalid cleaning linen data" });
+    }
+  });
+
+  app.delete('/api/cleaning-linen/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteCleaningLinenRecord(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting cleaning linen record:", error);
+      res.status(500).json({ message: "削除に失敗しました" });
     }
   });
 

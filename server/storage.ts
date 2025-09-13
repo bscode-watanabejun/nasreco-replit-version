@@ -222,9 +222,11 @@ export interface IStorage {
   // Cleaning Linen operations
   getCleaningLinenRecords(weekStartDate: Date, floor?: string): Promise<CleaningLinenRecord[]>;
   getAllCleaningLinenRecords(floor?: string): Promise<CleaningLinenRecord[]>;
+  getCleaningLinenRecordsByDateRange(startDate: Date, endDate: Date, floor?: string): Promise<CleaningLinenRecord[]>;
   createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
   updateCleaningLinenRecord(id: string, record: Partial<InsertCleaningLinenRecord>): Promise<CleaningLinenRecord>;
   upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord>;
+  deleteCleaningLinenRecord(id: string): Promise<void>;
 
   // Staff authentication
   authenticateStaff(staffId: string, password: string): Promise<StaffManagement | null>;
@@ -1502,7 +1504,7 @@ export class DatabaseStorage implements IStorage {
       staffId: staffNoticeReadStatus.staffId,
       readAt: staffNoticeReadStatus.readAt,
       createdAt: staffNoticeReadStatus.createdAt,
-      staffName: users.firstName,
+      staffName: staffManagement.staffName,
       staffLastName: users.lastName,
     })
     .from(staffNoticeReadStatus)
@@ -1568,11 +1570,11 @@ export class DatabaseStorage implements IStorage {
       residentName: residents.name,
       residentFloor: residents.floor,
       residentRoom: residents.roomNumber,
-      staffName: users.firstName,
+      staffName: staffManagement.staffName,
     })
     .from(cleaningLinenRecords)
     .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
-    .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
+    .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.id))
     .orderBy(desc(cleaningLinenRecords.recordDate));
 
     // 階数でフィルタリング（JavaScriptで処理）
@@ -1612,11 +1614,11 @@ export class DatabaseStorage implements IStorage {
       residentName: residents.name,
       residentFloor: residents.floor,
       residentRoom: residents.roomNumber,
-      staffName: users.firstName,
+      staffName: staffManagement.staffName,
     })
     .from(cleaningLinenRecords)
     .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
-    .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
+    .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.id))
     .where(
       and(
         gte(cleaningLinenRecords.recordDate, startDateStr),
@@ -1648,11 +1650,93 @@ export class DatabaseStorage implements IStorage {
         residentName: residents.name,
         residentFloor: residents.floor,
         residentRoom: residents.roomNumber,
-        staffName: users.firstName,
+        staffName: staffManagement.staffName,
       })
       .from(cleaningLinenRecords)
       .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
-      .leftJoin(users, eq(cleaningLinenRecords.staffId, users.id))
+      .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.id))
+      .where(
+        and(
+          gte(cleaningLinenRecords.recordDate, startDateStr),
+          lte(cleaningLinenRecords.recordDate, endDateStr),
+          or(
+            eq(residents.floor, floorToMatch),
+            eq(residents.floor, floor), // 元の値でもマッチ
+            eq(residents.floor, floor.replace('階', '')) // 数字のみでもマッチ
+          )
+        )
+      );
+    }
+
+    const result = await query.orderBy(cleaningLinenRecords.recordDate, residents.roomNumber);
+    return result;
+  }
+
+  async getCleaningLinenRecordsByDateRange(startDate: Date, endDate: Date, floor?: string): Promise<CleaningLinenRecord[]> {
+    // 日付の妥当性チェック
+    if (!startDate || isNaN(startDate.getTime()) || !endDate || isNaN(endDate.getTime())) {
+      console.error('Invalid date range:', startDate, endDate);
+      return [];
+    }
+
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    let query = db.select({
+      id: cleaningLinenRecords.id,
+      residentId: cleaningLinenRecords.residentId,
+      recordDate: cleaningLinenRecords.recordDate,
+      recordTime: cleaningLinenRecords.recordTime,
+      dayOfWeek: cleaningLinenRecords.dayOfWeek,
+      cleaningValue: cleaningLinenRecords.cleaningValue,
+      linenValue: cleaningLinenRecords.linenValue,
+      recordNote: cleaningLinenRecords.recordNote,
+      staffId: cleaningLinenRecords.staffId,
+      createdAt: cleaningLinenRecords.createdAt,
+      updatedAt: cleaningLinenRecords.updatedAt,
+      residentName: residents.name,
+      residentFloor: residents.floor,
+      residentRoom: residents.roomNumber,
+      staffName: staffManagement.staffName,
+    })
+    .from(cleaningLinenRecords)
+    .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
+    .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.id))
+    .where(
+      and(
+        gte(cleaningLinenRecords.recordDate, startDateStr),
+        lte(cleaningLinenRecords.recordDate, endDateStr)
+      )
+    );
+
+    if (floor && floor !== "all" && floor !== "全階") {
+      // フロア名の変換（"1階" -> "1F" など）
+      let floorToMatch = floor;
+      if (floor.includes('階')) {
+        const floorNumber = floor.replace('階', '');
+        floorToMatch = `${floorNumber}F`;
+      }
+
+      query = db.select({
+        id: cleaningLinenRecords.id,
+        residentId: cleaningLinenRecords.residentId,
+        recordDate: cleaningLinenRecords.recordDate,
+        recordTime: cleaningLinenRecords.recordTime,
+        dayOfWeek: cleaningLinenRecords.dayOfWeek,
+        cleaningValue: cleaningLinenRecords.cleaningValue,
+        linenValue: cleaningLinenRecords.linenValue,
+        recordNote: cleaningLinenRecords.recordNote,
+        staffId: cleaningLinenRecords.staffId,
+        createdAt: cleaningLinenRecords.createdAt,
+        updatedAt: cleaningLinenRecords.updatedAt,
+        residentName: residents.name,
+        residentFloor: residents.floor,
+        residentRoom: residents.roomNumber,
+        staffName: staffManagement.staffName,
+      })
+      .from(cleaningLinenRecords)
+      .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
+      .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.id))
       .where(
         and(
           gte(cleaningLinenRecords.recordDate, startDateStr),
@@ -1721,11 +1805,12 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (existing.length > 0) {
-      // 既存レコードを更新（記録内容に変更があった場合にrecordTimeを更新）
-      const hasContentChange = 
+      // 既存レコードを更新（記録内容またはrecordTimeに変更があった場合にrecordTimeを更新）
+      const hasContentChange =
         existing[0].cleaningValue !== record.cleaningValue ||
         existing[0].linenValue !== record.linenValue ||
-        existing[0].recordNote !== record.recordNote;
+        existing[0].recordNote !== record.recordNote ||
+        (existing[0].recordTime?.getTime() || 0) !== recordTime.getTime();
       
       const [updated] = await db.update(cleaningLinenRecords)
         .set({
@@ -1756,6 +1841,9 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+  async deleteCleaningLinenRecord(id: string): Promise<void> {
+    await db.delete(cleaningLinenRecords).where(eq(cleaningLinenRecords.id, id));
   }
 
   // Staff Management methods

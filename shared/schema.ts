@@ -662,7 +662,7 @@ export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
 export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenRecords, {
   residentId: z.string().min(1, "利用者IDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
-  recordTime: z.date().optional().default(() => new Date()), // 記録時刻（デフォルトは現在時刻）
+  recordTime: z.string().optional().transform((str) => str ? new Date(str) : new Date()), // 記録時刻（デフォルトは現在時刻）
   dayOfWeek: z.coerce.number().int().min(0).max(6),
   cleaningValue: z.enum(["○", "2", "3", ""]).optional(),
   linenValue: z.enum(["○", "2", "3", ""]).optional(),
