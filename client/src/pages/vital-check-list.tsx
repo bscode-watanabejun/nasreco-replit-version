@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -10,13 +11,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format, parseISO, startOfDay, endOfDay, addDays, addMonths, differenceInDays } from "date-fns";
+import { format, parseISO, startOfDay, endOfDay, addDays, addMonths, differenceInDays, endOfMonth, subDays } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { Resident } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 // 体温の選択肢（35.0〜39.9、0.1刻み）
 const temperatureOptions = Array.from({ length: 50 }, (_, i) => {
@@ -53,6 +64,109 @@ const respirationOptions = Array.from({ length: 31 }, (_, i) => ({
   value: (10 + i).toString(),
   label: (10 + i).toString(),
 }));
+
+// グラフ用カラーパレット
+const colors = [
+  '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', 
+  '#1abc9c', '#e67e22', '#34495e', '#95a5a6', '#d35400',
+  '#c0392b', '#2980b9', '#27ae60', '#f1c40f', '#8e44ad',
+  '#16a085', '#d68910', '#2c3e50', '#7f8c8d', '#a93226'
+];
+
+// バイタル項目の単位を取得する関数
+const getVitalUnit = (vitalType: string) => {
+  switch (vitalType) {
+    case '体温': return '℃';
+    case '収縮期血圧':
+    case '拡張期血圧': return 'mmHg';
+    case '脈拍': return 'bpm';
+    case 'SpO2': return '%';
+    case '血糖': return 'mg/dl';
+    case '呼吸': return '/min';
+    default: return '';
+  }
+};
+
+// 線の種類を判定する関数
+const getLineStyle = (vitalType: string) => {
+  switch (vitalType) {
+    case '収縮期血圧': return '破線';
+    case '拡張期血圧': return '点線';
+    case '体温':
+    case '脈拍':
+    case 'SpO2':
+    case '血糖':
+    case '呼吸':
+    default: return '実線';
+  }
+};
+
+// 線の種類を視覚的に表示する関数
+const getLineStyleSymbol = (vitalType: string) => {
+  switch (vitalType) {
+    case '収縮期血圧': return '━ ━ ━'; // 破線
+    case '拡張期血圧': return '· · · ·'; // 点線
+    default: return '━━━━'; // 実線
+  }
+};
+
+// 期間内の全日付を生成する関数
+const generateDateRange = (from: string, to: string) => {
+  const dates: string[] = [];
+  const start = parseISO(from);
+  const end = parseISO(to);
+  let currentDate = start;
+  
+  while (currentDate <= end) {
+    dates.push(format(currentDate, "MM/dd"));
+    currentDate = addDays(currentDate, 1);
+  }
+  
+  return dates;
+};
+
+// カスタムTooltipコンポーネント
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
+        <p className="font-medium text-sm mb-2">{`日付: ${label}`}</p>
+        {payload.map((entry: any, index: number) => {
+          const [residentName, vitalType] = entry.dataKey.split('_');
+          let value = entry.value;
+          
+          // 体温、SpO2、血糖は小数点１桁まで表示
+          if (vitalType === '体温' || vitalType === 'SpO2' || vitalType === '血糖') {
+            value = Number(value).toFixed(1);
+          } else {
+            // その他は整数表示
+            value = Math.round(Number(value));
+          }
+          
+          const lineStyle = getLineStyle(vitalType);
+          const lineSymbol = getLineStyleSymbol(vitalType);
+          
+          return (
+            <div key={index} className="text-sm mb-1">
+              <div className="flex items-center gap-2">
+                <span style={{ color: entry.color, fontFamily: 'monospace', fontSize: '12px' }}>
+                  {lineSymbol}
+                </span>
+                <span style={{ color: entry.color }}>
+                  {`${residentName} ${vitalType}: ${value}${getVitalUnit(vitalType)}`}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500 ml-6">
+                {`線種: ${lineStyle}`}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return null;
+};
 
 // 時のオプション（6時〜23時）
 const hourOptions = [
@@ -291,6 +405,15 @@ export default function VitalCheckList() {
   const [selectedResident, setSelectedResident] = useState("all");
   const [localEdits, setLocalEdits] = useState<Map<string, any>>(new Map());
   const [localNotes, setLocalNotes] = useState<Map<string, string>>(new Map());
+  const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+  const [visibleLines, setVisibleLines] = useState({
+    temperature: true,
+    bloodPressure: true,
+    pulseRate: true,
+    oxygenSaturation: true,
+    bloodSugar: true,
+    respirationRate: true,
+  });
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -304,23 +427,59 @@ export default function VitalCheckList() {
     return [];
   }, [user]);
 
-  // 日付範囲の妥当性チェック（最大2ヶ月）
+  // グラフモード時の期間自動調整
+  useEffect(() => {
+    if (viewMode === 'graph' && dateFrom) {
+      const from = parseISO(dateFrom);
+      let newTo: Date;
+      if (from.getDate() === 1) {
+        // 1日の場合はその月の月末
+        newTo = endOfMonth(from);
+      } else {
+        // 2日以降の場合は翌月の同じ日の前日
+        const nextMonthSameDay = addMonths(from, 1);
+        newTo = subDays(nextMonthSameDay, 1);
+      }
+      setDateTo(format(newTo, "yyyy-MM-dd"));
+    }
+  }, [dateFrom, viewMode]);
+
+  // 日付範囲の妥当性チェック
   useEffect(() => {
     if (dateFrom && dateTo) {
       const from = parseISO(dateFrom);
       const to = parseISO(dateTo);
       const daysDiff = differenceInDays(to, from);
       
-      if (daysDiff > 60) {
-        const newTo = addMonths(from, 2);
-        setDateTo(format(newTo, "yyyy-MM-dd"));
-        toast({
-          title: "期間制限",
-          description: "表示期間は最大2ヶ月までです。終了日を調整しました。",
-        });
+      if (viewMode === 'graph') {
+        // グラフモードでは最大1ヶ月
+        if (daysDiff > 31) {
+          let newTo: Date;
+          if (from.getDate() === 1) {
+            newTo = endOfMonth(from);
+          } else {
+            const nextMonthSameDay = addMonths(from, 1);
+            newTo = subDays(nextMonthSameDay, 1);
+          }
+          setDateTo(format(newTo, "yyyy-MM-dd"));
+          toast({
+            title: "期間制限",
+            description: "グラフ表示では期間は最大1ヶ月までです。終了日を調整しました。",
+          });
+        }
+      } else {
+        // リストモードでは最大2ヶ月
+        if (daysDiff > 60) {
+          const newTo = addMonths(from, 2);
+          setDateTo(format(newTo, "yyyy-MM-dd"));
+          toast({
+            title: "期間制限",
+            description: "表示期間は最大2ヶ月までです。終了日を調整しました。",
+          });
+        }
       }
     }
-  }, [dateFrom, dateTo, toast]);
+  }, [dateFrom, dateTo, viewMode, toast]);
 
   // 入居者データの取得
   const { data: residents = [] } = useQuery<Resident[]>({
@@ -330,7 +489,7 @@ export default function VitalCheckList() {
 
   // バイタルサインデータの取得
   const { data: vitalData = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/vital-signs"],
+    queryKey: ["/api/vital-signs", dateFrom, dateTo],
     queryFn: async () => {
       const from = startOfDay(parseISO(dateFrom)).toISOString();
       const to = endOfDay(parseISO(dateTo)).toISOString();
@@ -481,6 +640,95 @@ export default function VitalCheckList() {
     });
   }, [filteredData, residents, dateFrom, dateTo, selectedFloor, selectedResident, selectedTiming]);
 
+  // グラフ用データの準備（利用者別）
+  const { graphData, residentDataKeys } = useMemo(() => {
+    if (viewMode !== 'graph') return { graphData: [], residentDataKeys: {} };
+
+    // 日付ごとにデータを集約
+    const dataByDate = new Map<string, any>();
+    const residentDataKeys: Record<string, string[]> = {
+      体温: [],
+      収縮期血圧: [],
+      拡張期血圧: [],
+      脈拍: [],
+      SpO2: [],
+      血糖: [],
+      呼吸: []
+    };
+
+    // 期間内の全日付を事前に生成
+    const allDates = generateDateRange(dateFrom, dateTo);
+    allDates.forEach(dateKey => {
+      dataByDate.set(dateKey, { date: dateKey });
+    });
+
+    // 実際のデータを上記に追加
+    filteredData.forEach(record => {
+      const dateKey = format(new Date(record.recordDate), "MM/dd");
+      const resident = residents.find(r => r.id === record.residentId);
+      const residentName = resident?.name || "不明";
+      
+      const data = dataByDate.get(dateKey);
+      if (!data) return; // 期間外のデータはスキップ
+      
+      // 各バイタル項目ごとに利用者別データを保存
+      if (record.temperature) {
+        const key = `${residentName}_体温`;
+        data[key] = parseFloat(record.temperature.toString());
+        if (!residentDataKeys.体温.includes(key)) {
+          residentDataKeys.体温.push(key);
+        }
+      }
+      if (record.bloodPressureSystolic) {
+        const key = `${residentName}_収縮期血圧`;
+        data[key] = parseInt(record.bloodPressureSystolic.toString());
+        if (!residentDataKeys.収縮期血圧.includes(key)) {
+          residentDataKeys.収縮期血圧.push(key);
+        }
+      }
+      if (record.bloodPressureDiastolic) {
+        const key = `${residentName}_拡張期血圧`;
+        data[key] = parseInt(record.bloodPressureDiastolic.toString());
+        if (!residentDataKeys.拡張期血圧.includes(key)) {
+          residentDataKeys.拡張期血圧.push(key);
+        }
+      }
+      if (record.pulseRate) {
+        const key = `${residentName}_脈拍`;
+        data[key] = parseInt(record.pulseRate.toString());
+        if (!residentDataKeys.脈拍.includes(key)) {
+          residentDataKeys.脈拍.push(key);
+        }
+      }
+      if (record.oxygenSaturation) {
+        const key = `${residentName}_SpO2`;
+        data[key] = parseFloat(record.oxygenSaturation.toString());
+        if (!residentDataKeys.SpO2.includes(key)) {
+          residentDataKeys.SpO2.push(key);
+        }
+      }
+      if (record.bloodSugar) {
+        const key = `${residentName}_血糖`;
+        data[key] = parseFloat(record.bloodSugar.toString());
+        if (!residentDataKeys.血糖.includes(key)) {
+          residentDataKeys.血糖.push(key);
+        }
+      }
+      if (record.respirationRate) {
+        const key = `${residentName}_呼吸`;
+        data[key] = parseInt(record.respirationRate.toString());
+        if (!residentDataKeys.呼吸.includes(key)) {
+          residentDataKeys.呼吸.push(key);
+        }
+      }
+    });
+
+    // 日付順にソート（既に順序は正しいが明示的にソート）
+    const graphData = Array.from(dataByDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+    
+    return { graphData, residentDataKeys };
+  }, [filteredData, viewMode, residents, dateFrom, dateTo]);
+
   // バイタル記録の更新
   const updateVitalMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<any> }) => {
@@ -488,14 +736,15 @@ export default function VitalCheckList() {
     },
     onMutate: async ({ id, data }) => {
       // 楽観的更新のためにクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
+      const queryKey = ["/api/vital-signs", dateFrom, dateTo];
+      await queryClient.cancelQueries({ queryKey });
       
       // 現在のデータを取得
-      const previousData = queryClient.getQueryData<any[]>(["/api/vital-signs"]);
+      const previousData = queryClient.getQueryData<any[]>(queryKey);
       
       // 楽観的更新
       if (previousData) {
-        queryClient.setQueryData<any[]>(["/api/vital-signs"], (old) => {
+        queryClient.setQueryData<any[]>(queryKey, (old) => {
           if (!old) return old;
           return old.map(record => 
             record.id === id ? { ...record, ...data } : record
@@ -508,8 +757,9 @@ export default function VitalCheckList() {
     },
     onError: (error, variables, context) => {
       // エラー時は元のデータに戻す
+      const queryKey = ["/api/vital-signs", dateFrom, dateTo];
       if (context?.previousData) {
-        queryClient.setQueryData(["/api/vital-signs"], context.previousData);
+        queryClient.setQueryData(queryKey, context.previousData);
       }
       toast({
         title: "エラー",
@@ -527,7 +777,7 @@ export default function VitalCheckList() {
   const createVitalMutation = useMutation({
     mutationFn: async (data: any) => apiRequest("/api/vital-signs", "POST", data),
     onSuccess: (serverResponse, variables) => {
-      const queryKey = ["/api/vital-signs"];
+      const queryKey = ["/api/vital-signs", dateFrom, dateTo];
       
       // 一時レコードを実際のIDに置き換える
       queryClient.setQueryData(queryKey, (old: any) => {
@@ -672,7 +922,9 @@ export default function VitalCheckList() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-lg font-semibold">バイタルチェック一覧</h1>
+        <h1 className="text-lg font-semibold">
+          {viewMode === 'graph' ? 'バイタルグラフ' : 'バイタルチェック一覧'}
+        </h1>
       </header>
 
       <div className="bg-white border-b px-4 py-3">
@@ -734,31 +986,28 @@ export default function VitalCheckList() {
           </Select>
 
           <div className="ml-auto flex gap-2">
+            {viewMode === 'list' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  toast({
+                    title: "印刷機能",
+                    description: "印刷機能は現在開発中です",
+                  });
+                }}
+              >
+                印刷
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
               className="h-8"
-              onClick={() => {
-                toast({
-                  title: "印刷機能",
-                  description: "印刷機能は現在開発中です",
-                });
-              }}
+              onClick={() => setViewMode(viewMode === 'graph' ? 'list' : 'graph')}
             >
-              印刷
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8"
-              onClick={() => {
-                toast({
-                  title: "バイタルグラフ機能",
-                  description: "バイタルグラフ機能は現在開発中です",
-                });
-              }}
-            >
-              バイタルグラフ
+              {viewMode === 'graph' ? 'バイタルチェック一覧' : 'バイタルグラフ'}
             </Button>
           </div>
         </div>
@@ -769,7 +1018,315 @@ export default function VitalCheckList() {
           <div className="flex items-center justify-center h-full">
             <div className="text-gray-500">データを読み込み中...</div>
           </div>
+        ) : viewMode === 'graph' ? (
+          // グラフ表示
+          <div className="flex-1 p-4">
+            {/* 固定エリア - チェックボックス + グラフ */}
+            <div>
+              {/* グラフ表示切り替えチェックボックス */}
+              <div className="flex gap-4 mb-4 bg-white p-3 rounded-lg border">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="temperature"
+                  checked={visibleLines.temperature}
+                  onCheckedChange={(checked) => 
+                    setVisibleLines(prev => ({ ...prev, temperature: checked as boolean }))}
+                />
+                <label htmlFor="temperature" className="text-sm cursor-pointer">体温</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="bloodPressure"
+                  checked={visibleLines.bloodPressure}
+                  onCheckedChange={(checked) => 
+                    setVisibleLines(prev => ({ ...prev, bloodPressure: checked as boolean }))}
+                />
+                <label htmlFor="bloodPressure" className="text-sm cursor-pointer">血圧</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="pulseRate"
+                  checked={visibleLines.pulseRate}
+                  onCheckedChange={(checked) => 
+                    setVisibleLines(prev => ({ ...prev, pulseRate: checked as boolean }))}
+                />
+                <label htmlFor="pulseRate" className="text-sm cursor-pointer">脈拍</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="oxygenSaturation"
+                  checked={visibleLines.oxygenSaturation}
+                  onCheckedChange={(checked) => 
+                    setVisibleLines(prev => ({ ...prev, oxygenSaturation: checked as boolean }))}
+                />
+                <label htmlFor="oxygenSaturation" className="text-sm cursor-pointer">SpO2</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="bloodSugar"
+                  checked={visibleLines.bloodSugar}
+                  onCheckedChange={(checked) => 
+                    setVisibleLines(prev => ({ ...prev, bloodSugar: checked as boolean }))}
+                />
+                <label htmlFor="bloodSugar" className="text-sm cursor-pointer">血糖</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="respirationRate"
+                  checked={visibleLines.respirationRate}
+                  onCheckedChange={(checked) => 
+                    setVisibleLines(prev => ({ ...prev, respirationRate: checked as boolean }))}
+                />
+                <label htmlFor="respirationRate" className="text-sm cursor-pointer">呼吸</label>
+              </div>
+            </div>
+
+            {/* 利用者数の警告メッセージ */}
+            {(() => {
+              const totalResidents = new Set([
+                ...residentDataKeys.体温,
+                ...residentDataKeys.収縮期血圧,
+                ...residentDataKeys.拡張期血圧,
+                ...residentDataKeys.脈拍,
+                ...residentDataKeys.SpO2,
+                ...residentDataKeys.血糖,
+                ...residentDataKeys.呼吸
+              ].map(key => key.split('_')[0])).size;
+              
+              if (totalResidents > 5) {
+                return (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ 表示対象の利用者が{totalResidents}名います。グラフが見づらい場合は、特定の利用者や階を選択して絞り込むことをお勧めします。
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* 折れ線グラフ */}
+            <div className="bg-white p-4 rounded-lg border mb-4">
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={graphData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis yAxisId="temp" orientation="left" label={{ value: '体温(℃)', angle: -90, position: 'insideLeft' }} domain={[35, 40]} />
+                  <YAxis yAxisId="bp" orientation="right" label={{ value: '血圧/脈拍/SpO2/血糖/呼吸', angle: 90, position: 'insideRight' }} domain={[40, 180]} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  
+                  {/* 体温 */}
+                  {visibleLines.temperature && residentDataKeys.体温.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="temp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[index % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      name={key.replace('_体温', '')}
+                    />
+                  ))}
+                  
+                  {/* 収縮期血圧 */}
+                  {visibleLines.bloodPressure && residentDataKeys.収縮期血圧.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="bp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[index % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      strokeDasharray="5 5"
+                      name={key.replace('_収縮期血圧', ' 収縮期')}
+                    />
+                  ))}
+                  
+                  {/* 拡張期血圧 */}
+                  {visibleLines.bloodPressure && residentDataKeys.拡張期血圧.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="bp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[index % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      strokeDasharray="2 2"
+                      name={key.replace('_拡張期血圧', ' 拡張期')}
+                    />
+                  ))}
+                  
+                  {/* 脈拍 */}
+                  {visibleLines.pulseRate && residentDataKeys.脈拍.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="bp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[(index + 5) % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      name={key.replace('_脈拍', ' 脈拍')}
+                    />
+                  ))}
+                  
+                  {/* SpO2 */}
+                  {visibleLines.oxygenSaturation && residentDataKeys.SpO2.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="bp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[(index + 8) % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      name={key.replace('_SpO2', ' SpO2')}
+                    />
+                  ))}
+                  
+                  {/* 血糖 */}
+                  {visibleLines.bloodSugar && residentDataKeys.血糖.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="bp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[(index + 11) % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      name={key.replace('_血糖', ' 血糖')}
+                    />
+                  ))}
+                  
+                  {/* 呼吸 */}
+                  {visibleLines.respirationRate && residentDataKeys.呼吸.map((key, index) => (
+                    <Line 
+                      key={key}
+                      yAxisId="bp" 
+                      type="monotone" 
+                      dataKey={key} 
+                      stroke={colors[(index + 14) % colors.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 3 }}
+                      name={key.replace('_呼吸', ' 呼吸')}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* スクロールエリア - データテーブル（読み取り専用） */}
+            <div className="px-4 pb-4">
+              <div className="bg-white border overflow-auto" style={{ height: 'calc(100vh - 570px)' }}>
+                <table className="relative border-collapse w-full">
+                  <thead className="sticky top-0 z-50">
+                    <tr className="bg-gray-50">
+                      <th className="text-xs font-medium border border-gray-300 sticky left-0 bg-gray-50 z-60 px-1 py-2" style={{ width: '84px' }}>記録日</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '50px' }}>時間帯</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '85px' }}>記録時間</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '50px' }}>居室</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '84px' }}>利用者名</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '84px' }}>記入者</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>体温</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '110px' }}>血圧</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>脈拍</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>SpO2</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>血糖</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>呼吸</th>
+                      <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2">記録内容</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedData.map((group, index) => {
+                      const record = group.record;
+                      
+                      return (
+                        <tr key={`${group.date}_${group.residentId}_${group.timing}`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          {/* 記録日列 */}
+                          <td className="text-xs border border-gray-300 sticky left-0 z-40 px-1 py-1 whitespace-nowrap" style={{ backgroundColor: index % 2 === 0 ? "white" : "rgb(249 250 251)", width: '84px' }}>
+                            {format(parseISO(group.date), "MM月dd日", { locale: ja })}
+                          </td>
+                          
+                          {/* 時間帯列 */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1 whitespace-nowrap" style={{ width: '50px' }}>
+                            {group.timing}
+                          </td>
+                          
+                          {/* 記録時間列（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '85px' }}>
+                            {record?.hour && record?.minute ? 
+                              `${record.hour.toString().padStart(2, "0")}:${record.minute.toString().padStart(2, "0")}` : 
+                              "-"
+                            }
+                          </td>
+                      
+                          {/* 居室番号 */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1 whitespace-nowrap" style={{ width: '50px' }}>
+                            {group.resident?.roomNumber || "-"}
+                          </td>
+                          
+                          {/* 利用者名 */}
+                          <td className="text-xs border border-gray-300 px-1 py-1 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: '84px' }}>
+                            {group.resident?.name || "-"}
+                          </td>
+                          
+                          {/* 記入者（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 px-1 py-1" style={{ width: '84px' }}>
+                            {record?.staffName || "-"}
+                          </td>
+                          
+                          {/* 体温（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '70px' }}>
+                            {record?.temperature ? parseFloat(record.temperature.toString()).toFixed(1) : "-"}
+                          </td>
+                          
+                          {/* 血圧（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '110px' }}>
+                            {record?.bloodPressureSystolic && record?.bloodPressureDiastolic ? 
+                              `${record.bloodPressureSystolic}/${record.bloodPressureDiastolic}` : 
+                              "-"
+                            }
+                          </td>
+                          
+                          {/* 脈拍（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '70px' }}>
+                            {record?.pulseRate || "-"}
+                          </td>
+                          
+                          {/* SpO2（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '70px' }}>
+                            {record?.oxygenSaturation || "-"}
+                          </td>
+                          
+                          {/* 血糖（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '70px' }}>
+                            {record?.bloodSugar || "-"}
+                          </td>
+                          
+                          {/* 呼吸（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 text-center px-1 py-1" style={{ width: '70px' }}>
+                            {record?.respirationRate || "-"}
+                          </td>
+                          
+                          {/* 記録内容（読み取り専用） */}
+                          <td className="text-xs border border-gray-300 px-1 py-1">
+                            {record?.notes || "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         ) : (
+          // リスト表示（既存のコード）
           <div className="flex-1 overflow-auto relative">
             <table className="relative border-collapse w-full">
               <thead className="sticky top-0 z-20">
