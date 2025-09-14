@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,13 +10,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format, parseISO, startOfMonth, addMonths, subMonths } from "date-fns";
+import { format, parseISO, startOfMonth, addMonths, subMonths, startOfYear, endOfYear } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { WeightRecord, Resident } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 // 年月選択肢を生成（過去1年から未来6ヶ月）
 const generateMonthOptions = () => {
@@ -48,6 +58,74 @@ const generateMonthOptions = () => {
   }
 
   return options;
+};
+
+// 年度選択肢を生成（過去5年度）
+const generateYearOptions = () => {
+  const options = [];
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth(); // 0-based (0 = Jan, 3 = Apr)
+
+  // 現在月が4月以前なら前年度、4月以降なら当年度
+  const currentFiscalYear = currentMonth < 3 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+
+  // 過去5年度分を生成
+  for (let i = 0; i < 5; i++) {
+    const year = currentFiscalYear - i;
+    options.push({
+      value: year.toString(),
+      label: `${year}年度`,
+    });
+  }
+
+  return options;
+};
+
+// 年月から年度を算出する関数
+const getYearFromYearMonth = (yearMonth: string): string => {
+  const [year, month] = yearMonth.split('-').map(Number);
+  // 4月以降なら当年度、3月以前なら前年度
+  const fiscalYear = month >= 4 ? year : year - 1;
+  return fiscalYear.toString();
+};
+
+// 年度から期間を取得する関数（4月〜翌年3月）
+const getFiscalYearRange = (fiscalYear: string) => {
+  const year = parseInt(fiscalYear);
+  const startDate = new Date(year, 3, 1); // 4月1日
+  const endDate = new Date(year + 1, 2, 31); // 翌年3月31日
+  return { startDate, endDate };
+};
+
+// 月の日本語表示を取得
+const getMonthLabel = (monthIndex: number): string => {
+  const months = ['4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月', '1月', '2月', '3月'];
+  return months[monthIndex];
+};
+
+// 年度と月インデックスから年月表示を取得
+const getYearMonthLabel = (fiscalYear: string, monthIndex: number): string => {
+  const year = parseInt(fiscalYear);
+  const months = [
+    `${year}年4月`, `${year}年5月`, `${year}年6月`, `${year}年7月`,
+    `${year}年8月`, `${year}年9月`, `${year}年10月`, `${year}年11月`,
+    `${year}年12月`, `${year + 1}年1月`, `${year + 1}年2月`, `${year + 1}年3月`
+  ];
+  return months[monthIndex];
+};
+
+// グラフ用の色を取得
+const getChartColors = () => [
+  '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6',
+  '#1abc9c', '#e67e22', '#34495e', '#95a5a6', '#d35400',
+  '#c0392b', '#2980b9', '#27ae60', '#f1c40f', '#8e44ad',
+  '#16a085', '#d68910', '#2c3e50', '#7f8c8d', '#a93226'
+];
+
+// 体重の前月比を算出し、2kg以上の差があるかチェック
+const isWeightChangeSignificant = (currentWeight: number | null, previousWeight: number | null): boolean => {
+  if (!currentWeight || !previousWeight) return false;
+  return Math.abs(currentWeight - previousWeight) >= 2;
 };
 
 
@@ -110,19 +188,24 @@ function DateTimeSelector({
   onChange,
   disabled = false,
   className = "",
+  defaultMonth = null,
 }: {
   value: string | null;
   onChange: (dateTime: string) => void;
   disabled?: boolean;
   className?: string;
+  defaultMonth?: string | null; // "yyyy-MM" 形式
 }) {
-  // 日時を分解（value が null の場合は現在時刻を使用）
+  // 日時を分解（value が null の場合は空欄表示）
   const parseDateTime = (dateTimeStr: string | null) => {
-    if (!dateTimeStr) return { date: '', time: '', minute: '00' };
+    if (!dateTimeStr) {
+      // 未記録の場合は常に空欄を表示（defaultMonthに関係なく）
+      return { date: '', time: '', minute: '' };
+    }
 
     try {
       const dt = new Date(dateTimeStr);
-      if (isNaN(dt.getTime())) return { date: '', time: '', minute: '00' };
+      if (isNaN(dt.getTime())) return { date: '', time: '', minute: '' };
 
       // JSTに変換
       const jstDate = new Date(dt.getTime() + (9 * 60 * 60 * 1000));
@@ -140,7 +223,7 @@ function DateTimeSelector({
         minute: finalMinute
       };
     } catch (error) {
-      return { date: '', time: '', minute: '00' };
+      return { date: '', time: '', minute: '' };
     }
   };
 
@@ -204,6 +287,8 @@ function DateTimeSelector({
         value={date}
         onChange={(e) => handleDateChange(e.target.value)}
         className="w-28 h-7 px-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder={defaultMonth ? `${defaultMonth}` : ""}
+        title={defaultMonth ? `${defaultMonth}の日付を選択してください` : "日付を選択してください"}
         disabled={disabled}
       />
 
@@ -427,13 +512,17 @@ export default function WeightCheckList() {
   const urlParams = new URLSearchParams(window.location.search);
   const dateParam = urlParams.get('date');
   const floorParam = urlParams.get('floor');
+  const viewModeParam = urlParams.get('viewMode');
 
   // 初期値の設定
   const initialMonth = dateParam ? format(parseISO(dateParam), "yyyy-MM") : format(new Date(), "yyyy-MM");
+  const initialYear = getYearFromYearMonth(initialMonth);
 
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [selectedYear, setSelectedYear] = useState(initialYear);
   const [selectedFloor, setSelectedFloor] = useState(floorParam || "all");
   const [selectedResident, setSelectedResident] = useState("all");
+  const [showYearlyGraph, setShowYearlyGraph] = useState(viewModeParam === 'yearly');
   const [localWeightValues, setLocalWeightValues] = useState<Map<string, string>>(new Map());
   const { toast } = useToast();
   const { user } = useAuth();
@@ -454,12 +543,29 @@ export default function WeightCheckList() {
     queryFn: () => apiRequest("/api/residents"),
   });
 
-  // 体重記録データの取得
+  // 体重記録データの取得（月次）
   const { data: weightRecords = [], isLoading } = useQuery<WeightRecord[]>({
     queryKey: ["/api/weight-records"],
     queryFn: () => apiRequest("/api/weight-records"),
     refetchOnMount: true,
     staleTime: 0,
+    enabled: !showYearlyGraph,
+  });
+
+  // 体重記録データの取得（年次）
+  const { data: yearlyWeightRecords = [], isLoading: isYearlyLoading } = useQuery<WeightRecord[]>({
+    queryKey: ["/api/weight-records", "yearly", selectedYear],
+    queryFn: async () => {
+      const { startDate, endDate } = getFiscalYearRange(selectedYear);
+      const params = new URLSearchParams({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+      return apiRequest(`/api/weight-records?${params.toString()}`);
+    },
+    refetchOnMount: true,
+    staleTime: 0,
+    enabled: showYearlyGraph,
   });
 
   // 体重記録の更新
@@ -653,15 +759,177 @@ export default function WeightCheckList() {
     });
   };
 
-  // 年次ボタンのクリックハンドラー
-  const handleYearlyView = () => {
+  // 年次グラフ/一覧表示の切り替えハンドラー
+  const handleViewToggle = () => {
+    const newViewMode = !showYearlyGraph;
+    setShowYearlyGraph(newViewMode);
+
+    // URLパラメータを更新
+    const params = new URLSearchParams();
+    if (selectedFloor !== "all") params.set("floor", selectedFloor);
+    if (newViewMode) {
+      params.set("viewMode", "yearly");
+      if (selectedYear !== getYearFromYearMonth(format(new Date(), "yyyy-MM"))) {
+        params.set("year", selectedYear);
+      }
+    } else {
+      if (selectedMonth !== format(new Date(), "yyyy-MM")) {
+        const firstDay = format(startOfMonth(parseISO(selectedMonth + "-01")), "yyyy-MM-dd");
+        params.set("date", firstDay);
+      }
+    }
+
+    const newUrl = `/weight-check-list${params.toString() ? `?${params}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  };
+
+  // 印刷ハンドラー（保留）
+  const handlePrint = () => {
     toast({
-      title: "年次表示",
-      description: "年次表示機能は現在開発中です",
+      title: "印刷機能",
+      description: "印刷機能は現在開発中です",
     });
   };
 
   const monthOptions = generateMonthOptions();
+  const yearOptions = generateYearOptions();
+
+  // 年次グラフ用データの処理
+  const yearlyGraphData = useMemo(() => {
+    if (!showYearlyGraph || !yearlyWeightRecords.length) return [];
+
+    // 利用者別・月別にデータを集約
+    const residentMonthlyData: Record<string, Record<string, number | null>> = {};
+
+    // フィルタリングされた利用者のリスト
+    const filteredResidents = residents.filter(resident => {
+      if (selectedFloor !== "all" &&
+          resident.floor !== selectedFloor &&
+          resident.floor !== `${selectedFloor}階`) return false;
+      if (selectedResident !== "all" && resident.id !== selectedResident) return false;
+      return true;
+    });
+
+    // データを月別に集約
+    filteredResidents.forEach(resident => {
+      residentMonthlyData[resident.id] = {};
+      for (let i = 0; i < 12; i++) {
+        const monthKey = getMonthLabel(i);
+        residentMonthlyData[resident.id][monthKey] = null;
+      }
+    });
+
+    yearlyWeightRecords.forEach(record => {
+      if (!record.recordDate || !record.weight) return;
+
+      const resident = residents.find(r => r.id === record.residentId);
+      if (!resident) return;
+
+      // フィルタリング
+      if (selectedFloor !== "all" &&
+          resident.floor !== selectedFloor &&
+          resident.floor !== `${selectedFloor}階`) return;
+      if (selectedResident !== "all" && record.residentId !== selectedResident) return;
+
+      const recordDate = new Date(record.recordDate);
+      const year = recordDate.getFullYear();
+      const month = recordDate.getMonth(); // 0-based
+
+      // 年度内の月かチェック
+      const fiscalYear = parseInt(selectedYear);
+      let monthIndex = -1;
+
+      if (year === fiscalYear && month >= 3) {
+        // 4月〜12月
+        monthIndex = month - 3;
+      } else if (year === fiscalYear + 1 && month <= 2) {
+        // 1月〜3月
+        monthIndex = month + 9;
+      }
+
+      if (monthIndex >= 0 && monthIndex < 12) {
+        const monthKey = getMonthLabel(monthIndex);
+        residentMonthlyData[record.residentId][monthKey] = parseFloat(record.weight.toString());
+      }
+    });
+
+    // グラフ用データに変換
+    const graphData = [];
+    for (let i = 0; i < 12; i++) {
+      const monthKey = getMonthLabel(i);
+      const yearMonthLabel = getYearMonthLabel(selectedYear, i);
+      const dataPoint: any = {
+        month: monthKey,
+        fullMonth: yearMonthLabel  // ツールチップ用の完全な年月表示
+      };
+
+      filteredResidents.forEach((resident, index) => {
+        const residentKey = `${resident.roomNumber || 'ー'} ${resident.name}`;
+        dataPoint[residentKey] = residentMonthlyData[resident.id][monthKey];
+      });
+
+      graphData.push(dataPoint);
+    }
+
+    return graphData;
+  }, [showYearlyGraph, yearlyWeightRecords, residents, selectedYear, selectedFloor, selectedResident]);
+
+  // 年次テーブル用データの処理
+  const yearlyTableData = useMemo(() => {
+    if (!showYearlyGraph || !yearlyWeightRecords.length) return [];
+
+    // フィルタリングされた利用者のリスト
+    const filteredResidents = residents.filter(resident => {
+      if (selectedFloor !== "all" &&
+          resident.floor !== selectedFloor &&
+          resident.floor !== `${selectedFloor}階`) return false;
+      if (selectedResident !== "all" && resident.id !== selectedResident) return false;
+      return true;
+    });
+
+    return filteredResidents.map(resident => {
+      const monthlyWeights: (number | null)[] = new Array(12).fill(null);
+
+      // 該当する体重記録を月別に振り分け
+      yearlyWeightRecords
+        .filter(record => record.residentId === resident.id)
+        .forEach(record => {
+          if (!record.recordDate || !record.weight) return;
+
+          const recordDate = new Date(record.recordDate);
+          const year = recordDate.getFullYear();
+          const month = recordDate.getMonth();
+
+          const fiscalYear = parseInt(selectedYear);
+          let monthIndex = -1;
+
+          if (year === fiscalYear && month >= 3) {
+            monthIndex = month - 3;
+          } else if (year === fiscalYear + 1 && month <= 2) {
+            monthIndex = month + 9;
+          }
+
+          if (monthIndex >= 0 && monthIndex < 12) {
+            monthlyWeights[monthIndex] = parseFloat(record.weight.toString());
+          }
+        });
+
+      return {
+        resident,
+        monthlyWeights,
+      };
+    }).sort((a, b) => {
+      const roomA = a.resident?.roomNumber || "";
+      const roomB = b.resident?.roomNumber || "";
+      const roomNumA = parseInt(roomA.toString().replace(/[^0-9]/g, ''), 10);
+      const roomNumB = parseInt(roomB.toString().replace(/[^0-9]/g, ''), 10);
+
+      if (!isNaN(roomNumA) && !isNaN(roomNumB)) {
+        return roomNumA - roomNumB;
+      }
+      return roomA.localeCompare(roomB, undefined, { numeric: true });
+    });
+  }, [showYearlyGraph, yearlyWeightRecords, residents, selectedYear, selectedFloor, selectedResident]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -680,23 +948,40 @@ export default function WeightCheckList() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-lg font-semibold">体重チェック一覧</h1>
+        <h1 className="text-lg font-semibold">
+          {showYearlyGraph ? '体重チェック一覧 年次グラフ' : '体重チェック一覧'}
+        </h1>
       </header>
 
       <div className="bg-white border-b px-4 py-3">
         <div className="flex items-center gap-4">
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-40 h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monthOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {showYearlyGraph ? (
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="w-40 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-40 h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <Select value={selectedFloor} onValueChange={setSelectedFloor}>
             <SelectTrigger className="w-32 h-8 text-sm">
@@ -725,27 +1010,147 @@ export default function WeightCheckList() {
             </SelectContent>
           </Select>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {showYearlyGraph && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={handlePrint}
+              >
+                <Printer className="w-4 h-4 mr-1" />
+                印刷
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
               className="h-8"
-              onClick={handleYearlyView}
+              onClick={handleViewToggle}
             >
-              年次
+              {showYearlyGraph ? '体重チェック一覧' : '年次グラフ'}
             </Button>
           </div>
         </div>
       </div>
 
       <main className="flex-1 overflow-hidden flex flex-col">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-gray-500">データを読み込み中...</div>
-          </div>
+        {showYearlyGraph ? (
+          // 年次グラフ表示
+          (isYearlyLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-gray-500">データを読み込み中...</div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto p-4">
+              {/* 年次グラフ */}
+              {yearlyGraphData.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-4 mb-6">
+                  <h3 className="text-lg font-semibold mb-4">体重推移グラフ ({selectedYear}年度)</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={yearlyGraphData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis domain={['dataMin - 5', 'dataMax + 5']} />
+                        <Tooltip
+                          labelFormatter={(value, payload) => {
+                            // payloadから完全な年月表示を取得
+                            if (payload && payload.length > 0 && payload[0].payload) {
+                              return payload[0].payload.fullMonth || value;
+                            }
+                            return value;
+                          }}
+                          formatter={(value: any, name: any) => {
+                            if (value === null || value === undefined) {
+                              return ['未記録', name];
+                            }
+                            return [`${value}kg`, name];
+                          }}
+                        />
+                        <Legend />
+                        {residents
+                          .filter(resident => {
+                            if (selectedFloor !== "all" &&
+                                resident.floor !== selectedFloor &&
+                                resident.floor !== `${selectedFloor}階`) return false;
+                            if (selectedResident !== "all" && resident.id !== selectedResident) return false;
+                            return true;
+                          })
+                          .map((resident, index) => {
+                            const colors = getChartColors();
+                            const residentKey = `${resident.roomNumber || 'ー'} ${resident.name}`;
+                            return (
+                              <Line
+                                key={resident.id}
+                                type="monotone"
+                                dataKey={residentKey}
+                                stroke={colors[index % colors.length]}
+                                strokeWidth={2}
+                                dot={{ r: 4 }}
+                                connectNulls={false}
+                              />
+                            );
+                          })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* 年次テーブル */}
+              <div className="bg-white rounded-lg shadow">
+                <div className="overflow-auto">
+                  <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                    <thead className="sticky top-0 z-20">
+                      <tr className="bg-gray-50">
+                        <th className="text-xs font-medium border border-gray-300 sticky left-0 bg-gray-50 z-30 px-2 py-2" style={{ width: '60px' }}>居室</th>
+                        <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-2 py-2" style={{ width: '120px' }}>利用者名</th>
+                        {Array.from({ length: 12 }, (_, i) => (
+                          <th key={i} className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '60px' }}>
+                            {getMonthLabel(i)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {yearlyTableData.map((item, index) => (
+                        <tr key={item.resident.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="text-xs border border-gray-300 sticky left-0 z-10 px-2 py-2 text-center whitespace-nowrap bg-inherit">
+                            {item.resident.roomNumber || "-"}
+                          </td>
+                          <td className="text-xs border border-gray-300 px-2 py-2 whitespace-nowrap overflow-hidden text-ellipsis">
+                            {item.resident.name || "-"}
+                          </td>
+                          {item.monthlyWeights.map((weight, monthIndex) => {
+                            const previousWeight = monthIndex > 0 ? item.monthlyWeights[monthIndex - 1] : null;
+                            const isSignificant = weight !== null && isWeightChangeSignificant(weight, previousWeight);
+
+                            return (
+                              <td key={monthIndex} className="text-xs border border-gray-300 px-1 py-2 text-center">
+                                <span className={isSignificant ? "text-red-600 font-bold" : ""}>
+                                  {weight !== null ? weight.toString() : ""}
+                                </span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ))
         ) : (
-          <div className="flex-1 overflow-auto relative">
-            <table className="relative border-collapse w-full" style={{ tableLayout: 'fixed' }}>
+          // 通常の月次一覧表示
+          isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-gray-500">データを読み込み中...</div>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-auto relative">
+              <table className="relative border-collapse w-full" style={{ tableLayout: 'fixed' }}>
               <thead className="sticky top-0 z-20">
                 <tr className="bg-gray-50">
                   <th className="text-xs font-medium border border-gray-300 sticky left-0 bg-gray-50 z-30 px-1 py-2" style={{ width: '50px' }}>居室</th>
@@ -789,6 +1194,7 @@ export default function WeightCheckList() {
                             handleSave(record.id, record.residentId, "recordDate", dateTimeISO);
                           }}
                           className="w-full"
+                          defaultMonth={showYearlyGraph ? null : selectedMonth}
                         />
                       </td>
 
@@ -842,7 +1248,7 @@ export default function WeightCheckList() {
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </main>
     </div>
   );

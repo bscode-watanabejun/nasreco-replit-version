@@ -201,13 +201,13 @@ function DateTimeSelector({
   disabled?: boolean;
   className?: string;
 }) {
-  // 日時を分解（value が null の場合は現在時刻を使用）
+  // 日時を分解（value が null の場合は空欄表示）
   const parseDateTime = (dateTimeStr: string | null) => {
-    if (!dateTimeStr) return { date: '', time: '', minute: '00' };
+    if (!dateTimeStr) return { date: '', time: '', minute: '' };
     
     try {
       const dt = new Date(dateTimeStr);
-      if (isNaN(dt.getTime())) return { date: '', time: '', minute: '00' };
+      if (isNaN(dt.getTime())) return { date: '', time: '', minute: '' };
       
       // JSTに変換
       const jstDate = new Date(dt.getTime() + (9 * 60 * 60 * 1000));
@@ -225,7 +225,7 @@ function DateTimeSelector({
         minute: finalMinute
       };
     } catch (error) {
-      return { date: '', time: '', minute: '00' };
+      return { date: '', time: '', minute: '' };
     }
   };
 
