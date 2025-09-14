@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, startOfDay, endOfDay, addDays } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -74,7 +75,7 @@ function ResizableNotesInput({
       onBlur={handleBlur}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}
-      className="w-full min-h-[4rem] p-2 border rounded resize-y text-sm"
+      className="w-full min-h-[12rem] max-h-[30rem] p-2 border rounded resize-y text-sm"
       placeholder="記録内容を入力してください"
     />
   );
@@ -98,6 +99,11 @@ export default function RoundCheckList() {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // 日付変更時にローカル編集状態をクリア
+  useEffect(() => {
+    setLocalNotesEdits(new Map());
+  }, [selectedDate]);
 
   // 入居者データの取得
   const { data: residents = [] } = useQuery<Resident[]>({
@@ -605,12 +611,19 @@ export default function RoundCheckList() {
                       >
                         {notesValue ? (
                           <Dialog>
-                            <DialogTrigger asChild>
-                              <button className="w-full h-full text-xs hover:bg-yellow-50 truncate">
-                                {notesValue.slice(0, 2)}{notesValue.length > 2 ? '...' : ''}
-                              </button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <DialogTrigger asChild>
+                                  <button className="w-full h-full text-xs hover:bg-yellow-50 truncate">
+                                    {notesValue.slice(0, 2)}{notesValue.length > 2 ? '...' : ''}
+                                  </button>
+                                </DialogTrigger>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs break-words whitespace-pre-wrap text-left">{notesValue}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <DialogContent className="max-w-2xl max-h-[80vh]">
                               <DialogHeader>
                                 <DialogTitle>
                                   記録内容 - {resident.name} ({hour}時)
@@ -633,7 +646,7 @@ export default function RoundCheckList() {
                                 +
                               </button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-md">
+                            <DialogContent className="max-w-2xl max-h-[80vh]">
                               <DialogHeader>
                                 <DialogTitle>
                                   記録内容 - {resident.name} ({hour}時)
