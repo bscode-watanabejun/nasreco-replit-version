@@ -63,6 +63,11 @@ import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
+// JST時間を取得するユーティリティ関数
+function getJSTTime(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+}
+
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
@@ -182,10 +187,12 @@ export interface IStorage {
     recordType: string;
     staffName: string;
     positionValue: string | null;
+    notes: string | null;
     createdBy: string;
     createdAt: Date | null;
   }[]>;
   createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord>;
+  updateRoundRecord(id: string, data: Partial<RoundRecord>): Promise<RoundRecord>;
   deleteRoundRecord(id: string): Promise<void>;
 
   // Medication record operations
@@ -865,6 +872,7 @@ export class DatabaseStorage implements IStorage {
     recordType: string;
     staffName: string;
     positionValue: string | null;
+    notes: string | null;
     createdBy: string;
     createdAt: Date | null;
   }[]> {
@@ -877,18 +885,32 @@ export class DatabaseStorage implements IStorage {
       recordType: roundRecords.recordType,
       staffName: roundRecords.staffName,
       positionValue: roundRecords.positionValue,
+      notes: roundRecords.notes,
       createdBy: roundRecords.createdBy,
       createdAt: roundRecords.createdAt,
     }).from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
   }
 
   async createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord> {
+    const jstTime = getJSTTime();
     const recordToInsert = {
       ...record,
       recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+      createdAt: jstTime,
+      updatedAt: jstTime,
     };
     const [newRecord] = await db.insert(roundRecords).values([recordToInsert]).returning();
     return newRecord;
+  }
+
+  async updateRoundRecord(id: string, data: Partial<RoundRecord>): Promise<RoundRecord> {
+    const jstTime = getJSTTime();
+    const [updatedRecord] = await db
+      .update(roundRecords)
+      .set({ ...data, updatedAt: jstTime })
+      .where(eq(roundRecords.id, id))
+      .returning();
+    return updatedRecord;
   }
 
   async deleteRoundRecord(id: string): Promise<void> {

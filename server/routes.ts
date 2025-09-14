@@ -1397,6 +1397,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch('/api/round-records/:id', isAuthenticated, async (req, res) => {
+    try {
+      const updatedRecord = await storage.updateRoundRecord(req.params.id, req.body);
+      res.json(updatedRecord);
+    } catch (error: any) {
+      console.error("Error updating round record:", error);
+      res.status(500).json({ message: "Failed to update round record" });
+    }
+  });
+
   app.delete('/api/round-records/:id', isAuthenticated, async (req, res) => {
     try {
       await storage.deleteRoundRecord(req.params.id);

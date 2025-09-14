@@ -509,9 +509,10 @@ export const roundRecords = pgTable("round_records", {
   residentId: varchar("resident_id").notNull(),
   recordDate: date("record_date").notNull(),
   hour: integer("hour").notNull(), // 0-23 (時間)
-  recordType: varchar("record_type").notNull(), // 'patrol' or 'position_change'
+  recordType: varchar("record_type").notNull(), // 'patrol' or 'position_change' or 'notes'
   staffName: varchar("staff_name").notNull(), // スタッフ名のスタンプ
   positionValue: varchar("position_value"), // 体位交換の場合: '右', '左', '仰'
+  notes: text("notes"), // 記録内容
   createdBy: varchar("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
