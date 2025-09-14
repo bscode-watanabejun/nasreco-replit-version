@@ -54,6 +54,11 @@ export default function CheckListMenu() {
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
       navigate(`/cleaning-linen-check-list${params ? `?${params}` : ''}`);
+    } else if (label === "体重一覧") {
+      // URLパラメータを引き継ぎ
+      const urlParams = new URLSearchParams(window.location.search);
+      const params = urlParams.toString();
+      navigate(`/weight-check-list${params ? `?${params}` : ''}`);
     } else {
       // その他は現在開発中
       console.log(`遷移先: ${path} (現在開発中)`);
