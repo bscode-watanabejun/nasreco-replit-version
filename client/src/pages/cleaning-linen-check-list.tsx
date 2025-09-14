@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format, parseISO, startOfDay, endOfDay, addDays, differenceInDays, addMonths } from "date-fns";
+import { format, parseISO, startOfDay, endOfDay, addDays, differenceInDays, addMonths, endOfMonth, subDays } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -279,6 +279,7 @@ export default function CleaningLinenCheckList() {
   const [selectedFloor, setSelectedFloor] = useState(floorParam || "all");
   const [selectedResident, setSelectedResident] = useState("all");
   const [localNotes, setLocalNotes] = useState<Map<string, string>>(new Map());
+  const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -292,24 +293,64 @@ export default function CleaningLinenCheckList() {
     return [];
   }, [user]);
 
-  // 日付範囲の妥当性チェック（最大2ヶ月）
+  // 月次モードでdateFromが変更された場合、1ヶ月間の期間を自動設定
+  useEffect(() => {
+    if (viewMode === 'monthly' && dateFrom) {
+      const from = parseISO(dateFrom);
+
+      let newTo: Date;
+      const nextMonthSameDay = addMonths(from, 1);
+      const nextMonthLastDay = endOfMonth(nextMonthSameDay);
+
+      // 来月の同じ日が存在しない場合（例：1月31日→2月）
+      if (nextMonthSameDay.getDate() !== from.getDate()) {
+        newTo = subDays(nextMonthSameDay, nextMonthSameDay.getDate());
+      } else {
+        newTo = subDays(nextMonthSameDay, 1);
+      }
+
+      setDateTo(format(newTo, "yyyy-MM-dd"));
+    }
+  }, [dateFrom, viewMode]);
+
+  // 日付範囲の妥当性チェック
   useEffect(() => {
     if (dateFrom && dateTo) {
       const from = parseISO(dateFrom);
       const to = parseISO(dateTo);
       const daysDiff = differenceInDays(to, from);
 
-      // リストモードでは最大2ヶ月
-      if (daysDiff > 60) {
-        const newTo = addMonths(from, 2);
-        setDateTo(format(newTo, "yyyy-MM-dd"));
-        toast({
-          title: "期間制限",
-          description: "表示期間は最大2ヶ月までです。終了日を調整しました。",
-        });
+      if (viewMode === 'monthly') {
+        // 月次モードでは最大1ヶ月
+        if (daysDiff > 31) {
+          let newTo: Date;
+          const nextMonthSameDay = addMonths(from, 1);
+          const nextMonthLastDay = endOfMonth(nextMonthSameDay);
+
+          if (nextMonthSameDay.getDate() !== from.getDate()) {
+            newTo = subDays(nextMonthSameDay, nextMonthSameDay.getDate());
+          } else {
+            newTo = subDays(nextMonthSameDay, 1);
+          }
+          setDateTo(format(newTo, "yyyy-MM-dd"));
+          toast({
+            title: "期間制限",
+            description: "月次表示では期間は最大1ヶ月までです。終了日を調整しました。",
+          });
+        }
+      } else {
+        // 日次モードでは最大2ヶ月
+        if (daysDiff > 60) {
+          const newTo = addMonths(from, 2);
+          setDateTo(format(newTo, "yyyy-MM-dd"));
+          toast({
+            title: "期間制限",
+            description: "表示期間は最大2ヶ月までです。終了日を調整しました。",
+          });
+        }
       }
     }
-  }, [dateFrom, dateTo, toast]);
+  }, [dateFrom, dateTo, viewMode, toast]);
 
   // 入居者データの取得
   const { data: residents = [] } = useQuery<Resident[]>({
@@ -633,7 +674,9 @@ export default function CleaningLinenCheckList() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-lg font-semibold">清掃リネンチェック一覧</h1>
+        <h1 className="text-lg font-semibold">
+          {viewMode === 'monthly' ? '清掃リネンチェック一覧 月次' : '清掃リネンチェック一覧'}
+        </h1>
       </header>
 
       <div className="bg-white border-b px-4 py-3">
@@ -686,15 +729,25 @@ export default function CleaningLinenCheckList() {
               variant="outline"
               size="sm"
               className="h-8"
-              onClick={() => {
-                toast({
-                  title: "月次機能",
-                  description: "月次機能は現在開発中です",
-                });
-              }}
+              onClick={() => setViewMode(viewMode === 'daily' ? 'monthly' : 'daily')}
             >
-              月次
+              {viewMode === 'monthly' ? '清掃リネンチェック一覧' : '月次'}
             </Button>
+            {viewMode === 'monthly' && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  toast({
+                    title: "印刷機能",
+                    description: "印刷機能は現在開発中です",
+                  });
+                }}
+              >
+                印刷
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -706,23 +759,25 @@ export default function CleaningLinenCheckList() {
           </div>
         ) : (
           <div className="flex-1 overflow-auto relative">
-            <table className="relative border-collapse w-full">
-              <thead className="sticky top-0 z-20">
-                <tr className="bg-gray-50">
-                  <th className="text-xs font-medium border border-gray-300 sticky left-0 bg-gray-50 z-30 px-1 py-2" style={{ width: '84px' }}>記録日</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '85px' }}>記録時間</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '50px' }}>居室</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '84px' }}>利用者名</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '84px' }}>記入者</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>清掃</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>リネン</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2">記録内容</th>
-                  <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '40px' }}>削除</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groupedData.map((group, index) => {
-                  const record = group.record;
+            {viewMode === 'daily' ? (
+              // 日次表示
+              <table className="relative border-collapse w-full">
+                <thead className="sticky top-0 z-20">
+                  <tr className="bg-gray-50">
+                    <th className="text-xs font-medium border border-gray-300 sticky left-0 bg-gray-50 z-30 px-1 py-2" style={{ width: '84px' }}>記録日</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '85px' }}>記録時間</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '50px' }}>居室</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '84px' }}>利用者名</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '84px' }}>記入者</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>清掃</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '70px' }}>リネン</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2">記録内容</th>
+                    <th className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2" style={{ width: '40px' }}>削除</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedData.map((group, index) => {
+                    const record = group.record;
 
                   return (
                     <tr key={`${group.date}_${group.residentId}`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
@@ -838,10 +893,110 @@ export default function CleaningLinenCheckList() {
                         )}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              // 月次表示
+              (() => {
+                // 期間内の日付を取得
+                const dates: string[] = [];
+                const start = parseISO(dateFrom);
+                const end = parseISO(dateTo);
+                let currentDate = start;
+
+                while (currentDate <= end) {
+                  dates.push(format(currentDate, "yyyy-MM-dd"));
+                  currentDate = addDays(currentDate, 1);
+                }
+
+                // 利用者ごとにグループ化
+                const monthlyData = residents.filter(resident => {
+                  if (selectedFloor !== "all" &&
+                      resident.floor !== selectedFloor &&
+                      resident.floor !== `${selectedFloor}階`) return false;
+                  if (selectedResident !== "all" && resident.id !== selectedResident) return false;
+                  return true;
+                }).sort((a, b) => {
+                  // 居室番号でソート
+                  const roomA = a.roomNumber || "";
+                  const roomB = b.roomNumber || "";
+                  const roomNumA = parseInt(roomA.toString().replace(/[^0-9]/g, ''), 10);
+                  const roomNumB = parseInt(roomB.toString().replace(/[^0-9]/g, ''), 10);
+
+                  if (!isNaN(roomNumA) && !isNaN(roomNumB)) {
+                    return roomNumA - roomNumB;
+                  }
+                  return roomA.localeCompare(roomB, undefined, { numeric: true });
+                });
+
+                return (
+                  <table className="relative border-collapse w-full">
+                    <thead className="sticky top-0 z-20">
+                      <tr className="bg-gray-50">
+                        <th rowSpan={2} className="text-xs font-medium border border-gray-300 sticky left-0 bg-gray-50 z-30 px-1 py-2 w-12">居室</th>
+                        <th rowSpan={2} className="text-xs font-medium border border-gray-300 sticky left-12 bg-gray-50 z-30 px-1 py-2 w-20">利用者名</th>
+                        <th rowSpan={2} className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2 w-16">項目</th>
+                        {dates.map(date => {
+                          const day = parseISO(date);
+                          const dayStr = format(day, "dd", { locale: ja });
+                          const weekDay = format(day, "E", { locale: ja });
+                          return (
+                            <th key={date} className="text-xs font-medium border border-gray-300 bg-gray-50 px-1 py-2 w-8 text-center">
+                              <div>{dayStr}</div>
+                              <div>{weekDay}</div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyData.map((resident, index) => (
+                        <React.Fragment key={resident.id}>
+                          {/* 清掃行 */}
+                          <tr className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                            <td rowSpan={2} className="text-xs border border-gray-300 text-center px-1 py-1 sticky left-0 z-10 w-12" style={{ backgroundColor: index % 2 === 0 ? "white" : "rgb(249 250 251)" }}>
+                              {resident.roomNumber || "-"}
+                            </td>
+                            <td rowSpan={2} className="text-xs border border-gray-300 px-1 py-1 sticky left-12 z-10 w-20 overflow-hidden text-ellipsis whitespace-nowrap" style={{ backgroundColor: index % 2 === 0 ? "white" : "rgb(249 250 251)" }}>
+                              {resident.name}
+                            </td>
+                            <td className="text-xs border border-gray-300 px-1 py-1 w-16">清掃</td>
+                            {dates.map(date => {
+                              const record = filteredData.find(r =>
+                                r.residentId === resident.id &&
+                                format(new Date(r.recordDate), "yyyy-MM-dd") === date
+                              );
+                              return (
+                                <td key={`${resident.id}-${date}-cleaning`} className="text-xs border border-gray-300 text-center px-1 py-1 w-8">
+                                  {record?.cleaningValue || ""}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          {/* リネン行 */}
+                          <tr className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                            <td className="text-xs border border-gray-300 px-1 py-1 w-16">リネン</td>
+                            {dates.map(date => {
+                              const record = filteredData.find(r =>
+                                r.residentId === resident.id &&
+                                format(new Date(r.recordDate), "yyyy-MM-dd") === date
+                              );
+                              return (
+                                <td key={`${resident.id}-${date}-linen`} className="text-xs border border-gray-300 text-center px-1 py-1 w-8">
+                                  {record?.linenValue || ""}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()
+            )}
           </div>
         )}
       </main>
