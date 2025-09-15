@@ -448,7 +448,6 @@ export default function ExcretionCheckList() {
     queryKey: ["residents"],
     queryFn: async () => {
       const result = await apiRequest("/api/residents");
-      console.log("入居者データ取得結果:", result);
       // apiRequestは直接データを返すため、result.dataではなくresultを返す
       return result || [];
     },
@@ -461,7 +460,6 @@ export default function ExcretionCheckList() {
       const from = startOfDay(parseISO(dateFrom)).toISOString();
       const to = endOfDay(parseISO(dateTo)).toISOString();
       const result = await apiRequest(`/api/excretion-records?startDate=${from}&endDate=${to}`);
-      console.log("排泄記録データ取得:", result);
       return result || [];
     },
     enabled: !!dateFrom && !!dateTo,
@@ -568,8 +566,6 @@ export default function ExcretionCheckList() {
 
   // フィルタリングされた入居者リスト
   const filteredResidents = useMemo(() => {
-    console.log("入居者データ:", residents);
-    console.log("フィルタ - 階数:", selectedFloor, "利用者:", selectedResident);
     
     let filtered = residents;
     
@@ -587,7 +583,6 @@ export default function ExcretionCheckList() {
       return roomA - roomB;
     });
     
-    console.log("フィルタリング後の入居者:", sorted);
     return sorted;
   }, [residents, selectedFloor, selectedResident]);
 
@@ -596,9 +591,7 @@ export default function ExcretionCheckList() {
     const dates: Date[] = [];
     const from = parseISO(dateFrom);
     const to = parseISO(dateTo);
-    
-    console.log("日付範囲:", dateFrom, "〜", dateTo);
-    
+
     let current = from;
     while (current <= to) {
       dates.push(current);
@@ -606,7 +599,6 @@ export default function ExcretionCheckList() {
       current.setDate(current.getDate() + 1);
     }
     
-    console.log("生成された日付リスト:", dates);
     return dates;
   }, [dateFrom, dateTo]);
 
@@ -615,7 +607,6 @@ export default function ExcretionCheckList() {
     const data: { [key: string]: any } = {};
     
     excretionRecords.forEach((record: any) => {
-      console.log("排泄記録処理:", record);
       
       const recordDate = new Date(record.recordDate);
       const dateStr = format(recordDate, "yyyy-MM-dd");
@@ -670,7 +661,6 @@ export default function ExcretionCheckList() {
       }
     });
     
-    console.log("構造化されたデータ:", data);
     return data;
   }, [excretionRecords]);
 
@@ -1143,10 +1133,10 @@ export default function ExcretionCheckList() {
                 <th className="border px-1 py-1 text-center" style={{ width: '32px' }}>便計</th>
                 <th className="border px-1 py-1 text-center border-r-2 border-r-gray-400" style={{ width: '48px' }}>尿計</th>
                 {Array.from({ length: 24 }, (_, i) => (
-                  <React.Fragment key={`stool-${i}`}>
-                    <th className={`border px-1 py-1 text-center ${i > 0 ? 'border-l-2 border-l-gray-400' : ''}`} style={{ width: '48px' }}>便状態</th>
-                    <th className={`border px-1 py-1 text-center ${i === 23 ? 'border-r-2 border-r-gray-400' : ''}`} style={{ width: '32px' }}>便量</th>
-                  </React.Fragment>
+                  <>
+                    <th key={`stool-state-${i}`} className={`border px-1 py-1 text-center ${i > 0 ? 'border-l-2 border-l-gray-400' : ''}`} style={{ width: '48px' }}>便状態</th>
+                    <th key={`stool-amount-${i}`} className={`border px-1 py-1 text-center ${i === 23 ? 'border-r-2 border-r-gray-400' : ''}`} style={{ width: '32px' }}>便量</th>
+                  </>
                 ))}
                 <th className="border px-1 py-1 text-center" style={{ width: '64px' }}>自立便</th>
               </tr>
@@ -1154,10 +1144,10 @@ export default function ExcretionCheckList() {
                 <th className="border px-1 py-1 text-center" style={{ width: '32px' }}>最終便</th>
                 <th className="border px-1 py-1 text-center border-r-2 border-r-gray-400" style={{ width: '48px' }}>尿量</th>
                 {Array.from({ length: 24 }, (_, i) => (
-                  <React.Fragment key={`urine-${i}`}>
-                    <th className={`border px-1 py-1 text-center ${i > 0 ? 'border-l-2 border-l-gray-400' : ''}`} style={{ width: '48px' }}>尿CC</th>
-                    <th className={`border px-1 py-1 text-center ${i === 23 ? 'border-r-2 border-r-gray-400' : ''}`} style={{ width: '32px' }}>尿量</th>
-                  </React.Fragment>
+                  <>
+                    <th key={`urine-cc-${i}`} className={`border px-1 py-1 text-center ${i > 0 ? 'border-l-2 border-l-gray-400' : ''}`} style={{ width: '48px' }}>尿CC</th>
+                    <th key={`urine-amount-${i}`} className={`border px-1 py-1 text-center ${i === 23 ? 'border-r-2 border-r-gray-400' : ''}`} style={{ width: '32px' }}>尿量</th>
+                  </>
                 ))}
                 <th className="border px-1 py-1 text-center" style={{ width: '64px' }}>自立尿</th>
               </tr>
@@ -1189,7 +1179,7 @@ export default function ExcretionCheckList() {
               // 日次表示用ボディ
               dateList.map((date) => (
                 filteredResidents.map((resident) => (
-                  <React.Fragment key={`${format(date, "yyyy-MM-dd")}-${resident.id}-fragment`}>
+                  <>
                     {/* 1行目 - 上段のデータ */}
                     <tr className="hover:bg-gray-50">
                       <td rowSpan={2} className="border px-1 py-1 text-center font-bold">
@@ -1222,8 +1212,8 @@ export default function ExcretionCheckList() {
                         />
                       </td>
                       {Array.from({ length: 24 }, (_, hour) => (
-                        <React.Fragment key={`data-${hour}`}>
-                          <td className={`border px-0 py-0 bg-white ${hour > 0 ? 'border-l-2 border-l-gray-400' : ''}`}>
+                        <>
+                          <td key={`stool-state-${hour}`} className={`border px-0 py-0 bg-white ${hour > 0 ? 'border-l-2 border-l-gray-400' : ''}`}>
                             <InputWithDropdown
                               value={getCellValue(resident.id, date, hour, 'stoolState')}
                               options={stoolStateOptions}
@@ -1232,7 +1222,7 @@ export default function ExcretionCheckList() {
                               className="w-full border-0"
                             />
                           </td>
-                          <td className="border px-0 py-0 bg-white">
+                          <td key={`stool-amount-${hour}`} className="border px-0 py-0 bg-white">
                             <InputWithDropdown
                               value={getCellValue(resident.id, date, hour, 'stoolAmount')}
                               options={stoolAmountOptions}
@@ -1241,7 +1231,7 @@ export default function ExcretionCheckList() {
                               className="w-full border-0"
                             />
                           </td>
-                        </React.Fragment>
+                        </>
                       ))}
                       <td className="border px-0 py-0 bg-white border-l-2 border-l-gray-400">
                         <NumericInputWithDropdown
@@ -1262,8 +1252,8 @@ export default function ExcretionCheckList() {
                         {calculateTotalUrineCC(resident.id, date)}
                       </td>
                       {Array.from({ length: 24 }, (_, hour) => (
-                        <React.Fragment key={`data-${hour}`}>
-                          <td className={`border px-0 py-0 bg-white ${hour > 0 ? 'border-l-2 border-l-gray-400' : ''}`}>
+                        <>
+                          <td key={`urine-cc-${hour}`} className={`border px-0 py-0 bg-white ${hour > 0 ? 'border-l-2 border-l-gray-400' : ''}`}>
                             <NumericInputWithDropdown
                               value={getCellValue(resident.id, date, hour, 'urineCC')}
                               options={[]}
@@ -1272,7 +1262,7 @@ export default function ExcretionCheckList() {
                               className="w-full border-0"
                             />
                           </td>
-                          <td className="border px-0 py-0 bg-white">
+                          <td key={`urine-amount-${hour}`} className="border px-0 py-0 bg-white">
                             <InputWithDropdown
                               value={getCellValue(resident.id, date, hour, 'urineAmount')}
                               options={urineAmountOptions}
@@ -1281,7 +1271,7 @@ export default function ExcretionCheckList() {
                               className="w-full border-0"
                             />
                           </td>
-                        </React.Fragment>
+                        </>
                       ))}
                       <td className="border px-0 py-0 bg-white border-l-2 border-l-gray-400">
                         <NumericInputWithDropdown
@@ -1293,13 +1283,13 @@ export default function ExcretionCheckList() {
                         />
                       </td>
                     </tr>
-                  </React.Fragment>
+                  </>
                 ))
               ))
             ) : (
               // 月次表示用ボディ
               filteredResidents.map((resident) => (
-                <React.Fragment key={`monthly-${resident.id}`}>
+                <>
                   {/* 尿計行 */}
                   <tr className="hover:bg-gray-50">
                     <td rowSpan={3} className="border px-1 py-1 text-center font-bold">
@@ -1339,7 +1329,7 @@ export default function ExcretionCheckList() {
                       </td>
                     ))}
                   </tr>
-                </React.Fragment>
+                </>
               ))
             )}
           </tbody>

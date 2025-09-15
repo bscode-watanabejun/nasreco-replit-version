@@ -724,6 +724,20 @@ export type StaffManagement = typeof staffManagement.$inferSelect;
 export type InsertStaffManagement = z.infer<typeof insertStaffManagementSchema>;
 export type UpdateStaffManagement = z.infer<typeof updateStaffManagementSchema>;
 
+// Journal Entries table (日誌エントリテーブル)
+export const journalEntries = pgTable("journal_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recordDate: date("record_date").notNull(), // 記録日
+  recordType: varchar("record_type").notNull(), // 種別（日中/夜間/看護）
+  enteredBy: varchar("entered_by"), // 記入者（NULL可能）
+  residentCount: integer("resident_count").notNull().default(0), // 入居者数
+  hospitalizedCount: integer("hospitalized_count").notNull().default(0), // 入院者数
+  floor: varchar("floor"), // 階数
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  createdBy: varchar("created_by"), // 作成者ID
+});
+
 // Resident Attachments table
 export const residentAttachments = pgTable("resident_attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -737,6 +751,29 @@ export const residentAttachments = pgTable("resident_attachments", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Journal Entries insert schema
+export const insertJournalEntrySchema = createInsertSchema(journalEntries, {
+  recordDate: z.union([z.string(), z.date()]).transform((val) => {
+    // データベースはdate型なので、Date objectのままにする
+    // ただし、stringの場合は有効なDateオブジェクトに変換
+    if (val instanceof Date) return val;
+    return new Date(val);
+  }),
+  recordType: z.enum(["日中", "夜間", "看護"], { message: "有効な種別を選択してください" }),
+  enteredBy: z.union([z.string(), z.null()]).optional().transform((val) => {
+    if (val === "" || val === undefined) return null;
+    return val;
+  }),
+  residentCount: z.coerce.number().int().min(0).default(0),
+  hospitalizedCount: z.coerce.number().int().min(0).default(0),
+  floor: z.string().nullable().optional(),
+  createdBy: z.string().nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Journal Entries types
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type InsertJournalEntry = z.infer<typeof insertJournalEntrySchema>;
 
 // Resident Attachments insert schema
 export const insertResidentAttachmentSchema = createInsertSchema(residentAttachments, {

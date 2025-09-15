@@ -33,6 +33,7 @@ import {
   insertStaffManagementSchema,
   updateStaffManagementSchema,
   insertResidentAttachmentSchema,
+  insertJournalEntrySchema,
 } from "@shared/schema";
 
 // ファイルアップロード設定
@@ -1528,9 +1529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any;
       
       // Upsert操作を実行（重複がある場合は更新、ない場合は作成）
-      console.log("📝 Upserting medication record with data:", recordWithTimestamps);
       const record = await storage.upsertMedicationRecord(recordWithTimestamps);
-      console.log("✅ Upsert result:", record);
       
       if (!record) {
         console.error("❌ Upsert returned null/undefined record");
@@ -1579,7 +1578,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Record not found" });
       }
       
-      console.log('✅ PUT successful:', record);
       res.json(record);
     } catch (error: any) {
       console.error("❌ Error updating medication record:", error);
@@ -2365,6 +2363,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error updating journal checkbox:", error);
       res.status(500).json({ message: "日誌チェック状態の更新に失敗しました" });
+    }
+  });
+
+  // Journal Entry エンドポイント
+  app.get('/api/journal-entries', isAuthenticated, async (req, res) => {
+    try {
+      const { dateFrom, dateTo, recordType, floor } = req.query;
+
+      const entries = await storage.getJournalEntries(
+        dateFrom as string | undefined,
+        dateTo as string | undefined,
+        recordType as string | undefined,
+        floor as string | undefined
+      );
+
+      res.json(entries);
+    } catch (error: any) {
+      console.error("Error fetching journal entries:", error);
+      res.status(500).json({ message: "日誌エントリの取得に失敗しました" });
+    }
+  });
+
+  app.post('/api/journal-entries', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertJournalEntrySchema.parse(req.body);
+
+      // createdByにユーザーIDを設定
+      const staffSession = (req as any).session?.staff;
+      const user = req.user as any;
+      const userId = staffSession ? staffSession.id : (user?.claims?.sub || user?.sub || null);
+      validatedData.createdBy = userId;
+
+      const entry = await storage.createJournalEntry(validatedData);
+      res.status(201).json(entry);
+    } catch (error: any) {
+      console.error("Error creating journal entry:", error);
+      res.status(400).json({ message: "日誌エントリの作成に失敗しました" });
+    }
+  });
+
+  app.put('/api/journal-entries/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertJournalEntrySchema.partial().parse(req.body);
+
+      const entry = await storage.updateJournalEntry(id, validatedData);
+      res.json(entry);
+    } catch (error: any) {
+      console.error("Error updating journal entry:", error);
+      res.status(400).json({ message: "日誌エントリの更新に失敗しました" });
+    }
+  });
+
+  app.post('/api/journal-entries/upsert', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertJournalEntrySchema.parse(req.body);
+
+      // createdByにユーザーIDを設定
+      const staffSession = (req as any).session?.staff;
+      const user = req.user as any;
+      const userId = staffSession ? staffSession.id : (user?.claims?.sub || user?.sub || null);
+      validatedData.createdBy = userId;
+
+      const entry = await storage.upsertJournalEntry(validatedData);
+      res.json(entry);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        console.error("❌ Zod validation error:", JSON.stringify(error.errors, null, 2));
+        res.status(400).json({ message: "入力データの検証に失敗しました", errors: error.errors });
+      } else {
+        console.error("❌ Database/Storage error:", error);
+        console.error("Error details:", error.message, error.stack);
+        res.status(400).json({ message: "日誌エントリの更新に失敗しました", details: error.message });
+      }
+    }
+  });
+
+  app.delete('/api/journal-entries/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteJournalEntry(id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting journal entry:", error);
+      res.status(500).json({ message: "日誌エントリの削除に失敗しました" });
     }
   });
 

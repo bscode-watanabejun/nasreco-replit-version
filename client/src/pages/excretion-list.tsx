@@ -536,7 +536,6 @@ export default function ExcretionList() {
   useEffect(() => {
     if (!excretionRecords || !Array.isArray(excretionRecords)) return;
 
-    console.log('🔍 取得した排泄記録データ:', excretionRecords);
 
     const newCellData: Record<string, ExcretionData> = {};
     const newRecordIds: Record<string, ExcretionRecordIds> = {};
@@ -567,7 +566,6 @@ export default function ExcretionList() {
           newRecordIds[key].assistanceUrineId = record.id;
         }
         
-        console.log('🔍 自立データ処理:', { recordId: record.id, type: record.type, assistance: record.assistance });
       }
 
       // 記録日時から時間を抽出してnotesを保存
@@ -578,14 +576,6 @@ export default function ExcretionList() {
       // 記録内容をnotesDataに保存（時間ベース）
       if (record.notes) {
         newNotesData[extractedKey] = record.notes;
-        console.log(`🔍 排泄記録のnotes保存:`, {
-          recordId: record.id,
-          residentId: record.residentId,
-          hour: hour,
-          extractedKey: extractedKey,
-          notes: record.notes,
-          recordDate: record.recordDate
-        });
       }
       
       // 記録内容の処理（type: 'general_note'の場合）
@@ -600,7 +590,6 @@ export default function ExcretionList() {
         }
         newRecordIds[generalKey].generalNoteId = record.id;
         
-        console.log('🔍 general_note記録を処理:', { key: generalKey, notes: record.notes, id: record.id });
       }
       
       // 従来の処理：記録から時間を抽出する簡易的な方法（既存データとの互換性のため）
@@ -669,11 +658,6 @@ export default function ExcretionList() {
         ...newNotesData, // API取得データ
         ...prev // 既存のローカルデータで上書き（優先）
       };
-      console.log(`🔍 notesData更新:`, {
-        newNotesData: newNotesData,
-        prevNotesData: prev,
-        finalNotesData: finalNotesData
-      });
       return finalNotesData;
     });
     
@@ -961,7 +945,6 @@ export default function ExcretionList() {
       const generalKey = `${residentId}--1`;
       if (notesData[generalKey]) {
         result = notesData[generalKey];
-        console.log('🔍 general_note記録を取得:', { residentId, result });
         return result;
       }
       const residentNotesKeys = Object.keys(notesData).filter(k => k.startsWith(`${residentId}-`));
@@ -999,17 +982,7 @@ export default function ExcretionList() {
         result = '';
       }
     }
-    
-    console.log(`🔍 getNotesData呼出:`, {
-      residentId: residentId,
-      hour: hour,
-      key: key,
-      generalKey: hour === -1 ? `${residentId}--1` : null,
-      result: result,
-      allNotesDataKeys: Object.keys(notesData),
-      isRecordColumn: hour === -1,
-      hasGeneralNote: hour === -1 && notesData[`${residentId}--1`] ? true : false
-    });
+
     return result;
   };
 

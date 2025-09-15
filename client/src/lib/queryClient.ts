@@ -83,15 +83,19 @@ export async function apiRequest(
   
   try {
     const responseText = await res.text();
-    console.log('📄 Response text:', responseText);
-    
+
+    // 開発環境でのみレスポンステキストを出力
+    const shouldLog = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG !== 'false';
+    if (shouldLog) {
+      console.log('📄 Response text:', responseText);
+    }
+
     if (!responseText) {
       console.warn('❌ Empty response body received');
       return null;
     }
     
     const responseData = JSON.parse(responseText);
-    console.log('✅ Parsed response data:', responseData);
     return responseData;
   } catch (error) {
     // JSONパースに失敗した場合は空のレスポンスとして扱う

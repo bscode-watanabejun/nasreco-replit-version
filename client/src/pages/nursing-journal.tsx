@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -183,6 +184,8 @@ function InputWithDropdown({
 export default function NursingJournal() {
   const { isAuthenticated, user } = useAuth();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
@@ -340,6 +343,40 @@ export default function NursingJournal() {
     }
   };
 
+  // 日誌エントリデータを取得
+  const { data: journalEntry } = useQuery({
+    queryKey: ['/api/journal-entries', selectedDate, selectedRecordType, selectedFloor],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('dateFrom', selectedDate);
+      params.set('dateTo', selectedDate);
+      params.set('recordType', selectedRecordType);
+      if (selectedFloor !== '全階') {
+        params.set('floor', selectedFloor.replace('階', ''));
+      }
+
+      const response = await apiRequest(`/api/journal-entries?${params.toString()}`);
+      const entries = response as any[];
+
+      // 該当する日誌エントリを探す
+      return entries.find(e =>
+        e.recordDate === selectedDate &&
+        e.recordType === selectedRecordType &&
+        (selectedFloor === '全階' ? true : e.floor === selectedFloor.replace('階', ''))
+      ) || null;
+    },
+    enabled: !!isAuthenticated && !!selectedDate && !!selectedRecordType,
+  });
+
+  // 日誌エントリが取得されたら記入者を設定
+  useEffect(() => {
+    if (journalEntry) {
+      setEnteredBy(journalEntry.enteredBy || "");
+    } else {
+      setEnteredBy("");
+    }
+  }, [journalEntry]);
+
   // 日付変更関数
   const changeDateBy = (days: number) => {
     const currentDate = new Date(selectedDate);
@@ -350,18 +387,61 @@ export default function NursingJournal() {
   const goToPreviousDay = () => changeDateBy(-1);
   const goToNextDay = () => changeDateBy(1);
 
+  // 日誌エントリの保存/更新用Mutation
+  const upsertJournalEntryMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('/api/journal-entries/upsert', 'POST', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/journal-entries'] });
+    },
+    onError: (error) => {
+      console.error('日誌エントリの保存に失敗しました:', error);
+      toast({
+        title: "エラー",
+        description: "日誌エントリの保存に失敗しました",
+        variant: "destructive",
+      });
+    }
+  });
+
   // 記入者設定/クリア
-  const handleToggleEnteredBy = () => {
+  const handleToggleEnteredBy = async () => {
+    const userData = user as any;
+    const userId = userData?.id || userData?.sub || null;
+
     if (enteredBy) {
+      // 記入者をクリア（NULLに設定）
       setEnteredBy("");
+
+      // DBを更新
+      await upsertJournalEntryMutation.mutateAsync({
+        recordDate: selectedDate,
+        recordType: selectedRecordType,
+        enteredBy: null, // NULLに設定
+        residentCount: residentStats.totalResidents,
+        hospitalizedCount: residentStats.hospitalizedCount,
+        floor: selectedFloor === '全階' ? null : selectedFloor.replace('階', ''),
+        createdBy: userId
+      });
     } else {
       // ログイン者の名前を設定
-      const userData = user as any;
-      const userName = userData?.staffName || 
+      const userName = userData?.staffName ||
         (userData?.firstName && userData?.lastName
           ? `${userData.lastName} ${userData.firstName}`
           : userData?.email || "スタッフ");
       setEnteredBy(userName);
+
+      // DBを更新
+      await upsertJournalEntryMutation.mutateAsync({
+        recordDate: selectedDate,
+        recordType: selectedRecordType,
+        enteredBy: userName,
+        residentCount: residentStats.totalResidents,
+        hospitalizedCount: residentStats.hospitalizedCount,
+        floor: selectedFloor === '全階' ? null : selectedFloor.replace('階', ''),
+        createdBy: userId
+      });
     }
   };
 
@@ -477,50 +557,55 @@ export default function NursingJournal() {
               />
             </div>
 
-            {/* 階数選択 */}
-            <div className="flex items-center space-x-0.5">
-              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <InputWithDropdown
-                value={selectedFloor}
-                options={floorOptions}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="階数選択"
-                className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
-                enableAutoFocus={false}
-              />
-            </div>
           </div>
       </div>
 
       <div className="max-w-full mx-auto px-2 pb-2">
         {/* メインエリア */}
         <div className="bg-white p-3 shadow-sm border-b">
-          {/* 記入者 */}
-          <div className="flex items-center gap-2 mb-4">
-            <label className="text-sm font-medium text-slate-700 min-w-[60px]">記入者</label>
-            <input
-              type="text"
-              value={enteredBy}
-              readOnly
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm"
-              placeholder="記入者名"
-            />
-            <button
-              className={`rounded text-xs flex items-center justify-center ${
-                enteredBy ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-              }`}
-              style={{
-                height: "32px",
-                width: "32px",
-                minHeight: "32px",
-                minWidth: "32px",
-                maxHeight: "32px",
-                maxWidth: "32px",
-              }}
-              onClick={handleToggleEnteredBy}
-            >
-              <User className="w-3 h-3" />
-            </button>
+          {/* 記入者と階数 */}
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700 min-w-[60px]">記入者</label>
+              <input
+                type="text"
+                value={enteredBy}
+                readOnly
+                className="w-32 px-2 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm"
+                placeholder="記入者名"
+              />
+              <button
+                className={`rounded text-xs flex items-center justify-center ${
+                  filteredJournalRecords.length === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+                style={{
+                  height: "32px",
+                  width: "32px",
+                  minHeight: "32px",
+                  minWidth: "32px",
+                  maxHeight: "32px",
+                  maxWidth: "32px",
+                }}
+                onClick={filteredJournalRecords.length === 0 ? undefined : handleToggleEnteredBy}
+                disabled={filteredJournalRecords.length === 0}
+              >
+                <User className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* 階数選択 */}
+            <div className="flex items-center gap-2">
+              <InputWithDropdown
+                value={selectedFloor}
+                options={floorOptions}
+                onSave={(value) => setSelectedFloor(value)}
+                placeholder="階数選択"
+                className="w-20 px-2 py-2 border border-slate-300 rounded-md text-sm"
+                enableAutoFocus={false}
+              />
+            </div>
           </div>
 
           {/* 入居者数・入院者情報 */}

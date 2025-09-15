@@ -38,6 +38,7 @@ import VitalCheckList from "@/pages/vital-check-list";
 import CleaningLinenCheckList from "@/pages/cleaning-linen-check-list";
 import WeightCheckList from "@/pages/weight-check-list";
 import RoundCheckList from "@/pages/round-check-list";
+import JournalCheckList from "@/pages/journal-check-list";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -97,6 +98,7 @@ function Router() {
           <Route path="/cleaning-linen-check-list" component={CleaningLinenCheckList} />
           <Route path="/weight-check-list" component={WeightCheckList} />
           <Route path="/round-check-list" component={RoundCheckList} />
+          <Route path="/journal-check-list" component={JournalCheckList} />
           <Route component={NotFound} />
         </>
       )}

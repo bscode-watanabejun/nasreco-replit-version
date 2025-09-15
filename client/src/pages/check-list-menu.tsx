@@ -64,6 +64,11 @@ export default function CheckListMenu() {
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
       navigate(`/round-check-list${params ? `?${params}` : ''}`);
+    } else if (label === "日誌一覧") {
+      // URLパラメータを引き継ぎ
+      const urlParams = new URLSearchParams(window.location.search);
+      const params = urlParams.toString();
+      navigate(`/journal-check-list${params ? `?${params}` : ''}`);
     } else {
       // その他は現在開発中
       console.log(`遷移先: ${path} (現在開発中)`);

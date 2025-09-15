@@ -392,7 +392,6 @@ export default function MedicationCheckList() {
     
     // 実際のDB IDを持つ既存レコードの場合は更新、そうでなければ新規作成
     if (existingRecord && existingRecord.id && !existingRecord.id.startsWith('placeholder-')) {
-      console.log('📝 Updating existing record:', existingRecord.id);
       const updateData = { [field]: value };
       updateMutation.mutate(
         { id: existingRecord.id, data: updateData },

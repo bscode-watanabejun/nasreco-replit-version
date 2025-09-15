@@ -18,6 +18,7 @@ import {
   staffManagement,
   residentAttachments,
   journalCheckboxes,
+  journalEntries,
   type User,
   type UpsertUser,
   type Resident,
@@ -57,6 +58,8 @@ import {
   type InsertResidentAttachment,
   type JournalCheckbox,
   type InsertJournalCheckbox,
+  type JournalEntry,
+  type InsertJournalEntry,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
@@ -255,8 +258,16 @@ export interface IStorage {
   createResidentAttachment(attachment: InsertResidentAttachment): Promise<ResidentAttachment>;
   deleteResidentAttachment(id: string): Promise<void>;
 
-  // Daily Records operations  
+  // Daily Records operations
   getDailyRecords(date: string, recordTypes?: string[], includeNextDay?: boolean): Promise<any[]>;
+
+  // Journal Entry operations
+  getJournalEntries(dateFrom?: string, dateTo?: string, recordType?: string, floor?: string): Promise<JournalEntry[]>;
+  getJournalEntry(recordDate: string, recordType: string, floor?: string): Promise<JournalEntry | null>;
+  createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
+  updateJournalEntry(id: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry>;
+  upsertJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
+  deleteJournalEntry(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1435,7 +1446,6 @@ export class DatabaseStorage implements IStorage {
       }
       
       const upsertedRecord = result[0];
-      console.log("✅ DB Upserted record:", upsertedRecord);
       return upsertedRecord;
     } catch (error) {
       console.error("❌ Error in upsertMedicationRecord:", error);
@@ -2985,7 +2995,7 @@ export class DatabaseStorage implements IStorage {
       await db.update(journalCheckboxes)
         .set({
           isChecked: isChecked,
-          updatedAt: new Date()
+          updatedAt: getJSTTime()
         })
         .where(eq(journalCheckboxes.id, existing[0].id));
     } else {
@@ -2995,9 +3005,164 @@ export class DatabaseStorage implements IStorage {
         recordType,
         checkboxType,
         isChecked,
-        recordDate
+        recordDate,
+        createdAt: getJSTTime(),
+        updatedAt: getJSTTime()
       });
     }
+  }
+
+  // Journal Entry operations
+  async getJournalEntries(
+    dateFrom?: string,
+    dateTo?: string,
+    recordType?: string,
+    floor?: string
+  ): Promise<JournalEntry[]> {
+    const conditions = [];
+
+    // 日付範囲フィルタ
+    if (dateFrom) {
+      conditions.push(gte(journalEntries.recordDate, dateFrom));
+    }
+    if (dateTo) {
+      conditions.push(lte(journalEntries.recordDate, dateTo));
+    }
+
+    // 種別フィルタ
+    if (recordType && recordType !== "all") {
+      conditions.push(eq(journalEntries.recordType, recordType));
+    }
+
+    // 階数フィルタ
+    if (floor && floor !== "all") {
+      const floorValue = floor.replace("階", "");
+      conditions.push(eq(journalEntries.floor, floorValue));
+    }
+
+    if (conditions.length > 0) {
+      return await db.select().from(journalEntries)
+        .where(and(...conditions))
+        .orderBy(desc(journalEntries.recordDate), desc(journalEntries.recordType));
+    } else {
+      return await db.select().from(journalEntries)
+        .orderBy(desc(journalEntries.recordDate), desc(journalEntries.recordType));
+    }
+  }
+
+  async getJournalEntry(
+    recordDate: string | Date,
+    recordType: string,
+    floor?: string
+  ): Promise<JournalEntry | null> {
+    // recordDateを文字列形式に正規化（YYYY-MM-DD）
+    const dateString = recordDate instanceof Date
+      ? recordDate.toISOString().split('T')[0]
+      : recordDate.split('T')[0];
+
+    const conditions = [
+      eq(journalEntries.recordDate, dateString),
+      eq(journalEntries.recordType, recordType)
+    ];
+
+    if (floor && floor !== "all") {
+      const floorValue = floor.replace("階", "");
+      conditions.push(eq(journalEntries.floor, floorValue));
+    }
+
+    const [entry] = await db.select()
+      .from(journalEntries)
+      .where(and(...conditions));
+
+    return entry || null;
+  }
+
+  async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
+    // recordDateを文字列に統一（DBは date型なので YYYY-MM-DD 形式）
+    let recordDateString: string;
+    if (entry.recordDate instanceof Date) {
+      recordDateString = format(entry.recordDate, 'yyyy-MM-dd');
+    } else {
+      // 文字列の場合、YYYY-MM-DD形式に正規化
+      recordDateString = (entry.recordDate as string).split('T')[0];
+    }
+
+    // サーバー環境の現在時刻を使用（既にJSTとして設定済み）
+    const jstNow = new Date();
+
+    const insertData = {
+      recordDate: recordDateString,
+      recordType: entry.recordType,
+      enteredBy: entry.enteredBy,
+      residentCount: entry.residentCount,
+      hospitalizedCount: entry.hospitalizedCount,
+      floor: entry.floor,
+      createdBy: entry.createdBy,
+      createdAt: jstNow,
+      updatedAt: jstNow
+    };
+
+
+    const [created] = await db.insert(journalEntries)
+      .values(insertData)
+      .returning();
+    return created;
+  }
+
+  async updateJournalEntry(id: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry> {
+    // recordDateを文字列に統一（更新の場合）
+    let recordDateString: string | undefined;
+    if (entry.recordDate) {
+      if (entry.recordDate instanceof Date) {
+        recordDateString = format(entry.recordDate, 'yyyy-MM-dd');
+      } else {
+        recordDateString = (entry.recordDate as string).split('T')[0];
+      }
+    }
+
+    // サーバー環境の現在時刻を使用（既にJSTとして設定済み）
+    const jstNow = new Date();
+
+    const updateData: any = {
+      updatedAt: jstNow // JST時刻を手動設定
+    };
+
+    // 更新可能なフィールドのみを設定
+    if (recordDateString !== undefined) updateData.recordDate = recordDateString;
+    if (entry.recordType !== undefined) updateData.recordType = entry.recordType;
+    if (entry.enteredBy !== undefined) updateData.enteredBy = entry.enteredBy;
+    if (entry.residentCount !== undefined) updateData.residentCount = entry.residentCount;
+    if (entry.hospitalizedCount !== undefined) updateData.hospitalizedCount = entry.hospitalizedCount;
+    if (entry.floor !== undefined) updateData.floor = entry.floor;
+    // createdByは更新時には変更しない（作成時のみ設定）
+
+
+    const [updated] = await db.update(journalEntries)
+      .set(updateData)
+      .where(eq(journalEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async upsertJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
+    // 既存のエントリを探す
+    const existing = await this.getJournalEntry(
+      entry.recordDate,
+      entry.recordType,
+      entry.floor || undefined
+    );
+
+    if (existing) {
+      // 更新
+      return await this.updateJournalEntry(existing.id, entry);
+    } else {
+      // 新規作成
+      return await this.createJournalEntry(entry);
+    }
+  }
+
+  async deleteJournalEntry(id: string): Promise<void> {
+    await db.delete(journalEntries).where(eq(journalEntries.id, id));
   }
 }
 
