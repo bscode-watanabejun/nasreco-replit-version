@@ -347,7 +347,7 @@ export default function Rounds() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-screen bg-slate-50 flex flex-col">
       {/* ヘッダー - Fixed */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-2 sticky top-0 z-50">
         <div className="flex items-center gap-2 mb-2">
@@ -418,19 +418,19 @@ export default function Rounds() {
           </div>
       </div>
 
-      <div className="max-w-full mx-auto px-1 pb-1">
+      <div className="flex-1 overflow-hidden px-1 pb-1 flex flex-col">
         {/* ラウンド記録テーブル */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
+        <Card className="flex-1 overflow-hidden">
+          <CardContent className="p-0 h-full">
+            <div className="h-full overflow-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="sticky left-0 bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 text-left min-w-[70px] z-20">
+                    <th className="sticky top-0 left-0 z-30 bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 text-left min-w-[70px]">
                     </th>
-                    <th className="sticky left-[70px] bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 min-w-[30px] z-10"></th>
+                    <th className="sticky top-0 left-[70px] z-20 bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 min-w-[30px]"></th>
                     {hours.map(hour => (
-                      <th key={hour} className="border-r border-gray-200 px-0.5 py-0.5 min-w-[30px]">
+                      <th key={hour} className="sticky top-0 z-10 bg-gray-100 border-r border-gray-200 px-0.5 py-0.5 min-w-[30px]">
                         <div className="text-sm font-bold text-gray-700">{hour}</div>
                       </th>
                     ))}

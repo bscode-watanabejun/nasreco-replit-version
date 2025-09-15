@@ -1022,7 +1022,7 @@ export default function ExcretionList() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-screen bg-slate-50 flex flex-col">
       {/* ヘッダー */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
@@ -1106,25 +1106,25 @@ export default function ExcretionList() {
       </div>
 
       {/* コンテンツ - タブごとに異なる */}
-      <div className="px-1 py-2">
+      <div className="flex-1 overflow-hidden px-1 py-2">
         {activeTab === 'record' ? (
           /* 記録タブ - 既存の排泄記録テーブル */
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
+          <Card className="h-full overflow-hidden">
+            <CardContent className="p-0 h-full">
+              <div className="h-full overflow-auto">
                 <table className="w-full text-xs table-fixed">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-12 bg-gray-100 sticky left-0 z-20">
+                  <th className="sticky top-0 left-0 z-30 bg-gray-100 border-r border-b border-gray-200 px-1 py-1 text-center w-12">
                     {/* 空白 */}
                   </th>
-                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden bg-gray-100 sticky left-12 z-20">
+                  <th className="sticky top-0 left-12 z-20 bg-gray-100 border-r border-b border-gray-200 px-1 py-1 text-center w-[36px] text-xs overflow-hidden">
                     {/* 空白 */}
                   </th>
-                  <th className="border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">自立</th>
-                  <th className="border-r border-b border-gray-200 px-1 py-1 text-center w-[40px] text-xs overflow-hidden">記録</th>
+                  <th className="sticky top-0 z-10 bg-gray-100 border-r border-b border-gray-200 px-0 py-1 text-center w-[40px] text-xs overflow-hidden">自立</th>
+                  <th className="sticky top-0 z-10 bg-gray-100 border-r border-b border-gray-200 px-1 py-1 text-center w-[40px] text-xs overflow-hidden">記録</th>
                   {hours.map(hour => (
-                    <th key={hour} className="border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden border-solid">
+                    <th key={hour} className="sticky top-0 z-10 bg-gray-100 border-r border-b border-gray-200 px-0 py-1 text-center w-[28px] text-xs overflow-hidden border-solid">
                       {hour}
                     </th>
                   ))}
@@ -1238,9 +1238,9 @@ export default function ExcretionList() {
           </Card>
         ) : (
           /* 合計タブ - 新しい合計テーブル */
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
+          <Card className="h-full overflow-hidden">
+            <CardContent className="p-0 h-full">
+              <div className="h-full overflow-auto">
                 <table className="w-full text-xs table-fixed">
                   <tbody>
                     {filteredResidents.map((resident: Resident) => {

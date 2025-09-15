@@ -360,7 +360,7 @@ export default function CleaningLinenList() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex flex-col">
       <header className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 shadow-md sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
@@ -415,21 +415,21 @@ export default function CleaningLinenList() {
         </div>
       </div>
 
-      <div className="px-2 pb-2">
+      <div className="flex-1 overflow-hidden px-2 pb-2">
         {/* テーブル */}
-        <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
+        <div className="h-full bg-white rounded-lg shadow-sm overflow-auto">
           <table className="w-full text-xs border-separate border-spacing-0">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-0.5 text-center border border-gray-300 rounded-tl-lg w-20" colSpan={2} data-testid="header-room-type"></th>
+                <th className="sticky top-0 z-20 bg-gray-100 p-0.5 text-center border border-gray-300 rounded-tl-lg w-20" colSpan={2} data-testid="header-room-type"></th>
                 {weekDays.map((day, index) => {
                   const date = addDays(selectedWeek, index);
                   const isSelectedDate = selectedDateFromUrl && format(date, 'yyyy-MM-dd') === selectedDateFromUrl;
                   const isLastColumn = index === weekDays.length - 1;
                   return (
-                    <th 
-                      key={day} 
-                      className={`p-0.5 text-center border border-gray-300 w-12 ${isSelectedDate ? 'bg-yellow-100' : ''} ${isLastColumn ? 'rounded-tr-lg' : ''}`}
+                    <th
+                      key={day}
+                      className={`sticky top-0 z-10 bg-gray-100 p-0.5 text-center border border-gray-300 w-12 ${isSelectedDate ? 'bg-yellow-100' : ''} ${isLastColumn ? 'rounded-tr-lg' : ''}`}
                       data-testid={`header-day-${day}`}
                     >
                       <div>{day}</div>
@@ -451,7 +451,7 @@ export default function CleaningLinenList() {
                 .flatMap((resident, residentIndex, sortedResidents) => [
                   /* 清掃行 */
                   <tr key={`cleaning-${resident.id}`} className="border-b border-gray-200">
-                    <td 
+                    <td
                       className={`p-0.5 text-center border border-gray-300 text-xs font-medium leading-tight w-16 ${residentIndex === sortedResidents.length - 1 ? 'rounded-bl-lg' : ''}`}
                       rowSpan={3}
                       data-testid={`room-${resident.id}`}
@@ -459,7 +459,7 @@ export default function CleaningLinenList() {
                       <div className="font-bold">{resident.roomNumber}</div>
                       <div className="text-gray-600 text-xs mt-0.5">{resident.name}</div>
                     </td>
-                    <td 
+                    <td
                       className="p-0.5 text-center border border-gray-300 text-xs bg-blue-50 w-4"
                       data-testid={`type-cleaning-${resident.id}`}
                     >
@@ -484,7 +484,7 @@ export default function CleaningLinenList() {
                   
                   /* リネン行 */
                   <tr key={`linen-${resident.id}`} className="border-b border-gray-200">
-                    <td 
+                    <td
                       className="p-0.5 text-center border border-gray-300 text-xs bg-green-50 w-4"
                       data-testid={`type-linen-${resident.id}`}
                     >
@@ -509,7 +509,7 @@ export default function CleaningLinenList() {
                   
                   /* 記録行 */
                   <tr key={`record-${resident.id}`} className="border-b-2 border-gray-300">
-                    <td 
+                    <td
                       className={`p-0.5 text-center border-l border-r border-t border-gray-300 ${residentIndex === sortedResidents.length - 1 ? 'border-b border-gray-300' : 'border-b-2 border-gray-300'} text-xs bg-yellow-50 w-4`}
                       data-testid={`type-record-${resident.id}`}
                     >
