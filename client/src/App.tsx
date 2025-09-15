@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -107,6 +108,55 @@ function Router() {
 }
 
 function App() {
+  // スワイプリフレッシュ無効化
+  useEffect(() => {
+    let startY = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      startY = e.touches[0].pageY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0].pageY;
+
+      // スクロール可能な要素を探す
+      let scrollElement = e.target as HTMLElement;
+      let scrollTop = 0;
+
+      while (scrollElement && scrollElement !== document.body) {
+        if (scrollElement.scrollTop > 0) {
+          scrollTop = scrollElement.scrollTop;
+          break;
+        }
+        // overflow-y: autoまたはscrollの要素を探す
+        const style = window.getComputedStyle(scrollElement);
+        if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+          scrollTop = scrollElement.scrollTop;
+          break;
+        }
+        scrollElement = scrollElement.parentElement as HTMLElement;
+      }
+
+      // どの要素もスクロールしていない場合はdocumentをチェック
+      if (scrollTop === 0) {
+        scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      }
+
+      // ページ最上部で上にスワイプしようとしている場合のみ防ぐ
+      if (scrollTop === 0 && y > startY) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
