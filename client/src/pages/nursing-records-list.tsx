@@ -341,7 +341,27 @@ export default function NursingRecordsList() {
     }
     return "全階";
   });
-  
+
+  // 一括登録モード用のstate
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedResidentIds, setSelectedResidentIds] = useState<Set<string>>(new Set());
+  const [bulkInputModalOpen, setBulkInputModalOpen] = useState(false);
+  const [bulkInputData, setBulkInputData] = useState({
+    recordDate: selectedDate,
+    hour: format(new Date(), 'HH'),
+    minute: Math.floor(parseInt(format(new Date(), 'mm')) / 15) * 15,
+    category: '看護記録',
+    description: ''
+  });
+
+  // selectedDateが変更されたときにbulkInputDataを更新
+  useEffect(() => {
+    setBulkInputData(prev => ({
+      ...prev,
+      recordDate: selectedDate
+    }));
+  }, [selectedDate]);
+
   // 看護チェック用の状態
   const [nursingChecks, setNursingChecks] = useState<Record<string, boolean>>({});
   // 差戻チェック用の状態（ポップアップ内でのみ使用）
@@ -362,8 +382,8 @@ export default function NursingRecordsList() {
     queryKey: ["/api/residents"],
   });
 
-  const { data: careRecords = [], isLoading } = useQuery({
-    queryKey: ["/api/care-records"],
+  const { data: nursingRecords = [], isLoading } = useQuery({
+    queryKey: ["/api/nursing-records"],
   });
 
   const { data: currentUser } = useQuery({
@@ -406,17 +426,61 @@ export default function NursingRecordsList() {
     });
   }, [selectedDate, selectedResident?.id, form]);
 
+  // selectedDateが変更されたときにbulkInputDataを更新
+  useEffect(() => {
+    setBulkInputData(prev => ({
+      ...prev,
+      recordDate: selectedDate
+    }));
+  }, [selectedDate]);
+
+  // 一括登録用のmutation
+  const bulkCreateMutation = useMutation({
+    mutationFn: async (data: { residentIds: string[], recordData: any }) => {
+      const results = await Promise.all(
+        data.residentIds.map(residentId =>
+          apiRequest("/api/nursing-records", "POST", {
+            ...data.recordData,
+            residentId
+          })
+        )
+      );
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
+      // 一括登録モードをリセット
+      setBulkMode(false);
+      setSelectedResidentIds(new Set());
+      setBulkInputModalOpen(false);
+      setBulkInputData({
+        recordDate: selectedDate,
+        hour: format(new Date(), 'HH'),
+        minute: Math.floor(parseInt(format(new Date(), 'mm')) / 15) * 15,
+        category: '看護記録',
+        description: ''
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "エラー",
+        description: "一括登録に失敗しました。",
+        variant: "destructive",
+      });
+    }
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: CareRecordForm) => {
-      await apiRequest("/api/care-records", "POST", {
+      await apiRequest("/api/nursing-records", "POST", {
         ...data,
         recordDate: new Date(data.recordDate),
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
       if (selectedResident) {
-        queryClient.invalidateQueries({ queryKey: ["/api/care-records", selectedResident.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/nursing-records", selectedResident.id] });
       }
       form.reset({
         residentId: selectedResident?.id || "",
@@ -436,6 +500,80 @@ export default function NursingRecordsList() {
     },
   });
 
+  // 一括登録モード関連の関数
+  const handleStartBulkMode = () => {
+    setBulkMode(true);
+    setSelectedResidentIds(new Set());
+  };
+
+  const handleCancelBulkMode = () => {
+    setBulkMode(false);
+    setSelectedResidentIds(new Set());
+  };
+
+  const toggleResidentSelection = (residentId: string) => {
+    setSelectedResidentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(residentId)) {
+        newSet.delete(residentId);
+      } else {
+        newSet.add(residentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedResidentIds.size === filteredResidents.length) {
+      setSelectedResidentIds(new Set());
+    } else {
+      setSelectedResidentIds(new Set(filteredResidents.map(r => r.id)));
+    }
+  };
+
+  const handleOpenBulkModal = () => {
+    if (selectedResidentIds.size === 0) {
+      toast({
+        title: "利用者を選択してください",
+        description: "一括登録する利用者を選択してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkInputModalOpen(true);
+  };
+
+  const handleBulkRegister = () => {
+    const { recordDate, hour, minute, category, description } = bulkInputData;
+
+    if (!description.trim()) {
+      toast({
+        title: "記録内容を入力してください",
+        description: "記録内容は必須項目です。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 日時を組み立て
+    const recordDateTime = new Date(recordDate);
+    recordDateTime.setHours(parseInt(hour));
+    recordDateTime.setMinutes(parseInt(minute.toString()));
+    recordDateTime.setSeconds(0);
+    recordDateTime.setMilliseconds(0);
+
+    const recordData = {
+      recordDate: recordDateTime.toISOString(),
+      category: category,
+      description: description,
+    };
+
+    bulkCreateMutation.mutate({
+      residentIds: Array.from(selectedResidentIds),
+      recordData
+    });
+  };
+
   // 記録更新用ミューテーション（一覧画面用）
   const updateMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
@@ -443,7 +581,7 @@ export default function NursingRecordsList() {
       if (field === 'recordDate') {
         updateData[field] = new Date(value);
       }
-      return apiRequest(`/api/care-records/${id}`, "PATCH", updateData);
+      return apiRequest(`/api/nursing-records/${id}`, "PATCH", updateData);
     },
     onMutate: async (newData: { id: string; field: string; value: any }) => {
       // recordDateの更新時は楽観的更新によるキャッシュ操作を行わない
@@ -451,13 +589,13 @@ export default function NursingRecordsList() {
         return;
       }
       // クエリのキャンセル
-      await queryClient.cancelQueries({ queryKey: ['/api/care-records'] });
+      await queryClient.cancelQueries({ queryKey: ['/api/nursing-records'] });
 
       // 以前のデータをスナップショット
-      const previousCareRecords = queryClient.getQueryData(['/api/care-records']);
+      const previousNursingRecords = queryClient.getQueryData(['/api/nursing-records']);
 
       // キャッシュを楽観的に更新
-      queryClient.setQueryData(['/api/care-records'], (old: any[] | undefined) => {
+      queryClient.setQueryData(['/api/nursing-records'], (old: any[] | undefined) => {
         if (!old) return [];
         return old.map(record =>
           record.id === newData.id ? { ...record, [newData.field]: newData.value } : record
@@ -465,12 +603,12 @@ export default function NursingRecordsList() {
       });
 
       // コンテキストオブジェクトで以前のデータを返す
-      return { previousCareRecords };
+      return { previousNursingRecords };
     },
     onError: (err, newData, context) => {
       // description更新時のロールバック
-      if (context?.previousCareRecords) {
-        queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
+      if (context?.previousNursingRecords) {
+        queryClient.setQueryData(['/api/nursing-records'], context.previousNursingRecords);
       }
       // recordDate更新エラー時にローカルstateを元に戻す
       if (newData.field === 'recordDate') {
@@ -498,22 +636,22 @@ export default function NursingRecordsList() {
   const updateDetailMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
       const updateData: any = { [field]: value };
-      return apiRequest(`/api/care-records/${id}`, "PATCH", updateData);
+      return apiRequest(`/api/nursing-records/${id}`, "PATCH", updateData);
     },
     onMutate: async (newData: { id: string; field: string; value: any }) => {
-      await queryClient.cancelQueries({ queryKey: ['/api/care-records'] });
-      const previousCareRecords = queryClient.getQueryData(['/api/care-records']);
-      queryClient.setQueryData(['/api/care-records'], (old: any[] | undefined) => {
+      await queryClient.cancelQueries({ queryKey: ['/api/nursing-records'] });
+      const previousNursingRecords = queryClient.getQueryData(['/api/nursing-records']);
+      queryClient.setQueryData(['/api/nursing-records'], (old: any[] | undefined) => {
         if (!old) return [];
         return old.map(record =>
           record.id === newData.id ? { ...record, [newData.field]: newData.value } : record
         );
       });
-      return { previousCareRecords };
+      return { previousNursingRecords };
     },
     onError: (err, newData, context) => {
-      if (context?.previousCareRecords) {
-        queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
+      if (context?.previousNursingRecords) {
+        queryClient.setQueryData(['/api/nursing-records'], context.previousNursingRecords);
       }
       toast({
         title: "エラー",
@@ -522,7 +660,7 @@ export default function NursingRecordsList() {
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/care-records'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/nursing-records'] });
     },
   });
 
@@ -606,6 +744,18 @@ export default function NursingRecordsList() {
     }
   };
 
+  // 時分選択用のオプション（介護記録画面と同じ）
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: i.toString(),
+    label: i.toString().padStart(2, "0"),
+  }));
+  const minuteOptions = [
+    { value: "0", label: "00" },
+    { value: "15", label: "15" },
+    { value: "30", label: "30" },
+    { value: "45", label: "45" },
+  ];
+
   const categoryOptions = [
     { value: "daily_care", label: "日常介護" },
     { value: "assistance", label: "介助" },
@@ -619,20 +769,8 @@ export default function NursingRecordsList() {
     { value: "other", label: "その他" },
   ];
 
-  // 時分選択用のオプション（バイタル一覧画面と同じ）
-  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
-    value: i.toString(),
-    label: i.toString().padStart(2, "0"),
-  }));
-  const minuteOptions = [
-    { value: "0", label: "00" },
-    { value: "15", label: "15" },
-    { value: "30", label: "30" },
-    { value: "45", label: "45" },
-  ];
-
-  // 利用者詳細の記録を取得（既存のcareRecordsを利用）
-  const residentRecords = (careRecords as any[]).filter((record: any) => 
+  // 利用者詳細の記録を取得（既存のnursingRecordsを利用）
+  const residentRecords = (nursingRecords as any[]).filter((record: any) => 
     selectedResident ? record.residentId === selectedResident.id : false
   );
 
@@ -643,14 +781,14 @@ export default function NursingRecordsList() {
 
   // ソート済みの既存記録（初期処理と日付変更時のみソート）
   const sortedCareRecords = useMemo(() => {
-    return (careRecords as any[])
+    return (nursingRecords as any[])
       .filter((record: any) => {
         if (!selectedResident || record.residentId !== selectedResident.id) return false;
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
         return recordDate === selectedDate;
       })
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
-  }, [careRecords, selectedResident, selectedDate]);
+  }, [nursingRecords, selectedResident, selectedDate]);
 
   // 階数のオプションを生成（利用者データから）
   const floorOptions = [
@@ -732,7 +870,7 @@ export default function NursingRecordsList() {
 
   // 選択された日付の利用者の介護記録数を取得
   const getResidentCareRecordCountForDate = (residentId: string) => {
-    return (careRecords as any[]).filter((record: any) => {
+    return (nursingRecords as any[]).filter((record: any) => {
       if (record.residentId !== residentId) return false;
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
       return recordDate === selectedDate;
@@ -1688,6 +1826,17 @@ export default function NursingRecordsList() {
         {/* Filter Controls */}
         <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
           <div className="flex gap-2 sm:gap-4 items-center justify-center">
+            {/* 一括登録モード時の全選択チェックボックス */}
+            {bulkMode && (
+              <div className="flex items-center mr-2">
+                <input
+                  type="checkbox"
+                  checked={selectedResidentIds.size === filteredResidents.length && filteredResidents.length > 0}
+                  onChange={handleSelectAll}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </div>
+            )}
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
@@ -1749,6 +1898,17 @@ export default function NursingRecordsList() {
                 >
                   <CardContent className="p-1 sm:p-2">
                     <div className="flex items-center gap-1 sm:gap-2">
+                      {/* 一括登録モード時のチェックボックス */}
+                      {bulkMode && (
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedResidentIds.has(resident.id)}
+                            onChange={() => toggleResidentSelection(resident.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
                       {/* 居室番号 */}
                       <div className="text-center w-[40px] sm:w-[50px] flex-shrink-0">
                         <div className="text-sm sm:text-base font-bold text-gray-900 dark:text-gray-100">
@@ -1887,14 +2047,17 @@ export default function NursingRecordsList() {
                       </div>
                       
                       {/* 記録ボタン */}
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="flex items-center gap-0.5 px-1.5 sm:px-3 text-xs sm:text-sm flex-shrink-0"
                         onClick={() => {
-                          const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
-                          setLocation(`/nursing-records?residentId=${resident.id}&date=${selectedDate}&floor=${floorParam}`);
+                          if (!bulkMode) {
+                            const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
+                            setLocation(`/nursing-records?residentId=${resident.id}&date=${selectedDate}&floor=${floorParam}`);
+                          }
                         }}
+                        disabled={bulkMode}
                       >
                         <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">看護記録</span>
@@ -2081,6 +2244,115 @@ export default function NursingRecordsList() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* 一括登録ポップアップ */}
+      <Dialog open={bulkInputModalOpen} onOpenChange={setBulkInputModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>一括登録</DialogTitle>
+            <DialogDescription>
+              選択した{selectedResidentIds.size}名の利用者に看護記録を一括登録します。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* 記録日時 - 1行に配置 */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-sm font-medium text-gray-700">記録日</label>
+                <input
+                  type="date"
+                  value={bulkInputData.recordDate}
+                  onChange={(e) => setBulkInputData(prev => ({ ...prev, recordDate: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </div>
+              <div className="w-20">
+                <label className="text-sm font-medium text-gray-700">時</label>
+                <InputWithDropdown
+                  value={bulkInputData.hour}
+                  options={hourOptions}
+                  onSave={(value) => setBulkInputData(prev => ({ ...prev, hour: value }))}
+                  placeholder="時"
+                  className="w-full px-2 py-2 border rounded-md text-center"
+                />
+              </div>
+              <div className="w-20">
+                <label className="text-sm font-medium text-gray-700">分</label>
+                <InputWithDropdown
+                  value={bulkInputData.minute.toString()}
+                  options={minuteOptions}
+                  onSave={(value) => setBulkInputData(prev => ({ ...prev, minute: parseInt(value) }))}
+                  placeholder="分"
+                  className="w-full px-2 py-2 border rounded-md text-center"
+                />
+              </div>
+            </div>
+
+            {/* 種別選択 */}
+            <div>
+              <label className="text-sm font-medium text-gray-700">種別</label>
+              <select
+                value={bulkInputData.category}
+                onChange={(e) => setBulkInputData(prev => ({ ...prev, category: e.target.value }))}
+                className="w-full border rounded-md px-3 py-2"
+              >
+                <option value="看護記録">看護記録</option>
+                <option value="処置">処置</option>
+              </select>
+            </div>
+
+            {/* 記録内容 */}
+            <div>
+              <label className="text-sm font-medium text-gray-700">記録内容</label>
+              <Textarea
+                value={bulkInputData.description}
+                onChange={(e) => setBulkInputData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="記録内容を入力してください"
+                className="w-full min-h-[100px] bg-white"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setBulkInputModalOpen(false)}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleBulkRegister}
+              disabled={!bulkInputData.description.trim() || bulkCreateMutation.isPending}
+            >
+              {bulkCreateMutation.isPending ? "登録中..." : "登録実行"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* フッター */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <Button
+            variant={bulkMode ? "outline" : "default"}
+            onClick={bulkMode ? handleCancelBulkMode : handleStartBulkMode}
+            className="flex items-center gap-2"
+          >
+            {bulkMode ? "キャンセル" : "一括登録"}
+          </Button>
+          {bulkMode && (
+            <Button
+              onClick={handleOpenBulkModal}
+              className="bg-blue-600 hover:bg-blue-700 w-12 h-12 rounded-full p-0"
+              disabled={selectedResidentIds.size === 0}
+            >
+              <ClipboardList className="w-6 h-6" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 下部余白 */}
+      <div className="h-20"></div>
     </div>
   );
 }

@@ -33,6 +33,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
 
 const careRecordSchema = z.object({
   residentId: z.string().min(1, "利用者を選択してください"),
@@ -319,6 +320,7 @@ function InlineEditableField({
 
 export default function CareRecords() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any>(null);
   const [view, setView] = useState<'list' | 'detail'>('list');
@@ -527,6 +529,41 @@ export default function CareRecords() {
     },
   });
 
+  // 一括登録用のmutation
+  const bulkCreateMutation = useMutation({
+    mutationFn: async (data: { residentIds: string[], recordData: Omit<CareRecordForm, 'residentId'> }) => {
+      const results = await Promise.all(
+        data.residentIds.map(residentId =>
+          apiRequest("/api/care-records", "POST", {
+            ...data.recordData,
+            residentId
+          })
+        )
+      );
+      return results;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
+      // 一括登録モードをリセット
+      setBulkMode(false);
+      setSelectedResidentIds(new Set());
+      setBulkInputModalOpen(false);
+      setBulkInputData({
+        recordDate: selectedDate,
+        hour: format(new Date(), 'HH'),
+        minute: Math.floor(parseInt(format(new Date(), 'mm')) / 15) * 15,
+        description: ''
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "エラー",
+        description: "一括登録に失敗しました。",
+        variant: "destructive",
+      });
+    }
+  });
+
   // 記録削除用ミューテーション
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -604,6 +641,81 @@ export default function CareRecords() {
       const newDescriptions = { ...prev };
       delete newDescriptions[blockId];
       return newDescriptions;
+    });
+  };
+
+  // 一括登録モード関連の関数
+  const handleStartBulkMode = () => {
+    setBulkMode(true);
+    setSelectedResidentIds(new Set());
+  };
+
+  const handleCancelBulkMode = () => {
+    setBulkMode(false);
+    setSelectedResidentIds(new Set());
+  };
+
+  const toggleResidentSelection = (residentId: string) => {
+    setSelectedResidentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(residentId)) {
+        newSet.delete(residentId);
+      } else {
+        newSet.add(residentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedResidentIds.size === filteredResidents.length) {
+      setSelectedResidentIds(new Set());
+    } else {
+      setSelectedResidentIds(new Set(filteredResidents.map(r => r.id)));
+    }
+  };
+
+  const handleOpenBulkModal = () => {
+    if (selectedResidentIds.size === 0) {
+      toast({
+        title: "利用者を選択してください",
+        description: "一括登録する利用者を選択してください。",
+        variant: "destructive",
+      });
+      return;
+    }
+    setBulkInputModalOpen(true);
+  };
+
+  const handleBulkRegister = () => {
+    const { recordDate, hour, minute, description } = bulkInputData;
+
+    if (!description.trim()) {
+      toast({
+        title: "記録内容を入力してください",
+        description: "記録内容は必須項目です。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 日時を組み立て
+    const recordDateTime = new Date(recordDate);
+    recordDateTime.setHours(parseInt(hour));
+    recordDateTime.setMinutes(parseInt(minute.toString()));
+    recordDateTime.setSeconds(0);
+    recordDateTime.setMilliseconds(0);
+
+    const recordData = {
+      recordDate: recordDateTime.toISOString(),
+      category: '介護記録',
+      description: description,
+      notes: '',
+    };
+
+    bulkCreateMutation.mutate({
+      residentIds: Array.from(selectedResidentIds),
+      recordData
     });
   };
 
@@ -809,6 +921,25 @@ export default function CareRecords() {
   // 詳細画面専用のstate
   const [editedDescription, setEditedDescription] = useState("");
   const [editedDate, setEditedDate] = useState(new Date());
+
+  // 一括登録モード用のstate
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedResidentIds, setSelectedResidentIds] = useState<Set<string>>(new Set());
+  const [bulkInputModalOpen, setBulkInputModalOpen] = useState(false);
+  const [bulkInputData, setBulkInputData] = useState({
+    recordDate: selectedDate,
+    hour: format(new Date(), 'HH'),
+    minute: Math.floor(parseInt(format(new Date(), 'mm')) / 15) * 15,
+    description: ''
+  });
+
+  // selectedDateが変更されたときにbulkInputDataを更新
+  useEffect(() => {
+    setBulkInputData(prev => ({
+      ...prev,
+      recordDate: selectedDate
+    }));
+  }, [selectedDate]);
 
   // 選択された記録が変更されたら、編集用のstateを初期化
   const { id: recordId, description: recordDescription, recordDate: initialRecordDate } = selectedRecordForDetail || {};
@@ -1739,6 +1870,17 @@ export default function CareRecords() {
       {/* Filter Controls */}
       <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
         <div className="flex gap-2 items-center justify-center">
+          {/* 一括登録モード時の全選択チェックボックス */}
+          {bulkMode && (
+            <div className="flex items-center mr-2">
+              <input
+                type="checkbox"
+                checked={selectedResidentIds.size === filteredResidents.length && filteredResidents.length > 0}
+                onChange={handleSelectAll}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+            </div>
+          )}
           <div className="flex gap-2 items-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
@@ -1783,13 +1925,24 @@ export default function CareRecords() {
           ) : (
             <div className="space-y-1">
               {filteredResidents.map((resident: any) => (
-                <Card 
-                  key={resident.id} 
+                <Card
+                  key={resident.id}
                   className="hover:shadow-md transition-shadow"
                 >
                   <CardContent className="p-1.5 sm:p-2">
                     <div className="flex items-center justify-between gap-2 sm:gap-4">
                       <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                        {/* 一括登録モード時のチェックボックス */}
+                        {bulkMode && (
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedResidentIds.has(resident.id)}
+                              onChange={() => toggleResidentSelection(resident.id)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </div>
+                        )}
                         <div className="text-center min-w-[40px] sm:min-w-[50px]">
                           <div className="text-sm sm:text-lg font-bold text-blue-600">
                             {resident.roomNumber || "未設定"}
@@ -1804,15 +1957,18 @@ export default function CareRecords() {
                           </div>
                         </div>
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className="flex items-center gap-1 px-2 sm:px-3 text-xs sm:text-sm"
                         onClick={() => {
-                          setSelectedResident(resident);
-                          setView('detail');
-                          form.setValue('residentId', resident.id);
+                          if (!bulkMode) {
+                            setSelectedResident(resident);
+                            setView('detail');
+                            form.setValue('residentId', resident.id);
+                          }
                         }}
+                        disabled={bulkMode}
                       >
                         <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
                         <span className="hidden sm:inline">記録</span>
@@ -1825,6 +1981,103 @@ export default function CareRecords() {
           )}
         </div>
       </div>
+
+      {/* フッダー */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <Button
+            variant={bulkMode ? "outline" : "default"}
+            onClick={bulkMode ? handleCancelBulkMode : handleStartBulkMode}
+            className="flex items-center gap-2"
+          >
+            {bulkMode ? "キャンセル" : "一括登録"}
+          </Button>
+          {bulkMode && (
+            <Button
+              onClick={handleOpenBulkModal}
+              className="bg-blue-600 hover:bg-blue-700 w-12 h-12 rounded-full p-0"
+              disabled={selectedResidentIds.size === 0}
+            >
+              <ClipboardList className="w-6 h-6" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* 一括登録ポップアップ */}
+      <Dialog open={bulkInputModalOpen} onOpenChange={setBulkInputModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>一括登録</DialogTitle>
+            <DialogDescription>
+              選択した{selectedResidentIds.size}名の利用者に介護記録を一括登録します。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* 記録日時 - 1行に配置 */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-sm font-medium text-gray-700">記録日</label>
+                <input
+                  type="date"
+                  value={bulkInputData.recordDate}
+                  onChange={(e) => setBulkInputData(prev => ({ ...prev, recordDate: e.target.value }))}
+                  className="w-full px-3 py-2 border rounded-md"
+                />
+              </div>
+              <div className="w-20">
+                <label className="text-sm font-medium text-gray-700">時</label>
+                <InputWithDropdown
+                  value={bulkInputData.hour}
+                  options={hourOptions}
+                  onSave={(value) => setBulkInputData(prev => ({ ...prev, hour: value }))}
+                  placeholder="時"
+                  className="w-full px-2 py-2 border rounded-md text-center"
+                />
+              </div>
+              <div className="w-20">
+                <label className="text-sm font-medium text-gray-700">分</label>
+                <InputWithDropdown
+                  value={bulkInputData.minute.toString()}
+                  options={minuteOptions}
+                  onSave={(value) => setBulkInputData(prev => ({ ...prev, minute: parseInt(value) }))}
+                  placeholder="分"
+                  className="w-full px-2 py-2 border rounded-md text-center"
+                />
+              </div>
+            </div>
+
+            {/* 記録内容 */}
+            <div>
+              <label className="text-sm font-medium text-gray-700">記録内容</label>
+              <Textarea
+                value={bulkInputData.description}
+                onChange={(e) => setBulkInputData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="記録内容を入力してください"
+                className="w-full min-h-[100px] bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setBulkInputModalOpen(false)}
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleBulkRegister}
+              disabled={!bulkInputData.description.trim() || bulkCreateMutation.isPending}
+            >
+              {bulkCreateMutation.isPending ? '登録中...' : '登録実行'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 下部余白 */}
+      <div className="h-20"></div>
     </div>
   );
 }
