@@ -12,10 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { formatJapanDateTime } from "@/lib/utils";
 import { Plus, UserCog, Edit, ArrowLeft, Trash2, Unlock, Lock } from "lucide-react";
 import { useLocation } from "wouter";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
 import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement, UpdateStaffManagementApi } from "@shared/schema";
 
 
@@ -269,7 +268,7 @@ export default function StaffManagement() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-pink-100 shadow-sm border-b border-pink-200">
+      <div className="sticky top-0 z-50 bg-pink-100 shadow-sm border-b border-pink-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -676,7 +675,7 @@ export default function StaffManagement() {
                           {staff.authority}
                         </td>
                         <td className="p-2 text-sm text-gray-600">
-                          {staff.lastModifiedAt ? format(new Date(staff.lastModifiedAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
+                          {formatJapanDateTime(staff.lastModifiedAt)}
                         </td>
                         <td className="p-2">
                           <span className={`px-2 py-1 text-xs rounded-full ${
@@ -952,7 +951,7 @@ export default function StaffManagement() {
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-500 mb-1">最終修正日時</label>
                       <span className="text-gray-600">
-                        {staff.lastModifiedAt ? format(new Date(staff.lastModifiedAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
+                        {formatJapanDateTime(staff.lastModifiedAt)}
                       </span>
                     </div>
                   </div>

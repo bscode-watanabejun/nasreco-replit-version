@@ -101,7 +101,7 @@ export default function FacilitySettings() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-pink-100 shadow-sm border-b border-pink-200">
+      <div className="sticky top-0 z-50 bg-pink-100 shadow-sm border-b border-pink-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
@@ -328,7 +328,7 @@ export default function FacilitySettings() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="前日">前日</SelectItem>
+                          <SelectItem value="前日">全日</SelectItem>
                           <SelectItem value="午前/午後">午前/午後</SelectItem>
                         </SelectContent>
                       </Select>
