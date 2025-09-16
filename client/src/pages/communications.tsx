@@ -186,12 +186,14 @@ export default function Communications() {
   const isNoticeUnread = (notice: StaffNotice): boolean => {
     // 既読状態が読み込まれていない場合は、undefinedを返す（赤太字にしない）
     if (!readStatusesLoaded || !user || !(user as any)?.id) return false;
-    
+
     // 既読状態が読み込み済みで、該当通知の既読情報がない場合は未読とする
     if (!readStatuses[notice.id]) return true;
-    
+
     // 既読状態をチェック
-    return !readStatuses[notice.id].some((status: any) => status.staffId === (user as any).id);
+    // staff_managementテーブルのプライマリキー（UUID）で比較
+    const staffManagementId = (user as any).id;
+    return !readStatuses[notice.id].some((status: any) => status.staffId === staffManagementId);
   };
 
   // Filter notices based on selected criteria

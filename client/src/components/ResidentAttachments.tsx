@@ -32,10 +32,6 @@ export default function ResidentAttachments({ residentId }: ResidentAttachmentsP
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/residents/${residentId}/attachments`] });
-      toast({
-        title: "ファイルがアップロードされました",
-        description: "添付ファイルが正常に保存されました。",
-      });
       setUploadOpen(false);
       setSelectedFile(null);
       setDescription("");

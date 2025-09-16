@@ -22,7 +22,7 @@ export function useUnreadStaffNoticesCount() {
       const data = await response.json();
       return data.count as number;
     },
-    refetchInterval: 10000, // 10秒ごとに更新
+    refetchInterval: 5000, // 5秒ごとに更新
     staleTime: 8000, // 8秒間はfreshと見なす
     retry: (failureCount, error) => {
       // 認証エラーの場合は再試行しない
