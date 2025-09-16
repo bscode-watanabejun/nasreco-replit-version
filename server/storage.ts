@@ -63,7 +63,7 @@ import {
   type InsertJournalEntry,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not } from "drizzle-orm";
+import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not, ne } from "drizzle-orm";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
@@ -1492,6 +1492,7 @@ export class DatabaseStorage implements IStorage {
       ...settings,
       weightBaseline: settings.weightBaseline?.toString(),
       excretionBaseline: settings.excretionBaseline,
+      updatedAt: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" })),
     };
     const [updated] = await db.update(facilitySettings)
       .set(settingsToUpdate)
@@ -1945,7 +1946,7 @@ export class DatabaseStorage implements IStorage {
       const existing = await db.select().from(staffManagement)
         .where(and(
           eq(staffManagement.staffId, record.staffId),
-          sql`${staffManagement.id} != ${record.id}`
+          ne(staffManagement.id, record.id)
         ));
       if (existing.length > 0) {
         throw new Error("この職員IDは既に使用されています");

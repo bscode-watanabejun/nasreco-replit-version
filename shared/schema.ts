@@ -619,8 +619,8 @@ export const facilitySettings = pgTable("facility_settings", {
   diarySettings: varchar("diary_settings"), // 施設日誌設定: フロア, 全体
   detailSettings: varchar("detail_settings"), // 施設詳細設定: シンプル, アドバンス
   surveyUrl: text("survey_url"), // アンケートURL
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
 });
 
 // Facility Settings insert schema
