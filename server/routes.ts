@@ -31,7 +31,7 @@ import {
   insertCleaningLinenRecordSchema,
   updateCleaningLinenRecordSchema,
   insertStaffManagementSchema,
-  updateStaffManagementSchema,
+  updateStaffManagementApiSchema,
   insertResidentAttachmentSchema,
   insertJournalEntrySchema,
 } from "@shared/schema";
@@ -175,12 +175,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // findUserByStaffInfoでエラーが発生した場合は、correspondingUserをnullのままにする
       }
       
-      const staffWithUserId = {
-        ...staff,
+      // 正しいIDフィールドを確実に返す
+      const staffResponse = {
+        id: staff.id, // staff_managementテーブルのプライマリキー（UUID）
+        staffId: staff.staffId, // ログインID
+        staffName: staff.staffName,
+        authority: staff.authority,
+        floor: staff.floor,
+        jobRole: staff.jobRole,
         userId: correspondingUser?.id || null, // 対応するusersテーブルのIDを追加
       };
-      
-      res.json(staffWithUserId);
+
+      res.json(staffResponse);
     } catch (error: any) {
       console.error("Error fetching staff user:", error);
       res.status(500).json({ message: "Failed to fetch staff user" });
@@ -1654,7 +1660,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         createdBy: createdBy,
       });
-      const notice = await storage.createStaffNotice(validatedData);
+
+      // created_atとupdated_atをJST時刻として明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+      const jstNow = new Date(now.getTime() + jstOffset);
+
+      // 型の問題を回避するためanyでキャスト
+      const dataWithTimestamps = {
+        ...validatedData,
+        createdAt: jstNow,
+        updatedAt: jstNow
+      } as any;
+
+      const notice = await storage.createStaffNotice(dataWithTimestamps);
       res.status(201).json(notice);
     } catch (error: any) {
       console.error("Error creating staff notice:", error);
@@ -1686,7 +1705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/staff-notices/:id/mark-read', isAuthenticated, async (req: any, res) => {
     try {
       const staffSession = (req as any).session?.staff;
-      const userId = staffSession ? staffSession.staffId : (req.user?.claims?.sub || null);
+      const userId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
 
       if (!userId) {
         return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
@@ -1703,7 +1722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/staff-notices/:id/mark-unread', isAuthenticated, async (req: any, res) => {
     try {
       const staffSession = (req as any).session?.staff;
-      const userId = staffSession ? staffSession.staffId : (req.user?.claims?.sub || null);
+      const userId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
 
       if (!userId) {
         return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
@@ -1720,7 +1739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/staff-notices/unread-count', isAuthenticated, async (req: any, res) => {
     try {
       const staffSession = (req as any).session?.staff;
-      const userId = staffSession ? staffSession.staffId : (req.user?.claims?.sub || null);
+      const userId = staffSession ? staffSession.id : (req.user?.claims?.sub || null);
 
       if (!userId) {
         return res.status(401).json({ message: "有効なユーザーIDが見つかりません" });
@@ -2036,7 +2055,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/staff-management/:id', isAuthenticated, async (req, res) => {
     try {
-      const validatedData = updateStaffManagementSchema.parse({
+      const validatedData = updateStaffManagementApiSchema.parse({
         ...req.body,
         id: req.params.id,
       });

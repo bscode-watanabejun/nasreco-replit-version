@@ -54,6 +54,7 @@ import {
   type StaffManagement,
   type InsertStaffManagement,
   type UpdateStaffManagement,
+  type UpdateStaffManagementApi,
   type ResidentAttachment,
   type InsertResidentAttachment,
   type JournalCheckbox,
@@ -247,7 +248,7 @@ export interface IStorage {
   getStaffManagement(): Promise<StaffManagement[]>;
   getStaffManagementById(id: string): Promise<StaffManagement | null>;
   createStaffManagement(staff: InsertStaffManagement): Promise<StaffManagement>;
-  updateStaffManagement(staff: UpdateStaffManagement): Promise<StaffManagement>;
+  updateStaffManagement(staff: UpdateStaffManagementApi): Promise<StaffManagement>;
   deleteStaffManagement(id: string): Promise<void>;
   unlockStaffAccount(id: string, password: string): Promise<StaffManagement>;
   lockStaffAccount(id: string): Promise<StaffManagement>;
@@ -390,7 +391,7 @@ export class DatabaseStorage implements IStorage {
     
     const [updatedResident] = await db
       .update(residents)
-      .set({ ...processedUpdates, updatedAt: new Date() })
+      .set({ ...processedUpdates, updatedAt: getJSTTime() })
       .where(eq(residents.id, id))
       .returning();
       
@@ -1537,17 +1538,28 @@ export class DatabaseStorage implements IStorage {
       readAt: staffNoticeReadStatus.readAt,
       createdAt: staffNoticeReadStatus.createdAt,
       staffName: staffManagement.staffName,
-      staffLastName: users.lastName,
+      staffLastName: sql<string | null>`NULL`,
     })
     .from(staffNoticeReadStatus)
-    .leftJoin(users, eq(staffNoticeReadStatus.staffId, users.id))
+    .leftJoin(staffManagement, eq(staffNoticeReadStatus.staffId, staffManagement.id))
     .where(eq(staffNoticeReadStatus.noticeId, noticeId))
     .orderBy(desc(staffNoticeReadStatus.readAt));
   }
 
   async markStaffNoticeAsRead(noticeId: string, staffId: string): Promise<StaffNoticeReadStatus> {
+    // JST時刻を手動設定
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000; // 9時間のオフセット（ミリ秒）
+    const jstNow = new Date(now.getTime() + jstOffset);
+
     const [created] = await db.insert(staffNoticeReadStatus)
-      .values([{ noticeId, staffId }])
+      .values([{
+        noticeId,
+        staffId,
+        readAt: jstNow,
+        createdAt: jstNow,
+        updatedAt: jstNow
+      }])
       .returning();
     return created;
   }
@@ -1901,10 +1913,17 @@ export class DatabaseStorage implements IStorage {
       // パスワードのハッシュ化（実装簡略化のため、実際の本番環境ではbcryptを使用）
       const hashedPassword = record.password ? Buffer.from(record.password).toString('base64') : null;
 
+      // JST時間を明示的に設定
+      const now = new Date();
+      const jstOffset = 9 * 60 * 60 * 1000;
+      const jstNow = new Date(now.getTime() + jstOffset);
+
       const insertData = {
         ...record,
         password: hashedPassword,
-        lastModifiedAt: new Date(),
+        lastModifiedAt: jstNow,
+        createdAt: jstNow,
+        updatedAt: jstNow,
       };
 
       const [created] = await db.insert(staffManagement).values(insertData).returning();
@@ -1916,7 +1935,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateStaffManagement(record: UpdateStaffManagement): Promise<StaffManagement> {
+  async updateStaffManagement(record: UpdateStaffManagementApi): Promise<StaffManagement> {
     if (!record.id) {
       throw new Error("IDが必要です");
     }
@@ -1933,10 +1952,15 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // JST時間を明示的に設定
+    const now = new Date();
+    const jstOffset = 9 * 60 * 60 * 1000;
+    const jstNow = new Date(now.getTime() + jstOffset);
+
     const updateData: any = { ...record };
     delete updateData.id;
-    updateData.lastModifiedAt = new Date();
-    updateData.updatedAt = new Date();
+    updateData.lastModifiedAt = jstNow;
+    updateData.updatedAt = jstNow;
 
     const [updated] = await db.update(staffManagement)
       .set(updateData)

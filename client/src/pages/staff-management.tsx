@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertStaffManagementSchema, updateStaffManagementSchema } from "@shared/schema";
+import { insertStaffManagementSchema, updateStaffManagementSchema, updateStaffManagementApiSchema } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,100 +16,15 @@ import { Plus, UserCog, Edit, ArrowLeft, Trash2, Unlock, Lock } from "lucide-rea
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement } from "@shared/schema";
+import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement, UpdateStaffManagementApi } from "@shared/schema";
 
-// インライン編集用のコンポーネント
-function InlineEditableField({ 
-  value, 
-  onSave, 
-  type = "text", 
-  placeholder = "", 
-  options = [],
-  disabled = false 
-}: {
-  value: string;
-  onSave: (newValue: string) => void;
-  type?: "text" | "select";
-  placeholder?: string;
-  options?: { value: string; label: string; }[];
-  disabled?: boolean;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentValue, setCurrentValue] = useState(value);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (currentValue !== value && !disabled) {
-      setIsSaving(true);
-      await onSave(currentValue);
-      setIsSaving(false);
-    }
-    setIsEditing(false);
-  };
-
-  const handleBlur = () => {
-    handleSave();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      setCurrentValue(value);
-      setIsEditing(false);
-    }
-  };
-
-  if (disabled || !isEditing) {
-    return (
-      <div 
-        className={`cursor-pointer hover:bg-slate-50 p-1 rounded border-2 border-transparent hover:border-slate-200 transition-colors ${disabled ? "cursor-not-allowed bg-slate-100" : ""}`}
-        onClick={() => !disabled && setIsEditing(true)}
-      >
-        {type === "select" && options.length > 0 ? (
-          options.find(opt => opt.value === value)?.label || value
-        ) : (
-          value || <span className="text-slate-400">{placeholder}</span>
-        )}
-      </div>
-    );
-  }
-
-  if (type === "select") {
-    return (
-      <Select value={currentValue} onValueChange={setCurrentValue} onOpenChange={(open) => !open && handleBlur()}>
-        <SelectTrigger className="h-auto min-h-[2rem]">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  }
-
-  return (
-    <Input
-      type={type}
-      value={currentValue}
-      onChange={(e) => setCurrentValue(e.target.value)}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-      placeholder={placeholder}
-      className="h-auto min-h-[2rem]"
-      autoFocus
-    />
-  );
-}
 
 export default function StaffManagement() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffManagement | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingStaff, setDeletingStaff] = useState<StaffManagement | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -133,6 +48,10 @@ export default function StaffManagement() {
       sortOrder: 0,
       password: "",
     },
+  });
+
+  const editForm = useForm<UpdateStaffManagement>({
+    resolver: zodResolver(updateStaffManagementSchema),
   });
 
   // 新規作成用ミューテーション
@@ -169,19 +88,30 @@ export default function StaffManagement() {
 
   // 更新用ミューテーション
   const updateMutation = useMutation({
-    mutationFn: async ({ id, field, value }: { id: string; field: string; value: any }) => {
-      const updateData = { [field]: value };
-      return apiRequest(`/api/staff-management/${id}`, "PATCH", updateData);
+    mutationFn: async (data: UpdateStaffManagementApi) => {
+      console.log('🚀 API呼び出し開始:', data);
+      const result = await apiRequest(`/api/staff-management/${data.id}`, "PATCH", data);
+      console.log('✅ API呼び出し成功:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('✅ 更新成功:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/staff-management"] });
-      queryClient.refetchQueries({ queryKey: ["/api/staff-management"] });
+      setEditOpen(false);
+      setEditingStaff(null);
+      editForm.reset();
       toast({
         title: "成功",
         description: "職員情報を更新しました",
       });
     },
     onError: (error: any) => {
+      console.error('❌ 更新エラー:', error);
+      console.error('❌ エラー詳細:', {
+        message: error.message,
+        status: error.status,
+        response: error.response
+      });
       toast({
         title: "エラー",
         description: error.message || "職員情報の更新に失敗しました",
@@ -260,6 +190,33 @@ export default function StaffManagement() {
 
   const onSubmit = (data: InsertStaffManagement) => {
     createMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: UpdateStaffManagement) => {
+    console.log('📝 編集フォーム送信データ:', data);
+    console.log('📝 編集中の職員:', editingStaff);
+
+    if (editingStaff) {
+      const updateData = { ...data, id: editingStaff.id };
+      console.log('📝 更新データ:', updateData);
+      updateMutation.mutate(updateData);
+    } else {
+      console.error('❌ 編集中の職員が見つかりません');
+    }
+  };
+
+  const handleEdit = (staff: StaffManagement) => {
+    setEditingStaff(staff);
+    editForm.reset({
+      staffId: staff.staffId,
+      staffName: staff.staffName,
+      staffNameKana: staff.staffNameKana,
+      floor: staff.floor as "全階" | "1階" | "2階" | "3階",
+      jobRole: staff.jobRole as "全体" | "介護" | "施設看護" | "訪問看護",
+      authority: staff.authority as "管理者" | "準管理者" | "職員",
+      sortOrder: staff.sortOrder || 0,
+    });
+    setEditOpen(true);
   };
 
   const handleDelete = (staff: StaffManagement) => {
@@ -515,6 +472,166 @@ export default function StaffManagement() {
               </Form>
             </DialogContent>
           </Dialog>
+
+          {/* 編集用Dialog */}
+          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>職員情報を編集</DialogTitle>
+                <DialogDescription>
+                  職員の情報を編集してください。
+                </DialogDescription>
+              </DialogHeader>
+
+              <Form {...editForm}>
+                <form onSubmit={editForm.handleSubmit(onEditSubmit, (errors) => {
+                  console.error('❌ フォームバリデーションエラー:', errors);
+                })} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="staffId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>職員ID</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="staff001" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="staffName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>職員名</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="山田 太郎" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="staffNameKana"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>職員名フリガナ</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="ヤマダ タロウ" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="floor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>所属階</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="所属階を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {floorOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="jobRole"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>職種</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="職種を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {jobRoleOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="authority"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>権限</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="権限を選択" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {authorityOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="sortOrder"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ソート順</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              {...field}
+                              value={field.value?.toString() || ""}
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              placeholder="0"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
+                      キャンセル
+                    </Button>
+                    <Button type="submit" disabled={updateMutation.isPending}>
+                      更新
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Staff List - Desktop Table View */}
@@ -541,71 +658,48 @@ export default function StaffManagement() {
                     {sortedStaff.map((staff, index) => (
                       <tr key={staff.id} className={`border-b hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.staffId}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffId', value })}
-                            placeholder="職員ID"
-                          />
+                          {staff.staffId}
                         </td>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.staffName}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffName', value })}
-                            placeholder="職員名"
-                          />
+                          {staff.staffName}
                         </td>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.staffNameKana}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffNameKana', value })}
-                            placeholder="職員名フリガナ"
-                          />
+                          {staff.staffNameKana}
                         </td>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.floor}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'floor', value })}
-                            type="select"
-                            options={floorOptions}
-                          />
+                          {staff.floor}
                         </td>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.jobRole}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'jobRole', value })}
-                            type="select"
-                            options={jobRoleOptions}
-                          />
+                          {staff.jobRole}
                         </td>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.authority}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'authority', value })}
-                            type="select"
-                            options={authorityOptions}
-                          />
+                          {staff.authority}
                         </td>
                         <td className="p-2 text-sm text-gray-600">
                           {staff.lastModifiedAt ? format(new Date(staff.lastModifiedAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
                         </td>
                         <td className="p-2">
                           <span className={`px-2 py-1 text-xs rounded-full ${
-                            staff.status === "ロック解除" 
-                              ? "bg-green-100 text-green-800" 
+                            staff.status === "ロック解除"
+                              ? "bg-green-100 text-green-800"
                               : "bg-red-100 text-red-800"
                           }`}>
                             {staff.status}
                           </span>
                         </td>
                         <td className="p-2">
-                          <InlineEditableField
-                            value={staff.sortOrder?.toString() || "0"}
-                            onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'sortOrder', value: parseInt(value) || 0 })}
-                            placeholder="0"
-                          />
+                          {staff.sortOrder || 0}
                         </td>
                         <td className="p-2">
                           <div className="flex items-center justify-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(staff)}
+                              className="text-blue-600 hover:bg-blue-50"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
                             {staff.status === "ロック" ? (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -718,6 +812,14 @@ export default function StaffManagement() {
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(staff)}
+                        className="text-blue-600 hover:bg-blue-50"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       {staff.status === "ロック" ? (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -807,59 +909,44 @@ export default function StaffManagement() {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">職員ID</label>
-                      <InlineEditableField
-                        value={staff.staffId}
-                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffId', value })}
-                        placeholder="職員ID"
-                      />
+                      <div className="text-gray-900">
+                        {staff.staffId}
+                      </div>
                     </div>
-                    
+
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">ソート順</label>
-                      <InlineEditableField
-                        value={staff.sortOrder?.toString() || "0"}
-                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'sortOrder', value: parseInt(value) || 0 })}
-                        placeholder="0"
-                      />
+                      <div className="text-gray-900">
+                        {staff.sortOrder || 0}
+                      </div>
                     </div>
 
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-500 mb-1">職員名フリガナ</label>
-                      <InlineEditableField
-                        value={staff.staffNameKana}
-                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'staffNameKana', value })}
-                        placeholder="職員名フリガナ"
-                      />
+                      <div className="text-gray-900">
+                        {staff.staffNameKana}
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">所属階</label>
-                      <InlineEditableField
-                        value={staff.floor}
-                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'floor', value })}
-                        type="select"
-                        options={floorOptions}
-                      />
+                      <div className="text-gray-900">
+                        {staff.floor}
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">職種</label>
-                      <InlineEditableField
-                        value={staff.jobRole}
-                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'jobRole', value })}
-                        type="select"
-                        options={jobRoleOptions}
-                      />
+                      <div className="text-gray-900">
+                        {staff.jobRole}
+                      </div>
                     </div>
 
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-500 mb-1">権限</label>
-                      <InlineEditableField
-                        value={staff.authority}
-                        onSave={(value) => updateMutation.mutate({ id: staff.id, field: 'authority', value })}
-                        type="select"
-                        options={authorityOptions}
-                      />
+                      <div className="text-gray-900">
+                        {staff.authority}
+                      </div>
                     </div>
 
                     <div className="col-span-2">

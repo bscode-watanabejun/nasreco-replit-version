@@ -147,8 +147,8 @@ export const residents = pgTable("residents", {
   
   notes: text("notes"), // 備考
   isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
 });
 
 // Care records
@@ -692,9 +692,9 @@ export const staffManagement = pgTable("staff_management", {
   status: varchar("status").default("ロック").notNull(), // ステータス（ロック/ロック解除）
   sortOrder: integer("sort_order").default(0), // ソート順
   password: varchar("password"), // パスワード（ハッシュ化）
-  lastModifiedAt: timestamp("last_modified_at").defaultNow(), // 最終修正日時
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  lastModifiedAt: timestamp("last_modified_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))), // 最終修正日時
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
 });
 
 // Staff Management insert schema
@@ -715,14 +715,21 @@ export const insertStaffManagementSchema = createInsertSchema(staffManagement, {
     .regex(/^[a-zA-Z0-9]+$/, "パスワードは英数字のみ使用できます").optional(),
 }).omit({ id: true, createdAt: true, updatedAt: true, lastModifiedAt: true });
 
-// Update schema
-export const updateStaffManagementSchema = insertStaffManagementSchema.partial().extend({
+// Update schema - パスワードフィールドを除外（編集時は別機能で管理）
+// idはフォームではなくAPIレベルで処理するため除外
+export const updateStaffManagementSchema = insertStaffManagementSchema
+  .omit({ password: true })
+  .partial();
+
+// API用の更新スキーマ（idを含む）
+export const updateStaffManagementApiSchema = updateStaffManagementSchema.extend({
   id: z.string(),
 });
 
 export type StaffManagement = typeof staffManagement.$inferSelect;
 export type InsertStaffManagement = z.infer<typeof insertStaffManagementSchema>;
 export type UpdateStaffManagement = z.infer<typeof updateStaffManagementSchema>;
+export type UpdateStaffManagementApi = z.infer<typeof updateStaffManagementApiSchema>;
 
 // Journal Entries table (日誌エントリテーブル)
 export const journalEntries = pgTable("journal_entries", {
@@ -748,8 +755,8 @@ export const residentAttachments = pgTable("resident_attachments", {
   mimeType: varchar("mime_type").notNull(), // ファイルタイプ
   uploadedBy: varchar("uploaded_by").notNull().references(() => staffManagement.id), // アップロードした職員
   description: text("description"), // ファイルの説明
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
 });
 
 // Journal Entries insert schema
