@@ -394,7 +394,7 @@ export default function CleaningLinenList() {
             <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
           </Button>
           <span className="font-medium text-xs text-center" data-testid="text-week-range">
-            {format(selectedWeek, 'M/d', { locale: ja })}-{format(addDays(selectedWeek, 6), 'M/d', { locale: ja })}
+            {format(selectedWeek, 'MM月dd日', { locale: ja })} 〜 {format(addDays(selectedWeek, 6), 'MM月dd日', { locale: ja })}
           </span>
           <Button
             variant="ghost"
