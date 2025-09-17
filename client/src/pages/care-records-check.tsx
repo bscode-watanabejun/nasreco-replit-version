@@ -674,6 +674,28 @@ export default function CareRecordsCheck() {
     return editedContent[record.id] !== undefined ? editedContent[record.id] : record.content;
   };
 
+  // 印刷処理
+  const handlePrint = () => {
+    try {
+      // APIパラメータをURLエンコード
+      const params = new URLSearchParams({
+        dateFrom,
+        dateTo,
+        recordCategory,
+        selectedFloor,
+        selectedResident
+      });
+
+      // 新しいタブでPDFを表示
+      const printUrl = `/api/care-records/print?${params.toString()}`;
+      window.open(printUrl, '_blank');
+
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      alert('PDFの表示に失敗しました。しばらく待ってから再度お試しください。');
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <header className="bg-white border-b px-4 py-3 flex items-center gap-3">
@@ -765,7 +787,7 @@ export default function CareRecordsCheck() {
             variant="outline"
             size="sm"
             className="ml-auto"
-            onClick={() => console.log("印刷機能は開発中")}
+            onClick={handlePrint}
           >
             <Printer className="h-4 w-4 mr-1" />
             印刷

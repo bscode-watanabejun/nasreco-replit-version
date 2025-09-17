@@ -4,7 +4,6 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import puppeteer from "puppeteer";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, excretionRecords, staffManagement } from "../shared/schema";
@@ -2470,33 +2469,455 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ケース記録PDF生成エンドポイント
+  app.get('/api/care-records/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const recordCategory = req.query.recordCategory as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. 全テーブルからデータを取得
+      const [
+        careRecords,
+        vitalSigns,
+        mealsAndMedication,
+        medicationRecords,
+        excretionData,
+        weightRecords,
+        cleaningLinen,
+        nursingRecords,
+        residents,
+        staffList
+      ] = await Promise.all([
+        storage.getCareRecords(),
+        storage.getVitalSigns(),
+        storage.getMealsAndMedication(),
+        storage.getAllMedicationRecords(),
+        storage.getExcretionRecords(),
+        storage.getWeightRecords(),
+        storage.getAllCleaningLinenRecords(),
+        storage.getNursingRecords(),
+        storage.getResidents(),
+        storage.getStaffManagement()
+      ]);
+
+      // 2. 統合データ作成（care-records-check.tsxのロジックと同じ）
+      const allRecords: any[] = [];
+
+      // 各テーブルのデータを統合
+      careRecords.forEach((record: any) => {
+        const recordContent = record.description || record.notes || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.staffId);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "様子",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      vitalSigns.forEach((record: any) => {
+        const recordContent = record.notes || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.staffId);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "バイタル",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      mealsAndMedication.forEach((record: any) => {
+        const recordContent = record.notes || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.staffId);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "食事",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      medicationRecords.forEach((record: any) => {
+        const recordContent = record.notes || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.createdBy);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "服薬",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      excretionData.forEach((record: any) => {
+        const recordContent = record.notes || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.staffId);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "排泄",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      weightRecords.forEach((record: any) => {
+        const recordContent = record.notes || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.staffId);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "体重",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      cleaningLinen.forEach((record: any) => {
+        const recordContent = record.recordNote || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.staffId);
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: "清掃リネン",
+            recorder: staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      nursingRecords.forEach((record: any) => {
+        const recordContent = record.description || '';
+        if (recordContent && recordContent.trim()) {
+          const resident = residents.find((r: any) => r.id === record.residentId);
+          const staff = staffList.find((s: any) => s.id === record.nurseId);
+
+          let category = "看護記録";
+          if (record.category === '処置') {
+            category = "処置";
+          }
+
+          allRecords.push({
+            recordDate: new Date(record.recordDate),
+            roomNumber: resident?.roomNumber || '',
+            residentName: resident?.name || '',
+            residentId: record.residentId,
+            category: category,
+            recorder: record.staffName || staff?.staffName || '',
+            content: recordContent,
+            floor: resident?.floor?.toString() || ''
+          });
+        }
+      });
+
+      // 3. フィルタリング
+      const getCategoryMapping = (recordCategory: string) => {
+        const categoryMap: { [key: string]: string[] } = {
+          "介護": ["体重", "食事", "排泄", "様子", "清掃リネン", "服薬"],
+          "看護": ["バイタル", "看護記録", "処置"],
+          "様子": ["様子"],
+        };
+        return categoryMap[recordCategory] || [];
+      };
+
+      const filteredRecords = allRecords.filter((record) => {
+        const recordDate = record.recordDate.toISOString().split('T')[0];
+
+        // 日付範囲フィルタ
+        if (recordDate < dateFrom || recordDate > dateTo) return false;
+
+        // カテゴリフィルタ
+        if (recordCategory && recordCategory !== "all") {
+          const allowedCategories = getCategoryMapping(recordCategory);
+          if (allowedCategories.length > 0 && !allowedCategories.includes(record.category)) {
+            return false;
+          }
+        }
+
+        // 階数フィルタ
+        if (selectedFloor !== "all" && record.floor !== selectedFloor) return false;
+
+        // 利用者フィルタ
+        if (selectedResident !== "all" && record.residentId !== selectedResident) return false;
+
+        return true;
+      });
+
+      // 4. 利用者ごとにグループ化
+      const recordsByResident = filteredRecords.reduce((acc: any, record) => {
+        if (!acc[record.residentId]) {
+          acc[record.residentId] = {
+            resident: {
+              roomNumber: record.roomNumber,
+              name: record.residentName
+            },
+            records: []
+          };
+        }
+        acc[record.residentId].records.push(record);
+        return acc;
+      }, {});
+
+      // 5. 日付順でソート
+      Object.values(recordsByResident).forEach((group: any) => {
+        group.records.sort((a: any, b: any) => a.recordDate.getTime() - b.recordDate.getTime());
+      });
+
+      // 6. HTMLテンプレート作成
+      const formatDate = (date: Date) => {
+        return `${date.getMonth() + 1}月${date.getDate()}日`;
+      };
+
+      const formatTime = (date: Date) => {
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      };
+
+      const formatDateTime = (date: Date) => {
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        const dayOfWeek = dayNames[date.getDay()];
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${month}月${day}日(${dayOfWeek}) ${formatTime(date)}`;
+      };
+
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            body {
+              font-family: 'MS Gothic', monospace;
+              font-size: 12px;
+              line-height: 1.2;
+              margin: 0;
+              padding: 0;
+            }
+            .page {
+              page-break-after: always;
+              min-height: 260mm;
+            }
+            .page:last-child {
+              page-break-after: avoid;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 10mm;
+            }
+            .title {
+              font-size: 16px;
+              font-weight: bold;
+              margin-bottom: 5mm;
+            }
+            .resident-info {
+              text-align: left;
+              font-size: 12px;
+              margin-bottom: 3mm;
+              line-height: 1.5;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 2mm;
+              text-align: left;
+              vertical-align: top;
+            }
+            th {
+              background-color: #f0f0f0;
+              font-weight: bold;
+              text-align: center;
+            }
+            .datetime-col { width: 15%; }
+            .category-col { width: 12%; }
+            .content-col { width: 58%; }
+            .recorder-col { width: 15%; }
+            .content-cell {
+              word-break: break-all;
+              white-space: pre-wrap;
+            }
+          </style>
+        </head>
+        <body>
+      `;
+
+      Object.values(recordsByResident).forEach((group: any, index) => {
+        const { resident, records } = group;
+
+        htmlContent += `
+          <div class="page">
+            <div class="header">
+              <div class="title">ケース記録（記録）</div>
+              <div class="resident-info">
+                　利用者氏名：${resident.roomNumber}：${resident.name}<br>
+                　　　　日付：${formatDate(new Date(dateFrom))}〜${formatDate(new Date(dateTo))}
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th class="datetime-col">日時</th>
+                  <th class="category-col">分類名称</th>
+                  <th class="content-col">内容</th>
+                  <th class="recorder-col">担当者</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        records.forEach((record: any) => {
+          htmlContent += `
+            <tr>
+              <td class="datetime-col">${formatDateTime(record.recordDate)}</td>
+              <td class="category-col">${record.category}</td>
+              <td class="content-col content-cell">${record.content}</td>
+              <td class="recorder-col">${record.recorder}</td>
+            </tr>
+          `;
+        });
+
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      htmlContent += `
+        </body>
+        </html>
+      `;
+
+      // 7. HTMLレスポンスを返し、ブラウザ側で印刷
+      // Puppeteerの代わりに、印刷用HTMLを直接返す
+      const printableHtml = `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <title>ケース記録一覧</title>
+          <style>
+            ${htmlContent.match(/<style>([\s\S]*?)<\/style>/)?.[1] || ''}
+            @media print {
+              .no-print { display: none !important; }
+              body { margin: 0; }
+            }
+          </style>
+          <script>
+            // ページ読み込み後に自動で印刷ダイアログを開く
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </head>
+        ${htmlContent.match(/<body>([\s\S]*?)<\/body>/)?.[1] || ''}
+        </html>
+      `;
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(printableHtml);
+
+    } catch (error: any) {
+      console.error('❌ Error generating care records PDF:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(500).json({
+        error: 'Failed to generate care records PDF',
+        details: error.message
+      });
+    }
+  });
+
   // PDF生成エンドポイント
   app.post('/api/generate-journal-pdf', isAuthenticated, async (req, res) => {
     try {
       const { html } = req.body;
-      
+
       if (!html) {
         console.error('❌ HTML content missing');
         return res.status(400).json({ error: 'HTML content is required' });
       }
 
-      const browser = await puppeteer.launch({
+      // Puppeteerの動的インポート
+      const puppeteer = await import('puppeteer');
+      const browser = await puppeteer.default.launch({
         headless: true,
         args: [
-          '--no-sandbox', 
+          '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--disable-gpu'
         ]
       });
-      
+
       const page = await browser.newPage();
-      
+
       await page.setContent(html, {
         waitUntil: 'domcontentloaded'
       });
-      
+
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -2507,19 +2928,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           left: '15mm'
         }
       });
-      
+
       await browser.close();
-      
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'attachment; filename="nursing-journal.pdf"');
       res.send(pdf);
-      
+
     } catch (error: any) {
       console.error('❌ Error generating PDF:', error.message);
       console.error('❌ Stack trace:', error.stack);
-      res.status(500).json({ 
-        error: 'Failed to generate PDF', 
-        details: error.message 
+      res.status(500).json({
+        error: 'Failed to generate PDF',
+        details: error.message
       });
     }
   });
