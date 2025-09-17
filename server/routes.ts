@@ -2469,6 +2469,596 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 食事・水分チェック一覧の印刷
+  app.get('/api/meals-medication/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. データを取得
+      const [mealsData, residents] = await Promise.all([
+        storage.getMealsAndMedication(),
+        storage.getResidents()
+      ]);
+
+      // 2. 日付範囲でフィルタリング
+      const startDate = new Date(dateFrom);
+      const endDate = new Date(dateTo);
+
+      const filteredMeals = mealsData.filter((meal: any) => {
+        const mealDate = new Date(meal.recordDate);
+        return mealDate >= startDate && mealDate <= endDate && meal.type === 'meal';
+      });
+
+      // 3. 階数フィルタ
+      let filteredResidents = residents;
+      if (selectedFloor !== "all") {
+        filteredResidents = residents.filter((resident: any) =>
+          resident.floor === selectedFloor || resident.floor === `${selectedFloor}階`
+        );
+      }
+
+      // 4. 利用者フィルタ
+      if (selectedResident !== "all") {
+        filteredResidents = filteredResidents.filter((resident: any) =>
+          resident.id === selectedResident
+        );
+      }
+
+      // 5. 利用者ごとにデータをグループ化
+      const residentMealData = filteredResidents.map((resident: any) => {
+        const residentMeals = filteredMeals.filter((meal: any) =>
+          meal.residentId === resident.id
+        );
+
+        // 日付範囲内のすべての日付を生成
+        const dateRange: string[] = [];
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          dateRange.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+
+        // 日付ごとに食事データを整理
+        const dailyMeals = dateRange.map(date => {
+          const dayMeals = residentMeals.filter((meal: any) =>
+            meal.recordDate.toISOString().split('T')[0] === date
+          );
+
+          const mealsByType: { [key: string]: any } = {};
+          dayMeals.forEach((meal: any) => {
+            if (meal.mealType) {
+              mealsByType[meal.mealType] = meal;
+            }
+          });
+
+          return {
+            date,
+            meals: mealsByType
+          };
+        });
+
+        return {
+          resident,
+          dailyMeals
+        };
+      });
+
+      // 6. HTMLテンプレート生成
+      const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        const dayOfWeek = dayNames[date.getDay()];
+        return `${date.getMonth() + 1}月${date.getDate()}日(${dayOfWeek})`;
+      };
+
+      const formatDateRange = (from: string, to: string) => {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        return `${fromDate.getMonth() + 1}月${fromDate.getDate()}日〜${toDate.getMonth() + 1}月${toDate.getDate()}日`;
+      };
+
+      // 水分トータル計算関数
+      const calculateWaterTotal = (meals: { [key: string]: any }) => {
+        let total = 0;
+        ["朝", "昼", "夕", "10時", "15時"].forEach(mealType => {
+          const meal = meals[mealType];
+          if (meal?.waterIntake) {
+            const value = parseInt(meal.waterIntake);
+            if (!isNaN(value)) {
+              total += value;
+            }
+          }
+        });
+        return total > 0 ? total.toString() : "";
+      };
+
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            body {
+              font-family: 'MS Gothic', monospace;
+              font-size: 12px;
+              line-height: 1.2;
+              margin: 0;
+              padding: 0;
+            }
+            .page {
+              page-break-after: always;
+              min-height: 260mm;
+            }
+            .page:last-child {
+              page-break-after: avoid;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 10mm;
+            }
+            .title {
+              font-size: 16px;
+              font-weight: bold;
+              margin-bottom: 5mm;
+            }
+            .resident-info {
+              text-align: left;
+              font-size: 12px;
+              margin-bottom: 3mm;
+              line-height: 1.5;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 10px;
+              border: 1px solid #000;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 1mm;
+              text-align: center;
+              vertical-align: middle;
+            }
+            th {
+              background-color: #f0f0f0;
+              font-weight: bold;
+            }
+            .date-col { width: 10%; }
+            .meal-col { width: 7%; }
+            .water-col { width: 7%; }
+            .total-col { width: 7%; background-color: #e6e6e6; border-right: 2px solid #000; }
+            .category-header {
+              background-color: #d0d0d0;
+              font-weight: bold;
+              text-align: center;
+            }
+            .sub-header {
+              background-color: #e8e8e8;
+              font-size: 9px;
+            }
+            .header-right-edge {
+              border-right: 2px solid #000;
+            }
+          </style>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </head>
+        <body>
+      `;
+
+      residentMealData.forEach((residentData, index) => {
+        const { resident, dailyMeals } = residentData;
+
+        htmlContent += `
+          <div class="page">
+            <div class="header">
+              <div class="title">ケース記録（食事）</div>
+              <div class="resident-info">
+                利用者氏名：${resident.roomNumber}：${resident.name}<br>
+                日付：${formatDateRange(dateFrom, dateTo)}
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th rowspan="3" class="date-col">日付</th>
+                  <th colspan="2" class="category-header">朝食</th>
+                  <th colspan="2" class="category-header">昼食</th>
+                  <th colspan="2" class="category-header">夕食</th>
+                  <th colspan="6" class="category-header header-right-edge">水分量</th>
+                </tr>
+                <tr>
+                  <th class="sub-header">主食</th>
+                  <th class="sub-header">副食</th>
+                  <th class="sub-header">主食</th>
+                  <th class="sub-header">副食</th>
+                  <th class="sub-header">主食</th>
+                  <th class="sub-header">副食</th>
+                  <th class="sub-header">朝</th>
+                  <th class="sub-header">10時</th>
+                  <th class="sub-header">昼</th>
+                  <th class="sub-header">3時</th>
+                  <th class="sub-header">夕</th>
+                  <th class="sub-header header-right-edge">トータル</th>
+                </tr>
+                <tr>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header header-right-edge">cc</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        dailyMeals.forEach((dailyMeal) => {
+          const { date, meals } = dailyMeal;
+
+          htmlContent += `
+            <tr>
+              <td class="date-col">${formatDate(date)}</td>
+              <td class="meal-col">${meals["朝"]?.mainAmount || ""}</td>
+              <td class="meal-col">${meals["朝"]?.sideAmount || ""}</td>
+              <td class="meal-col">${meals["昼"]?.mainAmount || ""}</td>
+              <td class="meal-col">${meals["昼"]?.sideAmount || ""}</td>
+              <td class="meal-col">${meals["夕"]?.mainAmount || ""}</td>
+              <td class="meal-col">${meals["夕"]?.sideAmount || ""}</td>
+              <td class="water-col">${meals["朝"]?.waterIntake || ""}</td>
+              <td class="water-col">${meals["10時"]?.waterIntake || ""}</td>
+              <td class="water-col">${meals["昼"]?.waterIntake || ""}</td>
+              <td class="water-col">${meals["15時"]?.waterIntake || ""}</td>
+              <td class="water-col">${meals["夕"]?.waterIntake || ""}</td>
+              <td class="total-col">${calculateWaterTotal(meals)}</td>
+            </tr>
+          `;
+        });
+
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      htmlContent += `
+        </body>
+        </html>
+      `;
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error) {
+      console.error('食事・水分チェック一覧印刷エラー:', error);
+      res.status(500).json({ message: '印刷処理中にエラーが発生しました' });
+    }
+  });
+
+  // 食事・水分チェック一覧の印刷（その他含む）
+  app.get('/api/meals-medication/print-with-supplement', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. データを取得
+      const [mealsData, residents] = await Promise.all([
+        storage.getMealsAndMedication(),
+        storage.getResidents()
+      ]);
+
+      // 2. 日付範囲でフィルタリング
+      const startDate = new Date(dateFrom);
+      const endDate = new Date(dateTo);
+
+      const filteredMeals = mealsData.filter((meal: any) => {
+        const mealDate = new Date(meal.recordDate);
+        return mealDate >= startDate && mealDate <= endDate && meal.type === 'meal';
+      });
+
+      // 3. 階数フィルタ
+      let filteredResidents = residents;
+      if (selectedFloor !== "all") {
+        filteredResidents = residents.filter((resident: any) =>
+          resident.floor === selectedFloor || resident.floor === `${selectedFloor}階`
+        );
+      }
+
+      // 4. 利用者フィルタ
+      if (selectedResident !== "all") {
+        filteredResidents = filteredResidents.filter((resident: any) =>
+          resident.id === selectedResident
+        );
+      }
+
+      // 5. 利用者ごとにデータをグループ化
+      const residentMealData = filteredResidents.map((resident: any) => {
+        const residentMeals = filteredMeals.filter((meal: any) =>
+          meal.residentId === resident.id
+        );
+
+        // 日付範囲内のすべての日付を生成
+        const dateRange: string[] = [];
+        const current = new Date(startDate);
+        while (current <= endDate) {
+          dateRange.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+
+        // 日付ごとに食事データを整理
+        const dailyMeals = dateRange.map(date => {
+          const dayMeals = residentMeals.filter((meal: any) =>
+            meal.recordDate.toISOString().split('T')[0] === date
+          );
+
+          const mealsByType: { [key: string]: any } = {};
+          dayMeals.forEach((meal: any) => {
+            if (meal.mealType) {
+              mealsByType[meal.mealType] = meal;
+            }
+          });
+
+          return {
+            date,
+            meals: mealsByType
+          };
+        });
+
+        return {
+          resident,
+          dailyMeals
+        };
+      });
+
+      // 6. HTMLテンプレート生成
+      const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+        const dayOfWeek = dayNames[date.getDay()];
+        return `${date.getMonth() + 1}月${date.getDate()}日(${dayOfWeek})`;
+      };
+
+      const formatDateRange = (from: string, to: string) => {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        return `${fromDate.getMonth() + 1}月${fromDate.getDate()}日〜${toDate.getMonth() + 1}月${toDate.getDate()}日`;
+      };
+
+      // 水分トータル計算関数
+      const calculateWaterTotal = (meals: { [key: string]: any }) => {
+        let total = 0;
+        ["朝", "昼", "夕", "10時", "15時"].forEach(mealType => {
+          const meal = meals[mealType];
+          if (meal?.waterIntake) {
+            const value = parseInt(meal.waterIntake);
+            if (!isNaN(value)) {
+              total += value;
+            }
+          }
+        });
+        return total > 0 ? total.toString() : "";
+      };
+
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            body {
+              font-family: 'MS Gothic', monospace;
+              font-size: 12px;
+              line-height: 1.2;
+              margin: 0;
+              padding: 0;
+            }
+            .page {
+              page-break-after: always;
+              min-height: 260mm;
+            }
+            .page:last-child {
+              page-break-after: avoid;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 10mm;
+            }
+            .title {
+              font-size: 16px;
+              font-weight: bold;
+              margin-bottom: 5mm;
+            }
+            .resident-info {
+              text-align: left;
+              font-size: 12px;
+              margin-bottom: 3mm;
+              line-height: 1.5;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 10px;
+              border: 1px solid #000;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 1mm;
+              text-align: center;
+              vertical-align: middle;
+            }
+            th {
+              background-color: #f0f0f0;
+              font-weight: bold;
+            }
+            .date-col { width: 10%; }
+            .meal-col { width: 7%; }
+            .water-col { width: 7%; }
+            .total-col { width: 7%; background-color: #e6e6e6; border-right: 2px solid #000; }
+            .category-header {
+              background-color: #d0d0d0;
+              font-weight: bold;
+              text-align: center;
+            }
+            .sub-header {
+              background-color: #e8e8e8;
+              font-size: 9px;
+            }
+            .header-right-edge {
+              border-right: 2px solid #000;
+            }
+            .supplement-row {
+              font-size: 8px;
+              color: #333;
+              padding: 1px;
+              vertical-align: top;
+              min-height: 15px;
+              height: 15px;
+            }
+            .main-meal-row {
+              min-height: 15px;
+              height: 15px;
+            }
+          </style>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </head>
+        <body>
+      `;
+
+      residentMealData.forEach((residentData, index) => {
+        const { resident, dailyMeals } = residentData;
+
+        htmlContent += `
+          <div class="page">
+            <div class="header">
+              <div class="title">ケース記録（食事）</div>
+              <div class="resident-info">
+                利用者氏名：${resident.roomNumber}：${resident.name}<br>
+                日付：${formatDateRange(dateFrom, dateTo)}
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th rowspan="3" class="date-col">日付</th>
+                  <th colspan="2" class="category-header">朝食</th>
+                  <th colspan="2" class="category-header">昼食</th>
+                  <th colspan="2" class="category-header">夕食</th>
+                  <th colspan="6" class="category-header header-right-edge">水分量</th>
+                </tr>
+                <tr>
+                  <th class="sub-header">主食</th>
+                  <th class="sub-header">副食</th>
+                  <th class="sub-header">主食</th>
+                  <th class="sub-header">副食</th>
+                  <th class="sub-header">主食</th>
+                  <th class="sub-header">副食</th>
+                  <th class="sub-header">朝</th>
+                  <th class="sub-header">10時</th>
+                  <th class="sub-header">昼</th>
+                  <th class="sub-header">3時</th>
+                  <th class="sub-header">夕</th>
+                  <th class="sub-header header-right-edge">トータル</th>
+                </tr>
+                <tr>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">割</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header">cc</th>
+                  <th class="sub-header header-right-edge">cc</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        dailyMeals.forEach((dailyMeal) => {
+          const { date, meals } = dailyMeal;
+
+          // 1行目：主食・副食の数値データ
+          htmlContent += `
+            <tr class="main-meal-row">
+              <td class="date-col" rowspan="2">${formatDate(date)}</td>
+              <td class="meal-col">${meals["朝"]?.mainAmount || ""}</td>
+              <td class="meal-col">${meals["朝"]?.sideAmount || ""}</td>
+              <td class="meal-col">${meals["昼"]?.mainAmount || ""}</td>
+              <td class="meal-col">${meals["昼"]?.sideAmount || ""}</td>
+              <td class="meal-col">${meals["夕"]?.mainAmount || ""}</td>
+              <td class="meal-col">${meals["夕"]?.sideAmount || ""}</td>
+              <td class="water-col" rowspan="2">${meals["朝"]?.waterIntake || ""}</td>
+              <td class="water-col" rowspan="2">${meals["10時"]?.waterIntake || ""}</td>
+              <td class="water-col" rowspan="2">${meals["昼"]?.waterIntake || ""}</td>
+              <td class="water-col" rowspan="2">${meals["15時"]?.waterIntake || ""}</td>
+              <td class="water-col" rowspan="2">${meals["夕"]?.waterIntake || ""}</td>
+              <td class="total-col" rowspan="2">${calculateWaterTotal(meals)}</td>
+            </tr>
+          `;
+
+          // 2行目：その他データ（colspanで主食・副食を結合）
+          htmlContent += `
+            <tr>
+              <td class="meal-col supplement-row" colspan="2">${meals["朝"]?.supplement || ""}</td>
+              <td class="meal-col supplement-row" colspan="2">${meals["昼"]?.supplement || ""}</td>
+              <td class="meal-col supplement-row" colspan="2">${meals["夕"]?.supplement || ""}</td>
+            </tr>
+          `;
+        });
+
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      htmlContent += `
+        </body>
+        </html>
+      `;
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error) {
+      console.error('食事・水分チェック一覧印刷（その他含む）エラー:', error);
+      res.status(500).json({ message: '印刷処理中にエラーが発生しました' });
+    }
+  });
+
   // ケース記録PDF生成エンドポイント
   app.get('/api/care-records/print', isAuthenticated, async (req, res) => {
     try {

@@ -59,6 +59,47 @@ const supplementOptions = [
   { value: "ラコールＮＦ半固形剤 300g", label: "ラコールＮＦ半固形剤 300g" },
 ];
 
+// WaterTotalDisplayコンポーネント - トータル水分量の表示専用
+function WaterTotalDisplay({
+  residentId,
+  date,
+  meals,
+  localEdits,
+}: {
+  residentId: string;
+  date: string;
+  meals: { [key: string]: MealsAndMedication | undefined };
+  localEdits: Map<string, string>;
+}) {
+  const total = useMemo(() => {
+    let sum = 0;
+    ["朝", "昼", "夕", "10時", "15時"].forEach(mealType => {
+      const localKey = `${residentId}_${date}_${mealType}_waterIntake`;
+      const localValue = localEdits.get(localKey);
+
+      if (localValue !== undefined) {
+        // ローカル編集値を使用
+        const value = parseInt(localValue);
+        if (!isNaN(value)) {
+          sum += value;
+        }
+      } else {
+        // 既存データを使用
+        const meal = meals[mealType];
+        if (meal?.waterIntake) {
+          const value = parseInt(meal.waterIntake);
+          if (!isNaN(value)) {
+            sum += value;
+          }
+        }
+      }
+    });
+    return sum;
+  }, [residentId, date, meals, localEdits]);
+
+  return <span>{total > 0 ? total : ""}</span>;
+}
+
 // InputWithDropdownコンポーネント
 function InputWithDropdown({
   value,
@@ -387,31 +428,55 @@ export default function MealWaterCheckList() {
     });
   }, [filteredData, residents, dateFrom, dateTo, selectedFloor, selectedResident]);
 
-  // 水分摂取量の合計を計算（ローカル編集を優先）
-  const calculateTotalWater = (residentId: string, date: string, meals: { [key: string]: MealsAndMedication | undefined }) => {
-    let total = 0;
-    ["朝", "昼", "夕", "10時", "15時"].forEach(mealType => {
-      const localKey = `${residentId}_${date}_${mealType}_waterIntake`;
-      const localValue = localEdits.get(localKey);
-      
-      if (localValue !== undefined) {
-        // ローカル編集値を使用
-        const value = parseInt(localValue);
-        if (!isNaN(value)) {
-          total += value;
-        }
-      } else {
-        // 既存データを使用
-        const meal = meals[mealType];
-        if (meal?.waterIntake) {
-          const value = parseInt(meal.waterIntake);
-          if (!isNaN(value)) {
-            total += value;
-          }
-        }
-      }
-    });
-    return total > 0 ? total.toString() : "";
+
+  // 印刷処理
+  const handlePrint = () => {
+    try {
+      // APIパラメータをURLエンコード
+      const params = new URLSearchParams({
+        dateFrom,
+        dateTo,
+        selectedFloor,
+        selectedResident
+      });
+
+      // 新しいタブでPDFを表示
+      const printUrl = `/api/meals-medication/print?${params.toString()}`;
+      window.open(printUrl, '_blank');
+
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      toast({
+        title: "エラー",
+        description: "PDFの表示に失敗しました。しばらく待ってから再度お試しください。",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 印刷処理（その他含む）
+  const handlePrintWithSupplement = () => {
+    try {
+      // APIパラメータをURLエンコード
+      const params = new URLSearchParams({
+        dateFrom,
+        dateTo,
+        selectedFloor,
+        selectedResident
+      });
+
+      // 新しいタブでPDFを表示
+      const printUrl = `/api/meals-medication/print-with-supplement?${params.toString()}`;
+      window.open(printUrl, '_blank');
+
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      toast({
+        title: "エラー",
+        description: "PDFの表示に失敗しました。しばらく待ってから再度お試しください。",
+        variant: "destructive",
+      });
+    }
   };
 
   // データの保存
@@ -579,12 +644,7 @@ export default function MealWaterCheckList() {
               variant="outline"
               size="sm"
               className="h-8"
-              onClick={() => {
-                toast({
-                  title: "印刷機能",
-                  description: "印刷機能は現在開発中です",
-                });
-              }}
+              onClick={handlePrint}
             >
               <Printer className="h-4 w-4 mr-1" />
               印刷
@@ -593,12 +653,7 @@ export default function MealWaterCheckList() {
               variant="outline"
               size="sm"
               className="h-8"
-              onClick={() => {
-                toast({
-                  title: "印刷機能",
-                  description: "印刷(その他含む)機能は現在開発中です",
-                });
-              }}
+              onClick={handlePrintWithSupplement}
             >
               <Printer className="h-4 w-4 mr-1" />
               印刷(その他含む)
@@ -826,7 +881,12 @@ export default function MealWaterCheckList() {
                     
                     {/* トータル */}
                     <td className="text-xs text-center font-medium bg-gray-100 border border-gray-300 px-1 py-1">
-                      {calculateTotalWater(group.residentId, group.date, group.meals)}
+                      <WaterTotalDisplay
+                        residentId={group.residentId}
+                        date={group.date}
+                        meals={group.meals}
+                        localEdits={localEdits}
+                      />
                     </td>
                   </tr>
                 ))}
