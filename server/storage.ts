@@ -1978,37 +1978,43 @@ export class DatabaseStorage implements IStorage {
     // パスワードのハッシュ化（実装簡略化のため、実際の本番環境ではbcryptを使用）
     const hashedPassword = Buffer.from(password).toString('base64');
 
+    // 日本時間を取得
+    const japanTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+
     const [updated] = await db.update(staffManagement)
       .set({
         status: "ロック解除",
         password: hashedPassword,
-        lastModifiedAt: new Date(),
-        updatedAt: new Date(),
+        lastModifiedAt: japanTime,
+        updatedAt: japanTime,
       })
       .where(eq(staffManagement.id, id))
       .returning();
-    
+
     if (!updated) {
       throw new Error("職員が見つかりません");
     }
-    
+
     return updated;
   }
 
   async lockStaffAccount(id: string): Promise<StaffManagement> {
+    // 日本時間を取得
+    const japanTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+
     const [updated] = await db.update(staffManagement)
       .set({
         status: "ロック",
-        lastModifiedAt: new Date(),
-        updatedAt: new Date(),
+        lastModifiedAt: japanTime,
+        updatedAt: japanTime,
       })
       .where(eq(staffManagement.id, id))
       .returning();
-    
+
     if (!updated) {
       throw new Error("職員が見つかりません");
     }
-    
+
     return updated;
   }
 
