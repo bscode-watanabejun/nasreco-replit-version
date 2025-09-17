@@ -361,7 +361,7 @@ export default function CleaningLinenList() {
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
-      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 shadow-md sticky top-0 z-50">
+      <header className="bg-gradient-to-br from-blue-50 to-indigo-100 h-16 flex items-center px-4 sticky top-0 z-50">
         <div className="flex items-center gap-2 w-full">
           <Button
             variant="ghost"
@@ -382,7 +382,7 @@ export default function CleaningLinenList() {
       </header>
 
       {/* Filter Controls */}
-      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+      <div className="bg-white py-1.5 px-3 shadow-sm border-b sticky top-16 z-40">
         <div className="flex gap-2 items-center justify-center">
           <Button
             variant="ghost"
@@ -410,7 +410,7 @@ export default function CleaningLinenList() {
             options={floors.map(floor => ({ value: floor, label: floor }))}
             onSave={(value) => setSelectedFloor(value)}
             placeholder="階数選択"
-            className="w-16 sm:w-20 border rounded px-2 py-1 text-xs h-6"
+            className="w-16 sm:w-20 border rounded px-2 py-0 text-xs h-6"
           />
         </div>
       </div>

@@ -502,7 +502,7 @@ export default function NursingJournal() {
       </div>
 
       {/* Filter Controls */}
-      <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
+      <div className="bg-white py-1.5 px-3 shadow-sm border-b sticky top-16 z-40">
         <div className="flex gap-2 items-center justify-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-0.5">
@@ -520,7 +520,7 @@ export default function NursingJournal() {
                   type="date"
                   value={format(selectedDate, 'yyyy-MM-dd')}
                   onChange={(e) => setSelectedDate(new Date(e.target.value))}
-                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
+                  className="px-1 py-0 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
                 />
                 <Button
                   variant="ghost"
@@ -552,7 +552,7 @@ export default function NursingJournal() {
                 ]}
                 onSave={(value) => setSelectedRecordType(value)}
                 placeholder="日誌種別"
-                className="w-14 sm:w-16 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                className="w-14 sm:w-16 border rounded px-2 py-0 text-xs sm:text-sm h-6 sm:h-8"
                 enableAutoFocus={false}
               />
             </div>
