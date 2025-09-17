@@ -69,10 +69,6 @@ export default function CommunicationManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/staff-notices'] });
       form.reset();
-      toast({
-        title: "連絡事項を登録しました",
-        description: "新しい連絡事項が正常に登録されました。",
-      });
     },
     onError: (error) => {
       toast({

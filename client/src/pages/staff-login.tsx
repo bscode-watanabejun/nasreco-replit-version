@@ -44,10 +44,6 @@ export default function StaffLogin() {
       // 認証関連のクエリを再フェッチ
       queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
       
-      toast({
-        title: "ログイン成功",
-        description: "職員としてログインしました",
-      });
       navigate("/");
     },
     onError: (error: any) => {
