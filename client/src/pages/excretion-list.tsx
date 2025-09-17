@@ -87,6 +87,7 @@ function InputWithDropdown({
   className,
   onSelectCallback,
   inputRef,
+  disableFocusMove = false,
 }: {
   value: string;
   options: { value: string; label: string }[];
@@ -95,10 +96,12 @@ function InputWithDropdown({
   className?: string;
   onSelectCallback?: () => void;
   inputRef?: React.RefObject<HTMLInputElement>;
+  disableFocusMove?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const [isFocused, setIsFocused] = useState(false);
+  const [justSelected, setJustSelected] = useState(false);
   const localInputRef = useRef<HTMLInputElement>(null);
   const refToUse = inputRef || localInputRef;
 
@@ -138,9 +141,24 @@ function InputWithDropdown({
     setInputValue(selectedOption ? selectedOption.label : selectedValue);
     onSave(selectedValue);
     setOpen(false);
-    // 選択後にコールバックを実行
+    setJustSelected(true);
+
+    // disableFocusMoveがtrueの場合は即座にリセット
+    if (disableFocusMove) {
+      setTimeout(() => setJustSelected(false), 200);
+      return; // コールバックも実行しない
+    }
+
+    // フォーカス移動が無効化されていない場合のみコールバックを実行
     if (onSelectCallback) {
-      setTimeout(() => onSelectCallback(), 100);
+      setTimeout(() => {
+        onSelectCallback();
+        // コールバック実行後にjustSelectedをリセット
+        setTimeout(() => setJustSelected(false), 100);
+      }, 100);
+    } else {
+      // コールバックがない場合は直接リセット
+      setTimeout(() => setJustSelected(false), 200);
     }
   };
 
@@ -154,14 +172,18 @@ function InputWithDropdown({
             value={inputValue}
             readOnly
             onFocus={() => {
-              setOpen(true);
-              setIsFocused(true);
+              if (!justSelected) {
+                setOpen(true);
+                setIsFocused(true);
+              }
             }}
             onBlur={() => {
               setTimeout(() => setIsFocused(false), 50);
             }}
             onClick={() => {
-              if (!open) {
+              if (disableFocusMove) {
+                setOpen(!open);
+              } else if (!open && !justSelected) {
                 setOpen(true);
                 setIsFocused(true);
               }
@@ -239,25 +261,13 @@ function ExcretionDialog({
     setTimeout(() => {
       switch (currentField) {
         case 'stoolState':
-          if (!stoolAmount) {
-            stoolAmountRef.current?.click();
-          } else if (!urineCC) {
-            urineCCRef.current?.focus();
-          } else if (!urineAmount) {
-            urineAmountRef.current?.click();
-          }
+          stoolAmountRef.current?.click();
           break;
         case 'stoolAmount':
-          if (!urineCC) {
-            urineCCRef.current?.focus();
-          } else if (!urineAmount) {
-            urineAmountRef.current?.click();
-          }
+          urineCCRef.current?.focus();
           break;
         case 'urineCC':
-          if (!urineAmount) {
-            urineAmountRef.current?.click();
-          }
+          urineAmountRef.current?.click();
           break;
         case 'urineAmount':
           // 最後のフィールドなので何もしない
@@ -366,7 +376,7 @@ function ExcretionDialog({
             <input
               ref={urineCCRef}
               type="number"
-              step="0.1"
+              step="10"
               inputMode="decimal"
               pattern="[0-9]*[.]?[0-9]*"
               value={urineCC}
@@ -397,7 +407,7 @@ function ExcretionDialog({
               placeholder="選択してください"
               className="w-full h-8 text-xs px-2 border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               inputRef={urineAmountRef}
-              onSelectCallback={() => moveToNextField('urineAmount')}
+              disableFocusMove={true}
             />
           </div>
         </div>
