@@ -3,8 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import {
   Popover,
@@ -13,8 +11,8 @@ import {
 } from "@/components/ui/popover";
 import { ArrowLeft, Info, Calendar, Building } from "lucide-react";
 import { useLocation } from "wouter";
-import { type StaffNotice, type StaffNoticeReadStatus } from "@shared/schema";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { type StaffNotice } from "@shared/schema";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -115,13 +113,15 @@ export default function Communications() {
     queryKey: ['/api/staff-notices'],
   });
 
-  // Fetch read status for all notices to determine unread status  
-  const [readStatuses, setReadStatuses] = useState<{[key: string]: any[]}>({});
-  const [readStatusesLoaded, setReadStatusesLoaded] = useState(false);
+  // Fetch read status for all notices to determine unread status
+  const { data: readStatuses = {}, isLoading: isLoadingReadStatuses } = useQuery<{[key: string]: any[]}>({
+    queryKey: ['/api/staff-notices-read-status', notices.map(n => n.id), (user as any)?.id],
+    queryFn: async () => {
+      if (!notices.length || !user || !(user as any)?.id) {
+        return {};
+      }
 
-  useEffect(() => {
-    if (notices.length > 0 && user && (user as any)?.id) {
-      Promise.all(
+      const results = await Promise.all(
         notices.map(async (notice) => {
           try {
             const response = await fetch(`/api/staff-notices/${notice.id}/read-status`);
@@ -131,16 +131,16 @@ export default function Communications() {
             return { noticeId: notice.id, statuses: [] };
           }
         })
-      ).then((results) => {
-        const statusMap: {[key: string]: any[]} = {};
-        results.forEach(result => {
-          statusMap[result.noticeId] = result.statuses;
-        });
-        setReadStatuses(statusMap);
-        setReadStatusesLoaded(true);
+      );
+
+      const statusMap: {[key: string]: any[]} = {};
+      results.forEach(result => {
+        statusMap[result.noticeId] = result.statuses;
       });
-    }
-  }, [notices, user]);
+      return statusMap;
+    },
+    enabled: notices.length > 0 && !!user && !!(user as any)?.id,
+  });
 
   // Mark notice as read mutation
   const markAsReadMutation = useMutation({
@@ -157,28 +157,49 @@ export default function Communications() {
       return response.json();
     },
     onSuccess: () => {
-      // Refresh read statuses after marking as read
-      if (notices.length > 0 && user && (user as any)?.id) {
-        Promise.all(
-          notices.map(async (notice) => {
-            try {
-              const response = await fetch(`/api/staff-notices/${notice.id}/read-status`);
-              const data = await response.json();
-              return { noticeId: notice.id, statuses: data };
-            } catch (error) {
-              return { noticeId: notice.id, statuses: [] };
-            }
-          })
-        ).then((results) => {
-          const statusMap: {[key: string]: any[]} = {};
-          results.forEach(result => {
-            statusMap[result.noticeId] = result.statuses;
-          });
-          setReadStatuses(statusMap);
-          setReadStatusesLoaded(true);
-          setIsDialogOpen(false);
-        });
+      if (!selectedNotice || !user || !(user as any)?.id) {
+        setIsDialogOpen(false);
+        return;
       }
+
+      const staffId = (user as any).id;
+      const noticeId = selectedNotice.id;
+
+      // 楽観的更新：キャッシュを即座に更新して既読状態を反映
+      queryClient.setQueryData<{[key: string]: any[]}>(['/api/staff-notices-read-status', notices.map(n => n.id), staffId], (oldData) => {
+        if (!oldData) return oldData;
+
+        const newData = { ...oldData };
+        // 既読状態を追加（既読として扱う）
+        if (!newData[noticeId]) {
+          newData[noticeId] = [];
+        }
+
+        // すでに既読状態がある場合は重複しないようにチェック
+        const existingStatus = newData[noticeId].find((status: any) => status.staffId === staffId);
+        if (!existingStatus) {
+          newData[noticeId] = [...newData[noticeId], { staffId, noticeId, readAt: new Date().toISOString() }];
+        }
+
+        return newData;
+      });
+
+      // バックグラウンドでデータを再検証
+      queryClient.invalidateQueries({
+        queryKey: ['/api/staff-notices-read-status'],
+      });
+
+      // トップ画面の未読件数を楽観的に更新（-1）
+      queryClient.setQueryData<number>(["staff-notices", "unread-count"], (oldCount) => {
+        return Math.max(0, (oldCount || 0) - 1);
+      });
+
+      // トップ画面の未読件数も更新（バックグラウンド再検証）
+      queryClient.invalidateQueries({
+        queryKey: ["staff-notices", "unread-count"],
+      });
+
+      setIsDialogOpen(false);
     },
     onError: () => {
       toast({
@@ -191,8 +212,8 @@ export default function Communications() {
 
   // Check if notice is unread for current user
   const isNoticeUnread = (notice: StaffNotice): boolean => {
-    // 既読状態が読み込まれていない場合は、undefinedを返す（赤太字にしない）
-    if (!readStatusesLoaded || !user || !(user as any)?.id) return false;
+    // 既読状態の読み込み中またはユーザー情報がない場合は未読判定しない
+    if (isLoadingReadStatuses || !user || !(user as any)?.id) return false;
 
     // 既読状態が読み込み済みで、該当通知の既読情報がない場合は未読とする
     if (!readStatuses[notice.id]) return true;
@@ -253,28 +274,42 @@ export default function Communications() {
       return response.json();
     },
     onSuccess: () => {
-      // Refresh read statuses after marking as unread and close dialog
-      if (notices.length > 0 && user && (user as any)?.id) {
-        Promise.all(
-          notices.map(async (notice) => {
-            try {
-              const response = await fetch(`/api/staff-notices/${notice.id}/read-status`);
-              const data = await response.json();
-              return { noticeId: notice.id, statuses: data };
-            } catch (error) {
-              return { noticeId: notice.id, statuses: [] };
-            }
-          })
-        ).then((results) => {
-          const statusMap: {[key: string]: any[]} = {};
-          results.forEach(result => {
-            statusMap[result.noticeId] = result.statuses;
-          });
-          setReadStatuses(statusMap);
-          setReadStatusesLoaded(true);
-        });
+      if (!selectedNotice || !user || !(user as any)?.id) {
+        setIsDialogOpen(false);
+        return;
       }
-      // Close dialog without showing message
+
+      const staffId = (user as any).id;
+      const noticeId = selectedNotice.id;
+
+      // 楽観的更新：キャッシュを即座に更新して未読状態を反映
+      queryClient.setQueryData<{[key: string]: any[]}>(['/api/staff-notices-read-status', notices.map(n => n.id), staffId], (oldData) => {
+        if (!oldData) return oldData;
+
+        const newData = { ...oldData };
+        // 既読状態を削除（未読として扱う）
+        if (newData[noticeId]) {
+          newData[noticeId] = newData[noticeId].filter((status: any) => status.staffId !== staffId);
+        }
+
+        return newData;
+      });
+
+      // バックグラウンドでデータを再検証
+      queryClient.invalidateQueries({
+        queryKey: ['/api/staff-notices-read-status'],
+      });
+
+      // トップ画面の未読件数を楽観的に更新（+1）
+      queryClient.setQueryData<number>(["staff-notices", "unread-count"], (oldCount) => {
+        return (oldCount || 0) + 1;
+      });
+
+      // トップ画面の未読件数も更新（バックグラウンド再検証）
+      queryClient.invalidateQueries({
+        queryKey: ["staff-notices", "unread-count"],
+      });
+
       setIsDialogOpen(false);
     },
     onError: (error) => {
@@ -402,7 +437,7 @@ export default function Communications() {
                     </div>
                     
                     {/* Content */}
-                    <div className={`flex-1 text-xs leading-tight truncate ${readStatusesLoaded && isUnread ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
+                    <div className={`flex-1 text-xs leading-tight truncate ${isUnread ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
                       {notice.content}
                     </div>
                     
