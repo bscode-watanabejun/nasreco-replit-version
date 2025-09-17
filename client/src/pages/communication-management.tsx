@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { formatJapanDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -437,14 +438,14 @@ export default function CommunicationManagement() {
                     選択中: {truncateContent(selectedNotice.content, 20)}
                   </div>
                   {readStatus.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
                       {readStatus.map((status) => (
-                        <div key={status.id} className="p-2 bg-gray-50 rounded text-sm" data-testid={`read-status-${status.id}`}>
-                          <div className="font-medium text-gray-800">
+                        <div key={status.id} className="p-2 bg-gray-50 rounded text-sm flex-none w-32" data-testid={`read-status-${status.id}`}>
+                          <div className="font-medium text-gray-800 text-xs truncate">
                             {status.staffName} {status.staffLastName}
                           </div>
                           <div className="text-gray-600 text-xs">
-                            {status.readAt && format(new Date(status.readAt), 'MM/dd HH:mm', { locale: ja })}
+                            {formatJapanDateTime(status.readAt, 'MM/dd HH:mm')}
                           </div>
                         </div>
                       ))}
