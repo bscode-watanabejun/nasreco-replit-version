@@ -193,7 +193,7 @@ export default function DailyRecords() {
   
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState<Date>(urlParams.get('date') ? new Date(urlParams.get('date')!) : new Date());
   const [selectedRecordType, setSelectedRecordType] = useState("日中");
   const [cardCheckboxes, setCardCheckboxes] = useState<Record<string, string[]>>({});
   const [enteredBy, setEnteredBy] = useState("");
@@ -206,9 +206,9 @@ export default function DailyRecords() {
 
   // 日誌チェックボックス状態を取得
   const { data: journalCheckboxes = [] } = useQuery({
-    queryKey: ["/api/journal-checkboxes", selectedDate],
+    queryKey: ["/api/journal-checkboxes", format(selectedDate, 'yyyy-MM-dd')],
     queryFn: async () => {
-      const response = await apiRequest(`/api/journal-checkboxes/${selectedDate}`);
+      const response = await apiRequest(`/api/journal-checkboxes/${format(selectedDate, 'yyyy-MM-dd')}`);
       return response as Array<{
         id: string;
         recordId: string;
@@ -325,11 +325,11 @@ export default function DailyRecords() {
         recordType,
         checkboxType,
         isChecked,
-        recordDate: selectedDate
+        recordDate: format(selectedDate, 'yyyy-MM-dd')
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/journal-checkboxes", selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ["/api/journal-checkboxes", format(selectedDate, 'yyyy-MM-dd')] });
     },
     onError: (error: any) => {
       toast({
@@ -421,11 +421,11 @@ export default function DailyRecords() {
 
   // 日誌エントリデータを取得
   const { data: journalEntry } = useQuery({
-    queryKey: ['/api/journal-entries', selectedDate, selectedRecordType],
+    queryKey: ['/api/journal-entries', format(selectedDate, 'yyyy-MM-dd'), selectedRecordType],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('dateFrom', selectedDate);
-      params.set('dateTo', selectedDate);
+      params.set('dateFrom', format(selectedDate, 'yyyy-MM-dd'));
+      params.set('dateTo', format(selectedDate, 'yyyy-MM-dd'));
       params.set('recordType', selectedRecordType);
 
       const response = await apiRequest(`/api/journal-entries?${params.toString()}`);
@@ -433,7 +433,7 @@ export default function DailyRecords() {
 
       // 該当する日誌エントリを探す
       return entries.find(e =>
-        e.recordDate === selectedDate &&
+        e.recordDate === format(selectedDate, 'yyyy-MM-dd') &&
         e.recordType === selectedRecordType
       ) || null;
     },
@@ -460,7 +460,7 @@ export default function DailyRecords() {
 
       // DBを更新
       await upsertJournalEntryMutation.mutateAsync({
-        recordDate: selectedDate,
+        recordDate: format(selectedDate, 'yyyy-MM-dd'),
         recordType: selectedRecordType,
         enteredBy: null, // NULLに設定
         residentCount: residentStats.totalResidents,
@@ -478,7 +478,7 @@ export default function DailyRecords() {
 
       // DBを更新
       await upsertJournalEntryMutation.mutateAsync({
-        recordDate: selectedDate,
+        recordDate: format(selectedDate, 'yyyy-MM-dd'),
         recordType: selectedRecordType,
         enteredBy: userName,
         residentCount: residentStats.totalResidents,
@@ -491,10 +491,10 @@ export default function DailyRecords() {
 
   // 記録データを取得
   const { data: records = [], isLoading, error } = useQuery({
-    queryKey: ["/api/daily-records", selectedDate, selectedRecordType],
+    queryKey: ["/api/daily-records", format(selectedDate, 'yyyy-MM-dd'), selectedRecordType],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('date', selectedDate);
+      params.set('date', format(selectedDate, 'yyyy-MM-dd'));
       
       // 夜間フィルタの場合、翌日の早朝記録も取得するためincludeNextDayパラメータを追加
       if (selectedRecordType === '夜間') {
@@ -530,7 +530,7 @@ export default function DailyRecords() {
       
       // JST日付を取得
       const recordDateStr = format(recordDate, 'yyyy-MM-dd');
-      const selectedDateStr = selectedDate;
+      const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
       
 
       if (selectedRecordType === "日中") {
@@ -572,7 +572,7 @@ export default function DailyRecords() {
 
   const handleBack = () => {
     const params = new URLSearchParams();
-    params.set('date', selectedDate);
+    params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     if (selectedFloor !== '全階') params.set('floor', selectedFloor.replace('階', ''));
     const targetUrl = `/?${params.toString()}`;
     navigate(targetUrl);
@@ -600,7 +600,7 @@ export default function DailyRecords() {
   const changeDateBy = (days: number) => {
     const currentDate = new Date(selectedDate);
     currentDate.setDate(currentDate.getDate() + days);
-    setSelectedDate(format(currentDate, "yyyy-MM-dd"));
+    setSelectedDate(currentDate);
   };
 
   const goToPreviousDay = () => changeDateBy(-1);
@@ -640,9 +640,9 @@ export default function DailyRecords() {
                 </Button>
                 <input
                   type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8 mx-0.5"
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
                 />
                 <Button
                   variant="ghost"

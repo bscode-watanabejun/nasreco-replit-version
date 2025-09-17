@@ -328,7 +328,7 @@ export default function NursingRecordsList() {
   const [newRecordBlocks, setNewRecordBlocks] = useState<any[]>([]);
   // URLパラメータから日付とフロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState<Date>(urlParams.get('date') ? new Date(urlParams.get('date')!) : new Date());
   const [selectedFloor, setSelectedFloor] = useState<string>(() => {
     // URLパラメータから階数を取得
     const floorParam = urlParams.get("floor");
@@ -347,7 +347,7 @@ export default function NursingRecordsList() {
   const [selectedResidentIds, setSelectedResidentIds] = useState<Set<string>>(new Set());
   const [bulkInputModalOpen, setBulkInputModalOpen] = useState(false);
   const [bulkInputData, setBulkInputData] = useState({
-    recordDate: selectedDate,
+    recordDate: format(selectedDate, 'yyyy-MM-dd'),
     hour: format(new Date(), 'HH'),
     minute: Math.floor(parseInt(format(new Date(), 'mm')) / 15) * 15,
     category: '看護記録',
@@ -358,7 +358,7 @@ export default function NursingRecordsList() {
   useEffect(() => {
     setBulkInputData(prev => ({
       ...prev,
-      recordDate: selectedDate
+      recordDate: format(selectedDate, 'yyyy-MM-dd')
     }));
   }, [selectedDate]);
 
@@ -405,7 +405,7 @@ export default function NursingRecordsList() {
     resolver: zodResolver(careRecordSchema),
     defaultValues: {
       residentId: selectedResident?.id || "",
-      recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
+      recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
       category: "",
       description: "",
       notes: "",
@@ -415,7 +415,7 @@ export default function NursingRecordsList() {
   // selectedDateが変更された時にフォームのデフォルト値を更新
   useEffect(() => {
     const currentTime = new Date().toTimeString().slice(0, 8);
-    const newRecordDate = new Date(selectedDate + "T" + currentTime).toISOString().slice(0, 16);
+    const newRecordDate = new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + currentTime).toISOString().slice(0, 16);
     
     form.reset({
       residentId: selectedResident?.id || "",
@@ -430,7 +430,7 @@ export default function NursingRecordsList() {
   useEffect(() => {
     setBulkInputData(prev => ({
       ...prev,
-      recordDate: selectedDate
+      recordDate: format(selectedDate, 'yyyy-MM-dd')
     }));
   }, [selectedDate]);
 
@@ -454,7 +454,7 @@ export default function NursingRecordsList() {
       setSelectedResidentIds(new Set());
       setBulkInputModalOpen(false);
       setBulkInputData({
-        recordDate: selectedDate,
+        recordDate: format(selectedDate, 'yyyy-MM-dd'),
         hour: format(new Date(), 'HH'),
         minute: Math.floor(parseInt(format(new Date(), 'mm')) / 15) * 15,
         category: '看護記録',
@@ -484,7 +484,7 @@ export default function NursingRecordsList() {
       }
       form.reset({
         residentId: selectedResident?.id || "",
-        recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
+        recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
         category: "",
         description: "",
         notes: "",
@@ -785,7 +785,7 @@ export default function NursingRecordsList() {
       .filter((record: any) => {
         if (!selectedResident || record.residentId !== selectedResident.id) return false;
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-        return recordDate === selectedDate;
+        return recordDate === format(selectedDate, 'yyyy-MM-dd');
       })
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
   }, [nursingRecords, selectedResident, selectedDate]);
@@ -826,7 +826,7 @@ export default function NursingRecordsList() {
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）
-    const filterDate = new Date(selectedDate);
+    const filterDate = selectedDate;
     const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
     const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
     
@@ -846,7 +846,7 @@ export default function NursingRecordsList() {
       const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
         if (bathing.residentId !== resident.id) return false;
         const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
-        return bathingDate === selectedDate;
+        return bathingDate === format(selectedDate, 'yyyy-MM-dd');
       });
       
       // バイタルが全項目入力されているかチェック（入浴チェック表示条件）
@@ -873,7 +873,7 @@ export default function NursingRecordsList() {
     return (nursingRecords as any[]).filter((record: any) => {
       if (record.residentId !== residentId) return false;
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-      return recordDate === selectedDate;
+      return recordDate === format(selectedDate, 'yyyy-MM-dd');
     }).length;
   };
 
@@ -908,7 +908,7 @@ export default function NursingRecordsList() {
       
       bathingRecordsArray.forEach((record: any) => {
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-        if (recordDate === selectedDate) {
+        if (recordDate === format(selectedDate, 'yyyy-MM-dd')) {
           // バイタル完了済みの記録のみ対象
           const hasCompleteVitals = record.temperature && record.bloodPressureSystolic && record.pulseRate && record.oxygenSaturation;
           if (hasCompleteVitals) {
@@ -1331,8 +1331,8 @@ export default function NursingRecordsList() {
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
                 <input
                   type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
                   className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
                 />
               </div>
@@ -1810,7 +1810,7 @@ export default function NursingRecordsList() {
             size="sm"
             onClick={() => {
               const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
-              const targetUrl = `/?date=${selectedDate}&floor=${floorParam}`;
+              const targetUrl = `/?date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${floorParam}`;
               setLocation(targetUrl);
             }}
             className="p-2"
@@ -1842,9 +1842,9 @@ export default function NursingRecordsList() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             
@@ -1928,7 +1928,7 @@ export default function NursingRecordsList() {
                           const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
                             if (bathing.residentId !== resident.id) return false;
                             const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
-                            return bathingDate === selectedDate;
+                            return bathingDate === format(selectedDate, 'yyyy-MM-dd');
                           });
                           
                           // バイタルが全項目入力されているかチェック（入浴記録のバイタル項目）
@@ -1993,7 +1993,7 @@ export default function NursingRecordsList() {
                           const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
                             if (bathing.residentId !== resident.id) return false;
                             const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
-                            return bathingDate === selectedDate;
+                            return bathingDate === format(selectedDate, 'yyyy-MM-dd');
                           });
                           const hasCompleteVitals = residentBathingForDate.some((bathing: any) => 
                             bathing.temperature && bathing.bloodPressureSystolic && bathing.pulseRate && bathing.oxygenSaturation
@@ -2054,7 +2054,7 @@ export default function NursingRecordsList() {
                         onClick={() => {
                           if (!bulkMode) {
                             const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
-                            setLocation(`/nursing-records?residentId=${resident.id}&date=${selectedDate}&floor=${floorParam}`);
+                            setLocation(`/nursing-records?residentId=${resident.id}&date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${floorParam}`);
                           }
                         }}
                         disabled={bulkMode}
@@ -2130,7 +2130,7 @@ export default function NursingRecordsList() {
             const residentBathingForDate = bathingRecordsArray.filter((bathing: any) => {
               if (bathing.residentId !== resident.id) return false;
               const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
-              return bathingDate === selectedDate;
+              return bathingDate === format(selectedDate, 'yyyy-MM-dd');
             });
             
             // バイタル完了済みの記録を取得

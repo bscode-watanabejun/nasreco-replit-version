@@ -93,11 +93,20 @@ export default function Rounds() {
   
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), 'yyyy-MM-dd'));
+  const dateParam = urlParams.get('date');
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedFloor, setSelectedFloor] = useState(urlParams.get('floor') || 'all');
   
   // 今日の日付を取得（日本語表示）
-  const displayDate = format(new Date(selectedDate), 'M月d日', { locale: ja });
+  const displayDate = format(selectedDate, 'M月d日', { locale: ja });
 
   // ご利用者一覧を取得（階数でフィルタリング）
   const { data: allResidents = [] } = useQuery<Resident[]>({
@@ -132,9 +141,9 @@ export default function Rounds() {
 
   // ラウンド記録を取得（選択された日付の記録のみ、フィルタリングは後で適用）
   const { data: allRoundRecords = [], isLoading } = useQuery<RoundRecord[]>({
-    queryKey: ['/api/round-records', selectedDate],
+    queryKey: ['/api/round-records', format(selectedDate, 'yyyy-MM-dd')],
     queryFn: async () => {
-      const response = await fetch(`/api/round-records?recordDate=${selectedDate}`);
+      const response = await fetch(`/api/round-records?recordDate=${format(selectedDate, 'yyyy-MM-dd')}`);
       const data = await response.json();
       return Array.isArray(data) ? data : [];
     },
@@ -181,10 +190,10 @@ export default function Rounds() {
     },
     onMutate: async (newRecord) => {
       // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ['/api/round-records', selectedDate] });
-      
+      await queryClient.cancelQueries({ queryKey: ['/api/round-records', format(selectedDate, 'yyyy-MM-dd')] });
+
       // 現在のデータのスナップショットを取得
-      const queryKey = ['/api/round-records', selectedDate];
+      const queryKey = ['/api/round-records', format(selectedDate, 'yyyy-MM-dd')];
       const previousData = queryClient.getQueryData(queryKey);
       
       // 楽観的に新規レコードを追加
@@ -220,12 +229,12 @@ export default function Rounds() {
     onError: (_, __, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
-        queryClient.setQueryData(['/api/round-records', selectedDate], context.previousData);
+        queryClient.setQueryData(['/api/round-records', format(selectedDate, 'yyyy-MM-dd')], context.previousData);
       }
     },
     onSuccess: (serverRecord, variables, context) => {
       // 成功時は一時的なレコードを実際のサーバーレコードに置き換え
-      queryClient.setQueryData(['/api/round-records', selectedDate], (old: any) => {
+      queryClient.setQueryData(['/api/round-records', format(selectedDate, 'yyyy-MM-dd')], (old: any) => {
         if (!old) return old;
         
         return old.map((record: any) => {
@@ -250,10 +259,10 @@ export default function Rounds() {
     },
     onMutate: async (deletedId) => {
       // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ['/api/round-records', selectedDate] });
-      
+      await queryClient.cancelQueries({ queryKey: ['/api/round-records', format(selectedDate, 'yyyy-MM-dd')] });
+
       // 現在のデータのスナップショットを取得
-      const queryKey = ['/api/round-records', selectedDate];
+      const queryKey = ['/api/round-records', format(selectedDate, 'yyyy-MM-dd')];
       const previousData = queryClient.getQueryData(queryKey);
       
       // 楽観的に削除
@@ -267,7 +276,7 @@ export default function Rounds() {
     onError: (_, __, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
-        queryClient.setQueryData(['/api/round-records', selectedDate], context.previousData);
+        queryClient.setQueryData(['/api/round-records', format(selectedDate, 'yyyy-MM-dd')], context.previousData);
       }
     },
     onSuccess: () => {
@@ -328,7 +337,7 @@ export default function Rounds() {
   // 日付や階数が変更されたときにURLパラメータを更新
   useEffect(() => {
     const params = new URLSearchParams();
-    params.set('date', selectedDate);
+    params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('floor', selectedFloor);
     window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
   }, [selectedDate, selectedFloor]);
@@ -356,7 +365,7 @@ export default function Rounds() {
             size="sm"
             onClick={() => {
               const params = new URLSearchParams();
-              params.set('date', selectedDate);
+              params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor);
               const targetUrl = `/?${params.toString()}`;
               setLocation(targetUrl);
@@ -378,9 +387,9 @@ export default function Rounds() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             

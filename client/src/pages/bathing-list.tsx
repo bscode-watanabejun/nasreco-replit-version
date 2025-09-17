@@ -690,9 +690,16 @@ export default function BathingList() {
   
   // URLパラメータから日付と階数の初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    urlParams.get("date") || format(new Date(), "yyyy-MM-dd"),
-  );
+  const dateParam = urlParams.get("date");
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedFloor, setSelectedFloor] = useState(() => {
     // URLパラメータから階数を取得
     const floorParam = urlParams.get("floor");
@@ -948,13 +955,13 @@ export default function BathingList() {
     // 楽観的更新を含むキャッシュから検索
     const existingRecord = currentCachedData.find((record: any) => 
       record.residentId === residentId && 
-      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
     );
     
     // レコードデータ作成（既存の値を保持しつつ、指定されたフィールドを更新）
     const recordData = {
       residentId,
-      recordDate: new Date(selectedDate),
+      recordDate: selectedDate,
       timing: "午前",
       hour: fields.hour !== undefined ? (fields.hour === "empty" ? "" : fields.hour) : (existingRecord?.hour || ""),
       minute: fields.minute !== undefined ? (fields.minute === "empty" ? "" : fields.minute) : (existingRecord?.minute || ""),
@@ -982,7 +989,7 @@ export default function BathingList() {
       
       const vitalData = {
         residentId,
-        recordDate: new Date(selectedDate),
+        recordDate: selectedDate,
         timing: getTimingFromBathingTime(bathingHour, recordData),
         hour: fields.hour !== undefined ? (fields.hour === "empty" ? null : parseInt(fields.hour, 10)) : (recordData.hour ? parseInt(recordData.hour, 10) : null),
         minute: fields.minute !== undefined ? (fields.minute === "empty" ? null : parseInt(fields.minute, 10)) : (recordData.minute ? parseInt(recordData.minute, 10) : null),
@@ -1018,13 +1025,13 @@ export default function BathingList() {
     // 楽観的更新を含むキャッシュから検索：実際のレコードを優先
     const realRecord = currentCachedData.find((record: any) => 
       record.residentId === residentId && 
-      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate &&
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
       record.id && !record.id.startsWith('temp-')
     );
     
     const tempRecord = currentCachedData.find((record: any) => 
       record.residentId === residentId && 
-      format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate &&
+      format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
       record.id && record.id.startsWith('temp-')
     );
     
@@ -1038,7 +1045,7 @@ export default function BathingList() {
     // recordDataの作成：更新時は変更フィールドのみ、新規作成時は全フィールド
     const recordData: any = {
       residentId,
-      recordDate: new Date(selectedDate),
+      recordDate: selectedDate,
       timing: "午前",
     };
 
@@ -1085,7 +1092,7 @@ export default function BathingList() {
       
       const vitalData = {
         residentId,
-        recordDate: new Date(selectedDate),
+        recordDate: selectedDate,
         timing: getTimingFromBathingTime(bathingHour, existingRecord || {}), // existingRecordを使用
         // staffIdはサーバー側で自動設定するため、フロントでは送信しない
         hour: (() => { const val = getFieldValue('hour', value); return val && val !== "" ? parseInt(val, 10) : null; })(),
@@ -1348,8 +1355,8 @@ export default function BathingList() {
   };
 
   // 選択日付から曜日を取得し、入浴日フィールドを判定
-  const getBathDayField = useCallback((date: string) => {
-    const dayOfWeek = new Date(date).getDay();
+  const getBathDayField = useCallback((date: Date) => {
+    const dayOfWeek = date.getDay();
     const bathDayFields = [
       'bathSunday',    // 0: 日曜日
       'bathMonday',    // 1: 月曜日  
@@ -1398,7 +1405,7 @@ export default function BathingList() {
 
     const existingRecords = (Array.isArray(bathingRecords) ? bathingRecords : []).filter((record: any) => {
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-      if (recordDate !== selectedDate) {
+      if (recordDate !== format(selectedDate, "yyyy-MM-dd")) {
         return false;
       }
 
@@ -1437,7 +1444,7 @@ export default function BathingList() {
     // タイムゾーンの問題を避けるため、日付文字列での比較を使用
     const todayString = format(new Date(), "yyyy-MM-dd");
 
-    if (selectedDate <= todayString) {
+    if (format(selectedDate, "yyyy-MM-dd") <= todayString) {
       const recordsWithEmpty = [...existingRecords];
 
       filteredResidents.forEach((resident: any) => {
@@ -1447,7 +1454,7 @@ export default function BathingList() {
         
         if (!hasRecord) {
           const tempRecord = {
-            id: `temp-${resident.id}-${selectedDate}`,
+            id: `temp-${resident.id}-${format(selectedDate, "yyyy-MM-dd")}`,
             residentId: resident.id,
             recordDate: selectedDate,
             timing: "午前", // デフォルト値
@@ -1538,7 +1545,7 @@ export default function BathingList() {
     // 既存の入浴記録（選択日付でフィルタ）
     const existingRecords = bathingRecords.filter((record: any) => {
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-      if (recordDate !== selectedDate) return false;
+      if (recordDate !== format(selectedDate, "yyyy-MM-dd")) return false;
 
       // 既存レコード（利用者が設定されている場合も含む）は基本的に表示
       // ただし、フロアフィルタは適用する
@@ -1672,7 +1679,7 @@ export default function BathingList() {
 
     const existingRecords = (Array.isArray(bathingRecords) ? bathingRecords : []).filter((record: any) => {
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-      if (recordDate !== selectedDate) {
+      if (recordDate !== format(selectedDate, "yyyy-MM-dd")) {
         return false;
       }
 
@@ -1710,7 +1717,7 @@ export default function BathingList() {
 
     const todayString = format(new Date(), "yyyy-MM-dd");
 
-    if (selectedDate <= todayString) {
+    if (format(selectedDate, "yyyy-MM-dd") <= todayString) {
       const recordsWithEmpty = [...existingRecords];
 
       filteredResidents.forEach((resident: any) => {
@@ -1720,7 +1727,7 @@ export default function BathingList() {
         
         if (!hasRecord) {
           const tempRecord = {
-            id: `temp-${resident.id}-${selectedDate}`,
+            id: `temp-${resident.id}-${format(selectedDate, "yyyy-MM-dd")}`,
             residentId: resident.id,
             recordDate: selectedDate,
             timing: "午前", // デフォルト値
@@ -1934,7 +1941,7 @@ export default function BathingList() {
                 // これにより、blurイベントハンドラが実行される時間を確保する
                 setTimeout(() => {
                   const params = new URLSearchParams();
-                  params.set('date', selectedDate);
+                  params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                   params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
                   const targetUrl = `/?${params.toString()}`;
                   setLocation(targetUrl);
@@ -1958,9 +1965,9 @@ export default function BathingList() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
                 data-testid="input-date"
               />
             </div>
@@ -2001,7 +2008,7 @@ export default function BathingList() {
               // 1. 該当日付のレコードを取得
               const todayRecords = bathingRecords.filter((record: any) => {
                 const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-                return recordDate === selectedDate;
+                return recordDate === format(selectedDate, "yyyy-MM-dd");
               });
               
               // 2. 入浴日設定のある利用者から、レコードが存在しない利用者用の一時レコードを生成

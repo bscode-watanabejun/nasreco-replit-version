@@ -202,9 +202,16 @@ export default function NursingRecords() {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [newRecordBlocks, setNewRecordBlocks] = useState<any[]>([]);
   // URLパラメータから日付とフロアの初期値を取得（1回のみ実行）
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
+    const dateParam = urlParams.get('date');
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
   });
   const [selectedFloor, setSelectedFloor] = useState<string>(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -296,7 +303,7 @@ export default function NursingRecords() {
     resolver: zodResolver(nursingRecordSchema),
     defaultValues: {
       residentId: selectedResident?.id || "",
-      recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
+      recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
       category: "看護記録",
       description: "",
     },
@@ -305,7 +312,7 @@ export default function NursingRecords() {
   // selectedDateが変更された時にフォームのデフォルト値を更新
   useEffect(() => {
     const currentTime = new Date().toTimeString().slice(0, 8);
-    const newRecordDate = new Date(selectedDate + "T" + currentTime).toISOString().slice(0, 16);
+    const newRecordDate = new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + currentTime).toISOString().slice(0, 16);
     
     form.reset({
       residentId: selectedResident?.id || "",
@@ -351,7 +358,7 @@ export default function NursingRecords() {
       queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
       form.reset({
         residentId: selectedResident?.id || "",
-        recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
+        recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
         category: "看護記録",
         description: "",
       });
@@ -679,7 +686,7 @@ export default function NursingRecords() {
           return false;
         }
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-        return recordDate === selectedDate;
+        return recordDate === format(selectedDate, "yyyy-MM-dd");
       })
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
     
@@ -703,7 +710,7 @@ export default function NursingRecords() {
           return false;
         }
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-        return recordDate === selectedDate;
+        return recordDate === format(selectedDate, "yyyy-MM-dd");
       })
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
     
@@ -738,7 +745,7 @@ export default function NursingRecords() {
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）
-    const filterDate = new Date(selectedDate);
+    const filterDate = selectedDate;
     const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
     const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
     
@@ -764,7 +771,7 @@ export default function NursingRecords() {
     return (nursingRecords as any[]).filter((record: any) => {
       if (record.residentId !== residentId) return false;
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-      return recordDate === selectedDate;
+      return recordDate === format(selectedDate, "yyyy-MM-dd");
     }).length;
   };
 
@@ -1141,9 +1148,9 @@ export default function NursingRecords() {
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 <input
                   type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
                 />
               </div>
             </div>
@@ -1959,7 +1966,7 @@ export default function NursingRecords() {
               variant="outline" 
               onClick={() => {
                 const params = new URLSearchParams();
-                params.set('date', selectedDate);
+                params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                 params.set('floor', selectedFloor);
                 setLocation(`/nursing-records-list?${params.toString()}`);
               }}
@@ -2018,7 +2025,7 @@ export default function NursingRecords() {
             size="sm"
             onClick={() => {
               const params = new URLSearchParams();
-              params.set('date', selectedDate);
+              params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor);
               setLocation(`/?${params.toString()}`);
             }}
@@ -2038,9 +2045,9 @@ export default function NursingRecords() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             

@@ -85,9 +85,16 @@ export default function Communications() {
 
   // Initialize from URL params if available
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(
-    urlParams.get('date') || format(new Date(), "yyyy-MM-dd")
-  );
+  const dateParam = urlParams.get('date');
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedJobRole, setSelectedJobRole] = useState("全体");
   const [selectedFloor, setSelectedFloor] = useState(() => {
     const floorParam = urlParams.get('floor');
@@ -199,10 +206,10 @@ export default function Communications() {
   // Filter notices based on selected criteria
   const filteredNotices = notices.filter(notice => {
     // Filter by date (notices active on selected date)
-    const selectedDateObj = new Date(selectedDate);
+    const selectedDateObj = selectedDate;
     const startDate = new Date(notice.startDate);
     const endDate = new Date(notice.endDate);
-    
+
     if (selectedDateObj < startDate || selectedDateObj > endDate) {
       return false;
     }
@@ -295,11 +302,8 @@ export default function Communications() {
             size="sm"
             onClick={() => {
               const params = new URLSearchParams();
-              const urlParams = new URLSearchParams(window.location.search);
-              const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
-              const selectedFloor = urlParams.get('floor') || 'all';
-              params.set('date', selectedDate);
-              params.set('floor', selectedFloor);
+              params.set('date', format(selectedDate, 'yyyy-MM-dd'));
+              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
               const targetUrl = `/?${params.toString()}`;
               setLocation(targetUrl);
             }}
@@ -320,9 +324,9 @@ export default function Communications() {
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+              value={format(selectedDate, 'yyyy-MM-dd')}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               data-testid="input-date"
             />
           </div>

@@ -189,7 +189,7 @@ export default function NursingJournal() {
   
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState<Date>(urlParams.get('date') ? new Date(urlParams.get('date')!) : new Date());
   const [selectedRecordType, setSelectedRecordType] = useState("日中");
   const [selectedFloor, setSelectedFloor] = useState(() => {
     const floorParam = urlParams.get('floor');
@@ -213,9 +213,9 @@ export default function NursingJournal() {
 
   // 日誌チェックボックス状態を取得
   const { data: journalCheckboxes = [] } = useQuery({
-    queryKey: ["/api/journal-checkboxes", selectedDate],
+    queryKey: ["/api/journal-checkboxes", format(selectedDate, 'yyyy-MM-dd')],
     queryFn: async () => {
-      const response = await apiRequest(`/api/journal-checkboxes/${selectedDate}`);
+      const response = await apiRequest(`/api/journal-checkboxes/${format(selectedDate, 'yyyy-MM-dd')}`);
       return response as Array<{
         id: string;
         recordId: string;
@@ -230,10 +230,10 @@ export default function NursingJournal() {
 
   // 記録データを取得（「今日の記録一覧」画面と同様）
   const { data: records = [], isLoading: recordsLoading } = useQuery({
-    queryKey: ["/api/daily-records", selectedDate],
+    queryKey: ["/api/daily-records", format(selectedDate, 'yyyy-MM-dd')],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('date', selectedDate);
+      params.set('date', format(selectedDate, 'yyyy-MM-dd'));
       
       const response = await apiRequest(`/api/daily-records?${params.toString()}`);
       return response as DailyRecord[];
@@ -328,7 +328,7 @@ export default function NursingJournal() {
 
   const handleBack = () => {
     const params = new URLSearchParams();
-    params.set('date', selectedDate);
+    params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
     const targetUrl = `/?${params.toString()}`;
     navigate(targetUrl);
@@ -345,11 +345,11 @@ export default function NursingJournal() {
 
   // 日誌エントリデータを取得
   const { data: journalEntry } = useQuery({
-    queryKey: ['/api/journal-entries', selectedDate, selectedRecordType, selectedFloor],
+    queryKey: ['/api/journal-entries', format(selectedDate, 'yyyy-MM-dd'), selectedRecordType, selectedFloor],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set('dateFrom', selectedDate);
-      params.set('dateTo', selectedDate);
+      params.set('dateFrom', format(selectedDate, 'yyyy-MM-dd'));
+      params.set('dateTo', format(selectedDate, 'yyyy-MM-dd'));
       params.set('recordType', selectedRecordType);
       if (selectedFloor !== '全階') {
         params.set('floor', selectedFloor.replace('階', ''));
@@ -360,7 +360,7 @@ export default function NursingJournal() {
 
       // 該当する日誌エントリを探す
       return entries.find(e =>
-        e.recordDate === selectedDate &&
+        e.recordDate === format(selectedDate, 'yyyy-MM-dd') &&
         e.recordType === selectedRecordType &&
         (selectedFloor === '全階' ? true : e.floor === selectedFloor.replace('階', ''))
       ) || null;
@@ -381,7 +381,7 @@ export default function NursingJournal() {
   const changeDateBy = (days: number) => {
     const currentDate = new Date(selectedDate);
     currentDate.setDate(currentDate.getDate() + days);
-    setSelectedDate(format(currentDate, "yyyy-MM-dd"));
+    setSelectedDate(currentDate);
   };
 
   const goToPreviousDay = () => changeDateBy(-1);
@@ -416,7 +416,7 @@ export default function NursingJournal() {
 
       // DBを更新
       await upsertJournalEntryMutation.mutateAsync({
-        recordDate: selectedDate,
+        recordDate: format(selectedDate, 'yyyy-MM-dd'),
         recordType: selectedRecordType,
         enteredBy: null, // NULLに設定
         residentCount: residentStats.totalResidents,
@@ -434,7 +434,7 @@ export default function NursingJournal() {
 
       // DBを更新
       await upsertJournalEntryMutation.mutateAsync({
-        recordDate: selectedDate,
+        recordDate: format(selectedDate, 'yyyy-MM-dd'),
         recordType: selectedRecordType,
         enteredBy: userName,
         residentCount: residentStats.totalResidents,
@@ -518,9 +518,9 @@ export default function NursingJournal() {
                 </Button>
                 <input
                   type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8 mx-0.5"
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white mx-0.5"
                 />
                 <Button
                   variant="ghost"
@@ -644,7 +644,7 @@ export default function NursingJournal() {
             <div className="mb-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <div className="font-medium">日付： {format(new Date(selectedDate), "yyyy年MM月dd日 EEEE", { locale: ja })}</div>
+                  <div className="font-medium">日付： {format(selectedDate, "yyyy年MM月dd日 EEEE", { locale: ja })}</div>
                   <div className="mt-2">
                     <div className="inline-block">入居者数：{residentStats.totalResidents}　</div>
                     <div className="inline-block">入院者数：{residentStats.hospitalizedCount}</div>
@@ -678,7 +678,7 @@ export default function NursingJournal() {
                         <div>{record.roomNumber} {record.residentName}</div>
                       </td>
                       <td className="border border-black p-2 text-center" style={{width: '100px'}}>
-                        {format(new Date(selectedDate), "d(E)", { locale: ja })} {formatTime(record.recordTime)}
+                        {format(selectedDate, "d(E)", { locale: ja })} {formatTime(record.recordTime)}
                       </td>
                       <td className="border border-black p-2 text-left">
                         {record.recordType === '処置' 

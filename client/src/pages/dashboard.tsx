@@ -107,7 +107,7 @@ export default function Dashboard() {
   const { data: unreadCount = 0, refetchUnreadCount } = useUnreadStaffNoticesCount();
   
   // 日付とフロア選択のstate - デフォルト値で初期化
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedFloor, setSelectedFloor] = useState("all");
 
   // Wouterの現在のロケーションを監視
@@ -118,9 +118,12 @@ export default function Dashboard() {
     const urlParams = new URLSearchParams(window.location.search);
     const dateParam = urlParams.get('date');
     const floorParam = urlParams.get('floor');
-    
+
     if (dateParam) {
-      setSelectedDate(dateParam);
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        setSelectedDate(date);
+      }
     }
     if (floorParam) {
       setSelectedFloor(floorParam);
@@ -138,7 +141,7 @@ export default function Dashboard() {
         }
         const selectedDateRecords = allBathingRecords.filter((bathing: any) => {
           const bathingDate = format(new Date(bathing.recordDate), "yyyy-MM-dd");
-          return bathingDate === selectedDate;
+          return bathingDate === format(selectedDate, "yyyy-MM-dd");
         });
         const uncheckedRecords = selectedDateRecords.filter((record: any) => {
           const hasCompleteVitals = record.temperature && 
@@ -198,7 +201,7 @@ export default function Dashboard() {
   const handleModuleClick = (path: string) => {
     // 選択された日付とフロアをURLパラメータとして渡す
     const params = new URLSearchParams();
-    params.set('date', selectedDate);
+    params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('floor', selectedFloor);
     navigate(`${path}?${params.toString()}`);
   };
@@ -342,9 +345,9 @@ export default function Dashboard() {
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
             <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
             />
           </div>
           

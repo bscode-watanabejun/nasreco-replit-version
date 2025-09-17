@@ -179,8 +179,10 @@ function InputWithDropdown({
 export default function TreatmentList() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new URLSearchParams(window.location.search).get("date") || format(new Date(), "yyyy-MM-dd"),
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    new URLSearchParams(window.location.search).get("date")
+      ? new Date(new URLSearchParams(window.location.search).get("date")!)
+      : new Date()
   );
   const [selectedFloor, setSelectedFloor] = useState<string>(() => {
     // URLパラメータから階数を取得
@@ -309,7 +311,7 @@ export default function TreatmentList() {
 
     const filtered = allNursingRecords
       .filter(record => record.category === '処置')
-      .filter(record => format(new Date(record.recordDate), "yyyy-MM-dd") === selectedDate)
+      .filter(record => format(new Date(record.recordDate), "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd"))
       .filter(record => !record.residentId || residentIds.has(record.residentId)) // residentIdがnullの記録も含める
       .sort((a, b) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
     
@@ -396,7 +398,7 @@ export default function TreatmentList() {
               size="sm" 
               onClick={() => {
                 const params = new URLSearchParams();
-                params.set('date', selectedDate);
+                params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                 params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
                 const targetUrl = `/?${params.toString()}`;
                 setLocation(targetUrl);
@@ -415,9 +417,9 @@ export default function TreatmentList() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             <div className="flex items-center space-x-1">

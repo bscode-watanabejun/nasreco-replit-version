@@ -327,7 +327,16 @@ export default function CareRecords() {
   const [newRecordBlocks, setNewRecordBlocks] = useState<any[]>([]);
   // URLパラメータから日付とフロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
+  const dateParam = urlParams.get('date');
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
 
   const { data: residents = [] } = useQuery({
@@ -382,7 +391,7 @@ export default function CareRecords() {
     resolver: zodResolver(careRecordSchema),
     defaultValues: {
       residentId: selectedResident?.id || "",
-      recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
+      recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
       category: "",
       description: "",
       notes: "",
@@ -392,7 +401,7 @@ export default function CareRecords() {
   // selectedDateが変更された時にフォームのデフォルト値を更新
   useEffect(() => {
     const currentTime = new Date().toTimeString().slice(0, 8);
-    const newRecordDate = new Date(selectedDate + "T" + currentTime).toISOString().slice(0, 16);
+    const newRecordDate = new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + currentTime).toISOString().slice(0, 16);
     
     form.reset({
       residentId: selectedResident?.id || "",
@@ -422,7 +431,7 @@ export default function CareRecords() {
       // フォームをリセットしてモーダルを閉じる
       form.reset({
         residentId: selectedResident?.id || "",
-        recordDate: new Date(selectedDate + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
+        recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
         category: "",
         description: "",
         notes: "",
@@ -796,7 +805,7 @@ export default function CareRecords() {
       .filter((record: any) => {
         if (!selectedResident || record.residentId !== selectedResident.id) return false;
         const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-        return recordDate === selectedDate;
+        return recordDate === format(selectedDate, "yyyy-MM-dd");
       })
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
   }, [careRecords, selectedResident, selectedDate]);
@@ -825,7 +834,7 @@ export default function CareRecords() {
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）
-    const filterDate = new Date(selectedDate);
+    const filterDate = selectedDate;
     const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
     const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
     
@@ -851,7 +860,7 @@ export default function CareRecords() {
     return (careRecords as any[]).filter((record: any) => {
       if (record.residentId !== residentId) return false;
       const recordDate = format(new Date(record.recordDate), "yyyy-MM-dd");
-      return recordDate === selectedDate;
+      return recordDate === format(selectedDate, "yyyy-MM-dd");
     }).length;
   };
 
@@ -1317,8 +1326,8 @@ export default function CareRecords() {
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
                 <input
                   type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
                   className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
                 />
               </div>
@@ -1854,7 +1863,7 @@ export default function CareRecords() {
             size="sm"
             onClick={() => {
               const params = new URLSearchParams();
-              params.set('date', selectedDate);
+              params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor);
               const targetUrl = `/?${params.toString()}`;
               setLocation(targetUrl);
@@ -1887,9 +1896,9 @@ export default function CareRecords() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             
@@ -2020,8 +2029,8 @@ export default function CareRecords() {
                 <label className="text-sm font-medium text-gray-700">記録日</label>
                 <input
                   type="date"
-                  value={bulkInputData.recordDate}
-                  onChange={(e) => setBulkInputData(prev => ({ ...prev, recordDate: e.target.value }))}
+                  value={format(bulkInputData.recordDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setBulkInputData(prev => ({ ...prev, recordDate: new Date(e.target.value) }))}
                   className="w-full px-3 py-2 border rounded-md"
                 />
               </div>

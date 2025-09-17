@@ -13,6 +13,7 @@ import { ArrowLeft, Users, Info, Calendar, Building } from "lucide-react";
 import ResidentAttachmentsView from "@/components/ResidentAttachmentsView";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
+import { ja } from "date-fns/locale";
 import type { Resident } from "@shared/schema";
 
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
@@ -82,7 +83,16 @@ export default function UserInfoView() {
   
   // URLパラメータから日付とフロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState<string>(urlParams.get('date') || format(new Date(), "yyyy-MM-dd"));
+  const dateParam = urlParams.get('date');
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || "all");
 
   // Fetch all residents
@@ -171,7 +181,7 @@ export default function UserInfoView() {
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）
-    const filterDate = new Date(selectedDate);
+    const filterDate = selectedDate;
     const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
     const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
     
@@ -204,7 +214,7 @@ export default function UserInfoView() {
                 size="sm"
                 onClick={() => {
                   const params = new URLSearchParams();
-                  if (selectedDate) params.set('date', selectedDate);
+                  if (selectedDate) params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                   if (selectedFloor) params.set('floor', selectedFloor);
                   const targetUrl = `/?${params.toString()}`;
                   navigate(targetUrl);
@@ -230,9 +240,9 @@ export default function UserInfoView() {
               <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600" />
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+                value={format(selectedDate, 'yyyy-MM-dd')}
+                onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
             

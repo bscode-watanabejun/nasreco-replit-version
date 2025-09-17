@@ -399,7 +399,7 @@ function VitalCard({
   deleteMutation: any;
   changeResidentMutation: any;
   createMutation: any;
-  selectedDate: string;
+  selectedDate: Date;
 }) {
   const resident = residents.find((r: any) => r.id === vital.residentId);
   
@@ -662,7 +662,7 @@ function VitalCard({
                     // 新規レコード作成
                     const recordData = {
                       residentId: vital.residentId,
-                      recordDate: vital.recordDate || new Date(selectedDate),
+                      recordDate: vital.recordDate || selectedDate,
                       timing: selectedTiming,
                       hour: vital.hour || null,
                       minute: vital.minute || null,
@@ -810,9 +810,16 @@ export default function Vitals() {
 
   // URLパラメータから日付と時間帯、フロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
-  const [selectedDate, setSelectedDate] = useState(
-    urlParams.get("date") || format(new Date(), "yyyy-MM-dd"),
-  );
+  const dateParam = urlParams.get("date");
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    if (dateParam) {
+      const date = new Date(dateParam);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    return new Date();
+  });
   const [selectedTiming, setSelectedTiming] = useState(
     urlParams.get("timing") || (new Date().getHours() < 12 ? "午前" : "午後"),
   );
@@ -846,7 +853,7 @@ export default function Vitals() {
   });
 
   const { data: vitalSigns = [] } = useQuery({
-    queryKey: ["/api/vital-signs", selectedDate],
+    queryKey: ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedDate) {
@@ -872,7 +879,7 @@ export default function Vitals() {
     if (!currentVital?.residentId) return;
 
     const residentId = currentVital.residentId;
-    const queryKey = ["/api/vital-signs", selectedDate];
+    const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
     
     // 楽観的更新（食事画面と同じパターン）
     queryClient.setQueryData(queryKey, (old: any) => {
@@ -882,7 +889,7 @@ export default function Vitals() {
       const existingIndex = old.findIndex((record: any) => 
         record.residentId === residentId && 
         record.timing === selectedTiming &&
-        format(new Date(record.recordDate), 'yyyy-MM-dd') === selectedDate
+        format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
       );
       
       if (existingIndex >= 0) {
@@ -913,7 +920,7 @@ export default function Vitals() {
         const newRecord = {
           id: `temp-${Date.now()}`,
           residentId,
-          recordDate: new Date(selectedDate),
+          recordDate: selectedDate,
           timing: selectedTiming,
           hour: field === 'hour' ? (value === '' ? null : parseInt(value)) : null,
           minute: field === 'minute' ? (value === '' ? null : parseInt(value)) : null,
@@ -947,7 +954,7 @@ export default function Vitals() {
     const existingRecord = filteredVitalSigns.find((v: any) => 
       v.residentId === currentVital.residentId && 
       v.timing === selectedTiming && 
-      format(new Date(v.recordDate), 'yyyy-MM-dd') === selectedDate &&
+      format(new Date(v.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
       !v.id.startsWith('temp-') // 実IDのレコードのみ
     );
 
@@ -1010,13 +1017,13 @@ export default function Vitals() {
       return apiRequest('/api/vital-signs', 'POST', data);
     },
     onMutate: async (newData) => {
-      const queryKey = ["/api/vital-signs", selectedDate];
+      const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
       const previousData = queryClient.getQueryData(queryKey);
       return { previousData };
     },
     onSuccess: (serverResponse, variables, context) => {
       // 食事画面と同じシンプルなパターン：tempIdのレコードを実際のIDに置き換えるのみ
-      const queryKey = ["/api/vital-signs", selectedDate];
+      const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
         
@@ -1033,7 +1040,7 @@ export default function Vitals() {
     },
     onError: (error: any, variables, context) => {
       if (context?.previousData) {
-        const queryKey = ["/api/vital-signs", selectedDate];
+        const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
         queryClient.setQueryData(queryKey, context.previousData);
       }
       
@@ -1051,7 +1058,7 @@ export default function Vitals() {
       return apiRequest(`/api/vital-signs/${id}`, 'PATCH', data);
     },
     onMutate: async ({ id, data }) => {
-      const queryKey = ["/api/vital-signs", selectedDate];
+      const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
       const previousData = queryClient.getQueryData(queryKey);
       
       // 楽観的更新実行
@@ -1073,7 +1080,7 @@ export default function Vitals() {
     onError: (error: any, variables, context) => {
       // エラー時に前の状態に戻す
       if (context?.previousData) {
-        const queryKey = ["/api/vital-signs", selectedDate];
+        const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
         queryClient.setQueryData(queryKey, context.previousData);
       }
       
@@ -1373,7 +1380,7 @@ export default function Vitals() {
 
     const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
       const vitalDate = format(new Date(vital.recordDate), "yyyy-MM-dd");
-      if (vitalDate !== selectedDate) return false;
+      if (vitalDate !== format(selectedDate, "yyyy-MM-dd")) return false;
 
       if (vital.timing !== selectedTiming) return false;
 
@@ -1473,7 +1480,7 @@ export default function Vitals() {
               size="sm"
               onClick={() => {
                 const params = new URLSearchParams();
-                params.set('date', selectedDate);
+                params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                 params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
                 const targetUrl = `/?${params.toString()}`;
                 setLocation(targetUrl);
@@ -1495,9 +1502,9 @@ export default function Vitals() {
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
+              value={format(selectedDate, 'yyyy-MM-dd')}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
             />
           </div>
 
