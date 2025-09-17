@@ -310,15 +310,54 @@ export default function MealWaterCheckList() {
     mutationFn: async ({ id, data }: { id: string; data: Partial<MealsAndMedication> }) => {
       return apiRequest(`/api/meals-medication/${id}`, "PUT", data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["meals-medication"] });
+    onMutate: async ({ id, data }) => {
+      // クエリを一時停止して競合状態を防ぐ
+      await queryClient.cancelQueries({ queryKey: ["meals-medication"] });
+
+      // 現在のデータのスナップショットを取得
+      const previousData = queryClient.getQueryData<MealsAndMedication[]>(["meals-medication", dateFrom, dateTo]);
+
+      // 楽観的更新を実行
+      queryClient.setQueryData<MealsAndMedication[]>(["meals-medication", dateFrom, dateTo], (oldData) => {
+        if (!oldData) return oldData;
+
+        return oldData.map(meal =>
+          meal.id === id ? { ...meal, ...data } : meal
+        );
+      });
+
+      // ロールバック用のデータを返す
+      return { previousData };
     },
-    onError: () => {
+    onError: (error, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(["meals-medication", dateFrom, dateTo], context.previousData);
+      }
+
+      // ローカル編集状態もクリア（エラー時）
+      if (variables.data && Object.keys(variables.data).includes('waterIntake')) {
+        setLocalEdits(prev => {
+          const newMap = new Map(prev);
+          // 該当するローカル編集をクリア
+          Array.from(newMap.keys()).forEach(key => {
+            if (key.includes(variables.id) && key.includes('waterIntake')) {
+              newMap.delete(key);
+            }
+          });
+          return newMap;
+        });
+      }
+
       toast({
         title: "エラー",
         description: "データの更新に失敗しました",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // 最終的にデータを同期
+      queryClient.invalidateQueries({ queryKey: ["meals-medication"] });
     },
   });
 
@@ -327,15 +366,100 @@ export default function MealWaterCheckList() {
     mutationFn: async (data: Partial<MealsAndMedication>) => {
       return apiRequest("/api/meals-medication", "POST", data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["meals-medication"] });
+    onMutate: async (newData) => {
+      // クエリを一時停止して競合状態を防ぐ
+      await queryClient.cancelQueries({ queryKey: ["meals-medication"] });
+
+      // 現在のデータのスナップショットを取得
+      const previousData = queryClient.getQueryData<MealsAndMedication[]>(["meals-medication", dateFrom, dateTo]);
+
+      // 楽観的更新を実行（一時的なIDで新しいレコードを追加）
+      queryClient.setQueryData<MealsAndMedication[]>(["meals-medication", dateFrom, dateTo], (oldData) => {
+        if (!oldData) return oldData;
+
+        const optimisticRecord = {
+          ...newData,
+          id: `temp-${Date.now()}`, // 一時的なID
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as MealsAndMedication;
+
+        return [...oldData, optimisticRecord];
+      });
+
+      // ロールバック用のデータを返す
+      return { previousData };
     },
-    onError: (error: any) => {
+    onSuccess: (serverResponse, variables, context) => {
+      // サーバーからの実際のレスポンスでキャッシュを更新
+      queryClient.setQueryData<MealsAndMedication[]>(["meals-medication", dateFrom, dateTo], (oldData) => {
+        if (!oldData) return oldData;
+
+        // 一時的なレコードを実際のサーバーレスポンスに置き換え
+        return oldData.map(meal =>
+          meal.id?.toString().startsWith('temp-') &&
+          meal.residentId === variables.residentId &&
+          meal.mealType === variables.mealType
+            ? { ...meal, ...serverResponse, id: serverResponse.id }
+            : meal
+        );
+      });
+
+      // ローカル編集状態をサーバー値に同期（新規登録成功時）
+      if (serverResponse && variables.residentId && variables.mealType) {
+        // recordDateは既に日付文字列形式（"2025-09-17"）で送信されているため、直接使用
+        const dateStr = variables.recordDate ?
+          (typeof variables.recordDate === 'string' ? variables.recordDate : format(variables.recordDate, 'yyyy-MM-dd')) :
+          format(new Date(), 'yyyy-MM-dd');
+
+        // 各フィールドのローカル編集状態を更新
+        setLocalEdits(prev => {
+          const newMap = new Map(prev);
+
+          // 水分フィールドのローカル編集を保持（サーバー値で同期）
+          if (serverResponse.waterIntake !== undefined) {
+            const waterKey = `${variables.residentId}_${dateStr}_${variables.mealType}_waterIntake`;
+            newMap.set(waterKey, serverResponse.waterIntake || '');
+          }
+
+          return newMap;
+        });
+      }
+    },
+    onError: (error: any, variables, context) => {
+      // エラー時に前の状態に戻す
+      if (context?.previousData) {
+        queryClient.setQueryData(["meals-medication", dateFrom, dateTo], context.previousData);
+      }
+
+      // ローカル編集状態もクリア（エラー時）
+      if (variables && variables.waterIntake !== undefined &&
+          variables.residentId && variables.mealType) {
+        setLocalEdits(prev => {
+          const newMap = new Map(prev);
+          // 該当するローカル編集をクリア
+          Array.from(newMap.keys()).forEach(key => {
+            if (key.includes(variables.residentId!) &&
+                key.includes(variables.mealType!) &&
+                key.includes('waterIntake')) {
+              newMap.delete(key);
+            }
+          });
+          return newMap;
+        });
+      }
+
       toast({
         title: "エラー",
         description: error.message || "データの作成に失敗しました",
         variant: "destructive",
       });
+    },
+    onSettled: (data, error) => {
+      // エラー時のみデータを同期（成功時は楽観的更新で既に同期済み）
+      if (error) {
+        queryClient.invalidateQueries({ queryKey: ["meals-medication"] });
+      }
     },
   });
 
@@ -511,35 +635,17 @@ export default function MealWaterCheckList() {
         id: existingMeal.id,
         data: { [field]: value || null }
       });
-      // 更新成功後にローカル編集をクリア
-      if (field === "waterIntake") {
-        const localKey = `${residentId}_${date}_${mealType}_${field}`;
-        setLocalEdits(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(localKey);
-          return newMap;
-        });
-      }
     } else if (createdId) {
       // 作成済みレコードがある場合は、そのIDで更新
       await updateMealMutation.mutateAsync({
         id: createdId,
         data: { [field]: value || null }
       });
-      // 更新成功後にローカル編集をクリア
-      if (field === "waterIntake") {
-        const localKey = `${residentId}_${date}_${mealType}_${field}`;
-        setLocalEdits(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(localKey);
-          return newMap;
-        });
-      }
     } else {
       // 新規データの作成 - 全フィールドを初期化
       const mealData: any = {
         residentId,
-        recordDate: startOfDay(parseISO(date)).toISOString(),
+        recordDate: date, // 日付文字列をそのまま送信してタイムゾーンの問題を回避
         type: "meal",
         mealType,
         staffId: (user as any)?.id || "",
@@ -558,16 +664,6 @@ export default function MealWaterCheckList() {
           setCreatedRecordIds(prev => {
             const newMap = new Map(prev);
             newMap.set(recordKey, result.id);
-            return newMap;
-          });
-        }
-        
-        // 作成成功後にローカル編集をクリア
-        if (field === "waterIntake") {
-          const localKey = `${residentId}_${date}_${mealType}_${field}`;
-          setLocalEdits(prev => {
-            const newMap = new Map(prev);
-            newMap.delete(localKey);
             return newMap;
           });
         }
@@ -724,7 +820,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["朝"]?.mainAmount || ""}
                         options={mainFoodOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "朝", "mainAmount", value)}
-                        placeholder="主"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -733,7 +829,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["朝"]?.sideAmount || ""}
                         options={mainFoodOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "朝", "sideAmount", value)}
-                        placeholder="副"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -742,7 +838,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["朝"]?.waterIntake || ""}
                         options={waterOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "朝", "waterIntake", value)}
-                        placeholder="水分"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -751,7 +847,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["朝"]?.staffName || ""}
                         options={staffNameOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "朝", "staffName", value)}
-                        placeholder="記入者"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -760,7 +856,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["朝"]?.supplement || ""}
                         options={supplementOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "朝", "supplement", value)}
-                        placeholder="その他"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -771,7 +867,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["昼"]?.mainAmount || ""}
                         options={mainFoodOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "昼", "mainAmount", value)}
-                        placeholder="主"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -780,7 +876,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["昼"]?.sideAmount || ""}
                         options={mainFoodOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "昼", "sideAmount", value)}
-                        placeholder="副"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -789,7 +885,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["昼"]?.waterIntake || ""}
                         options={waterOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "昼", "waterIntake", value)}
-                        placeholder="水分"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -798,7 +894,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["昼"]?.staffName || ""}
                         options={staffNameOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "昼", "staffName", value)}
-                        placeholder="記入者"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -807,7 +903,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["昼"]?.supplement || ""}
                         options={supplementOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "昼", "supplement", value)}
-                        placeholder="その他"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -818,7 +914,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["夕"]?.mainAmount || ""}
                         options={mainFoodOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "夕", "mainAmount", value)}
-                        placeholder="主"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -827,7 +923,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["夕"]?.sideAmount || ""}
                         options={mainFoodOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "夕", "sideAmount", value)}
-                        placeholder="副"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -836,7 +932,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["夕"]?.waterIntake || ""}
                         options={waterOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "夕", "waterIntake", value)}
-                        placeholder="水分"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -845,7 +941,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["夕"]?.staffName || ""}
                         options={staffNameOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "夕", "staffName", value)}
-                        placeholder="記入者"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -854,7 +950,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["夕"]?.supplement || ""}
                         options={supplementOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "夕", "supplement", value)}
-                        placeholder="その他"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -865,7 +961,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["10時"]?.waterIntake || ""}
                         options={waterOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "10時", "waterIntake", value)}
-                        placeholder="水分"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
@@ -874,7 +970,7 @@ export default function MealWaterCheckList() {
                         value={group.meals["15時"]?.waterIntake || ""}
                         options={waterOptions}
                         onSave={(value) => handleSave(group.residentId, group.date, "15時", "waterIntake", value)}
-                        placeholder="水分"
+                        placeholder=""
                         className="w-full"
                       />
                     </td>
