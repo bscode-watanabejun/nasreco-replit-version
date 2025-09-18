@@ -204,6 +204,21 @@ export default function DailyRecords() {
     return '全階';
   });
 
+  // 施設設定を取得（日勤時間帯のため）
+  const { data: facilitySettings } = useQuery({
+    queryKey: ["/api/facility-settings"],
+    queryFn: async () => {
+      const response = await apiRequest("/api/facility-settings");
+      return response as {
+        id: string;
+        dayShiftFrom?: string;
+        dayShiftTo?: string;
+        [key: string]: any;
+      };
+    },
+    enabled: !!isAuthenticated,
+  });
+
   // 日誌チェックボックス状態を取得
   const { data: journalCheckboxes = [] } = useQuery({
     queryKey: ["/api/journal-checkboxes", format(selectedDate, 'yyyy-MM-dd')],
@@ -515,47 +530,75 @@ export default function DailyRecords() {
     refetchOnWindowFocus: true, // ウィンドウフォーカス時にも最新データを取得
   });
 
+  // 時刻文字列（HH:MM）を分数に変換するヘルパー関数
+  const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
   // フロントエンド側でフィルタリングを実装
   const filteredRecords = useMemo(() => {
     if (!records) return [];
 
+    // デフォルト値（施設設定が未設定の場合）
+    const defaultDayShiftFrom = 511; // 8:31
+    const defaultDayShiftTo = 1050; // 17:30
+
+    // 施設設定から日勤時間帯を取得（なければデフォルト値を使用）
+    let dayShiftFromMinutes = defaultDayShiftFrom;
+    let dayShiftToMinutes = defaultDayShiftTo;
+
+    if (facilitySettings?.dayShiftFrom && facilitySettings?.dayShiftTo) {
+      try {
+        dayShiftFromMinutes = timeToMinutes(facilitySettings.dayShiftFrom);
+        dayShiftToMinutes = timeToMinutes(facilitySettings.dayShiftTo);
+      } catch (error) {
+        console.error('施設設定の時刻変換エラー:', error);
+        // エラー時はデフォルト値を使用
+      }
+    }
+
+    // 夜間の開始時刻と終了時刻を計算
+    const nightShiftFromMinutes = dayShiftToMinutes + 1; // 日勤終了の1分後
+    const nightShiftToMinutes = dayShiftFromMinutes - 1; // 翌日の日勤開始の1分前
+
     return records.filter(record => {
       // recordTimeはJST表記（+09:00付き）の文字列
       const recordDate = new Date(record.recordTime);
-      
+
       // JST時刻を取得（+09:00付きなのでローカル時刻として正しく解釈される）
       const hour = recordDate.getHours();
       const minute = recordDate.getMinutes();
       const totalMinutes = hour * 60 + minute;
-      
+
       // JST日付を取得
       const recordDateStr = format(recordDate, 'yyyy-MM-dd');
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      
+
 
       if (selectedRecordType === "日中") {
-        // 日中フィルタ：選択日の8:31〜17:30の時間帯
+        // 日中フィルタ：施設設定の日勤時間帯
         const isSameDate = recordDateStr === selectedDateStr;
-        const isDaytime = totalMinutes >= 511 && totalMinutes <= 1050; // 8:31〜17:30
+        const isDaytime = totalMinutes >= dayShiftFromMinutes && totalMinutes <= dayShiftToMinutes;
         return isSameDate && isDaytime && !['バイタル', '看護記録', '処置'].includes(record.recordType);
       } else if (selectedRecordType === "夜間") {
-        // 夜間フィルタ：選択日17:31〜翌日8:30の時間帯
+        // 夜間フィルタ：日勤終了1分後〜翌日の日勤開始1分前
         // 翌日の日付を計算
         const nextDate = new Date(selectedDate);
         nextDate.setDate(nextDate.getDate() + 1);
         const nextDateStr = format(nextDate, 'yyyy-MM-dd');
-        
-        // 選択日の17:31以降
-        const isSelectedDayEvening = recordDateStr === selectedDateStr && totalMinutes >= 1051; // 選択日17:31以降
-        // 翌日の8:30まで
-        const isNextDayEarlyMorning = recordDateStr === nextDateStr && totalMinutes <= 510; // 翌日8:30まで
-        
+
+        // 選択日の夜間開始以降
+        const isSelectedDayEvening = recordDateStr === selectedDateStr && totalMinutes >= nightShiftFromMinutes;
+        // 翌日の夜間終了まで
+        const isNextDayEarlyMorning = recordDateStr === nextDateStr && totalMinutes <= nightShiftToMinutes;
+
         return (isSelectedDayEvening || isNextDayEarlyMorning) && !['バイタル', '看護記録', '処置'].includes(record.recordType);
       } else if (selectedRecordType === "看護") {
         // 看護フィルタ：時間に関係なく、バイタル・看護記録・処置のみ
         return ['バイタル', '看護記録', '処置'].includes(record.recordType);
       }
-      
+
       // どの条件にも該当しない記録は除外
       return false;
     }).sort((a, b) => {
@@ -564,7 +607,7 @@ export default function DailyRecords() {
       const roomB = parseInt(b.roomNumber || '0') || 0;
       return roomA - roomB;
     });
-  }, [records, selectedRecordType]);
+  }, [records, selectedRecordType, facilitySettings]);
 
   if (!isAuthenticated) {
     return null;

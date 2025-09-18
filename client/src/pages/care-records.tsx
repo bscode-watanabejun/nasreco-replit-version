@@ -341,10 +341,16 @@ export default function CareRecords() {
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
+    staleTime: 0, // キャッシュを無効化
+    refetchOnMount: true, // マウント時に必ず最新データを取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時にも最新データを取得
   });
 
   const { data: careRecords = [], isLoading } = useQuery({
     queryKey: ["/api/care-records"],
+    staleTime: 0, // キャッシュを無効化
+    refetchOnMount: true, // マウント時に必ず最新データを取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時にも最新データを取得
   });
 
   const { data: currentUser } = useQuery({
