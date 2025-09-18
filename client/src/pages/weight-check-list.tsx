@@ -14,7 +14,7 @@ import { format, parseISO, startOfMonth, addMonths, subMonths, startOfYear, endO
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { WeightRecord, Resident } from "@shared/schema";
+import type { WeightRecord, Resident, FacilitySettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -122,10 +122,10 @@ const getChartColors = () => [
   '#16a085', '#d68910', '#2c3e50', '#7f8c8d', '#a93226'
 ];
 
-// 体重の前月比を算出し、2kg以上の差があるかチェック
-const isWeightChangeSignificant = (currentWeight: number | null, previousWeight: number | null): boolean => {
+// 体重の前月比を算出し、指定した基準値以上の差があるかチェック
+const isWeightChangeSignificant = (currentWeight: number | null, previousWeight: number | null, baseline: number = 2): boolean => {
   if (!currentWeight || !previousWeight) return false;
-  return Math.abs(currentWeight - previousWeight) >= 2;
+  return Math.abs(currentWeight - previousWeight) >= baseline;
 };
 
 
@@ -541,6 +541,12 @@ export default function WeightCheckList() {
   const { data: residents = [] } = useQuery<Resident[]>({
     queryKey: ["residents"],
     queryFn: () => apiRequest("/api/residents"),
+  });
+
+  // 施設設定の取得
+  const { data: facilitySettings } = useQuery<FacilitySettings>({
+    queryKey: ["/api/facility-settings"],
+    queryFn: () => apiRequest("/api/facility-settings"),
   });
 
   // 体重記録データの取得（月次）
@@ -1136,7 +1142,8 @@ export default function WeightCheckList() {
                           </td>
                           {item.monthlyWeights.map((weight, monthIndex) => {
                             const previousWeight = monthIndex > 0 ? item.monthlyWeights[monthIndex - 1] : null;
-                            const isSignificant = weight !== null && isWeightChangeSignificant(weight, previousWeight);
+                            const weightBaseline = facilitySettings?.weightBaseline ? Number(facilitySettings.weightBaseline) : 2;
+                            const isSignificant = weight !== null && isWeightChangeSignificant(weight, previousWeight, weightBaseline);
 
                             return (
                               <td key={monthIndex} className="text-xs border border-gray-300 px-1 py-2 text-center">

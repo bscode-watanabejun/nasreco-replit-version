@@ -1732,16 +1732,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 体重チェック一覧年次用のHTMLテンプレート生成関数
   function generateWeightPrintHTML(
     yearlyTableData: any[],
-    selectedYear: string
+    selectedYear: string,
+    weightBaseline: number = 2
   ): string {
     // 30利用者ずつでページ分割
     const itemsPerPage = 30;
     const totalPages = Math.ceil(yearlyTableData.length / itemsPerPage);
 
-    // 体重の前月比を算出し、2kg以上の差があるかチェック
+    // 体重の前月比を算出し、指定した基準値以上の差があるかチェック
     const isWeightChangeSignificant = (currentWeight: number | null, previousWeight: number | null): boolean => {
       if (!currentWeight || !previousWeight) return false;
-      return Math.abs(currentWeight - previousWeight) >= 2;
+      return Math.abs(currentWeight - previousWeight) >= weightBaseline;
     };
 
     let html = `
@@ -2900,9 +2901,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const endDate = new Date(fiscalYear + 1, 2, 31); // 翌年3月31日
 
       // 2. データを取得
-      const [weightRecords, residents] = await Promise.all([
+      const [weightRecords, residents, facilitySettings] = await Promise.all([
         storage.getWeightRecords(undefined, startDate, endDate),
-        storage.getResidents()
+        storage.getResidents(),
+        storage.getFacilitySettings()
       ]);
 
       // 3. 階数フィルタ
@@ -2968,9 +2970,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // 7. HTMLテンプレート生成
+      const weightBaseline = facilitySettings?.weightBaseline ? Number(facilitySettings.weightBaseline) : 2;
       const htmlContent = generateWeightPrintHTML(
         yearlyTableData,
-        selectedYear
+        selectedYear,
+        weightBaseline
       );
 
       // 8. HTMLレスポンスを返す
