@@ -262,8 +262,9 @@ export default function MedicationCheckList() {
         return [];
       }
     },
-    staleTime: 5 * 60 * 1000,    // 5分間はキャッシュから取得
+    staleTime: 0,                // 常に最新データを取得
     gcTime: 30 * 60 * 1000,      // 30分間メモリに保持
+    refetchOnMount: true,        // マウント時に必ず再取得
   });
 
   // フィルタリングされたデータ
