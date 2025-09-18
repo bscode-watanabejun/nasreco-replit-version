@@ -468,6 +468,32 @@ export default function MedicationCheckList() {
       });
   }, [filteredData, residents]);
 
+  // 印刷処理
+  const handlePrint = () => {
+    try {
+      // APIパラメータをURLエンコード
+      const params = new URLSearchParams({
+        dateFrom,
+        dateTo,
+        selectedTiming,
+        selectedFloor,
+        selectedResident
+      });
+
+      // 新しいタブで印刷用ページを表示
+      const printUrl = `/api/medication-records/print?${params.toString()}`;
+      window.open(printUrl, '_blank');
+
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      toast({
+        title: "印刷エラー",
+        description: "印刷用ページの表示に失敗しました。",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <header className="bg-white border-b px-4 py-3 flex items-center gap-3">
@@ -556,12 +582,7 @@ export default function MedicationCheckList() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                onClick={() => {
-                  toast({
-                    title: "印刷機能",
-                    description: "印刷機能は現在開発中です",
-                  });
-                }}
+                onClick={handlePrint}
               >
                 <Printer className="h-4 w-4 mr-1" />
                 印刷

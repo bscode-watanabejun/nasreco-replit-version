@@ -3535,6 +3535,267 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 服薬チェック一覧PDF生成エンドポイント
+  app.get('/api/medication-records/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedTiming = req.query.selectedTiming as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. 服薬記録データを取得
+      const medicationRecords = await storage.getMedicationRecordsByDateRange(
+        dateFrom || '',
+        dateTo || '',
+        selectedTiming || 'all',
+        selectedFloor || 'all'
+      );
+
+      // 2. 入居者情報を取得
+      const residents = await storage.getResidents();
+
+      // 3. 利用者フィルタリング
+      let filteredRecords = medicationRecords;
+      if (selectedResident !== 'all') {
+        filteredRecords = medicationRecords.filter(record => record.residentId === selectedResident);
+      }
+
+      // 4. 利用者ごとにレコードをグループ化
+      const recordsByResident = new Map<string, any[]>();
+      filteredRecords.forEach(record => {
+        const residentId = record.residentId;
+        if (!recordsByResident.has(residentId)) {
+          recordsByResident.set(residentId, []);
+        }
+        recordsByResident.get(residentId)!.push(record);
+      });
+
+      // 5. 日付フォーマット用の関数
+      const formatDateWithWeekday = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+        const weekday = weekdays[date.getDay()];
+        return `${month.toString().padStart(2, '0')}月${day.toString().padStart(2, '0')}日(${weekday})`;
+      };
+
+      const formatDateRange = (from: string, to: string) => {
+        const fromDate = new Date(from);
+        const toDate = new Date(to);
+        const fromMonth = fromDate.getMonth() + 1;
+        const fromDay = fromDate.getDate();
+        const toMonth = toDate.getMonth() + 1;
+        const toDay = toDate.getDate();
+        return `${fromMonth.toString().padStart(2, '0')}月${fromDay.toString().padStart(2, '0')}日〜${toMonth.toString().padStart(2, '0')}月${toDay.toString().padStart(2, '0')}日`;
+      };
+
+      // 6. HTML生成
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>服薬チェック一覧</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: 'メイリオ', 'Meiryo', sans-serif;
+              color: #000;
+            }
+            .page {
+              width: 100%;
+              page-break-after: always;
+              position: relative;
+            }
+            .page:last-child {
+              page-break-after: auto;
+            }
+            .header {
+              margin-bottom: 10mm;
+            }
+            .title {
+              font-size: 16px;
+              font-weight: bold;
+              text-align: center;
+              margin-bottom: 5mm;
+            }
+            .resident-info {
+              font-size: 12px;
+              margin-bottom: 3mm;
+              line-height: 1.6;
+            }
+            .service-type {
+              font-size: 11px;
+              margin-bottom: 2mm;
+            }
+            .date-info {
+              font-size: 11px;
+              margin-bottom: 5mm;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+              border: 1px solid #000;
+            }
+            th, td {
+              border: 1px solid #000;
+              padding: 2mm 1mm;
+              text-align: center;
+              vertical-align: middle;
+            }
+            th {
+              background-color: #f0f0f0;
+              font-weight: bold;
+            }
+            .date-time-col {
+              width: 15%;
+            }
+            .presence-col {
+              width: 10%;
+            }
+            .absence-col {
+              width: 10%;
+            }
+            .result-col {
+              width: 65%;
+              text-align: left;
+              padding-left: 3mm;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </head>
+        <body>
+      `;
+
+      // 7. 利用者ごとにページを生成
+      const sortedResidents = Array.from(recordsByResident.entries()).sort((a, b) => {
+        const residentA = residents.find(r => r.id === a[0]);
+        const residentB = residents.find(r => r.id === b[0]);
+        const roomA = parseInt(residentA?.roomNumber || '0');
+        const roomB = parseInt(residentB?.roomNumber || '0');
+        return roomA - roomB;
+      });
+
+      sortedResidents.forEach(([residentId, records]) => {
+        const resident = residents.find(r => r.id === residentId);
+        if (!resident) return;
+
+        // 記録を日付・時間帯でソート
+        const sortedRecords = records.sort((a, b) => {
+          const dateCompare = new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime();
+          if (dateCompare !== 0) return dateCompare;
+
+          const timingOrder = ["起床後", "朝前", "朝後", "昼前", "昼後", "夕前", "夕後", "眠前", "頓服"];
+          const timingIndexA = timingOrder.indexOf(a.timing);
+          const timingIndexB = timingOrder.indexOf(b.timing);
+          return timingIndexA - timingIndexB;
+        });
+
+        htmlContent += `
+          <div class="page">
+            <div class="header">
+              <div class="title">ケース記録（服薬・点眼）</div>
+              <div class="resident-info">
+                利用者氏名：${resident.roomNumber}：${resident.name}
+              </div>
+              <div class="service-type">
+                サービス種類：特定施設
+              </div>
+              <div class="date-info">
+                指定年月日：${formatDateRange(dateFrom, dateTo)}
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th class="date-time-col">日　曜</th>
+                  <th class="presence-col">在籍</th>
+                  <th class="absence-col">外泊</th>
+                  <th class="result-col">服薬</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        // 日付ごとにレコードをグループ化
+        const recordsByDate = new Map<string, any[]>();
+        sortedRecords.forEach(record => {
+          const dateKey = record.recordDate;
+          if (!recordsByDate.has(dateKey)) {
+            recordsByDate.set(dateKey, []);
+          }
+          recordsByDate.get(dateKey)!.push(record);
+        });
+
+        // 日付ごとに表示
+        recordsByDate.forEach((dateRecords, date) => {
+          const dateDisplay = formatDateWithWeekday(date);
+
+          dateRecords.forEach((record, index) => {
+            const resultDisplay = record.result ?
+              `${record.timing}　${record.type || '服薬'}：${record.result}` :
+              `${record.timing}`;
+
+            htmlContent += `
+              <tr>
+                ${index === 0 ? `<td rowspan="${dateRecords.length}" class="date-time-col">${dateDisplay.replace('月', '(').replace('日', ')').replace('(', '月').replace(')', '日')}</td>` : ''}
+                ${index === 0 ? `<td rowspan="${dateRecords.length}" class="presence-col"></td>` : ''}
+                ${index === 0 ? `<td rowspan="${dateRecords.length}" class="absence-col"></td>` : ''}
+                <td class="result-col">${resultDisplay}</td>
+              </tr>
+            `;
+          });
+        });
+
+        htmlContent += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      htmlContent += `
+        </body>
+        </html>
+      `;
+
+      // 8. HTMLレスポンスを返す
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error: any) {
+      console.error('❌ Error generating medication records print:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(500).json({
+        error: 'Failed to generate medication records print',
+        details: error.message
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
