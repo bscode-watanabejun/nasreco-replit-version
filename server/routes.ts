@@ -792,7 +792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               th {
                 background-color: #f0f0f0;
                 font-weight: bold;
-                font-size: 9px;
+                font-size: 10px;
               }
               .date-col { width: 70px; }
               .time-col { width: 40px; }
@@ -1594,7 +1594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 9px;
+      font-size: 10px;
       border: 2px solid #000;
       margin-bottom: 5mm;
     }
@@ -1729,6 +1729,208 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return html;
   }
 
+  // 体重チェック一覧年次用のHTMLテンプレート生成関数
+  function generateWeightPrintHTML(
+    yearlyTableData: any[],
+    selectedYear: string
+  ): string {
+    // 30利用者ずつでページ分割
+    const itemsPerPage = 30;
+    const totalPages = Math.ceil(yearlyTableData.length / itemsPerPage);
+
+    // 体重の前月比を算出し、2kg以上の差があるかチェック
+    const isWeightChangeSignificant = (currentWeight: number | null, previousWeight: number | null): boolean => {
+      if (!currentWeight || !previousWeight) return false;
+      return Math.abs(currentWeight - previousWeight) >= 2;
+    };
+
+    let html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>体重チェック表</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm;
+    }
+    body {
+      font-family: 'MS Gothic', monospace;
+      font-size: 11px;
+      line-height: 1.2;
+      margin: 0;
+      padding: 0;
+    }
+    @media print {
+      .content-wrapper {
+        max-width: 297mm;
+        margin: 0 auto;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+    }
+    @media screen {
+      .content-wrapper {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 10px;
+      }
+      .page-break {
+        margin-top: 30px;
+        border-top: 2px solid #ccc;
+        padding-top: 20px;
+      }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .page-info {
+      font-size: 12px;
+      text-align: right;
+      margin-bottom: 10px;
+    }
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 10px;
+      border: 2px solid #000;
+      outline: 1px solid #000;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 2px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    /* 最後の列の右側の罫線を強調 */
+    th:last-child, td:last-child {
+      border-right: 2px solid #000 !important;
+    }
+    /* ヘッダー行 */
+    .header-row th {
+      background-color: #f5f5f5;
+      font-weight: bold;
+    }
+    /* 固定幅の月列 */
+    .month-col {
+      width: 60px !important;
+      min-width: 60px !important;
+      max-width: 60px !important;
+      font-size: 12px;
+    }
+    /* 居室番号・利用者名の列 */
+    .room-col {
+      width: 60px;
+      text-align: center;
+      font-size: 11px;
+    }
+    .name-col {
+      width: 120px;
+      text-align: left;
+      padding-left: 4px;
+      font-size: 11px;
+    }
+    /* 赤文字（2kg以上の変化） */
+    .weight-significant {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+</head>
+<body>
+`;
+
+    // ページごとに処理
+    for (let page = 0; page < totalPages; page++) {
+      const startIndex = page * itemsPerPage;
+      const endIndex = Math.min(startIndex + itemsPerPage, yearlyTableData.length);
+      const pageData = yearlyTableData.slice(startIndex, endIndex);
+
+      if (page > 0) {
+        html += '<div class="page-break"></div>';
+      }
+
+      html += `
+  <div class="content-wrapper">
+    <div class="header">
+      <div class="title">体重チェック表　${selectedYear}年度</div>
+      <div class="page-info">${page + 1}ページ目</div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr class="header-row">
+            <th class="room-col">居室</th>
+            <th class="name-col">利用者名</th>
+            <th class="month-col">4月</th>
+            <th class="month-col">5月</th>
+            <th class="month-col">6月</th>
+            <th class="month-col">7月</th>
+            <th class="month-col">8月</th>
+            <th class="month-col">9月</th>
+            <th class="month-col">10月</th>
+            <th class="month-col">11月</th>
+            <th class="month-col">12月</th>
+            <th class="month-col">1月</th>
+            <th class="month-col">2月</th>
+            <th class="month-col">3月</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      // 利用者データ
+      pageData.forEach((item, index) => {
+        html += `
+          <tr>
+            <td class="room-col">${item.resident.roomNumber || ""}</td>
+            <td class="name-col">${item.resident.name}</td>`;
+
+        // 月別体重データ
+        item.monthlyWeights.forEach((weight: number | null, monthIndex: number) => {
+          const previousWeight = monthIndex > 0 ? item.monthlyWeights[monthIndex - 1] : null;
+          const isSignificant = weight !== null && isWeightChangeSignificant(weight, previousWeight);
+          const weightClass = isSignificant ? ' class="weight-significant"' : '';
+          const displayWeight = weight !== null ? weight.toString() : "";
+
+          html += `<td class="month-col"><span${weightClass}>${displayWeight}</span></td>`;
+        });
+
+        html += `
+          </tr>`;
+      });
+
+      html += `
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+    }
+
+    html += `
+</body>
+</html>`;
+
+    return html;
+  }
+
   // 清掃リネンチェック一覧用のHTMLテンプレート生成関数
   function generateCleaningLinenPrintHTML(
     filteredResidents: any[],
@@ -1818,7 +2020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     table {
       border-collapse: collapse;
       width: 100%;
-      font-size: 9px;
+      font-size: 10px;
       border: 2px solid #000;
       outline: 1px solid #000;
     }
@@ -2044,7 +2246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     table {
       border-collapse: collapse;
       width: 100%;
-      font-size: 9px;
+      font-size: 10px;
       border: 2px solid #000;
     }
     th, td {
@@ -2075,7 +2277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       line-height: 1.2;
     }
     .resident-name {
-      font-size: 9px;
+      font-size: 10px;
       margin-top: 2px;
     }
     .category-col {
@@ -2089,7 +2291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       max-width: 25px !important;
       text-align: center;
       vertical-align: middle;
-      font-size: 9px;
+      font-size: 10px;
       line-height: 1.1;
     }
     .spacer-row {
@@ -2103,7 +2305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       font-size: 8px;
     }
     .date-number {
-      font-size: 9px;
+      font-size: 10px;
       font-weight: bold;
     }
     .day-name {
@@ -2456,6 +2658,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error generating cleaning linen print:", error);
+      res.status(500).json({ message: "印刷データの生成に失敗しました" });
+    }
+  });
+
+  // 体重チェック一覧年次の印刷
+  app.get('/api/weight-records/print', isAuthenticated, async (req, res) => {
+    try {
+      const selectedYear = req.query.selectedYear as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. 年度範囲の計算
+      const fiscalYear = parseInt(selectedYear);
+      const startDate = new Date(fiscalYear, 3, 1); // 4月1日
+      const endDate = new Date(fiscalYear + 1, 2, 31); // 翌年3月31日
+
+      // 2. データを取得
+      const [weightRecords, residents] = await Promise.all([
+        storage.getWeightRecords(undefined, startDate, endDate),
+        storage.getResidents()
+      ]);
+
+      // 3. 階数フィルタ
+      let filteredResidents = residents;
+      if (selectedFloor !== "all") {
+        filteredResidents = residents.filter((resident: any) => {
+          return resident.floor === selectedFloor ||
+                 resident.floor === `${selectedFloor}階`;
+        });
+      }
+
+      // 4. 利用者フィルタ
+      if (selectedResident !== "all") {
+        filteredResidents = filteredResidents.filter((resident: any) =>
+          resident.id === selectedResident
+        );
+      }
+
+      // 5. 居室番号でソート
+      filteredResidents.sort((a: any, b: any) => {
+        const roomA = a.roomNumber || "";
+        const roomB = b.roomNumber || "";
+        const roomNumA = parseInt(roomA.toString().replace(/[^0-9]/g, ''), 10);
+        const roomNumB = parseInt(roomB.toString().replace(/[^0-9]/g, ''), 10);
+
+        if (!isNaN(roomNumA) && !isNaN(roomNumB)) {
+          return roomNumA - roomNumB;
+        }
+        return roomA.localeCompare(roomB, undefined, { numeric: true });
+      });
+
+      // 6. 月別データの構築
+      const yearlyTableData = filteredResidents.map(resident => {
+        const monthlyWeights: (number | null)[] = new Array(12).fill(null);
+
+        // 該当する体重記録を月別に振り分け
+        weightRecords
+          .filter(record => record.residentId === resident.id)
+          .forEach(record => {
+            if (!record.recordDate || !record.weight) return;
+
+            const recordDate = new Date(record.recordDate);
+            const year = recordDate.getFullYear();
+            const month = recordDate.getMonth();
+
+            let monthIndex = -1;
+
+            if (year === fiscalYear && month >= 3) {
+              monthIndex = month - 3;
+            } else if (year === fiscalYear + 1 && month <= 2) {
+              monthIndex = month + 9;
+            }
+
+            if (monthIndex >= 0 && monthIndex < 12) {
+              monthlyWeights[monthIndex] = parseFloat(record.weight.toString());
+            }
+          });
+
+        return {
+          resident,
+          monthlyWeights,
+        };
+      });
+
+      // 7. HTMLテンプレート生成
+      const htmlContent = generateWeightPrintHTML(
+        yearlyTableData,
+        selectedYear
+      );
+
+      // 8. HTMLレスポンスを返す
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error: any) {
+      console.error("Error generating weight print:", error);
       res.status(500).json({ message: "印刷データの生成に失敗しました" });
     }
   });
@@ -4063,7 +4361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             .sub-header {
               background-color: #e8e8e8;
-              font-size: 9px;
+              font-size: 10px;
             }
             .header-right-edge {
               border-right: 2px solid #000;
@@ -4347,7 +4645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             .sub-header {
               background-color: #e8e8e8;
-              font-size: 9px;
+              font-size: 10px;
             }
             .header-right-edge {
               border-right: 2px solid #000;
