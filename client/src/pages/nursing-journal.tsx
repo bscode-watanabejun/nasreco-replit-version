@@ -452,35 +452,22 @@ export default function NursingJournal() {
       return;
     }
 
-    // 印刷用コンテンツを表示してブラウザの印刷機能を使用
-    const printContent = document.getElementById('print-content');
-    if (printContent) {
-      // 印刷コンテンツを表示
-      printContent.classList.remove('hidden');
-      printContent.classList.add('block');
-      
-      // 通常のコンテンツを非表示
-      const normalContent = document.querySelector('.print\\:hidden');
-      if (normalContent) {
-        normalContent.classList.add('hidden');
-      }
-      
-      // 印刷実行
-      setTimeout(() => {
-        window.print();
-        
-        // 印刷後に元の表示に戻す
-        setTimeout(() => {
-          printContent.classList.add('hidden');
-          printContent.classList.remove('block');
-          
-          if (normalContent) {
-            normalContent.classList.remove('hidden');
-          }
-        }, 100);
-      }, 100);
-    } else {
-      window.print();
+    try {
+      const params = new URLSearchParams({
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        recordType: selectedRecordType,
+        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''),
+        enteredBy: enteredBy || ''
+      });
+      const printUrl = `/api/nursing-journal/print?${params.toString()}`;
+      window.open(printUrl, '_blank');
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      toast({
+        title: "エラー",
+        description: "印刷用データの生成に失敗しました。しばらく待ってから再度お試しください。",
+        variant: "destructive",
+      });
     }
   };
 
@@ -633,76 +620,6 @@ export default function NursingJournal() {
 
         {/* 日誌記録エリア */}
         <div className="space-y-3 mb-20">
-          {/* 印刷用レイアウト */}
-          <div id="print-content" className="hidden print:block print:space-y-0">
-            {/* 印刷用ヘッダー */}
-            <div className="text-center mb-4">
-              <h1 className="text-xl font-bold">日誌 ー {selectedRecordType}</h1>
-            </div>
-            
-            {/* 日付、記入者、統計情報 */}
-            <div className="mb-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="font-medium">日付： {format(selectedDate, "yyyy年MM月dd日 EEEE", { locale: ja })}</div>
-                  <div className="mt-2">
-                    <div className="inline-block">入居者数：{residentStats.totalResidents}　</div>
-                    <div className="inline-block">入院者数：{residentStats.hospitalizedCount}</div>
-                  </div>
-                  <div className="mt-1">
-                    入院者名：{residentStats.hospitalizedNames.length > 0 ? residentStats.hospitalizedNames.join("、") : "なし"}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-right">
-                    記入者：{enteredBy || "_________________"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 記録テーブル */}
-            {filteredJournalRecords.length > 0 && (
-              <table className="w-full border-collapse border border-black text-sm">
-                <thead>
-                  <tr>
-                    <th className="border border-black p-2 text-center" style={{width: '120px'}}>ご利用者</th>
-                    <th className="border border-black p-2 text-center" style={{width: '100px'}}>日時</th>
-                    <th className="border border-black p-2 text-center">内容</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredJournalRecords.map((record) => (
-                    <tr key={record.id}>
-                      <td className="border border-black p-2 text-center" style={{width: '120px'}}>
-                        <div>{record.roomNumber} {record.residentName}</div>
-                      </td>
-                      <td className="border border-black p-2 text-center" style={{width: '100px'}}>
-                        {format(selectedDate, "d(E)", { locale: ja })} {formatTime(record.recordTime)}
-                      </td>
-                      <td className="border border-black p-2 text-left">
-                        {record.recordType === '処置' 
-                          ? (record.originalData?.description || record.originalData?.interventions || '')
-                          : record.recordType === 'バイタル' 
-                            ? ((record as any).notes || '')
-                            : (record.content || '')
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            
-            {filteredJournalRecords.length === 0 && (
-              <div className="text-center py-8">
-                <p>選択された日誌種別にチェックされた記録がありません</p>
-              </div>
-            )}
-          </div>
-
-          {/* 通常表示用レイアウト */}
-          <div className="print:hidden">
             {filteredJournalRecords.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-slate-600">選択された日誌種別にチェックされた記録がありません</p>
@@ -792,12 +709,11 @@ export default function NursingJournal() {
                 );
               })
             )}
-          </div>
         </div>
       </div>
 
       {/* フッター */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 print:hidden">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
         <div className="flex items-center justify-end max-w-lg mx-auto">
           <Button
             onClick={handlePrint}
@@ -808,124 +724,6 @@ export default function NursingJournal() {
           </Button>
         </div>
       </div>
-      
-      {/* 印刷用スタイル */}
-      <style>{`
-        @media print {
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          
-          /* ヘッダー、ナビゲーション、フィルター、フッター等を非表示 */
-          .bg-slate-800,
-          .sticky,
-          .fixed,
-          .print\\:hidden,
-          .bg-white.p-3.shadow-sm.border-b,
-          nav,
-          header {
-            display: none !important;
-          }
-          
-          /* 印刷用コンテンツのみ表示 */
-          #print-content {
-            display: block !important;
-            width: 100%;
-          }
-          
-          .text-center {
-            text-align: center;
-          }
-          
-          .mb-4 {
-            margin-bottom: 20px;
-          }
-          
-          .text-xl {
-            font-size: 18px;
-          }
-          
-          .font-bold {
-            font-weight: bold;
-          }
-          
-          .flex {
-            display: flex;
-          }
-          
-          .justify-between {
-            justify-content: space-between;
-          }
-          
-          .font-medium {
-            font-weight: 500;
-          }
-          
-          .mt-2 {
-            margin-top: 8px;
-          }
-          
-          .mt-1 {
-            margin-top: 4px;
-          }
-          
-          .inline-block {
-            display: inline-block;
-          }
-          
-          .text-right {
-            text-align: right;
-          }
-          
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-            margin-top: 20px;
-          }
-          
-          th, td {
-            border: 1px solid #000;
-            padding: 6px;
-            text-align: left;
-            vertical-align: top;
-            page-break-inside: avoid;
-          }
-          
-          th {
-            background-color: #f5f5f5 !important;
-            font-weight: bold;
-            text-align: center;
-          }
-          
-          th:first-child, td:first-child {
-            width: 120px;
-            text-align: center;
-          }
-          
-          th:nth-child(2), td:nth-child(2) {
-            width: 100px;
-            text-align: center;
-          }
-          
-          th:nth-child(3) {
-            text-align: center;
-          }
-          
-          td:nth-child(3) {
-            text-align: left;
-          }
-          
-          .text-xs {
-            font-size: 10px;
-          }
-          
-          .py-8 {
-            padding: 40px 0;
-          }
-        }
-      `}</style>
     </div>
   );
 }

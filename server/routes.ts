@@ -1931,6 +1931,231 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return html;
   }
 
+  // 介護/看護日誌用のHTMLテンプレート生成関数
+  function generateNursingJournalPrintHTML(
+    filteredJournalRecords: any[],
+    residents: any[],
+    selectedDate: string,
+    selectedRecordType: string,
+    residentStats: any,
+    enteredBy: string
+  ): string {
+    // 日付フォーマット用の関数
+    const formatDate = (dateString: string) => {
+      const date = new Date(dateString);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+      const weekday = weekdays[date.getDay()];
+      return `${year}年${month}月${day}日 ${weekday}曜日`;
+    };
+
+    const formatTime = (dateString: string) => {
+      try {
+        const date = new Date(dateString);
+        // JST（UTC+9）に変換
+        const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+        const hours = jstDate.getUTCHours().toString().padStart(2, '0');
+        const minutes = jstDate.getUTCMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
+      } catch {
+        return "";
+      }
+    };
+
+    // 日付情報
+    const selectedDateObj = new Date(selectedDate);
+    const day = selectedDateObj.getDate();
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    const weekday = weekdays[selectedDateObj.getDay()];
+
+    let html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>日誌 ー ${selectedRecordType}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    body {
+      font-family: 'MS Gothic', monospace;
+      font-size: 11px;
+      line-height: 1.2;
+      margin: 0;
+      padding: 0;
+    }
+    @media print {
+      .content-wrapper {
+        max-width: 210mm;
+        margin: 0 auto;
+      }
+    }
+    @media screen {
+      .content-wrapper {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 10px;
+      }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .date-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .date-left {
+      font-weight: 500;
+    }
+    .date-stats {
+      margin-top: 8px;
+    }
+    .date-stats > div {
+      display: inline-block;
+      margin-right: 20px;
+    }
+    .hospitalized-names {
+      margin-top: 4px;
+    }
+    .entered-by {
+      text-align: right;
+    }
+    .table-container {
+      margin-top: 20px;
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 11px;
+      border: 1px solid #000;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background-color: #f5f5f5;
+      font-weight: bold;
+      text-align: center;
+    }
+    th:first-child, td:first-child {
+      width: 120px;
+      text-align: center;
+    }
+    th:nth-child(2), td:nth-child(2) {
+      width: 100px;
+      text-align: center;
+    }
+    td:nth-child(3) {
+      text-align: left;
+    }
+    .no-records {
+      text-align: center;
+      padding: 40px 0;
+    }
+  </style>
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+</head>
+<body>
+  <div class="content-wrapper">
+    <div class="header">
+      <div class="title">日誌 ー ${selectedRecordType}</div>
+    </div>
+
+    <div class="date-info">
+      <div>
+        <div class="date-left">${formatDate(selectedDate)}</div>
+        <div class="date-stats">
+          <div>入居者数：${residentStats.totalResidents}　</div>
+          <div>入院者数：${residentStats.hospitalizedCount}</div>
+        </div>
+        <div class="hospitalized-names">
+          入院者名：${residentStats.hospitalizedNames.length > 0 ? residentStats.hospitalizedNames.join("、") : "なし"}
+        </div>
+      </div>
+      <div class="entered-by">
+        記入者：${enteredBy || "_________________"}
+      </div>
+    </div>
+
+    <div class="table-container">`;
+
+    if (filteredJournalRecords.length > 0) {
+      html += `
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 120px">ご利用者</th>
+            <th style="width: 100px">日時</th>
+            <th>内容</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      filteredJournalRecords.forEach(record => {
+        // 記録内容の取得（記録タイプ別）
+        let content = '';
+        if (record.recordType === '処置') {
+          content = record.originalData?.description || record.originalData?.interventions || '';
+        } else if (record.recordType === 'バイタル') {
+          content = record.notes || '';
+        } else {
+          content = record.content || '';
+        }
+
+        html += `
+          <tr>
+            <td style="width: 120px; text-align: center;">
+              <div>${record.roomNumber} ${record.residentName}</div>
+            </td>
+            <td style="width: 100px; text-align: center;">
+              ${day}(${weekday}) ${formatTime(record.recordTime)}
+            </td>
+            <td style="text-align: left;">
+              ${content}
+            </td>
+          </tr>`;
+      });
+
+      html += `
+        </tbody>
+      </table>`;
+    } else {
+      html += `
+      <div class="no-records">
+        <p>選択された日誌種別にチェックされた記録がありません</p>
+      </div>`;
+    }
+
+    html += `
+    </div>
+  </div>
+</body>
+</html>`;
+
+    return html;
+  }
+
   // 清掃リネンチェック一覧用のHTMLテンプレート生成関数
   function generateCleaningLinenPrintHTML(
     filteredResidents: any[],
@@ -2754,6 +2979,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error generating weight print:", error);
+      res.status(500).json({ message: "印刷データの生成に失敗しました" });
+    }
+  });
+
+  // 介護/看護日誌の印刷
+  app.get('/api/nursing-journal/print', isAuthenticated, async (req, res) => {
+    try {
+      const selectedDate = req.query.date as string;
+      const selectedRecordType = req.query.recordType as string;
+      const selectedFloor = req.query.floor as string;
+      const enteredBy = req.query.enteredBy as string;
+
+      if (!selectedDate || !selectedRecordType) {
+        return res.status(400).json({ message: "日付と記録種別は必須です" });
+      }
+
+      // 1. データを取得
+      const [records, journalCheckboxes, residents] = await Promise.all([
+        storage.getDailyRecords(selectedDate),
+        storage.getJournalCheckboxes(selectedDate),
+        storage.getResidents()
+      ]);
+
+      // 2. チェックボックスでフィルタされた記録（日中、夜間、看護のチェックが付いた記録のみ）
+      const checkedRecordIds = journalCheckboxes
+        .filter(checkbox => checkbox.isChecked && checkbox.checkboxType === selectedRecordType)
+        .map(checkbox => checkbox.recordId);
+
+      let filteredJournalRecords = records.filter(record => checkedRecordIds.includes(record.id));
+
+      // 3. 階数フィルタ
+      if (selectedFloor !== "all" && selectedFloor !== "全階") {
+        const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+        filteredJournalRecords = filteredJournalRecords.filter(record => {
+          const resident = residents.find(r => r.id === record.residentId);
+          if (!resident || !resident.floor) return false;
+
+          const residentFloorNumber = resident.floor.toString().replace(/[^0-9]/g, "");
+          return residentFloorNumber === selectedFloorNumber;
+        });
+      }
+
+      // 4. 居室番号でソート（数値として比較）
+      filteredJournalRecords.sort((a, b) => {
+        const roomA = parseInt(a.roomNumber || '0') || 0;
+        const roomB = parseInt(b.roomNumber || '0') || 0;
+        return roomA - roomB;
+      });
+
+      // 5. 入居者数・入院者数・入院者名を計算
+      const today = new Date();
+      const currentResidents = residents.filter(resident => {
+        const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
+        const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
+
+        const isCurrentlyAdmitted = (!admissionDate || admissionDate <= today) &&
+                                    (!retirementDate || retirementDate >= today);
+
+        return isCurrentlyAdmitted;
+      });
+
+      const hospitalizedResidents = currentResidents.filter(resident => resident.isAdmitted);
+
+      const residentStats = {
+        totalResidents: currentResidents.length,
+        hospitalizedCount: hospitalizedResidents.length,
+        hospitalizedNames: hospitalizedResidents.map(r => r.name)
+      };
+
+      // 6. HTMLテンプレート生成
+      const htmlContent = generateNursingJournalPrintHTML(
+        filteredJournalRecords,
+        residents,
+        selectedDate,
+        selectedRecordType,
+        residentStats,
+        enteredBy
+      );
+
+      // 7. HTMLレスポンスを返す
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+    } catch (error: any) {
+      console.error("Error generating nursing journal print:", error);
       res.status(500).json({ message: "印刷データの生成に失敗しました" });
     }
   });
