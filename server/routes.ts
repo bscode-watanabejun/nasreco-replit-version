@@ -590,6 +590,354 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // バイタル記録印刷用HTMLエンドポイント
+  app.get('/api/vital-signs/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+      const selectedTiming = req.query.selectedTiming as string;
+
+      // 1. データを取得
+      const [
+        vitalSigns,
+        residents
+      ] = await Promise.all([
+        storage.getVitalSigns(),
+        storage.getResidents()
+      ]);
+
+      // 2. 日付範囲でフィルタリング
+      const fromDate = new Date(dateFrom);
+      const toDate = new Date(dateTo);
+
+      const filteredVitals = vitalSigns.filter((record: any) => {
+        const recordDate = new Date(record.recordDate);
+        const recordDateStr = recordDate.toISOString().split('T')[0];
+        return recordDateStr >= dateFrom && recordDateStr <= dateTo;
+      });
+
+      // 3. その他のフィルタを適用
+      const filteredData = filteredVitals.filter((record: any) => {
+        const resident = residents.find((r: any) => r.id === record.residentId);
+
+        // 階数フィルタ
+        if (selectedFloor !== "all") {
+          if (resident?.floor !== selectedFloor && resident?.floor !== `${selectedFloor}階`) {
+            return false;
+          }
+        }
+
+        // 利用者フィルタ
+        if (selectedResident !== "all" && record.residentId !== selectedResident) {
+          return false;
+        }
+
+        // 時間帯フィルタ
+        if (selectedTiming !== "all" && record.timing !== selectedTiming) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // 4. 利用者ごとにグループ化し、日付と時間帯でデータを整理
+      const recordsByResident = new Map();
+
+      // 期間内の全日付を生成
+      const dates: string[] = [];
+      let currentDate = new Date(fromDate);
+      while (currentDate <= toDate) {
+        dates.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // 表示対象の利用者を取得
+      const displayResidents = residents.filter((r: any) => {
+        if (selectedFloor !== "all" &&
+            r.floor !== selectedFloor &&
+            r.floor !== `${selectedFloor}階`) return false;
+        if (selectedResident !== "all" && r.id !== selectedResident) return false;
+        return true;
+      });
+
+      // 利用者ごとの初期化
+      displayResidents.forEach((resident: any) => {
+        recordsByResident.set(resident.id, {
+          resident,
+          dateRecords: new Map()
+        });
+
+        // 各日付に午前・午後の枠を作成
+        dates.forEach(date => {
+          const timingsToCreate = selectedTiming === "all" ? ["午前", "午後"] : [selectedTiming];
+
+          timingsToCreate.forEach(timing => {
+            const key = `${date}_${timing}`;
+            recordsByResident.get(resident.id).dateRecords.set(key, {
+              date,
+              timing,
+              record: null
+            });
+          });
+        });
+      });
+
+      // 実際のバイタル記録をマージ
+      filteredData.forEach((record: any) => {
+        const resident = residents.find((r: any) => r.id === record.residentId);
+        if (!resident) return;
+
+        const dateKey = new Date(record.recordDate).toISOString().split('T')[0];
+        const key = `${dateKey}_${record.timing}`;
+
+        if (recordsByResident.has(record.residentId)) {
+          const residentData = recordsByResident.get(record.residentId);
+          if (residentData.dateRecords.has(key)) {
+            residentData.dateRecords.set(key, {
+              date: dateKey,
+              timing: record.timing,
+              record
+            });
+          } else if (dates.includes(dateKey)) {
+            // 臨時記録など、事前に枠がない場合も追加
+            residentData.dateRecords.set(key, {
+              date: dateKey,
+              timing: record.timing,
+              record
+            });
+          }
+        }
+      });
+
+      // 5. HTMLテンプレートを生成
+      const generateVitalPrintHTML = (recordsByResident: Map<any, any>, dateFrom: string, dateTo: string) => {
+        const formatDate = (dateStr: string) => {
+          const date = new Date(dateStr);
+          const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+          const dayOfWeek = dayNames[date.getDay()];
+          return `${date.getMonth() + 1}月${date.getDate().toString().padStart(2, '0')}日(${dayOfWeek})`;
+        };
+
+        const formatTime = (record: any) => {
+          if (record && record.hour !== null && record.minute !== null) {
+            return `${record.hour.toString().padStart(2, '0')}:${record.minute.toString().padStart(2, '0')}`;
+          }
+          return '';
+        };
+
+        const formatBloodPressure = (record: any) => {
+          if (record && record.bloodPressureSystolic && record.bloodPressureDiastolic) {
+            return `${record.bloodPressureSystolic} / ${record.bloodPressureDiastolic}`;
+          }
+          return '';
+        };
+
+        let htmlContent = `
+          <!DOCTYPE html>
+          <html lang="ja">
+          <head>
+            <meta charset="UTF-8">
+            <title>ケース記録（バイタル）</title>
+            <style>
+              @page {
+                size: A4;
+                margin: 15mm;
+              }
+              body {
+                font-family: 'MS Gothic', monospace;
+                font-size: 11px;
+                line-height: 1.2;
+                margin: 0;
+                padding: 0;
+              }
+              .page {
+                page-break-after: always;
+                min-height: 260mm;
+              }
+              .page:last-child {
+                page-break-after: avoid;
+              }
+              .header {
+                margin-bottom: 5mm;
+              }
+              .title {
+                font-size: 14px;
+                font-weight: bold;
+                margin-bottom: 3mm;
+                text-align: center;
+              }
+              .resident-info {
+                font-size: 11px;
+                margin-bottom: 3mm;
+                line-height: 1.4;
+              }
+              .date-range {
+                text-align: right;
+                font-size: 11px;
+                margin-bottom: 3mm;
+              }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 10px;
+              }
+              th, td {
+                border: 1px solid #333;
+                padding: 2px 3px;
+                text-align: center;
+                vertical-align: middle;
+              }
+              th {
+                background-color: #f0f0f0;
+                font-weight: bold;
+                font-size: 9px;
+              }
+              .date-col { width: 70px; }
+              .time-col { width: 40px; }
+              .temp-col { width: 35px; }
+              .pulse-col { width: 35px; }
+              .bp-col { width: 60px; }
+              .spo2-col { width: 35px; }
+              .sugar-col { width: 35px; }
+              .resp-col { width: 35px; }
+              .notes-col {
+                width: auto;
+                text-align: left;
+                padding-left: 4px;
+                word-wrap: break-word;
+                max-width: 200px;
+              }
+              @media print {
+                .no-print { display: none !important; }
+                body { margin: 0; }
+              }
+            </style>
+            <script>
+              window.onload = function() {
+                window.print();
+              }
+            </script>
+          </head>
+          <body>
+        `;
+
+        // 利用者ごとにページを生成（居室番号順にソート）
+        Array.from(recordsByResident.values())
+          .sort((a: any, b: any) => {
+            const roomA = a.resident?.roomNumber || "";
+            const roomB = b.resident?.roomNumber || "";
+
+            // 居室番号を数値として比較（文字列の場合は文字列比較）
+            const roomNumA = parseInt(roomA.toString().replace(/[^0-9]/g, ''), 10);
+            const roomNumB = parseInt(roomB.toString().replace(/[^0-9]/g, ''), 10);
+
+            if (!isNaN(roomNumA) && !isNaN(roomNumB)) {
+              return roomNumA - roomNumB;
+            } else {
+              return roomA.localeCompare(roomB, undefined, { numeric: true });
+            }
+          })
+          .forEach((residentData: any, index: number) => {
+          const { resident, dateRecords } = residentData;
+
+          htmlContent += `
+            <div class="page">
+              <div class="header">
+                <div class="title">ケース記録（バイタル）</div>
+                <div class="resident-info">
+                  利用者氏名：${resident.roomNumber || ''}：${resident.name}<br>
+                  サービス種類：特定施設
+                </div>
+                <div class="date-range">日付：${formatDate(dateFrom)}〜${formatDate(dateTo)}</div>
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th rowspan="2" class="date-col">日付</th>
+                    <th rowspan="2" class="time-col">時間</th>
+                    <th class="temp-col">体温</th>
+                    <th class="pulse-col">脈拍</th>
+                    <th class="bp-col">血圧（上下）</th>
+                    <th class="spo2-col">SpO2</th>
+                    <th class="sugar-col">血糖</th>
+                    <th class="resp-col">呼吸数</th>
+                    <th rowspan="2" class="notes-col">記録</th>
+                  </tr>
+                  <tr>
+                    <th class="temp-col">°C</th>
+                    <th class="pulse-col">回</th>
+                    <th class="bp-col">mmHg</th>
+                    <th class="spo2-col">%</th>
+                    <th class="sugar-col">mg/dL</th>
+                    <th class="resp-col">回</th>
+                  </tr>
+                </thead>
+                <tbody>
+          `;
+
+          // 日付順にソートして表示
+          const sortedRecords = Array.from(dateRecords.values()).sort((a: any, b: any) => {
+            const dateCompare = a.date.localeCompare(b.date);
+            if (dateCompare !== 0) return dateCompare;
+
+            const timingOrder: Record<string, number> = { "午前": 0, "午後": 1, "臨時": 2 };
+            const aOrder = timingOrder[a.timing] ?? 3;
+            const bOrder = timingOrder[b.timing] ?? 3;
+            return aOrder - bOrder;
+          });
+
+          sortedRecords.forEach((entry: any) => {
+            const { date, timing, record } = entry;
+
+            htmlContent += `
+              <tr>
+                <td class="date-col">${formatDate(date)}</td>
+                <td class="time-col">${formatTime(record)}</td>
+                <td class="temp-col">${record?.temperature ? parseFloat(record.temperature).toFixed(1) : ''}</td>
+                <td class="pulse-col">${record?.pulseRate || ''}</td>
+                <td class="bp-col">${formatBloodPressure(record)}</td>
+                <td class="spo2-col">${record?.oxygenSaturation || ''}</td>
+                <td class="sugar-col">${record?.bloodSugar || ''}</td>
+                <td class="resp-col">${record?.respirationRate || ''}</td>
+                <td class="notes-col">${record?.notes || ''}</td>
+              </tr>
+            `;
+          });
+
+          htmlContent += `
+                </tbody>
+              </table>
+            </div>
+          `;
+        });
+
+        htmlContent += `
+          </body>
+          </html>
+        `;
+
+        return htmlContent;
+      };
+
+      // HTMLを生成してレスポンス
+      const htmlContent = generateVitalPrintHTML(recordsByResident, dateFrom, dateTo);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error: any) {
+      console.error('❌ Error generating vital signs print HTML:', error.message);
+      console.error('❌ Stack trace:', error.stack);
+      res.status(500).json({
+        error: 'Failed to generate vital signs print HTML',
+        details: error.message
+      });
+    }
+  });
+
   // Get vital signs by ID
   app.get('/api/vital-signs/:id', isAuthenticated, async (req, res) => {
     try {

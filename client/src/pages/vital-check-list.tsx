@@ -908,6 +908,32 @@ export default function VitalCheckList() {
     }
   };
 
+  // 印刷処理
+  const handlePrint = () => {
+    try {
+      // APIパラメータをURLエンコード
+      const params = new URLSearchParams({
+        dateFrom,
+        dateTo,
+        selectedFloor,
+        selectedResident,
+        selectedTiming
+      });
+
+      // 新しいタブでHTML印刷ページを表示
+      const printUrl = `/api/vital-signs/print?${params.toString()}`;
+      window.open(printUrl, '_blank');
+
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      toast({
+        title: "エラー",
+        description: "印刷ページの表示に失敗しました。しばらく待ってから再度お試しください。",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <header className="bg-white border-b px-4 py-3 flex items-center gap-3">
@@ -991,12 +1017,7 @@ export default function VitalCheckList() {
                 variant="outline"
                 size="sm"
                 className="h-8"
-                onClick={() => {
-                  toast({
-                    title: "印刷機能",
-                    description: "印刷機能は現在開発中です",
-                  });
-                }}
+                onClick={handlePrint}
               >
                 印刷
               </Button>
