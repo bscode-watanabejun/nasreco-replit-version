@@ -1180,6 +1180,385 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 排泄チェック一覧用のHTMLテンプレート生成関数
+  function generateExcretionPrintHTML(
+    residentExcretionData: any[],
+    dateRange: Date[],
+    dateFrom: string,
+    dateTo: string
+  ): string {
+    const formatDate = (date: Date) => {
+      const day = date.getDate();
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      const dayOfWeek = dayNames[date.getDay()];
+      return { day, dayOfWeek };
+    };
+
+    const formatDateRange = (from: string, to: string) => {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      return `${fromDate.getFullYear()}年${fromDate.getMonth() + 1}月${fromDate.getDate()}日 〜 ${toDate.getFullYear()}年${toDate.getMonth() + 1}月${toDate.getDate()}日`;
+    };
+
+    let html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>排泄チェック表</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm;
+    }
+    body {
+      font-family: 'MS Gothic', monospace;
+      font-size: 10px;
+      line-height: 1.2;
+      margin: 0;
+      padding: 0;
+    }
+    @media print {
+      .content-wrapper {
+        max-width: 297mm;
+        margin: 0 auto;
+      }
+      .resident-section {
+        page-break-inside: avoid;
+        margin-bottom: 5mm;
+      }
+    }
+    @media screen {
+      .content-wrapper {
+        max-width: 100%;
+      }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 10mm;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5mm;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9px;
+      border: 2px solid #000;
+      margin-bottom: 5mm;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 1mm;
+      text-align: center;
+      vertical-align: middle;
+      height: 18px;
+    }
+    th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+    .room-cell {
+      width: 40px;
+      font-weight: bold;
+    }
+    .name-cell {
+      width: 80px;
+      font-weight: bold;
+      text-align: left;
+      padding-left: 2mm;
+    }
+    .item-cell {
+      width: 40px;
+      font-weight: bold;
+    }
+    .date-cell {
+      width: 25px;
+    }
+    .resident-last-row {
+      border-bottom: 3px double #000 !important;
+    }
+    .data-cell {
+      font-size: 11px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+
+  <div class="content-wrapper">
+    <div class="header">
+      <div class="title">排泄チェック表　　${formatDateRange(dateFrom, dateTo)}</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th rowspan="2" class="room-cell">居室</th>
+          <th rowspan="2" class="name-cell">利用者名</th>
+          <th rowspan="2" class="item-cell">項目</th>`;
+
+    // 日付ヘッダー
+    dateRange.forEach((date, index) => {
+      const { day } = formatDate(date);
+      html += `<th class="date-cell">${day}</th>`;
+    });
+
+    html += `
+        </tr>
+        <tr>`;
+
+    // 曜日ヘッダー
+    dateRange.forEach((date, index) => {
+      const { dayOfWeek } = formatDate(date);
+      html += `<th class="date-cell">${dayOfWeek}</th>`;
+    });
+
+    html += `
+        </tr>
+      </thead>
+      <tbody>`;
+
+    // 入居者データを連続して表示
+    residentExcretionData.forEach((residentData) => {
+      const { resident, dailyData } = residentData;
+
+      // 便計行
+      html += `
+        <tr class="resident-section">
+          <td rowspan="3" class="room-cell">${resident.roomNumber || ''}</td>
+          <td rowspan="3" class="name-cell">${resident.name || ''}</td>
+          <td class="item-cell">便計</td>`;
+
+      dailyData.forEach((dayData: any) => {
+        html += `<td class="date-cell data-cell">${dayData.stoolCount > 0 ? dayData.stoolCount : ''}</td>`;
+      });
+
+      html += `
+        </tr>`;
+
+      // 尿計行
+      html += `
+        <tr>
+          <td class="item-cell">尿計</td>`;
+
+      dailyData.forEach((dayData: any) => {
+        html += `<td class="date-cell data-cell">${dayData.urineCount > 0 ? dayData.urineCount : ''}</td>`;
+      });
+
+      html += `
+        </tr>`;
+
+      // 尿量行（利用者の最後の行）
+      html += `
+        <tr class="resident-last-row">
+          <td class="item-cell">尿量</td>`;
+
+      dailyData.forEach((dayData: any) => {
+        html += `<td class="date-cell data-cell">${dayData.urineVolume > 0 ? dayData.urineVolume : ''}</td>`;
+      });
+
+      html += `
+        </tr>`;
+    });
+
+    html += `
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>`;
+
+    return html;
+  }
+
+  // 排泄チェック一覧の印刷
+  app.get('/api/excretion-records/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. データを取得
+      const [excretionData, residents] = await Promise.all([
+        storage.getExcretionRecords(undefined, new Date(dateFrom), new Date(dateTo)),
+        storage.getResidents()
+      ]);
+
+      // 2. 日付範囲でフィルタリング
+      const startDate = new Date(dateFrom);
+      const endDate = new Date(dateTo);
+
+      // 3. 階数フィルタ
+      let filteredResidents = residents;
+      if (selectedFloor !== "all") {
+        filteredResidents = residents.filter((resident: any) =>
+          resident.roomNumber?.startsWith(selectedFloor)
+        );
+      }
+
+      // 4. 利用者フィルタ
+      if (selectedResident !== "all") {
+        filteredResidents = filteredResidents.filter((resident: any) =>
+          resident.id === selectedResident
+        );
+      }
+
+      // 5. 居室番号の若い順にソート
+      filteredResidents.sort((a, b) => {
+        const roomA = parseInt(a.roomNumber || "0");
+        const roomB = parseInt(b.roomNumber || "0");
+        return roomA - roomB;
+      });
+
+      // 6. 日付範囲内のすべての日付を生成
+      const dateRange: Date[] = [];
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        dateRange.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+      }
+
+      // 7. 利用者ごとにデータをグループ化
+      const residentExcretionData = filteredResidents.map((resident: any) => {
+        const residentRecords = excretionData.filter((record: any) =>
+          record.residentId === resident.id
+        );
+
+        // 画面と同じロジックで日付ごとの便計・尿計・尿量を計算
+        const dailyData = dateRange.map(date => {
+          const dateStr = date.toISOString().split('T')[0];
+
+          // その日の排泄記録から構造化データを作成
+          const dayRecords = residentRecords.filter((record: any) => {
+            const recordDate = new Date(record.recordDate);
+            return recordDate.toISOString().split('T')[0] === dateStr;
+          });
+
+          // 構造化データを作成（画面側と同じロジック）
+          const structuredData: { [key: string]: any } = {};
+
+          dayRecords.forEach((record: any) => {
+            const recordTime = new Date(record.recordDate).getHours();
+
+            if (recordTime === 12) {
+              // 12:00のデータは自立データとして処理
+              if (record.assistance) {
+                const assistanceKey = `${resident.id}-${dateStr}--1`;
+                if (!structuredData[assistanceKey]) {
+                  structuredData[assistanceKey] = {};
+                }
+                if (record.type === 'bowel_movement' || record.type === 'stool') {
+                  structuredData[assistanceKey].independentStool = record.assistance;
+                } else if (record.type === 'urination' || record.type === 'urine') {
+                  structuredData[assistanceKey].independentUrine = record.assistance;
+                }
+              }
+            } else {
+              // 実際の時刻データは時間帯セルに配置
+              if (recordTime >= 0 && recordTime <= 23) {
+                const key = `${resident.id}-${dateStr}-${recordTime}`;
+                if (!structuredData[key]) {
+                  structuredData[key] = {};
+                }
+
+                if (record.type === 'stool' || record.type === 'bowel_movement') {
+                  structuredData[key].stoolAmount = record.amount || '';
+                } else if (record.type === 'urine' || record.type === 'urination') {
+                  structuredData[key].urineCC = record.urineVolumeCc?.toString() || '';
+                  structuredData[key].urineAmount = record.amount || '';
+                }
+              }
+            }
+          });
+
+          // 便計を計算（画面側と同じロジック）
+          let stoolCount = 0;
+          for (let hour = 0; hour < 24; hour++) {
+            const key = `${resident.id}-${dateStr}-${hour}`;
+            const amount = structuredData[key]?.stoolAmount || '';
+            if (amount === '多' || amount === '中') {
+              stoolCount++;
+            }
+          }
+
+          // 自立便を追加
+          const independentStoolKey = `${resident.id}-${dateStr}--1`;
+          const independentStool = structuredData[independentStoolKey]?.independentStool || '';
+          if (independentStool && !isNaN(parseInt(independentStool))) {
+            stoolCount += parseInt(independentStool);
+          }
+
+          // 尿計を計算（画面側と同じロジック）
+          let urineCount = 0;
+          for (let hour = 0; hour < 24; hour++) {
+            const key = `${resident.id}-${dateStr}-${hour}`;
+            const amount = structuredData[key]?.urineAmount || '';
+            if (amount === '○') {
+              urineCount += 1;
+            } else if (amount === '×') {
+              // カウントしない
+            } else if (amount && !isNaN(parseInt(amount))) {
+              urineCount += parseInt(amount);
+            }
+          }
+
+          // 自立尿を追加
+          const independentUrineKey = `${resident.id}-${dateStr}--1`;
+          const independentUrine = structuredData[independentUrineKey]?.independentUrine || '';
+          if (independentUrine && !isNaN(parseInt(independentUrine))) {
+            urineCount += parseInt(independentUrine);
+          }
+
+          // 尿量を計算（画面側と同じロジック）
+          let urineVolume = 0;
+          for (let hour = 0; hour < 24; hour++) {
+            const key = `${resident.id}-${dateStr}-${hour}`;
+            const cc = structuredData[key]?.urineCC || '';
+            if (cc && !isNaN(parseInt(cc))) {
+              urineVolume += parseInt(cc);
+            }
+          }
+
+          return {
+            date,
+            stoolCount: stoolCount > 0 ? stoolCount : 0,
+            urineCount: urineCount > 0 ? urineCount : 0,
+            urineVolume: urineVolume > 0 ? urineVolume : 0
+          };
+        });
+
+        return { resident, dailyData };
+      });
+
+      // 8. HTMLテンプレート生成
+      const htmlContent = generateExcretionPrintHTML(
+        residentExcretionData,
+        dateRange,
+        dateFrom,
+        dateTo
+      );
+
+      // 9. HTMLレスポンスを返す
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error: any) {
+      console.error("Error generating excretion print:", error);
+      res.status(500).json({ message: "印刷データの生成に失敗しました" });
+    }
+  });
+
   // Weight records routes
   app.get('/api/weight-records', isAuthenticated, async (req, res) => {
     try {
