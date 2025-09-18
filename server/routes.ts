@@ -1729,6 +1729,233 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return html;
   }
 
+  // 清掃リネンチェック一覧用のHTMLテンプレート生成関数
+  function generateCleaningLinenPrintHTML(
+    filteredResidents: any[],
+    cleaningLinenData: any[],
+    dateRange: Date[],
+    dateFrom: string,
+    dateTo: string
+  ): string {
+    const formatDate = (date: Date) => {
+      const day = date.getDate();
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      const dayOfWeek = dayNames[date.getDay()];
+      return { day, dayOfWeek };
+    };
+
+    const formatDateRange = (from: string, to: string) => {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      return `${fromDate.getFullYear()}年${fromDate.getMonth() + 1}月${fromDate.getDate()}日 〜 ${toDate.getFullYear()}年${toDate.getMonth() + 1}月${toDate.getDate()}日`;
+    };
+
+    // 18利用者ずつでページ分割
+    const itemsPerPage = 18;
+    const totalPages = Math.ceil(filteredResidents.length / itemsPerPage);
+
+    let html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>清掃リネンチェック表</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm;
+    }
+    body {
+      font-family: 'MS Gothic', monospace;
+      font-size: 10px;
+      line-height: 1.2;
+      margin: 0;
+      padding: 0;
+    }
+    @media print {
+      .content-wrapper {
+        max-width: 297mm;
+        margin: 0 auto;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+    }
+    @media screen {
+      .content-wrapper {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 10px;
+      }
+      .page-break {
+        margin-top: 30px;
+        border-top: 2px solid #ccc;
+        padding-top: 20px;
+      }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .date-range {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .page-info {
+      font-size: 12px;
+      text-align: right;
+      margin-bottom: 10px;
+    }
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 9px;
+      border: 2px solid #000;
+      outline: 1px solid #000;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 2px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    /* 最後の列の右側の罫線を強調 */
+    th:last-child, td:last-child {
+      border-right: 2px solid #000 !important;
+    }
+    /* ヘッダー行 */
+    .header-row th {
+      background-color: #f5f5f5;
+      font-weight: bold;
+    }
+    /* 固定幅の日付列 */
+    .date-col {
+      width: 25px !important;
+      min-width: 25px !important;
+      max-width: 25px !important;
+      font-size: 10px;
+    }
+    /* 利用者を跨ぐ横の罫線を二重線に */
+    .resident-separator {
+      border-bottom: 3px double #000 !important;
+    }
+    /* 居室番号・利用者名の列 */
+    .room-name-col {
+      width: 120px;
+      text-align: left;
+      padding-left: 4px;
+    }
+    /* 項目列 */
+    .item-col {
+      width: 50px;
+    }
+  </style>
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+</head>
+<body>
+`;
+
+    // ページごとに処理
+    for (let page = 0; page < totalPages; page++) {
+      const startIndex = page * itemsPerPage;
+      const endIndex = Math.min(startIndex + itemsPerPage, filteredResidents.length);
+      const pageResidents = filteredResidents.slice(startIndex, endIndex);
+
+      if (page > 0) {
+        html += '<div class="page-break"></div>';
+      }
+
+      html += `
+  <div class="content-wrapper">
+    <div class="header">
+      <div class="title">清掃リネンチェック表</div>
+      <div class="date-range">${formatDateRange(dateFrom, dateTo)}</div>
+      <div class="page-info">${page + 1}ページ目</div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr class="header-row">
+            <th rowspan="2" class="room-name-col">居室<br>利用者名</th>
+            <th rowspan="2" class="item-col">項目</th>`;
+
+      // 日付ヘッダー
+      dateRange.forEach(date => {
+        const { day, dayOfWeek } = formatDate(date);
+        html += `<th class="date-col">${day}<br>${dayOfWeek}</th>`;
+      });
+
+      html += `
+          </tr>
+        </thead>
+        <tbody>`;
+
+      // 利用者データ
+      pageResidents.forEach((resident, index) => {
+        // 清掃行
+        html += `
+          <tr>
+            <td rowspan="2" class="room-name-col">
+              ${resident.roomNumber || ""}<br>
+              ${resident.name}
+            </td>
+            <td class="item-col">清掃</td>`;
+
+        dateRange.forEach(date => {
+          const dateStr = date.toISOString().split('T')[0];
+          const record = cleaningLinenData.find((r: any) =>
+            r.residentId === resident.id &&
+            new Date(r.recordDate).toISOString().split('T')[0] === dateStr
+          );
+          html += `<td class="date-col">${record?.cleaningValue || ""}</td>`;
+        });
+
+        html += `
+          </tr>
+          <tr${index < pageResidents.length - 1 ? ' class="resident-separator"' : ''}>
+            <td class="item-col">リネン</td>`;
+
+        dateRange.forEach(date => {
+          const dateStr = date.toISOString().split('T')[0];
+          const record = cleaningLinenData.find((r: any) =>
+            r.residentId === resident.id &&
+            new Date(r.recordDate).toISOString().split('T')[0] === dateStr
+          );
+          html += `<td class="date-col">${record?.linenValue || ""}</td>`;
+        });
+
+        html += `
+          </tr>`;
+      });
+
+      html += `
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+    }
+
+    html += `
+</body>
+</html>`;
+
+    return html;
+  }
+
   // 入浴チェック一覧用のHTMLテンプレート生成関数
   function generateBathingPrintHTML(
     residentBathingData: any[],
@@ -2155,6 +2382,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error("Error generating excretion print:", error);
+      res.status(500).json({ message: "印刷データの生成に失敗しました" });
+    }
+  });
+
+  // 清掃リネンチェック一覧の印刷
+  app.get('/api/cleaning-linen-records/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. データを取得
+      const [cleaningLinenData, residents] = await Promise.all([
+        storage.getCleaningLinenRecordsByDateRange(new Date(dateFrom), new Date(dateTo)),
+        storage.getResidents()
+      ]);
+
+      // 2. 日付範囲でフィルタリング
+      const startDate = new Date(dateFrom);
+      const endDate = new Date(dateTo);
+
+      // 3. 階数フィルタ
+      let filteredResidents = residents;
+      if (selectedFloor !== "all") {
+        filteredResidents = residents.filter((resident: any) => {
+          return resident.floor === selectedFloor ||
+                 resident.floor === `${selectedFloor}階`;
+        });
+      }
+
+      // 4. 利用者フィルタ
+      if (selectedResident !== "all") {
+        filteredResidents = filteredResidents.filter((resident: any) =>
+          resident.id === selectedResident
+        );
+      }
+
+      // 5. 日付範囲内のすべての日付を生成
+      const dateRange: Date[] = [];
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        dateRange.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+      }
+
+      // 6. 居室番号でソート
+      filteredResidents.sort((a: any, b: any) => {
+        const roomA = a.roomNumber || "";
+        const roomB = b.roomNumber || "";
+        const roomNumA = parseInt(roomA.toString().replace(/[^0-9]/g, ''), 10);
+        const roomNumB = parseInt(roomB.toString().replace(/[^0-9]/g, ''), 10);
+
+        if (!isNaN(roomNumA) && !isNaN(roomNumB)) {
+          return roomNumA - roomNumB;
+        }
+        return roomA.localeCompare(roomB, undefined, { numeric: true });
+      });
+
+      // 7. HTMLテンプレート生成
+      const htmlContent = generateCleaningLinenPrintHTML(
+        filteredResidents,
+        cleaningLinenData,
+        dateRange,
+        dateFrom,
+        dateTo
+      );
+
+      // 8. HTMLレスポンスを返す
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error: any) {
+      console.error("Error generating cleaning linen print:", error);
       res.status(500).json({ message: "印刷データの生成に失敗しました" });
     }
   });
