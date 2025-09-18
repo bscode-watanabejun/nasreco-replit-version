@@ -1729,6 +1729,258 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return html;
   }
 
+  // 入浴チェック一覧用のHTMLテンプレート生成関数
+  function generateBathingPrintHTML(
+    residentBathingData: any[],
+    dateRange: Date[],
+    dateFrom: string,
+    dateTo: string
+  ): string {
+    const formatDate = (date: Date) => {
+      const day = date.getDate();
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      const dayOfWeek = dayNames[date.getDay()];
+      return { day, dayOfWeek };
+    };
+
+    const formatDateRange = (from: string, to: string) => {
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+      return `${fromDate.getFullYear()}年${fromDate.getMonth() + 1}月${fromDate.getDate()}日 〜 ${toDate.getFullYear()}年${toDate.getMonth() + 1}月${toDate.getDate()}日`;
+    };
+
+    // 18行ずつでページ分割
+    const itemsPerPage = 18;
+    const totalPages = Math.ceil(residentBathingData.length / itemsPerPage);
+
+    let html = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入浴チェック表</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm;
+    }
+    body {
+      font-family: 'MS Gothic', monospace;
+      font-size: 10px;
+      line-height: 1.2;
+      margin: 0;
+      padding: 0;
+    }
+    @media print {
+      .content-wrapper {
+        max-width: 297mm;
+        margin: 0 auto;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+    }
+    @media screen {
+      .content-wrapper {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 10px;
+      }
+      .page-break {
+        margin-top: 30px;
+        border-top: 2px solid #ccc;
+        padding-top: 20px;
+      }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .date-range {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .page-info {
+      font-size: 12px;
+      text-align: right;
+      margin-bottom: 10px;
+    }
+    .table-container {
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 9px;
+      border: 2px solid #000;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 2px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    /* 最後の列の右側の罫線を強調 */
+    th:last-child, td:last-child {
+      border-right: 2px solid #000 !important;
+    }
+    /* 表全体の外枠を確実に表示 */
+    table {
+      outline: 2px solid #000;
+    }
+    th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+    .room-col {
+      width: 60px;
+      text-align: center;
+      vertical-align: middle;
+      padding: 2px;
+    }
+    .room-col div {
+      line-height: 1.2;
+    }
+    .resident-name {
+      font-size: 9px;
+      margin-top: 2px;
+    }
+    .category-col {
+      width: 40px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .date-col {
+      width: 25px !important;
+      min-width: 25px !important;
+      max-width: 25px !important;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 9px;
+      line-height: 1.1;
+    }
+    .spacer-row {
+      height: 12px;
+    }
+    .spacer-row td {
+      padding: 0;
+      height: 12px;
+    }
+    .day-header {
+      font-size: 8px;
+    }
+    .date-number {
+      font-size: 9px;
+      font-weight: bold;
+    }
+    .day-name {
+      font-size: 7px;
+    }
+  </style>
+  <script>
+    window.onload = function() {
+      window.print();
+    };
+  </script>
+</head>
+<body>
+  <div class="content-wrapper">`;
+
+    for (let page = 0; page < totalPages; page++) {
+      const startIndex = page * itemsPerPage;
+      const endIndex = Math.min(startIndex + itemsPerPage, residentBathingData.length);
+      const pageData = residentBathingData.slice(startIndex, endIndex);
+
+      if (page > 0) {
+        html += `    <div class="page-break"></div>`;
+      }
+
+      html += `
+    <div class="header">
+      <div class="title">入浴チェック表</div>
+      <div class="date-range">${formatDateRange(dateFrom, dateTo)}</div>
+      <div class="page-info">${page + 1}ページ目</div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2" class="room-col">
+              <div>居室番号</div>
+              <div>利用者名</div>
+            </th>
+            <th rowspan="2" class="category-col">区分</th>`;
+
+      // 日付ヘッダー（rowspan="2"で結合）
+      dateRange.forEach(date => {
+        const { day, dayOfWeek } = formatDate(date);
+        html += `
+            <th rowspan="2" class="date-col">
+              <div class="day-header">
+                <div class="date-number">${day}</div>
+                <div class="day-name">${dayOfWeek}</div>
+              </div>
+            </th>`;
+      });
+
+      html += `
+          </tr>
+          <tr class="spacer-row">`;
+
+      // 2行目には日付列のセルは作らない（rowspan="2"で結合済み）
+
+      html += `
+          </tr>
+        </thead>
+        <tbody>`;
+
+      // データ行
+      pageData.forEach(({ resident, dailyData }) => {
+        html += `
+          <tr>
+            <td rowspan="2" class="room-col">
+              <div>${resident.roomNumber || ''}</div>
+              <div class="resident-name">${resident.name || ''}</div>
+            </td>
+            <td rowspan="2" class="category-col">入浴</td>`;
+
+        // 日付ごとの入浴記録（rowspan="2"で2行分結合）
+        dailyData.forEach((dayData: any) => {
+          html += `
+            <td rowspan="2" class="date-col">${(dayData.isBathDay || dayData.displayText) ? dayData.displayText : ''}</td>`;
+        });
+
+        html += `
+          </tr>
+          <tr class="spacer-row">`;
+
+        // 2行目には日付セルは作らない（rowspan="2"で結合済み）
+
+        html += `
+          </tr>`;
+      });
+
+      html += `
+        </tbody>
+      </table>
+    </div>`;
+    }
+
+    html += `
+  </div>
+</body>
+</html>`;
+
+    return html;
+  }
+
   // 排泄チェック一覧の印刷
   app.get('/api/excretion-records/print', isAuthenticated, async (req, res) => {
     try {
@@ -1906,6 +2158,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "印刷データの生成に失敗しました" });
     }
   });
+
+  // 入浴チェック一覧の印刷
+  app.get('/api/bathing-records/print', isAuthenticated, async (req, res) => {
+    try {
+      const dateFrom = req.query.dateFrom as string;
+      const dateTo = req.query.dateTo as string;
+      const selectedFloor = req.query.selectedFloor as string;
+      const selectedResident = req.query.selectedResident as string;
+
+      // 1. データを取得
+      const [bathingData, residents] = await Promise.all([
+        storage.getBathingRecords(undefined, new Date(dateFrom), new Date(dateTo)),
+        storage.getResidents()
+      ]);
+
+      // 2. 日付範囲でフィルタリング
+      const startDate = new Date(dateFrom);
+      const endDate = new Date(dateTo);
+
+      // 3. 階数フィルタ
+      let filteredResidents = residents;
+      if (selectedFloor !== "all") {
+        filteredResidents = residents.filter((resident: any) => {
+          return resident.floor === selectedFloor ||
+                 resident.floor === `${selectedFloor}階`;
+        });
+      }
+
+      // 4. 利用者フィルタ
+      if (selectedResident !== "all") {
+        filteredResidents = filteredResidents.filter((resident: any) =>
+          resident.id === selectedResident
+        );
+      }
+
+      // 5. 日付範囲内のすべての日付を生成
+      const dateRange: Date[] = [];
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        dateRange.push(new Date(current));
+        current.setDate(current.getDate() + 1);
+      }
+
+      // 6. 入浴日設定で表示対象利用者を絞り込み
+      const displayResidents = filteredResidents.filter((resident: any) => {
+        // 入浴日設定の確認
+        return dateRange.some(date => {
+          const dayOfWeek = date.getDay();
+          const bathDayFields = [
+            'bathSunday',    // 0: 日曜日
+            'bathMonday',    // 1: 月曜日
+            'bathTuesday',   // 2: 火曜日
+            'bathWednesday', // 3: 水曜日
+            'bathThursday',  // 4: 木曜日
+            'bathFriday',    // 5: 金曜日
+            'bathSaturday'   // 6: 土曜日
+          ];
+          const bathDayField = bathDayFields[dayOfWeek];
+          return resident[bathDayField] === true;
+        });
+      }).sort((a, b) => {
+        // 居室番号の若い順にソート
+        const roomA = parseInt(a.roomNumber?.toString().replace(/[^0-9]/g, '') || "0");
+        const roomB = parseInt(b.roomNumber?.toString().replace(/[^0-9]/g, '') || "0");
+        return roomA - roomB;
+      });
+
+      // 7. 利用者ごとにデータをグループ化
+      const residentBathingData = displayResidents.map((resident: any) => {
+        const residentRecords = bathingData.filter((record: any) =>
+          record.residentId === resident.id
+        );
+
+        // 日付ごとの入浴記録データを作成
+        const dailyData = dateRange.map(date => {
+          const dateStr = date.toISOString().split('T')[0];
+
+          // その日の入浴記録を検索
+          const dayRecord = residentRecords.find((record: any) => {
+            const recordDate = new Date(record.recordDate);
+            return recordDate.toISOString().split('T')[0] === dateStr;
+          });
+
+          // 入浴日かどうかをチェック
+          const dayOfWeek = date.getDay();
+          const bathDayFields = [
+            'bathSunday', 'bathMonday', 'bathTuesday', 'bathWednesday',
+            'bathThursday', 'bathFriday', 'bathSaturday'
+          ];
+          const bathDayField = bathDayFields[dayOfWeek];
+          const isBathDay = resident[bathDayField] === true;
+
+          // 表示文字列の変換
+          let displayText = "";
+          if (dayRecord && dayRecord.bathType) {
+            switch (dayRecord.bathType) {
+              case "入浴":
+                displayText = "○";
+                break;
+              case "シャワー浴":
+                displayText = "シャ<br>ワー";
+                break;
+              case "清拭":
+                displayText = "清拭";
+                break;
+              case "×":
+                displayText = "×";
+                break;
+              default:
+                displayText = "";
+            }
+          }
+
+          return {
+            date,
+            isBathDay,
+            record: dayRecord,
+            displayText
+          };
+        });
+
+        return { resident, dailyData };
+      });
+
+      // 8. HTMLテンプレート生成
+      const htmlContent = generateBathingPrintHTML(
+        residentBathingData,
+        dateRange,
+        dateFrom,
+        dateTo
+      );
+
+      // 9. HTMLレスポンスを返す
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+
+    } catch (error: any) {
+      console.error("Error generating bathing print:", error);
+      res.status(500).json({ message: "印刷データの生成に失敗しました" });
+    }
+  });
+
 
   // Weight records routes
   app.get('/api/weight-records', isAuthenticated, async (req, res) => {

@@ -749,10 +749,23 @@ export default function BathingCheckList() {
                 size="sm"
                 className="h-8"
                 onClick={() => {
-                  toast({
-                    title: "印刷機能",
-                    description: "印刷機能は現在開発中です",
-                  });
+                  try {
+                    const params = new URLSearchParams({
+                      dateFrom,
+                      dateTo,
+                      selectedFloor,
+                      selectedResident
+                    });
+                    const printUrl = `/api/bathing-records/print?${params.toString()}`;
+                    window.open(printUrl, '_blank');
+                  } catch (error) {
+                    console.error('印刷処理エラー:', error);
+                    toast({
+                      title: "エラー",
+                      description: "PDFの表示に失敗しました。しばらく待ってから再度お試しください。",
+                      variant: "destructive",
+                    });
+                  }
                 }}
               >
                 印刷

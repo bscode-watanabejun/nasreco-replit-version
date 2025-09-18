@@ -988,6 +988,31 @@ export default function ExcretionCheckList() {
     setViewMode(viewMode === 'daily' ? 'monthly' : 'daily');
   };
 
+  // 印刷処理
+  const handlePrint = () => {
+    try {
+      // APIパラメータをURLエンコード
+      const params = new URLSearchParams({
+        dateFrom,
+        dateTo,
+        selectedFloor,
+        selectedResident
+      });
+
+      // 新しいタブでPDFを表示
+      const printUrl = `/api/excretion-records/print?${params.toString()}`;
+      window.open(printUrl, '_blank');
+
+    } catch (error) {
+      console.error('印刷処理エラー:', error);
+      toast({
+        title: "エラー",
+        description: "PDFの表示に失敗しました。しばらく待ってから再度お試しください。",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* ヘッダー */}
@@ -1074,12 +1099,7 @@ export default function ExcretionCheckList() {
           {/* 印刷ボタン（月次モード時のみ表示） */}
           {viewMode === 'monthly' && (
             <Button
-              onClick={() => {
-                toast({
-                  title: "印刷機能",
-                  description: "印刷機能は別途開発予定です",
-                });
-              }}
+              onClick={handlePrint}
               variant="outline"
             >
               印刷
