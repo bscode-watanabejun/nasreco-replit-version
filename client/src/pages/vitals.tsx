@@ -520,14 +520,7 @@ function VitalCard({
               onSave={(value) => {
                 handleFieldUpdate(vital.id, "temperature", value);
                 if (value && value !== "") {
-                  // 新規カードの場合は遅延実行
-                  if (vital.id?.startsWith('temp-')) {
-                    setTimeout(() => {
-                      handleSaveRecord(vital.id, "temperature", value);
-                    }, 300);
-                  } else {
-                    handleSaveRecord(vital.id, "temperature", value);
-                  }
+                  handleSaveRecord(vital.id, "temperature", value);
                 }
               }}
               placeholder="--"
@@ -547,14 +540,7 @@ function VitalCard({
                 onSave={(value) => {
                   handleFieldUpdate(vital.id, "bloodPressureSystolic", value);
                   if (value && value !== "") {
-                    // 新規カードの場合は遅延実行
-                    if (vital.id?.startsWith('temp-')) {
-                      setTimeout(() => {
-                        handleSaveRecord(vital.id, "bloodPressureSystolic", value);
-                      }, 300);
-                    } else {
-                      handleSaveRecord(vital.id, "bloodPressureSystolic", value);
-                    }
+                    handleSaveRecord(vital.id, "bloodPressureSystolic", value);
                   }
                 }}
                 placeholder="--"
@@ -568,14 +554,7 @@ function VitalCard({
                 onSave={(value) => {
                   handleFieldUpdate(vital.id, "bloodPressureDiastolic", value);
                   if (value && value !== "") {
-                    // 新規カードの場合は遅延実行
-                    if (vital.id?.startsWith('temp-')) {
-                      setTimeout(() => {
-                        handleSaveRecord(vital.id, "bloodPressureDiastolic", value);
-                      }, 300);
-                    } else {
-                      handleSaveRecord(vital.id, "bloodPressureDiastolic", value);
-                    }
+                    handleSaveRecord(vital.id, "bloodPressureDiastolic", value);
                   }
                 }}
                 placeholder="--"
@@ -595,14 +574,7 @@ function VitalCard({
               onSave={(value) => {
                 handleFieldUpdate(vital.id, "pulseRate", value);
                 if (value && value !== "") {
-                  // 新規カードの場合は遅延実行
-                  if (vital.id?.startsWith('temp-')) {
-                    setTimeout(() => {
-                      handleSaveRecord(vital.id, "pulseRate", value);
-                    }, 300);
-                  } else {
-                    handleSaveRecord(vital.id, "pulseRate", value);
-                  }
+                  handleSaveRecord(vital.id, "pulseRate", value);
                 }
               }}
               placeholder="--"
@@ -627,14 +599,7 @@ function VitalCard({
               onSave={(value) => {
                 handleFieldUpdate(vital.id, "oxygenSaturation", value);
                 if (value && value !== "") {
-                  // 新規カードの場合は遅延実行
-                  if (vital.id?.startsWith('temp-')) {
-                    setTimeout(() => {
-                      handleSaveRecord(vital.id, "oxygenSaturation", value);
-                    }, 300);
-                  } else {
-                    handleSaveRecord(vital.id, "oxygenSaturation", value);
-                  }
+                  handleSaveRecord(vital.id, "oxygenSaturation", value);
                 }
               }}
               placeholder="--"
@@ -731,14 +696,7 @@ function VitalCard({
               onSave={(value) => {
                 handleFieldUpdate(vital.id, "respirationRate", value);
                 if (value && value !== "") {
-                  // 新規カードの場合は遅延実行
-                  if (vital.id?.startsWith('temp-')) {
-                    setTimeout(() => {
-                      handleSaveRecord(vital.id, "respirationRate", value);
-                    }, 300);
-                  } else {
-                    handleSaveRecord(vital.id, "respirationRate", value);
-                  }
+                  handleSaveRecord(vital.id, "respirationRate", value);
                 }
               }}
               placeholder="--"
@@ -1039,11 +997,11 @@ export default function Vitals() {
       const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
-        
+
         // tempIdのレコードを実際のIDに置き換え
         return old.map((record: any) => {
-          if (record.id?.startsWith('temp-') && 
-              record.residentId === variables.residentId && 
+          if (record.id?.startsWith('temp-') &&
+              record.residentId === variables.residentId &&
               record.timing === variables.timing) {
             return { ...record, ...serverResponse, id: serverResponse.id };
           }
@@ -1588,7 +1546,7 @@ export default function Vitals() {
         ) : (
           filteredVitalSigns.map((vital: any) => (
             <VitalCard
-              key={vital.id}
+              key={`${vital.residentId || 'new'}-${format(selectedDate, 'yyyy-MM-dd')}-${selectedTiming}`}
               vital={vital}
               residents={residents as any[]}
               selectedTiming={selectedTiming}
