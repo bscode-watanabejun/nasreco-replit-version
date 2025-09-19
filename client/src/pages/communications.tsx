@@ -43,6 +43,7 @@ export default function Communications() {
   });
   const [selectedNotice, setSelectedNotice] = useState<StaffNotice | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   // Fetch staff notices
   const { data: notices = [], isLoading: isLoadingNotices } = useQuery<StaffNotice[]>({
@@ -184,9 +185,23 @@ export default function Communications() {
     return true;
   });
 
+  // 動的高さ計算関数
+  const getContentHeight = (content: string) => {
+    const length = content.length;
+    if (length <= 100) return 'max-h-20'; // 短文: 80px
+    if (length <= 300) return 'max-h-32'; // 中文: 128px
+    return 'max-h-48'; // 長文: 192px
+  };
+
+  // 展開ボタンが必要かどうかの判定
+  const needsExpandButton = (content: string) => {
+    return content.length > 150; // 150文字以上で展開ボタンを表示
+  };
+
   const handleNoticeClick = (notice: StaffNotice) => {
     setSelectedNotice(notice);
     setIsDialogOpen(true);
+    setIsContentExpanded(false); // ダイアログ開く時は折りたたみ状態にリセット
   };
 
   const handleMarkAsRead = () => {
@@ -396,7 +411,7 @@ export default function Communications() {
 
       {/* Notice Detail Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md mx-auto" data-testid="dialog-notice-detail">
+        <DialogContent className="max-w-md mx-auto max-h-[85vh] overflow-y-auto" data-testid="dialog-notice-detail">
           <DialogHeader>
             <DialogTitle>連絡事項詳細</DialogTitle>
             <DialogDescription>
@@ -427,9 +442,23 @@ export default function Communications() {
               
               <div>
                 <h4 className="font-medium text-sm text-gray-600 mb-1">連絡事項内容</h4>
-                <p className="text-sm whitespace-pre-wrap border p-3 rounded bg-gray-50">
-                  {selectedNotice.content}
-                </p>
+                <div className="border rounded bg-gray-50">
+                  <p className={`text-sm whitespace-pre-wrap p-3 leading-relaxed overflow-y-auto transition-all duration-300 ${
+                    isContentExpanded ? 'max-h-96' : getContentHeight(selectedNotice.content)
+                  }`}>
+                    {selectedNotice.content}
+                  </p>
+                  {needsExpandButton(selectedNotice.content) && (
+                    <div className="border-t bg-gray-100 px-3 py-2">
+                      <button
+                        onClick={() => setIsContentExpanded(!isContentExpanded)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {isContentExpanded ? '折りたたむ' : '全文表示'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
