@@ -832,8 +832,8 @@ export default function CareRecords() {
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // 階数フィルター
     if (selectedFloor !== "all") {
-      // 利用者のfloor値も正規化（"1F" → "1"）
-      const residentFloor = resident.floor?.toString().replace('F', '');
+      // 利用者のfloor値も正規化（"1F", "1階" → "1"）
+      const residentFloor = resident.floor?.toString().replace(/[F階]/g, '');
       if (residentFloor !== selectedFloor) {
         return false;
       }
@@ -1911,16 +1911,18 @@ export default function CareRecords() {
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <InputWithDropdown
-                value={(() => {
-                  const option = floorOptions.find(opt => opt.value === selectedFloor);
-                  return option ? option.label : "全階";
-                })()}
-                options={floorOptions}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="フロア選択"
+              <select
+                value={selectedFloor}
+                onChange={(e) => setSelectedFloor(e.target.value)}
                 className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="all">全階</option>
+                <option value="1">1階</option>
+                <option value="2">2階</option>
+                <option value="3">3階</option>
+                <option value="4">4階</option>
+                <option value="5">5階</option>
+              </select>
             </div>
           </div>
         </div>

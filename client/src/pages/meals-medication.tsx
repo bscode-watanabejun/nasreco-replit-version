@@ -887,34 +887,34 @@ export default function MealsMedicationPage() {
           {/* 食事時間選択 */}
           <div className="flex items-center space-x-1">
             <ClockIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <InputWithDropdown
+            <select
               value={selectedMealTime}
-              options={mealTimes.map(time => ({ value: time, label: time }))}
-              onSave={(value) => setSelectedMealTime(value)}
-              placeholder="時間"
+              onChange={(e) => setSelectedMealTime(e.target.value)}
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disableFocusMove={true}
-            />
+            >
+              <option value="朝">朝</option>
+              <option value="10時">10時</option>
+              <option value="昼">昼</option>
+              <option value="15時">15時</option>
+              <option value="夕">夕</option>
+            </select>
           </div>
 
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <BuildingIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <InputWithDropdown
+            <select
               value={selectedFloor}
-              options={[
-                { value: "全階", label: "全階" },
-                { value: "1階", label: "1階" },
-                { value: "2階", label: "2階" },
-                { value: "3階", label: "3階" },
-                { value: "4階", label: "4階" },
-                { value: "5階", label: "5階" }
-              ]}
-              onSave={(value) => setSelectedFloor(value)}
-              placeholder="フロア選択"
+              onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disableFocusMove={true}
-            />
+            >
+              <option value="全階">全階</option>
+              <option value="1階">1階</option>
+              <option value="2階">2階</option>
+              <option value="3階">3階</option>
+              <option value="4階">4階</option>
+              <option value="5階">5階</option>
+            </select>
           </div>
         </div>
       </div>

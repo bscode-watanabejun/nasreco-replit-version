@@ -1,22 +1,22 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
 import ModuleCard from "@/components/dashboard/module-card";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { 
-  Users, 
-  Bell, 
-  ClipboardList, 
-  Route, 
-  Utensils, 
-  Heart, 
-  Droplets, 
-  Sparkles, 
-  Waves, 
-  Scale, 
-  Stethoscope, 
+import {
+  Users,
+  Bell,
+  ClipboardList,
+  Route,
+  Utensils,
+  Heart,
+  Droplets,
+  Sparkles,
+  Waves,
+  Scale,
+  Stethoscope,
   Package,
   ListChecks,
   BookOpen,
@@ -26,77 +26,12 @@ import {
   Building
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useUnreadStaffNoticesCount } from "@/hooks/useStaffNotices";
 
-// Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
-function InputWithDropdown({
-  value,
-  options,
-  onSave,
-  placeholder,
-  className,
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onSave: (value: string) => void;
-  placeholder: string;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // 値が外部から変更された場合に同期
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
-
-  const handleSelect = (selectedValue: string) => {
-    const selectedOption = options.find(opt => opt.value === selectedValue);
-    setInputValue(selectedOption ? selectedOption.label : selectedValue);
-    onSave(selectedValue);
-    setOpen(false);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          readOnly
-          onClick={() => setOpen(!open)}
-          placeholder={placeholder}
-          className={className}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-32 p-0.5" align="center">
-        <div className="space-y-0 max-h-40 overflow-y-auto">
-          {options.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => handleSelect(option.value)}
-              className="w-full text-left px-1.5 py-0 text-xs hover:bg-slate-100 leading-tight min-h-[1.2rem]"
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -354,30 +289,18 @@ export default function Dashboard() {
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <InputWithDropdown
-              value={(() => {
-                const option = [
-                  { value: "all", label: "全階" },
-                  { value: "1", label: "1階" },
-                  { value: "2", label: "2階" },
-                  { value: "3", label: "3階" },
-                  { value: "4", label: "4階" },
-                  { value: "5", label: "5階" }
-                ].find(opt => opt.value === selectedFloor);
-                return option ? option.label : "全階";
-              })()}
-              options={[
-                { value: "all", label: "全階" },
-                { value: "1", label: "1階" },
-                { value: "2", label: "2階" },
-                { value: "3", label: "3階" },
-                { value: "4", label: "4階" },
-                { value: "5", label: "5階" }
-              ]}
-              onSave={(value) => setSelectedFloor(value)}
-              placeholder="フロア選択"
-                className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <select
+              value={selectedFloor}
+              onChange={(e) => setSelectedFloor(e.target.value)}
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">全階</option>
+              <option value="1">1階</option>
+              <option value="2">2階</option>
+              <option value="3">3階</option>
+              <option value="4">4階</option>
+              <option value="5">5階</option>
+            </select>
           </div>
         </div>
       </div>
