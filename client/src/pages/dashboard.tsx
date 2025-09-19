@@ -37,13 +37,17 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
-  
-  // 未読連絡事項数を取得
-  const { data: unreadCount = 0, refetchUnreadCount } = useUnreadStaffNoticesCount();
-  
+
   // 日付とフロア選択のstate - デフォルト値で初期化
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedFloor, setSelectedFloor] = useState("all");
+
+  // 未読連絡事項数を取得（フィルタ条件付き）
+  const { data: unreadCount = 0, refetchUnreadCount } = useUnreadStaffNoticesCount({
+    date: selectedDate,
+    jobRole: "全体", // ダッシュボードでは全体を対象
+    floor: selectedFloor
+  });
 
   // Wouterの現在のロケーションを監視
   const [location] = useLocation();

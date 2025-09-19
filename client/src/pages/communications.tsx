@@ -48,6 +48,21 @@ export default function Communications() {
   // Fetch staff notices
   const { data: notices = [], isLoading: isLoadingNotices } = useQuery<StaffNotice[]>({
     queryKey: ['/api/staff-notices'],
+    queryFn: async () => {
+      const response = await fetch('/api/staff-notices', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error('連絡事項の取得に失敗しました');
+      }
+
+      return response.json();
+    },
+    refetchOnMount: true, // マウント時に必ず再取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
+    staleTime: 0, // 常に最新データを取得
+    retry: 3, // 失敗時に3回まで再試行
   });
 
   // Fetch read status for all notices to determine unread status
@@ -61,7 +76,14 @@ export default function Communications() {
       const results = await Promise.all(
         notices.map(async (notice) => {
           try {
-            const response = await fetch(`/api/staff-notices/${notice.id}/read-status`);
+            const response = await fetch(`/api/staff-notices/${notice.id}/read-status`, {
+              credentials: 'include'
+            });
+
+            if (!response.ok) {
+              return { noticeId: notice.id, statuses: [] };
+            }
+
             const data = await response.json();
             return { noticeId: notice.id, statuses: data };
           } catch (error) {
@@ -77,6 +99,10 @@ export default function Communications() {
       return statusMap;
     },
     enabled: notices.length > 0 && !!user && !!(user as any)?.id,
+    refetchOnMount: true, // マウント時に必ず再取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
+    staleTime: 0, // 常に最新データを取得
+    retry: 3, // 失敗時に3回まで再試行
   });
 
   // Mark notice as read mutation
