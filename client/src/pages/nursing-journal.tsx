@@ -612,7 +612,7 @@ export default function NursingJournal() {
         </div>
 
         {/* 日誌記録エリア */}
-        <div className="space-y-3 mb-20">
+        <div className="mb-20">
             {filteredJournalRecords.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-slate-600">選択された日誌種別にチェックされた記録がありません</p>
