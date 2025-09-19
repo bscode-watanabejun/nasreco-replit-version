@@ -2076,7 +2076,7 @@ export default function BathingList() {
               
               return sortedRecords.map((record: any) => (
                 <BathingCard
-                  key={record.id}
+                  key={`${record.residentId || 'new'}-${format(selectedDate, 'yyyy-MM-dd')}`}
                   record={record}
                   residents={residents as any[]}
                   currentUser={currentUser}
