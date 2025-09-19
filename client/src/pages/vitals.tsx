@@ -468,11 +468,7 @@ function VitalCard({
               disabled={!isResidentSelected}
             />
             <button
-              className={`rounded text-xs flex items-center justify-center ${
-                isResidentSelected 
-                  ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                  : "bg-slate-300 text-slate-500 cursor-not-allowed"
-              }`}
+              className="rounded text-xs flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
               style={{
                 height: "32px",
                 width: "32px",
@@ -481,10 +477,7 @@ function VitalCard({
                 maxHeight: "32px",
                 maxWidth: "32px",
               }}
-              onClick={() =>
-                isResidentSelected && handleStaffStamp(vital.id, vital.residentId)
-              }
-              disabled={!isResidentSelected}
+              onClick={() => handleStaffStamp(vital.id, vital.residentId)}
               data-testid={`button-stamp-${vital.id}`}
             >
               <User className="w-3 h-3" />
@@ -866,6 +859,9 @@ export default function Vitals() {
       return await apiRequest(`/api/vital-signs?${params.toString()}`);
     },
     enabled: !!selectedDate,
+    staleTime: 0, // 常に最新データを取得
+    refetchOnMount: true, // マウント時に必ず再取得
+    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
   });
 
   const { data: currentUser } = useQuery({
@@ -1230,10 +1226,7 @@ export default function Vitals() {
   const handleStaffStamp = async (vitalId: string, residentId?: string) => {
     const user = currentUser as any;
     // セッション職員情報があるか確認
-    const staffName = user?.staffName || 
-      (user?.firstName && user?.lastName
-        ? `${user.lastName} ${user.firstName}`
-        : user?.email || "スタッフ");
+    const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
 
     // 現在のバイタル記録を取得
     const vital = filteredVitalSigns.find((v: any) => v.id === vitalId);
@@ -1254,6 +1247,11 @@ export default function Vitals() {
 
     // 時分、承認者名の両方が空白の場合
     if (!currentHour && !currentMinute && !currentStaffName) {
+      // 楽観的更新を先に実行
+      handleFieldUpdate(vital.id, "hour", currentHourStr);
+      handleFieldUpdate(vital.id, "minute", currentMinuteStr);
+      handleFieldUpdate(vital.id, "staffName", staffName);
+
       updateData = {
         hour: currentHourStr,
         minute: currentMinuteStr,
@@ -1262,12 +1260,20 @@ export default function Vitals() {
     }
     // 時分が空白で承認者名が入っている場合
     else if (!currentHour && !currentMinute && currentStaffName) {
+      // 楽観的更新を先に実行
+      handleFieldUpdate(vital.id, "staffName", "");
+
       updateData = {
         staffName: ""
       };
     }
     // 時分が入っていて、承認者名が空白の場合
     else if ((currentHour || currentMinute) && !currentStaffName) {
+      // 楽観的更新を先に実行
+      handleFieldUpdate(vital.id, "hour", currentHourStr);
+      handleFieldUpdate(vital.id, "minute", currentMinuteStr);
+      handleFieldUpdate(vital.id, "staffName", staffName);
+
       updateData = {
         hour: currentHourStr,
         minute: currentMinuteStr,
@@ -1276,6 +1282,11 @@ export default function Vitals() {
     }
     // 時分と承認者名の両方が入っている場合
     else if ((currentHour || currentMinute) && currentStaffName) {
+      // 楽観的更新を先に実行
+      handleFieldUpdate(vital.id, "hour", "");
+      handleFieldUpdate(vital.id, "minute", "");
+      handleFieldUpdate(vital.id, "staffName", "");
+
       updateData = {
         hour: "",
         minute: "",
