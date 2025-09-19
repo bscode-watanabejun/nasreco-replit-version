@@ -303,11 +303,17 @@ function ResidentSelector({
   const currentResident = residents.find((r: any) => r.id === effectiveResidentId);
   const isAllEmpty = isAllVitalFieldsEmpty(vital);
   
-  // 利用者選択肢（valueとlabelを名前で統一）
-  const residentOptions = residents.map((r: any) => ({
-    value: r.name,
-    label: r.name,
-  }));
+  // 利用者選択肢（valueとlabelを名前で統一、居室番号順にソート）
+  const residentOptions = residents
+    .sort((a: any, b: any) => {
+      const roomA = parseInt(a.roomNumber || "0");
+      const roomB = parseInt(b.roomNumber || "0");
+      return roomA - roomB;
+    })
+    .map((r: any) => ({
+      value: r.name,
+      label: r.name,
+    }));
 
   const handleResidentChange = (residentId: string) => {
     // 即座にUIを更新するためにローカル状態を設定
@@ -415,11 +421,22 @@ function VitalCard({
             <div className="text-lg font-bold text-blue-600 min-w-[50px]">
               {resident?.roomNumber || "未設定"}
             </div>
-            <div className="font-medium text-sm truncate w-20 sm:w-24">
-              <span className="text-slate-800">
-                {resident?.name || "未選択"}
-              </span>
-            </div>
+            {/* 新規カード（residentId空）の場合は選択可能、既存カードは表示のみ */}
+            {!vital.residentId || vital.residentId === "" ? (
+              <ResidentSelector
+                vital={vital}
+                residents={residents}
+                onResidentChange={(vitalId, residentId) => {
+                  changeResidentMutation.mutate({ vitalId, newResidentId: residentId });
+                }}
+              />
+            ) : (
+              <div className="font-medium text-sm truncate w-20 sm:w-24">
+                <span className="text-slate-800">
+                  {resident?.name || "未選択"}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1 text-sm">
             <span className="bg-slate-100 px-1 py-1 rounded text-xs">
@@ -1109,22 +1126,31 @@ export default function Vitals() {
   // 利用者変更用ミューテーション
   const changeResidentMutation = useMutation({
     mutationFn: async ({ vitalId, newResidentId }: { vitalId: string; newResidentId: string }) => {
+      // 新規カード（temp-ID）の場合はAPIを呼び出さない
+      if (vitalId.startsWith('temp-')) {
+        return { id: vitalId, residentId: newResidentId };
+      }
+
+      // 既存カードの場合のみAPIを呼び出す
       await apiRequest(`/api/vital-signs/${vitalId}`, "PATCH", {
         residentId: newResidentId
       });
     },
     // 楽観的更新で即座にUIを更新
     onMutate: async ({ vitalId, newResidentId }) => {
+      // 正しいクエリキーを使用
+      const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
+
       // 進行中のクエリをキャンセル
-      await queryClient.cancelQueries({ queryKey: ["/api/vital-signs"] });
-      
+      await queryClient.cancelQueries({ queryKey });
+
       // 現在のデータのスナップショットを取得
-      const previousVitalSigns = queryClient.getQueryData(["/api/vital-signs"]);
-      
+      const previousVitalSigns = queryClient.getQueryData(queryKey);
+
       // 楽観的に更新（利用者変更）
-      queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+      queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
-        
+
         return old.map((vital: any) => {
           if (vital.id === vitalId) {
             return { ...vital, residentId: newResidentId };
@@ -1132,9 +1158,9 @@ export default function Vitals() {
           return vital;
         });
       });
-      
+
       // ロールバック用のコンテキストを返す
-      return { previousVitalSigns, vitalId };
+      return { previousVitalSigns, vitalId, queryKey };
     },
     onSuccess: (data, { vitalId }) => {
       // 利用者選択後、最初の入力項目（時間）に自動フォーカス
@@ -1147,20 +1173,20 @@ export default function Vitals() {
       }, 100);
     },
     onError: (error: any, _, context) => {
-      // エラー時に前の状態に戻す
-      if (context?.previousVitalSigns) {
-        queryClient.setQueryData(["/api/vital-signs"], context.previousVitalSigns);
+      // エラー時に前の状態に戻す（正しいクエリキーを使用）
+      if (context?.previousVitalSigns && context?.queryKey) {
+        queryClient.setQueryData(context.queryKey, context.previousVitalSigns);
       }
-      
+
       console.error('Change resident error:', error);
       toast({
         title: "エラー",
         description: error.message || "利用者の変更に失敗しました",
         variant: "destructive",
       });
-      
+
       // エラー時もサーバーから最新データを取得
-      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')] });
     },
   });
 
@@ -1337,11 +1363,12 @@ export default function Vitals() {
 
     // 一時的なIDを生成（タイムスタンプベース）
     const tempId = `temp-new-${Date.now()}`;
-    
-    // 楽観的更新で空のカードを即座に追加
-    queryClient.setQueryData(["/api/vital-signs"], (old: any) => {
+
+    // 楽観的更新で空のカードを即座に追加（正しいクエリキーを使用）
+    const queryKey = ["/api/vital-signs", format(selectedDate, 'yyyy-MM-dd')];
+    queryClient.setQueryData(queryKey, (old: any) => {
       if (!old) return old;
-      
+
       // 新しい空のレコードを作成
       const newEmptyRecord = {
         id: tempId,
@@ -1363,7 +1390,7 @@ export default function Vitals() {
         updatedAt: null,
         isTemporary: true,
       };
-      
+
       // 既存のレコードに新しい空のレコードを追加
       return [...old, newEmptyRecord];
     });
@@ -1406,12 +1433,12 @@ export default function Vitals() {
       return true;
     });
 
-    // 当日以前の日付の場合、すべての利用者のカードを表示
+    // 当日以前の日付の場合、すべての利用者のカードを表示（臨時時間帯は除く）
     const selectedDateObj = new Date(selectedDate);
     const today = new Date();
     today.setHours(23, 59, 59, 999);
 
-    if (selectedDateObj <= today) {
+    if (selectedDateObj <= today && selectedTiming !== "臨時") {
       const vitalsWithEmpty = [...existingVitals];
 
       filteredResidents.forEach((resident: any) => {
