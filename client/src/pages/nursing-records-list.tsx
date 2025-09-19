@@ -1851,14 +1851,17 @@ export default function NursingRecordsList() {
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
-              <InputWithDropdown
+              <select
                 value={selectedFloor}
-                options={floorOptions}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="フロア選択"
+                onChange={(e) => setSelectedFloor(e.target.value)}
                 className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                enableAutoFocus={false}
-              />
+              >
+                {floorOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* 入浴チェックのみフィルタ */}

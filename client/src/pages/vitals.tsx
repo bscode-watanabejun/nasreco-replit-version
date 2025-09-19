@@ -1510,27 +1510,33 @@ export default function Vitals() {
 
           {/* 時間選択 */}
           <div className="flex items-center space-x-1">
-            <InputWithDropdown
+            <select
               value={selectedTiming}
-              options={timingOptions}
-              onSave={(value) => setSelectedTiming(value)}
-              placeholder="時間"
-              className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
-              disableFocusMove={true}
-            />
+              onChange={(e) => setSelectedTiming(e.target.value)}
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {timingOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <InputWithDropdown
+            <select
               value={selectedFloor}
-              options={floorOptions}
-              onSave={(value) => setSelectedFloor(value)}
-              placeholder="フロア選択"
-              className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
-              disableFocusMove={true}
-            />
+              onChange={(e) => setSelectedFloor(e.target.value)}
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {floorOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>

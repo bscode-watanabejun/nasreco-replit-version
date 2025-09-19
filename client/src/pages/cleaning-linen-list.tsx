@@ -405,13 +405,17 @@ export default function CleaningLinenList() {
           >
             <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
           </Button>
-          <InputWithDropdown
+          <select
             value={selectedFloor}
-            options={floors.map(floor => ({ value: floor, label: floor }))}
-            onSave={(value) => setSelectedFloor(value)}
-            placeholder="階数選択"
-            className="w-16 sm:w-20 border rounded px-2 py-0 text-xs h-6"
-          />
+            onChange={(e) => setSelectedFloor(e.target.value)}
+            className="w-16 sm:w-20 h-6 text-xs px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {floors.map((floor) => (
+              <option key={floor} value={floor}>
+                {floor}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

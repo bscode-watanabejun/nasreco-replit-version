@@ -701,25 +701,15 @@ export default function DailyRecords() {
             {/* 記録種別選択 */}
             <div className="flex items-center space-x-0.5">
               <Filter className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-              <InputWithDropdown
-                value={(() => {
-                  const option = [
-                    { value: "日中", label: "日中" },
-                    { value: "夜間", label: "夜間" },
-                    { value: "看護", label: "看護" }
-                  ].find(opt => opt.value === selectedRecordType);
-                  return option ? option.label : "日中";
-                })()}
-                options={[
-                  { value: "日中", label: "日中" },
-                  { value: "夜間", label: "夜間" },
-                  { value: "看護", label: "看護" }
-                ]}
-                onSave={(value) => setSelectedRecordType(value)}
-                placeholder="記録種別"
-                className="w-14 sm:w-16 border rounded px-2 py-0 text-xs sm:text-sm h-6 sm:h-8"
-                enableAutoFocus={false}
-              />
+              <select
+                value={selectedRecordType}
+                onChange={(e) => setSelectedRecordType(e.target.value)}
+                className="w-14 sm:w-16 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="日中">日中</option>
+                <option value="夜間">夜間</option>
+                <option value="看護">看護</option>
+              </select>
             </div>
           </div>
       </div>

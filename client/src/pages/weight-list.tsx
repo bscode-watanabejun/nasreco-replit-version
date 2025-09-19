@@ -1440,9 +1440,10 @@ export default function WeightList() {
                 const params = new URLSearchParams();
                 const urlParams = new URLSearchParams(window.location.search);
                 const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
-                const selectedFloor = urlParams.get('floor') || 'all';
+                // 現在選択されているfloorを使用し、適切なURLパラメータ形式に変換
+                const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
                 params.set('date', selectedDate);
-                params.set('floor', selectedFloor);
+                params.set('floor', floorParam);
                 const targetUrl = `/?${params.toString()}`;
                 setLocation(targetUrl);
               }}
@@ -1461,27 +1462,33 @@ export default function WeightList() {
           {/* 年月選択 */}
           <div className="flex items-center space-x-1">
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <InputWithDropdown
+            <select
               value={selectedMonth}
-              options={monthOptions}
-              onSave={(value) => setSelectedMonth(value)}
-              placeholder="年月選択"
-              className="w-20 sm:w-24 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
-              enableAutoFocus={false}
-            />
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-24 sm:w-28 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-            <InputWithDropdown
+            <select
               value={selectedFloor}
-              options={floorOptions}
-              onSave={(value) => setSelectedFloor(value)}
-              placeholder="フロア選択"
-              className="w-16 sm:w-20 border rounded px-2 py-1 text-xs sm:text-sm h-6 sm:h-8"
-              enableAutoFocus={false}
-            />
+              onChange={(e) => setSelectedFloor(e.target.value)}
+              className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {floorOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
