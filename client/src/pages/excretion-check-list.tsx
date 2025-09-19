@@ -14,7 +14,7 @@ import { format, parseISO, startOfDay, endOfDay, addMonths, differenceInDays, en
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { Resident } from "@shared/schema";
+import type { Resident, FacilitySettings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -453,6 +453,11 @@ export default function ExcretionCheckList() {
     },
   });
 
+  // 施設設定を取得
+  const { data: facilitySettings } = useQuery<FacilitySettings>({
+    queryKey: ["/api/facility-settings"],
+  });
+
   // 排泄記録データの取得
   const { data: excretionRecords = [], refetch: refetchExcretionRecords } = useQuery<ExcretionRecord[]>({
     queryKey: ["excretion-records", dateFrom, dateTo],
@@ -694,20 +699,29 @@ export default function ExcretionCheckList() {
 
   // 便計を計算
   const calculateStoolCount = (residentId: string, date: Date) => {
+    const excretionBaseline = facilitySettings?.excretionBaseline || 3; // デフォルト値3
+
     let count = 0;
+    let smallCount = 0; // 「小」の回数をカウント
+
     for (let hour = 0; hour < 24; hour++) {
       const amount = getCellValue(residentId, date, hour, 'stoolAmount');
       if (amount === '多' || amount === '中') {
         count++;
+      } else if (amount === '小') {
+        smallCount++;
       }
     }
-    
+
+    // 「小」の回数を基準値で割った商を追加
+    count += Math.floor(smallCount / excretionBaseline);
+
     // 自立便を追加
     const independentStool = getCellValue(residentId, date, -1, 'independentStool');
     if (independentStool && !isNaN(parseInt(independentStool))) {
       count += parseInt(independentStool);
     }
-    
+
     return count > 0 ? count.toString() : '';
   };
 

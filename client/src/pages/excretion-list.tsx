@@ -22,7 +22,7 @@ import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { Resident } from "@shared/schema";
+import type { Resident, FacilitySettings } from "@shared/schema";
 
 interface ExcretionRecord {
   id: string;
@@ -524,13 +524,18 @@ export default function ExcretionList() {
       const startDate = new Date(selectedDate);
       startDate.setDate(endDate.getDate() - 29); // 過去30日間のデータを取得
       startDate.setHours(0, 0, 0, 0);
-      
+
       const response = await fetch(`/api/excretion-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch excretion records');
       }
       return response.json();
     }
+  });
+
+  // 施設設定を取得
+  const { data: facilitySettings } = useQuery<FacilitySettings>({
+    queryKey: ["/api/facility-settings"],
   });
 
   // 日付や階数が変更されたときにローカル状態をリセット
@@ -1255,6 +1260,17 @@ export default function ExcretionList() {
                   <tbody>
                     {filteredResidents.map((resident: Resident) => {
                       // 合計データの計算
+                      const excretionBaseline = facilitySettings?.excretionBaseline || 3; // デフォルト値3
+
+                      // 便量「小」の回数をカウント
+                      const smallStoolCount = hours.reduce((total, hour) => {
+                        const data = getCellData(resident.id, hour);
+                        if (data.stoolAmount === '小') {
+                          return total + 1;
+                        }
+                        return total;
+                      }, 0);
+
                       const stoolCount = hours.reduce((total, hour) => {
                         const data = getCellData(resident.id, hour);
                         // 便量が「多」または「中」の場合のみカウント
@@ -1262,7 +1278,9 @@ export default function ExcretionList() {
                           return total + 1;
                         }
                         return total;
-                      }, 0) + (() => {
+                      }, 0) +
+                      Math.floor(smallStoolCount / excretionBaseline) + // 「小」の回数を基準値で割った商を追加
+                      (() => {
                         // 自立便を追加
                         const independentStool = getAssistanceData(resident.id, 'stool');
                         return (independentStool && !isNaN(parseInt(independentStool))) ? parseInt(independentStool) : 0;
