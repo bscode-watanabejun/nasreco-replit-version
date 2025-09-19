@@ -1352,6 +1352,24 @@ export default function Vitals() {
       // 既存のレコードに新しい空のレコードを追加
       return [...old, newEmptyRecord];
     });
+
+    // DOM更新後に新規カードの利用者選択フィールドにフォーカスを設定
+    setTimeout(() => {
+      try {
+        // 新規追加されたカードを探す
+        const newCard = document.querySelector(`[data-vital-id="${tempId}"]`);
+        if (newCard) {
+          // 利用者選択フィールド（Select コンポーネント）を探す
+          const residentSelect = newCard.querySelector('[placeholder="利用者選択"]') as HTMLElement;
+          if (residentSelect) {
+            console.log('Focusing on new vital card resident select:', tempId);
+            residentSelect.focus(); // フォーカス設定でプルダウンが自動表示される
+          }
+        }
+      } catch (error) {
+        console.error('Failed to focus on new vital card:', error);
+      }
+    }, 100); // DOM更新完了を待つ
   };
 
   // フィルタリングロジック
@@ -1454,6 +1472,15 @@ export default function Vitals() {
   };
 
   const filteredVitalSigns = getFilteredVitalSigns().sort((a: any, b: any) => {
+    // 新規カード（residentIdが空）は一番下に表示
+    const isANew = !a.residentId;
+    const isBNew = !b.residentId;
+
+    if (isANew && !isBNew) return 1;  // aが新規カードならbの後
+    if (!isANew && isBNew) return -1; // bが新規カードならaの前
+    if (isANew && isBNew) return 0;   // 両方新規カードなら順序維持
+
+    // 既存カードは居室番号順でソート
     const residentA = (residents as any[]).find(
       (r: any) => r.id === a.residentId,
     );
@@ -1577,13 +1604,15 @@ export default function Vitals() {
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
         <div className="flex items-center justify-end max-w-lg mx-auto">
-          <Button
-            onClick={addNewRecord}
-            className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
-            data-testid="button-add-record"
-          >
-            <Plus className="w-6 h-6" />
-          </Button>
+          {selectedTiming === "臨時" && (
+            <Button
+              onClick={addNewRecord}
+              className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
+              data-testid="button-add-record"
+            >
+              <Plus className="w-6 h-6" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
