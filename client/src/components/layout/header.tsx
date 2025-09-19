@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { HeartPulse, User, Book, LogOut } from "lucide-react";
+import { HeartPulse, User, Book, LogOut, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -12,14 +12,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
+import ChangePasswordDialog from "@/components/change-password-dialog";
 
 export default function Header() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+
   const currentDate = new Date();
   const greeting = getGreeting();
   const formattedDate = format(currentDate, "yyyy年MM月dd日です", { locale: ja });
+
+  // 職員ログインユーザーかどうかを判定
+  const isStaffUser = !!(user as any)?.staffName;
 
   function getGreeting() {
     const hour = currentDate.getHours();
@@ -121,6 +126,12 @@ export default function Header() {
                   <Book className="w-4 h-4 mr-2" />
                   マニュアル
                 </DropdownMenuItem>
+                {isStaffUser && (
+                  <DropdownMenuItem onClick={() => setPasswordDialogOpen(true)}>
+                    <Lock className="w-4 h-4 mr-2" />
+                    パスワード変更
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="w-4 h-4 mr-2" />
@@ -131,6 +142,13 @@ export default function Header() {
           </div>
         </div>
       </div>
+
+      {isStaffUser && (
+        <ChangePasswordDialog
+          open={passwordDialogOpen}
+          onOpenChange={setPasswordDialogOpen}
+        />
+      )}
     </header>
   );
 }

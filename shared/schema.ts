@@ -821,3 +821,14 @@ export const insertJournalCheckboxSchema = createInsertSchema(journalCheckboxes,
 
 export type JournalCheckbox = typeof journalCheckboxes.$inferSelect;
 export type InsertJournalCheckbox = z.infer<typeof insertJournalCheckboxSchema>;
+
+// パスワード変更用スキーマ
+export const changePasswordSchema = z.object({
+  newPassword: z.string().min(4, "パスワードは4文字以上で入力してください"),
+  confirmPassword: z.string(),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "パスワードが一致しません",
+  path: ["confirmPassword"],
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

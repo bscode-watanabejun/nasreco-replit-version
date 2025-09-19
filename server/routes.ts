@@ -156,6 +156,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "ログアウトしました" });
   });
 
+  // Change staff password route
+  app.post('/api/user/change-password', isAuthenticated, async (req, res) => {
+    try {
+      const { newPassword } = req.body;
+      const staffSession = (req as any).session?.staff;
+
+      if (!staffSession) {
+        return res.status(401).json({ message: "職員ログインが必要です" });
+      }
+
+      if (!newPassword || newPassword.length < 4) {
+        return res.status(400).json({ message: "パスワードは4文字以上で入力してください" });
+      }
+
+      await storage.changeStaffPassword(staffSession.id, newPassword);
+
+      res.json({ message: "パスワードを変更しました" });
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      res.status(500).json({ message: "パスワードの変更中にエラーが発生しました" });
+    }
+  });
+
   // Get current staff user
   app.get('/api/auth/staff-user', async (req, res) => {
     try {

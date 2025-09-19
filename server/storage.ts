@@ -252,6 +252,7 @@ export interface IStorage {
   deleteStaffManagement(id: string): Promise<void>;
   unlockStaffAccount(id: string, password: string): Promise<StaffManagement>;
   lockStaffAccount(id: string): Promise<StaffManagement>;
+  changeStaffPassword(staffId: string, newPassword: string): Promise<void>;
 
   // Resident Attachment operations
   getResidentAttachments(residentId: string): Promise<ResidentAttachment[]>;
@@ -2038,6 +2039,26 @@ export class DatabaseStorage implements IStorage {
     return null;
   }
 
+  async changeStaffPassword(staffId: string, newPassword: string): Promise<void> {
+    // パスワードのハッシュ化（既存の方式に合わせてBase64を使用）
+    const hashedPassword = Buffer.from(newPassword).toString('base64');
+
+    // 日本時間を取得
+    const japanTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+
+    const result = await db.update(staffManagement)
+      .set({
+        password: hashedPassword,
+        lastModifiedAt: japanTime,
+        updatedAt: japanTime,
+      })
+      .where(eq(staffManagement.id, staffId));
+
+    if (result.rowCount === 0) {
+      throw new Error("職員が見つかりません");
+    }
+  }
+
   async getDefaultStaff(): Promise<StaffManagement | null> {
     // デフォルト職員を取得（最初の職員またはアクティブな職員を返す）
     const [staff] = await db.select()
@@ -2045,7 +2066,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(staffManagement.status, "ロック解除"))
       .orderBy(staffManagement.sortOrder, staffManagement.createdAt)
       .limit(1);
-    
+
     return staff || null;
   }
 
