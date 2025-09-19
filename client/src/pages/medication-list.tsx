@@ -392,9 +392,28 @@ export default function MedicationList() {
       // エラー時のみサーバーから最新データを取得
       queryClient.invalidateQueries({ queryKey: ['/api/medication-records'] });
     },
-    onSuccess: () => {
+    onSuccess: (response, variables) => {
+      // 新規作成成功時に実際のDBレコードIDでキャッシュを更新
+      if (response && response.id) {
+        const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old) return old;
+
+          // temp-IDのレコードを実IDのレコードに置き換え
+          return old.map((record: any) => {
+            // 同じ利用者・タイミングの temp- レコードを探して実IDに更新
+            if (record.residentId === variables.residentId &&
+                record.timing === variables.timing &&
+                record.id && record.id.startsWith('temp-')) {
+              console.log(`Updating temp record ${record.id} to real ID ${response.id}`);
+              return { ...record, id: response.id };
+            }
+            return record;
+          });
+        });
+      }
+
       // 成功時は楽観的更新のみで完了（invalidateしない）
-      // queryClient.invalidateQueries({ queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor] });
       queryClient.invalidateQueries({ queryKey: ['/api/daily-records'] });
     },
   });
@@ -507,6 +526,24 @@ export default function MedicationList() {
       // 既存のレコードに新しい空のレコードを追加
       return [...old, newEmptyRecord];
     });
+
+    // DOM更新後に新規カードの利用者選択フィールドにフォーカスを設定
+    setTimeout(() => {
+      try {
+        // 新規追加されたカードを探す
+        const newCard = document.querySelector(`[data-record-id="${tempId}"]`);
+        if (newCard) {
+          // 利用者選択フィールド（InputWithDropdownのinput）を探す
+          const residentInput = newCard.querySelector('input[placeholder="利用者"]') as HTMLInputElement;
+          if (residentInput) {
+            console.log('Focusing on new card resident input:', tempId);
+            residentInput.focus(); // フォーカス設定でプルダウンが自動表示される
+          }
+        }
+      } catch (error) {
+        console.error('Failed to focus on new card:', error);
+      }
+    }, 100); // DOM更新完了を待つ
   };
 
   // fetchExistingDataForResident関数は削除（使用されなくなったため）
@@ -593,10 +630,12 @@ export default function MedicationList() {
       
       queryClient.setQueryData(queryKey, (old: any) => {
         if (!old) return old;
-        return old.map((record: any) => {
+
+        // データを更新
+        const updatedData = old.map((record: any) => {
           if (record.id === recordId) {
-            return { 
-              ...record, 
+            return {
+              ...record,
               residentId: value,
               residentName: resident?.name || '',
               roomNumber: resident?.roomNumber || '',
@@ -604,6 +643,22 @@ export default function MedicationList() {
             };
           }
           return record;
+        });
+
+        // 利用者選択後に即座にソート実行（カードを適切な位置に移動）
+        return updatedData.sort((a: any, b: any) => {
+          // 利用者未選択の一時カード（temp-）のみ最後に表示
+          const isATempWithoutResident = a.id.startsWith('temp-') && !a.residentId;
+          const isBTempWithoutResident = b.id.startsWith('temp-') && !b.residentId;
+
+          if (isATempWithoutResident && !isBTempWithoutResident) return 1;
+          if (!isATempWithoutResident && isBTempWithoutResident) return -1;
+          if (isATempWithoutResident && isBTempWithoutResident) return 0;
+
+          // 利用者選択済みのカード（実レコード + 利用者選択済みtemp-）は部屋番号でソート
+          const roomA = parseInt(a.roomNumber || "0");
+          const roomB = parseInt(b.roomNumber || "0");
+          return roomA - roomB;
         });
       });
       
@@ -861,51 +916,60 @@ export default function MedicationList() {
             console.log('Rendering displayMedicationRecords:', JSON.stringify(displayMedicationRecords, null, 2));
             return displayMedicationRecords
             .sort((a: MedicationRecordWithResident, b: MedicationRecordWithResident) => {
-              // 一時カード（temp-）は最後に表示
-              const isATemp = a.id.startsWith('temp-');
-              const isBTemp = b.id.startsWith('temp-');
-              
-              if (isATemp && !isBTemp) return 1;  // aが一時カードならbの後
-              if (!isATemp && isBTemp) return -1; // bが一時カードならaの前
-              if (isATemp && isBTemp) return 0;   // 両方一時カードなら順序維持
-              
-              // 両方が通常カードの場合は部屋番号でソート
+              // 利用者未選択の一時カード（temp-）のみ最後に表示
+              const isATempWithoutResident = a.id.startsWith('temp-') && !a.residentId;
+              const isBTempWithoutResident = b.id.startsWith('temp-') && !b.residentId;
+
+              if (isATempWithoutResident && !isBTempWithoutResident) return 1;  // aが利用者未選択の一時カードならbの後
+              if (!isATempWithoutResident && isBTempWithoutResident) return -1; // bが利用者未選択の一時カードならaの前
+              if (isATempWithoutResident && isBTempWithoutResident) return 0;   // 両方が利用者未選択の一時カードなら順序維持
+
+              // 利用者選択済みのカード（実レコード + 利用者選択済みtemp-）は部屋番号でソート
               const roomA = parseInt(a.roomNumber || "0");
               const roomB = parseInt(b.roomNumber || "0");
               return roomA - roomB;
             })
             .map((record: MedicationRecordWithResident, index: number) => (
-            <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}> 
+            <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`} data-record-id={record.id}> 
               <div className="p-2 space-y-2">
                 {/* 1段目：居室番号・利用者名・服薬タイミング・確認者1・確認者2 */}
                 <div className="flex items-center gap-1">
                   {/* 居室番号 */}
-                  <div className="w-12 flex-shrink-0">
-                    <div className="h-6 px-1 border border-gray-300 rounded-md bg-gray-50 text-center font-bold text-xs flex items-center justify-center">
-                      {record.roomNumber}
-                    </div>
+                  <div className="w-10 text-center flex-shrink-0">
+                    <div className="text-lg font-bold text-blue-600">{record.roomNumber}</div>
                   </div>
                   
                   {/* 利用者名 */}
                   <div className="w-24 flex-shrink-0">
-                    <InputWithDropdown
-                      value={(() => {
-                        const name = residents?.find(r => r.id === record.residentId)?.name || record.residentName || "";
-                        return name.replace(/\s+/g, '\n');
-                      })()}
-                      options={residents?.map((resident) => ({
-                        value: resident.id,
-                        label: resident.name
-                      })) || []}
-                      onSave={(selectedId) => {
-                        if (!record.id) return;
-                        console.log('Resident changed for record', record.id, 'to:', selectedId);
-                        handleFieldUpdate(record.id, "residentId", selectedId);
-                        // 一時的なレコードの自動保存は無効化
-                      }}
-                      placeholder="利用者"
-                      className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-pre-line leading-tight text-center"
-                    />
+                    {record.id && record.id.startsWith('temp-') ? (
+                      // 新規追加カードの場合は利用者選択可能
+                      <InputWithDropdown
+                        value={(() => {
+                          const name = residents?.find(r => r.id === record.residentId)?.name || record.residentName || "";
+                          return name.replace(/\s+/g, '\n');
+                        })()}
+                        options={residents?.sort((a, b) => {
+                          const roomA = parseInt(a.roomNumber || "0");
+                          const roomB = parseInt(b.roomNumber || "0");
+                          return roomA - roomB;
+                        }).map((resident) => ({
+                          value: resident.id,
+                          label: resident.name
+                        })) || []}
+                        onSave={(selectedId) => {
+                          if (!record.id) return;
+                          console.log('Resident changed for record', record.id, 'to:', selectedId);
+                          handleFieldUpdate(record.id, "residentId", selectedId);
+                        }}
+                        placeholder="利用者"
+                        className="h-6 w-full px-1 text-xs border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-pre-line leading-tight text-center"
+                      />
+                    ) : (
+                      // 既存レコードの場合は読み取り専用表示（食事一覧と同じスタイル）
+                      <div className="font-medium text-sm truncate text-slate-800">
+                        {residents?.find(r => r.id === record.residentId)?.name || record.residentName || ""}
+                      </div>
+                    )}
                   </div>
                   
                   {/* 服薬タイミング */}

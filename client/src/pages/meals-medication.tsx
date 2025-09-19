@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon, Plus, ClipboardList } from "lucide-react";
+import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -776,41 +776,6 @@ export default function MealsMedicationPage() {
     handleSaveRecord(residentId, 'staffName', newStaffName);
   };
 
-  // 新規レコード追加機能（服薬一覧と同じ）
-  const handleAddRecord = () => {
-    if (!residents || residents.length === 0 || !user) return;
-
-    // フィルタ条件に合致する利用者を取得
-    const filteredResidentsList = filteredResidents;
-    
-    // 既に記録がある利用者のIDを取得
-    const recordedResidentIds = mealsMedicationData.map(r => r.residentId);
-    
-    // 未記録の利用者を探す
-    const unrecordedResident = filteredResidentsList.find((resident: any) => 
-      !recordedResidentIds.includes(resident.id)
-    );
-    
-    // 未記録の利用者がいる場合は新しいレコードを作成、いない場合は最初の利用者で作成
-    const targetResident = unrecordedResident || filteredResidentsList[0];
-    
-    if (targetResident) {
-      const newRecord: InsertMealsAndMedication = {
-        residentId: targetResident.id,
-        // staffIdはサーバー側で自動設定するため、フロントでは送信しない
-        recordDate: selectedDate,
-        type: 'meal',
-        mealType: selectedMealTime,
-        mainAmount: '',
-        sideAmount: '',
-        waterIntake: '',
-        supplement: '',
-        staffName: (user as any)?.staffName || (user as any)?.firstName || 'スタッフ',
-        notes: '',
-      };
-      createMutation.mutate(newRecord);
-    }
-  };
 
   const filteredResidents = residents.filter((resident: any) => {
     if (selectedFloor === '全階') return true;
@@ -1141,16 +1106,19 @@ export default function MealsMedicationPage() {
 
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
+        <div className="flex items-center justify-center max-w-lg mx-auto relative">
+          <div className="absolute left-0">
+            <Button
+              variant={bulkMode ? "outline" : "default"}
+              onClick={bulkMode ? handleCancelBulkMode : handleStartBulkMode}
+              data-testid="button-bulk-register"
+              className="flex items-center gap-2"
+            >
+              {bulkMode ? "キャンセル" : "一括登録"}
+            </Button>
+          </div>
+
           <Button
-            variant={bulkMode ? "outline" : "default"}
-            onClick={bulkMode ? handleCancelBulkMode : handleStartBulkMode}
-            data-testid="button-bulk-register"
-            className="flex items-center gap-2"
-          >
-            {bulkMode ? "キャンセル" : "一括登録"}
-          </Button>
-          <Button 
             variant="outline"
             onClick={() => {
               const params = new URLSearchParams();
@@ -1163,24 +1131,18 @@ export default function MealsMedicationPage() {
           >
             服薬一覧へ
           </Button>
-          {bulkMode ? (
-            <Button
-              onClick={handleOpenBulkModal}
-              className="bg-blue-600 hover:bg-blue-700 w-12 h-12 rounded-full p-0"
-              disabled={selectedResidentIds.size === 0}
-              data-testid="button-bulk-execute"
-            >
-              <ClipboardList className="w-6 h-6" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleAddRecord}
-              className="bg-orange-600 hover:bg-orange-700 w-12 h-12 rounded-full p-0"
-              disabled={createMutation.isPending}
-              data-testid="button-add-record"
-            >
-              <Plus className="w-6 h-6" />
-            </Button>
+
+          {bulkMode && (
+            <div className="absolute right-0">
+              <Button
+                onClick={handleOpenBulkModal}
+                className="bg-blue-600 hover:bg-blue-700 w-12 h-12 rounded-full p-0"
+                disabled={selectedResidentIds.size === 0}
+                data-testid="button-bulk-execute"
+              >
+                <ClipboardList className="w-6 h-6" />
+              </Button>
+            </div>
           )}
         </div>
       </div>
