@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Calendar, Filter, ChevronLeft, ChevronRight, User } from "lucide-react";
+import { ArrowLeft, Calendar, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -186,7 +186,7 @@ function InputWithDropdown({
 }
 
 export default function DailyRecords() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -196,13 +196,6 @@ export default function DailyRecords() {
   const [selectedDate, setSelectedDate] = useState<Date>(urlParams.get('date') ? new Date(urlParams.get('date')!) : new Date());
   const [selectedRecordType, setSelectedRecordType] = useState("日中");
   const [cardCheckboxes, setCardCheckboxes] = useState<Record<string, string[]>>({});
-  const [enteredBy, setEnteredBy] = useState("");
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    const floorParam = urlParams.get('floor');
-    if (floorParam === 'all') return '全階';
-    if (floorParam) return `${floorParam}階`;
-    return '全階';
-  });
 
   // 施設設定を取得（日勤時間帯のため）
   const { data: facilitySettings } = useQuery({
@@ -355,154 +348,8 @@ export default function DailyRecords() {
     },
   });
 
-  // 日誌エントリの保存/更新用Mutation
-  const upsertJournalEntryMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return await apiRequest('/api/journal-entries/upsert', 'POST', data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/journal-entries'] });
-    },
-    onError: (error) => {
-      console.error('日誌エントリの保存に失敗しました:', error);
-      toast({
-        title: "エラー",
-        description: "日誌エントリの保存に失敗しました",
-        variant: "destructive",
-      });
-    }
-  });
 
-  // 住民データを取得
-  const { data: residents = [] } = useQuery({
-    queryKey: ["/api/residents"],
-    queryFn: async () => {
-      const response = await apiRequest("/api/residents");
-      return response as any[];
-    },
-    enabled: !!isAuthenticated,
-  });
 
-  // 住民統計を計算
-  const residentStats = useMemo(() => {
-    if (!residents || !Array.isArray(residents)) {
-      return { totalResidents: 0, hospitalizedCount: 0 };
-    }
-
-    const today = new Date();
-    const currentResidents = residents.filter(resident => {
-      // 入居日が今日以前で、退居日が未設定または今日以降の住民
-      const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
-      const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
-
-      const isCurrentlyAdmitted = (!admissionDate || admissionDate <= today) &&
-                                  (!retirementDate || retirementDate >= today);
-
-      return isCurrentlyAdmitted;
-    });
-
-    const hospitalizedResidents = currentResidents.filter(resident => resident.isAdmitted);
-
-    return {
-      totalResidents: currentResidents.length,
-      hospitalizedCount: hospitalizedResidents.length,
-    };
-  }, [residents]);
-
-  // 階数オプション（住民データから動的に生成）
-  const floorOptions = useMemo(() => {
-    if (!residents || !Array.isArray(residents)) {
-      return [{ value: "全階", label: "全階" }];
-    }
-
-    const floors = new Set<string>();
-    residents.forEach((resident) => {
-      if (resident.floor) {
-        floors.add(resident.floor);
-      }
-    });
-
-    const sortedFloors = Array.from(floors).sort((a, b) => {
-      const aNum = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-      const bNum = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-      return aNum - bNum;
-    });
-
-    return [
-      { value: "全階", label: "全階" },
-      ...sortedFloors.map(floor => ({ value: floor, label: floor }))
-    ];
-  }, [residents]);
-
-  // 日誌エントリデータを取得
-  const { data: journalEntry } = useQuery({
-    queryKey: ['/api/journal-entries', format(selectedDate, 'yyyy-MM-dd'), selectedRecordType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.set('dateFrom', format(selectedDate, 'yyyy-MM-dd'));
-      params.set('dateTo', format(selectedDate, 'yyyy-MM-dd'));
-      params.set('recordType', selectedRecordType);
-
-      const response = await apiRequest(`/api/journal-entries?${params.toString()}`);
-      const entries = response as any[];
-
-      // 該当する日誌エントリを探す
-      return entries.find(e =>
-        e.recordDate === format(selectedDate, 'yyyy-MM-dd') &&
-        e.recordType === selectedRecordType
-      ) || null;
-    },
-    enabled: !!isAuthenticated && !!selectedDate && !!selectedRecordType,
-  });
-
-  // 日誌エントリが取得されたら記入者を設定
-  useEffect(() => {
-    if (journalEntry) {
-      setEnteredBy(journalEntry.enteredBy || "");
-    } else {
-      setEnteredBy("");
-    }
-  }, [journalEntry]);
-
-  // 記入者設定/クリア
-  const handleToggleEnteredBy = async () => {
-    const userData = user as any;
-    const userId = userData?.id || userData?.sub || null;
-
-    if (enteredBy) {
-      // 記入者をクリア（NULLに設定）
-      setEnteredBy("");
-
-      // DBを更新
-      await upsertJournalEntryMutation.mutateAsync({
-        recordDate: format(selectedDate, 'yyyy-MM-dd'),
-        recordType: selectedRecordType,
-        enteredBy: null, // NULLに設定
-        residentCount: residentStats.totalResidents,
-        hospitalizedCount: residentStats.hospitalizedCount,
-        floor: selectedFloor === '全階' ? null : selectedFloor.replace('階', ''),
-        createdBy: userId
-      });
-    } else {
-      // ログイン者の名前を設定
-      const userName = userData?.staffName ||
-        (userData?.firstName && userData?.lastName
-          ? `${userData.lastName} ${userData.firstName}`
-          : userData?.email || "スタッフ");
-      setEnteredBy(userName);
-
-      // DBを更新
-      await upsertJournalEntryMutation.mutateAsync({
-        recordDate: format(selectedDate, 'yyyy-MM-dd'),
-        recordType: selectedRecordType,
-        enteredBy: userName,
-        residentCount: residentStats.totalResidents,
-        hospitalizedCount: residentStats.hospitalizedCount,
-        floor: selectedFloor === '全階' ? null : selectedFloor.replace('階', ''),
-        createdBy: userId
-      });
-    }
-  };
 
   // 記録データを取得
   const { data: records = [], isLoading, error } = useQuery({
@@ -616,7 +463,9 @@ export default function DailyRecords() {
   const handleBack = () => {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-    if (selectedFloor !== '全階') params.set('floor', selectedFloor.replace('階', ''));
+    // URLパラメータから階数を直接取得して引き継ぎ
+    const floorParam = urlParams.get('floor');
+    if (floorParam) params.set('floor', floorParam);
     const targetUrl = `/?${params.toString()}`;
     navigate(targetUrl);
   };
@@ -715,78 +564,9 @@ export default function DailyRecords() {
       </div>
 
       <div className="max-w-full mx-auto px-2 pb-2">
-        {/* メインエリア */}
-        <div className="bg-white p-3 shadow-sm border-b mb-3">
-          {/* 記入者と階数 */}
-          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-slate-700 min-w-[60px]">記入者</label>
-              <input
-                type="text"
-                value={enteredBy}
-                readOnly
-                className="w-32 px-2 py-2 border border-slate-300 rounded-md bg-slate-50 text-slate-700 text-sm"
-                placeholder="記入者名"
-              />
-              <button
-                className={`rounded text-xs flex items-center justify-center ${
-                  filteredRecords.length === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-                style={{
-                  height: "32px",
-                  width: "32px",
-                  minHeight: "32px",
-                  minWidth: "32px",
-                  maxHeight: "32px",
-                  maxWidth: "32px",
-                }}
-                onClick={filteredRecords.length === 0 ? undefined : handleToggleEnteredBy}
-                disabled={filteredRecords.length === 0}
-              >
-                <User className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* 階数選択 */}
-            <div className="flex items-center gap-2">
-              <InputWithDropdown
-                value={selectedFloor}
-                options={floorOptions}
-                onSave={(value) => setSelectedFloor(value)}
-                placeholder="階数選択"
-                className="w-20 px-2 py-2 border border-slate-300 rounded-md text-sm"
-                enableAutoFocus={false}
-              />
-            </div>
-          </div>
-
-          {/* 入居者数・入院者情報 */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-700 min-w-[80px]">入居者数</span>
-                <span className="text-slate-600">{residentStats.totalResidents}名</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-700 min-w-[80px]">入院者数</span>
-                <span className="text-slate-600">{residentStats.hospitalizedCount}名</span>
-              </div>
-            </div>
-            <div>
-              <div className="font-medium text-slate-700 mb-1">入院者名</div>
-              <div className="text-slate-600 text-sm leading-relaxed">
-                {residentStats.hospitalizedCount > 0
-                  ? residents.filter(r => r.isAdmitted).map(r => r.name).join("、")
-                  : "なし"}
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* 記録一覧 */}
-        <div className="space-y-3">
+        <div>
           {isLoading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
