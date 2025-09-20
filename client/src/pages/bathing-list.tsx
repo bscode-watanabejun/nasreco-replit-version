@@ -200,10 +200,12 @@ function ResidentSelector({
   record,
   residents,
   onResidentChange,
+  existingResidentIds,
 }: {
   record: any;
   residents: any[];
   onResidentChange: (recordId: string, residentId: string) => void;
+  existingResidentIds?: string[];
 }) {
   const [pendingResidentId, setPendingResidentId] = useState<string | null>(null);
   
@@ -213,10 +215,19 @@ function ResidentSelector({
   const isAllEmpty = isAllBathingFieldsEmpty(record);
   
   // 利用者選択肢（valueとlabelを名前で統一）
-  const residentOptions = residents.map((r: any) => ({
-    value: r.name,
-    label: r.name,
-  }));
+  const residentOptions = residents
+    .filter((r: any) => {
+      // 新規カード（利用者未選択）の場合のみフィルタリング
+      if (!record.residentId && existingResidentIds) {
+        return !existingResidentIds.includes(r.id);
+      }
+      // 既存カードまたは利用者選択済みの場合は全て表示
+      return true;
+    })
+    .map((r: any) => ({
+      value: r.name,
+      label: r.name,
+    }));
 
   const handleResidentChange = (residentId: string) => {
     // 即座にUIを更新するためにローカル状態を設定
@@ -282,6 +293,7 @@ function BathingCard({
   diastolicBPOptions,
   pulseOptions,
   spo2Options,
+  existingResidentIds,
 
   handleFieldUpdate,
   handleSaveRecord,
@@ -301,6 +313,7 @@ function BathingCard({
   diastolicBPOptions: any[];
   pulseOptions: any[];
   spo2Options: any[];
+  existingResidentIds?: string[];
 
   handleFieldUpdate: (residentId: string, field: string, value: any) => void;
   handleSaveRecord: (residentId: string, field: string, value: any) => void;
@@ -353,6 +366,7 @@ function BathingCard({
             <ResidentSelector
               record={record}
               residents={residents}
+              existingResidentIds={existingResidentIds}
               onResidentChange={(recordId, residentId) => {
                 changeResidentMutation.mutate({ recordId, newResidentId: residentId });
               }}
@@ -1680,33 +1694,43 @@ export default function BathingList() {
             </div>
           ) : (
             // 保存されたソート順でレンダリング
-            sortedRecordsState.map((record: any) => {
-              // bathingRecordsから最新のデータを取得（changeResidentMutationの更新を反映）
-              const latestRecord = bathingRecords?.find((r: any) => r.id === record.id) || record;
+            (() => {
+              // 既存カードの利用者IDリストを作成
+              const existingResidentIds = sortedRecordsState
+                .filter((record: any) => record.residentId)
+                .map((record: any) => record.residentId);
 
-              return (
-                <BathingCard
-                  key={`${latestRecord.residentId || 'new'}-${format(selectedDate, 'yyyy-MM-dd')}-${latestRecord.id}`}
-                  record={latestRecord}
-                  residents={residents as any[]}
-                  currentUser={currentUser}
-                  inputBaseClass={inputBaseClass}
-                  hourOptions={hourOptions}
-                  minuteOptions={minuteOptions}
-                  bathTypeOptions={bathTypeOptions}
-                  temperatureOptions={temperatureOptions}
-                  systolicBPOptions={systolicBPOptions}
-                  diastolicBPOptions={diastolicBPOptions}
-                  pulseOptions={pulseOptions}
-                  spo2Options={spo2Options}
-                  handleFieldUpdate={handleFieldUpdate}
-                  handleSaveRecord={handleSaveRecord}
-                  handleStaffStamp={handleStaffStamp}
-                  deleteMutation={deleteMutation}
-                  changeResidentMutation={changeResidentMutation}
-                />
-              );
-            })
+              return sortedRecordsState.map((record: any) => {
+                // bathingRecordsから最新のデータを取得（changeResidentMutationの更新を反映）
+                const latestRecord = bathingRecords?.find((r: any) => r.id === record.id) || record;
+
+                return (
+                  <BathingCard
+                    key={latestRecord.residentId ?
+                         `${latestRecord.residentId}-${format(selectedDate, 'yyyy-MM-dd')}` :
+                         latestRecord.id}
+                    record={latestRecord}
+                    residents={residents as any[]}
+                    currentUser={currentUser}
+                    inputBaseClass={inputBaseClass}
+                    hourOptions={hourOptions}
+                    minuteOptions={minuteOptions}
+                    bathTypeOptions={bathTypeOptions}
+                    temperatureOptions={temperatureOptions}
+                    systolicBPOptions={systolicBPOptions}
+                    diastolicBPOptions={diastolicBPOptions}
+                    pulseOptions={pulseOptions}
+                    spo2Options={spo2Options}
+                    existingResidentIds={existingResidentIds}
+                    handleFieldUpdate={handleFieldUpdate}
+                    handleSaveRecord={handleSaveRecord}
+                    handleStaffStamp={handleStaffStamp}
+                    deleteMutation={deleteMutation}
+                    changeResidentMutation={changeResidentMutation}
+                  />
+                );
+              });
+            })()
           )}
         </div>
       </main>
