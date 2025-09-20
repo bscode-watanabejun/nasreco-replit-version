@@ -856,12 +856,30 @@ export default function Vitals() {
     queryClient.setQueryData(queryKey, (old: any) => {
       if (!old) return old;
       
-      // 既存のレコードを探す（同じ利用者・日付・時間帯）
-      const existingIndex = old.findIndex((record: any) => 
-        record.residentId === residentId && 
-        record.timing === selectedTiming &&
-        format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
-      );
+      // 既存のレコードを探す
+      let existingIndex = -1;
+
+      if (selectedTiming === "臨時") {
+        // 臨時の場合：同じ利用者・日付・時間帯・時刻のレコードを検索
+        // currentVitalの時刻も含めて検索
+        const currentVital = old.find((record: any) => record.id === vitalId);
+        if (currentVital) {
+          existingIndex = old.findIndex((record: any) =>
+            record.residentId === residentId &&
+            record.timing === selectedTiming &&
+            format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
+            record.hour === currentVital.hour &&
+            record.minute === currentVital.minute
+          );
+        }
+      } else {
+        // 午前・午後の場合：従来通り（同じ利用者・日付・時間帯）
+        existingIndex = old.findIndex((record: any) =>
+          record.residentId === residentId &&
+          record.timing === selectedTiming &&
+          format(new Date(record.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
+        );
+      }
       
       if (existingIndex >= 0) {
         // 既存レコードを更新
@@ -921,13 +939,28 @@ export default function Vitals() {
       return; // 利用者が未選択の場合は何もしない
     }
 
-    // 同じ利用者・日付・時間帯の既存レコードを検索
-    const existingRecord = filteredVitalSigns.find((v: any) => 
-      v.residentId === currentVital.residentId && 
-      v.timing === selectedTiming && 
-      format(new Date(v.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
-      !v.id.startsWith('temp-') // 実IDのレコードのみ
-    );
+    // 既存レコードを検索
+    let existingRecord = null;
+
+    if (selectedTiming === "臨時") {
+      // 臨時の場合：同じ利用者・日付・時間帯・時刻のレコードを検索
+      existingRecord = filteredVitalSigns.find((v: any) =>
+        v.residentId === currentVital.residentId &&
+        v.timing === selectedTiming &&
+        format(new Date(v.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
+        v.hour === currentVital.hour &&
+        v.minute === currentVital.minute &&
+        !v.id.startsWith('temp-') // 実IDのレコードのみ
+      );
+    } else {
+      // 午前・午後の場合：従来通り
+      existingRecord = filteredVitalSigns.find((v: any) =>
+        v.residentId === currentVital.residentId &&
+        v.timing === selectedTiming &&
+        format(new Date(v.recordDate), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') &&
+        !v.id.startsWith('temp-') // 実IDのレコードのみ
+      );
+    }
 
     // 全フィールドを保持して、対象フィールドのみ更新
     const recordData: any = {
@@ -1003,7 +1036,13 @@ export default function Vitals() {
           if (record.id?.startsWith('temp-') &&
               record.residentId === variables.residentId &&
               record.timing === variables.timing) {
-            return { ...record, ...serverResponse, id: serverResponse.id };
+            return {
+              ...record,
+              ...serverResponse,
+              id: serverResponse.id,
+              // isUserAddedフラグを維持
+              isUserAdded: record.isUserAdded || false
+            };
           }
           return record;
         });
@@ -1347,29 +1386,49 @@ export default function Vitals() {
         createdAt: null,
         updatedAt: null,
         isTemporary: true,
+        isUserAdded: true, // 新規追加カードのフラグ
       };
 
       // 既存のレコードに新しい空のレコードを追加
       return [...old, newEmptyRecord];
     });
 
-    // DOM更新後に新規カードの利用者選択フィールドにフォーカスを設定
+    // DOM更新後に新規カードの利用者選択フィールドにフォーカスを設定し、画面を一番下にスクロール
     setTimeout(() => {
       try {
         // 新規追加されたカードを探す
         const newCard = document.querySelector(`[data-vital-id="${tempId}"]`);
         if (newCard) {
+          console.log('Found new card:', tempId);
+
+          // 画面を一番下にスクロール（複数の方法を試行）
+          try {
+            // 方法1: スムーズスクロール
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // 方法2: 画面全体を最下部にスクロール（フォールバック）
+            setTimeout(() => {
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 200);
+          } catch (scrollError) {
+            console.error('Scroll error:', scrollError);
+            // 方法3: 強制的に最下部にスクロール
+            window.scrollTo(0, document.body.scrollHeight);
+          }
+
           // 利用者選択フィールド（Select コンポーネント）を探す
           const residentSelect = newCard.querySelector('[placeholder="利用者選択"]') as HTMLElement;
           if (residentSelect) {
             console.log('Focusing on new vital card resident select:', tempId);
             residentSelect.focus(); // フォーカス設定でプルダウンが自動表示される
           }
+        } else {
+          console.error('New card not found:', tempId);
         }
       } catch (error) {
         console.error('Failed to focus on new vital card:', error);
       }
-    }, 100); // DOM更新完了を待つ
+    }, 150); // DOM更新完了を待つ時間を他画面と同じ150msに調整
   };
 
   // フィルタリングロジック
@@ -1472,6 +1531,17 @@ export default function Vitals() {
   };
 
   const filteredVitalSigns = getFilteredVitalSigns().sort((a: any, b: any) => {
+    // ユーザー追加カード（isUserAddedフラグ）は常に最後に表示
+    const isUserAddedA = a.isUserAdded === true;
+    const isUserAddedB = b.isUserAdded === true;
+
+    if (isUserAddedA && !isUserAddedB) return 1;  // Aがユーザー追加 → 後ろ
+    if (!isUserAddedA && isUserAddedB) return -1; // Bがユーザー追加 → 前
+    if (isUserAddedA && isUserAddedB) {
+      // 両方ユーザー追加の場合は追加順（IDベース）
+      return a.id.localeCompare(b.id);
+    }
+
     // 新規カード（residentIdが空）は一番下に表示
     const isANew = !a.residentId;
     const isBNew = !b.residentId;
@@ -1480,7 +1550,7 @@ export default function Vitals() {
     if (!isANew && isBNew) return -1; // bが新規カードならaの前
     if (isANew && isBNew) return 0;   // 両方新規カードなら順序維持
 
-    // 既存カードは居室番号順でソート
+    // 実レコード同士のみ部屋番号でソート
     const residentA = (residents as any[]).find(
       (r: any) => r.id === a.residentId,
     );
