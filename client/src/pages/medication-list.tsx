@@ -406,7 +406,12 @@ export default function MedicationList() {
                 record.timing === variables.timing &&
                 record.id && record.id.startsWith('temp-')) {
               console.log(`Updating temp record ${record.id} to real ID ${response.id}`);
-              return { ...record, id: response.id };
+              return {
+                ...record,
+                id: response.id,
+                // isUserAddedフラグを維持
+                isUserAdded: record.isUserAdded || false
+              };
             }
             return record;
           });
@@ -521,29 +526,49 @@ export default function MedicationList() {
         updatedAt: new Date().toISOString(),
         createdBy: "",
         isTemporary: true,
+        isUserAdded: true, // 新規追加カードのフラグを追加
       };
       
       // 既存のレコードに新しい空のレコードを追加
       return [...old, newEmptyRecord];
     });
 
-    // DOM更新後に新規カードの利用者選択フィールドにフォーカスを設定
+    // DOM更新後に新規カードの利用者選択フィールドにフォーカスを設定し、画面を一番下にスクロール
     setTimeout(() => {
       try {
         // 新規追加されたカードを探す
         const newCard = document.querySelector(`[data-record-id="${tempId}"]`);
         if (newCard) {
+          console.log('Found new card:', tempId);
+
+          // 画面を一番下にスクロール（複数の方法を試行）
+          try {
+            // 方法1: スムーズスクロール
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // 方法2: 画面全体を最下部にスクロール（フォールバック）
+            setTimeout(() => {
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 200);
+          } catch (scrollError) {
+            console.error('Scroll error:', scrollError);
+            // 方法3: 強制的に最下部にスクロール
+            window.scrollTo(0, document.body.scrollHeight);
+          }
+
           // 利用者選択フィールド（InputWithDropdownのinput）を探す
           const residentInput = newCard.querySelector('input[placeholder="利用者"]') as HTMLInputElement;
           if (residentInput) {
             console.log('Focusing on new card resident input:', tempId);
             residentInput.focus(); // フォーカス設定でプルダウンが自動表示される
           }
+        } else {
+          console.error('New card not found:', tempId);
         }
       } catch (error) {
         console.error('Failed to focus on new card:', error);
       }
-    }, 100); // DOM更新完了を待つ
+    }, 150); // DOM更新完了を待つ時間を入浴一覧と同じ150msに調整
   };
 
   // fetchExistingDataForResident関数は削除（使用されなくなったため）
@@ -645,21 +670,8 @@ export default function MedicationList() {
           return record;
         });
 
-        // 利用者選択後に即座にソート実行（カードを適切な位置に移動）
-        return updatedData.sort((a: any, b: any) => {
-          // 利用者未選択の一時カード（temp-）のみ最後に表示
-          const isATempWithoutResident = a.id.startsWith('temp-') && !a.residentId;
-          const isBTempWithoutResident = b.id.startsWith('temp-') && !b.residentId;
-
-          if (isATempWithoutResident && !isBTempWithoutResident) return 1;
-          if (!isATempWithoutResident && isBTempWithoutResident) return -1;
-          if (isATempWithoutResident && isBTempWithoutResident) return 0;
-
-          // 利用者選択済みのカード（実レコード + 利用者選択済みtemp-）は部屋番号でソート
-          const roomA = parseInt(a.roomNumber || "0");
-          const roomB = parseInt(b.roomNumber || "0");
-          return roomA - roomB;
-        });
+        // ソートを無効化して現在の順番を維持（入浴一覧画面と同じ動作）
+        return updatedData;
       });
       
       // 新規カードでは既存データの自動設定は行わない
@@ -914,8 +926,25 @@ export default function MedicationList() {
         ) : !error ? (
           (() => {
             console.log('Rendering displayMedicationRecords:', JSON.stringify(displayMedicationRecords, null, 2));
+
+            // 既に表示されている利用者のIDリストを作成
+            const existingResidentIds = displayMedicationRecords
+              .filter((record: MedicationRecordWithResident) => record.residentId && record.residentId !== "")
+              .map((record: MedicationRecordWithResident) => record.residentId);
+
             return displayMedicationRecords
             .sort((a: MedicationRecordWithResident, b: MedicationRecordWithResident) => {
+              // ユーザー追加カード（isUserAddedフラグ）は常に最後に表示
+              const isUserAddedA = (a as any).isUserAdded === true;
+              const isUserAddedB = (b as any).isUserAdded === true;
+
+              if (isUserAddedA && !isUserAddedB) return 1;  // Aがユーザー追加 → 後ろ
+              if (!isUserAddedA && isUserAddedB) return -1; // Bがユーザー追加 → 前
+              if (isUserAddedA && isUserAddedB) {
+                // 両方ユーザー追加の場合は追加順（IDベース）
+                return a.id.localeCompare(b.id);
+              }
+
               // 利用者未選択の一時カード（temp-）のみ最後に表示
               const isATempWithoutResident = a.id.startsWith('temp-') && !a.residentId;
               const isBTempWithoutResident = b.id.startsWith('temp-') && !b.residentId;
@@ -924,7 +953,7 @@ export default function MedicationList() {
               if (!isATempWithoutResident && isBTempWithoutResident) return -1; // bが利用者未選択の一時カードならaの前
               if (isATempWithoutResident && isBTempWithoutResident) return 0;   // 両方が利用者未選択の一時カードなら順序維持
 
-              // 利用者選択済みのカード（実レコード + 利用者選択済みtemp-）は部屋番号でソート
+              // 実レコード同士のみ部屋番号でソート
               const roomA = parseInt(a.roomNumber || "0");
               const roomB = parseInt(b.roomNumber || "0");
               return roomA - roomB;
@@ -948,14 +977,24 @@ export default function MedicationList() {
                           const name = residents?.find(r => r.id === record.residentId)?.name || record.residentName || "";
                           return name.replace(/\s+/g, '\n');
                         })()}
-                        options={residents?.sort((a, b) => {
-                          const roomA = parseInt(a.roomNumber || "0");
-                          const roomB = parseInt(b.roomNumber || "0");
-                          return roomA - roomB;
-                        }).map((resident) => ({
-                          value: resident.id,
-                          label: resident.name
-                        })) || []}
+                        options={residents
+                          ?.filter((resident) => {
+                            // 新規カード（temp-）の場合のみ、既存の利用者を除外
+                            if (record.id && record.id.startsWith('temp-') && existingResidentIds) {
+                              return !existingResidentIds.includes(resident.id);
+                            }
+                            // 既存レコードの場合は全て表示
+                            return true;
+                          })
+                          .sort((a, b) => {
+                            const roomA = parseInt(a.roomNumber || "0");
+                            const roomB = parseInt(b.roomNumber || "0");
+                            return roomA - roomB;
+                          })
+                          .map((resident) => ({
+                            value: resident.id,
+                            label: resident.name
+                          })) || []}
                         onSave={(selectedId) => {
                           if (!record.id) return;
                           console.log('Resident changed for record', record.id, 'to:', selectedId);
