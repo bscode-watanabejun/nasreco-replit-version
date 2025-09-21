@@ -276,6 +276,14 @@ export default function MedicationList() {
     if (currentHour < 21) return "夕後";
     return "眠前";
   });
+  // 確認ダイアログ用の状態
+  const [showConfirmerConfirm, setShowConfirmerConfirm] = useState(false);
+  const [pendingConfirmerAction, setPendingConfirmerAction] = useState<{
+    recordId: string;
+    confirmerField: "confirmer1" | "confirmer2";
+    currentConfirmerName: string;
+  } | null>(null);
+
   const [selectedFloor, setSelectedFloor] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const floorParam = params.get('floor');
@@ -730,13 +738,14 @@ export default function MedicationList() {
   };
 
   // 確認者設定（直接フィールド更新のみ）
-  const handleConfirmerStamp = (recordId: string, confirmerField: "confirmer1" | "confirmer2") => {
+  // 確認者印の実際の処理を実行する関数
+  const executeConfirmerStamp = (recordId: string, confirmerField: "confirmer1" | "confirmer2") => {
     if (!user) return;
-    
+
     const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
     const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
     const currentCacheData = queryClient.getQueryData(queryKey) as any[];
-    
+
     // IDでレコードを検索
     const existingRecord = currentCacheData?.find(
       (record: any) => record.id === recordId
@@ -747,18 +756,18 @@ export default function MedicationList() {
       toast({ title: "エラー", description: "対象の記録が見つかりません。", variant: "destructive" });
       return;
     }
-    
+
     // 現在の確認者名を取得
     const currentConfirmer = existingRecord?.[confirmerField] || '';
-    
+
     // 確認者が空白の場合はログイン者名を設定、入っている場合はクリア
     const newConfirmer = currentConfirmer ? '' : staffName;
-    
+
     console.log(`Setting ${confirmerField} to: ${newConfirmer} for record ${recordId}`);
-    
+
     // 既存レコード（一時的・プレースホルダー以外）があるか確認
-    if (existingRecord.id && 
-        !existingRecord.id.startsWith('temp-') && 
+    if (existingRecord.id &&
+        !existingRecord.id.startsWith('temp-') &&
         !existingRecord.id.startsWith('placeholder-')) {
       // 既存レコードを更新
       const updateData = { [confirmerField]: newConfirmer };
@@ -802,6 +811,43 @@ export default function MedicationList() {
         });
       }
     }
+  };
+
+  // 確認者アイコン機能（確認ダイアログ付き）
+  const handleConfirmerStamp = (recordId: string, confirmerField: "confirmer1" | "confirmer2") => {
+    if (!user) return;
+
+    const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
+    const queryKey = ["/api/medication-records", selectedDate, selectedTiming, selectedFloor];
+    const currentCacheData = queryClient.getQueryData(queryKey) as any[];
+
+    // IDでレコードを検索
+    const existingRecord = currentCacheData?.find(
+      (record: any) => record.id === recordId
+    );
+
+    if (!existingRecord) {
+      console.error("Record not found for stamping:", recordId);
+      toast({ title: "エラー", description: "対象の記録が見つかりません。", variant: "destructive" });
+      return;
+    }
+
+    // 現在の確認者名を取得
+    const currentConfirmer = existingRecord?.[confirmerField] || '';
+
+    // 確認者が入力されていて、かつ自分以外の場合は確認
+    if (currentConfirmer && currentConfirmer !== staffName) {
+      setPendingConfirmerAction({
+        recordId,
+        confirmerField,
+        currentConfirmerName: currentConfirmer
+      });
+      setShowConfirmerConfirm(true);
+      return;
+    }
+
+    // それ以外は即座に実行
+    executeConfirmerStamp(recordId, confirmerField);
   };
 
   // 利用者が選択されているかどうかを判定する関数
@@ -1205,6 +1251,42 @@ export default function MedicationList() {
           </Button>
         </div>
       </div>
+
+        {/* 確認者変更確認ダイアログ */}
+        <AlertDialog open={showConfirmerConfirm} onOpenChange={setShowConfirmerConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>確認者の変更確認</AlertDialogTitle>
+              <AlertDialogDescription>
+                現在「{pendingConfirmerAction?.currentConfirmerName}」が{
+                  pendingConfirmerAction?.confirmerField === "confirmer1" ? "確認者1" : "確認者2"
+                }として登録されています。
+                <br />
+                この確認者をクリアしてもよろしいですか？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setShowConfirmerConfirm(false);
+                setPendingConfirmerAction(null);
+              }}>
+                キャンセル
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                if (pendingConfirmerAction) {
+                  executeConfirmerStamp(
+                    pendingConfirmerAction.recordId,
+                    pendingConfirmerAction.confirmerField
+                  );
+                }
+                setShowConfirmerConfirm(false);
+                setPendingConfirmerAction(null);
+              }}>
+                変更する
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* 下部余白 */}
         <div className="h-20"></div>

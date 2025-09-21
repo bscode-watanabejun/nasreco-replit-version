@@ -784,6 +784,14 @@ export default function Vitals() {
   const [, setLocation] = useLocation();
   const [localBloodSugar, setLocalBloodSugar] = useState<Record<string, string>>({});
 
+  // 確認ダイアログ用の状態
+  const [showStaffConfirm, setShowStaffConfirm] = useState(false);
+  const [pendingStaffAction, setPendingStaffAction] = useState<{
+    vitalId: string;
+    residentId?: string;
+    currentStaffName: string;
+  } | null>(null);
+
   // 共通スタイル定数
   const inputBaseClass =
     "h-8 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -1257,8 +1265,8 @@ export default function Vitals() {
     return { value: rr, label: rr };
   });
 
-  // スタッフ印機能
-  const handleStaffStamp = async (vitalId: string, residentId?: string) => {
+  // スタッフ印の実際の処理を実行する関数
+  const executeStaffStamp = async (vitalId: string, residentId?: string) => {
     const user = currentUser as any;
     // セッション職員情報があるか確認
     const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
@@ -1270,12 +1278,12 @@ export default function Vitals() {
     const currentHour = vital.hour?.toString() || "";
     const currentMinute = vital.minute?.toString() || "";
     const currentStaffName = vital.staffName || "";
-    
+
     // 現在時刻を取得
     const now = new Date();
     const currentHourStr = now.getHours().toString();
-    const currentMinuteStr = Math.floor(now.getMinutes() / 15) * 15 === now.getMinutes() 
-      ? now.getMinutes().toString() 
+    const currentMinuteStr = Math.floor(now.getMinutes() / 15) * 15 === now.getMinutes()
+      ? now.getMinutes().toString()
       : (Math.floor(now.getMinutes() / 15) * 15).toString();
 
     let updateData: any = {};
@@ -1356,6 +1364,33 @@ export default function Vitals() {
         data: updateData
       });
     }
+  };
+
+  // スタッフ印機能（確認ダイアログ付き）
+  const handleStaffStamp = async (vitalId: string, residentId?: string) => {
+    const user = currentUser as any;
+    // セッション職員情報があるか確認
+    const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
+
+    // 現在のバイタル記録を取得
+    const vital = filteredVitalSigns.find((v: any) => v.id === vitalId);
+    if (!vital) return;
+
+    const currentStaffName = vital.staffName || "";
+
+    // 記入者が入力されていて、かつ自分以外の場合は確認
+    if (currentStaffName && currentStaffName !== staffName) {
+      setPendingStaffAction({
+        vitalId,
+        residentId,
+        currentStaffName
+      });
+      setShowStaffConfirm(true);
+      return;
+    }
+
+    // それ以外は即座に実行
+    executeStaffStamp(vitalId, residentId);
   };
 
   // 新規記録追加（空のカードを最下部に追加）
@@ -1698,6 +1733,36 @@ export default function Vitals() {
           )}
         </div>
       </div>
+
+      {/* 確認ダイアログ */}
+      <AlertDialog open={showStaffConfirm} onOpenChange={setShowStaffConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>記入者の変更確認</AlertDialogTitle>
+            <AlertDialogDescription>
+              現在「{pendingStaffAction?.currentStaffName}」が記入者として登録されています。
+              この記録を変更しますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowStaffConfirm(false);
+              setPendingStaffAction(null);
+            }}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingStaffAction) {
+                executeStaffStamp(pendingStaffAction.vitalId, pendingStaffAction.residentId);
+                setShowStaffConfirm(false);
+                setPendingStaffAction(null);
+              }
+            }}>
+              変更する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

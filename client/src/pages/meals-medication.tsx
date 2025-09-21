@@ -16,6 +16,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -294,6 +304,13 @@ export default function MealsMedicationPage() {
       return newSet;
     });
   };
+
+  // 確認ダイアログ用の状態
+  const [showStaffConfirm, setShowStaffConfirm] = useState(false);
+  const [pendingStaffAction, setPendingStaffAction] = useState<{
+    residentId: string;
+    currentStaffName: string;
+  } | null>(null);
 
   const handleSelectAll = () => {
     if (selectedResidentIds.size === filteredResidents.length) {
@@ -757,23 +774,46 @@ export default function MealsMedicationPage() {
   };
 
 
-  // 承認者アイコン機能（バイタル一覧と同じ）
+  // スタッフ印の実際の処理を実行する関数
+  const executeStaffStamp = (residentId: string) => {
+    // セッション職員情報があるか確認
+    const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
+    const existingRecord = mealsMedicationData.find(
+      (record: MealsMedicationWithResident) =>
+        record.residentId === residentId && record.mealType === selectedMealTime
+    );
+
+    // 現在の記入者名を取得
+    const currentStaffName = getStaffInfo(existingRecord).name;
+
+    // 記入者が空白の場合はログイン者名を設定、入っている場合はクリア
+    const newStaffName = currentStaffName ? '' : staffName;
+
+    // スタッフ名を保存
+    handleSaveRecord(residentId, 'staffName', newStaffName);
+  };
+
+  // 承認者アイコン機能（確認ダイアログ付き）
   const handleStaffStamp = (residentId: string) => {
     // セッション職員情報があるか確認
     const staffName = (user as any)?.staffName || (user as any)?.firstName || 'スタッフ';
     const existingRecord = mealsMedicationData.find(
-      (record: MealsMedicationWithResident) => 
+      (record: MealsMedicationWithResident) =>
         record.residentId === residentId && record.mealType === selectedMealTime
     );
-    
+
     // 現在の記入者名を取得
     const currentStaffName = getStaffInfo(existingRecord).name;
-    
-    // 記入者が空白の場合はログイン者名を設定、入っている場合はクリア
-    const newStaffName = currentStaffName ? '' : staffName;
-    
-    // スタッフ名を保存
-    handleSaveRecord(residentId, 'staffName', newStaffName);
+
+    // 記入者が入力されていて、かつ自分以外の場合は確認
+    if (currentStaffName && currentStaffName !== staffName) {
+      setPendingStaffAction({ residentId, currentStaffName });
+      setShowStaffConfirm(true);
+      return;
+    }
+
+    // それ以外は即座に実行
+    executeStaffStamp(residentId);
   };
 
 
@@ -1249,6 +1289,37 @@ export default function MealsMedicationPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 記入者変更確認ダイアログ */}
+      <AlertDialog open={showStaffConfirm} onOpenChange={setShowStaffConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>記入者の変更確認</AlertDialogTitle>
+            <AlertDialogDescription>
+              現在「{pendingStaffAction?.currentStaffName}」が記入者として登録されています。
+              <br />
+              この記入者をクリアしてもよろしいですか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowStaffConfirm(false);
+              setPendingStaffAction(null);
+            }}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingStaffAction) {
+                executeStaffStamp(pendingStaffAction.residentId);
+              }
+              setShowStaffConfirm(false);
+              setPendingStaffAction(null);
+            }}>
+              変更する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
         {/* 下部余白 */}
         <div className="h-20"></div>

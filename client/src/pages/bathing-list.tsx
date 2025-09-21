@@ -655,6 +655,14 @@ export default function BathingList() {
     }
     return new Date();
   });
+  // 確認ダイアログ用の状態
+  const [showStaffConfirm, setShowStaffConfirm] = useState(false);
+  const [pendingStaffAction, setPendingStaffAction] = useState<{
+    recordId: string;
+    residentId?: string;
+    currentStaffName: string;
+  } | null>(null);
+
   const [selectedFloor, setSelectedFloor] = useState(() => {
     // URLパラメータから階数を取得
     const floorParam = urlParams.get("floor");
@@ -1280,14 +1288,15 @@ export default function BathingList() {
     return { hour: nearestHour, minute: nearestMinute };
   };
 
-  const handleStaffStamp = (recordId: string, residentId?: string) => {
+  // スタッフ印の実際の処理を実行する関数
+  const executeStaffStamp = (recordId: string, residentId?: string) => {
     const user = currentUser as any;
     // セッション職員情報があるか確認
-    const staffName = user?.staffName || 
+    const staffName = user?.staffName ||
       (user?.firstName && user?.lastName
         ? `${user.lastName} ${user.firstName}`
         : user?.email || "スタッフ");
-      
+
     // 一時レコードの場合は、bathingRecordsから検索せずに引数から取得
     let record;
     if (recordId.startsWith('temp-')) {
@@ -1304,13 +1313,13 @@ export default function BathingList() {
       record = bathingRecords.find((r: any) => r.id === recordId);
       if (!record) return;
     }
-    
+
     const effectiveResidentId = residentId || record.residentId;
-    
+
     // 利用者が選択されていない場合（初期表示カード）は、楽観的更新のみ実行
     if (!effectiveResidentId) {
         const currentStaffName = record.staffName || "";
-        
+
         if (currentStaffName) {
             // 承認者名が入力済みの場合：承認者名、時、分をクリア（楽観的更新のみ）
             handleFieldUpdate(recordId, "staffName", "");
@@ -1327,7 +1336,7 @@ export default function BathingList() {
     }
 
     const currentStaffName = record.staffName || "";
-    
+
     if (currentStaffName) {
       // 承認者名が入力済みの場合：承認者名、時、分をクリア
       handleFieldUpdate(effectiveResidentId, "staffName", "");
@@ -1352,6 +1361,50 @@ export default function BathingList() {
         minute: currentTime.minute.toString()
       });
     }
+  };
+
+  // スタッフ印機能（確認ダイアログ付き）
+  const handleStaffStamp = (recordId: string, residentId?: string) => {
+    const user = currentUser as any;
+    // セッション職員情報があるか確認
+    const staffName = user?.staffName ||
+      (user?.firstName && user?.lastName
+        ? `${user.lastName} ${user.firstName}`
+        : user?.email || "スタッフ");
+
+    // 一時レコードの場合は、bathingRecordsから検索せずに引数から取得
+    let record;
+    if (recordId.startsWith('temp-')) {
+      // 一時レコードの場合は基本情報のみを持つオブジェクトを作成
+      record = {
+        id: recordId,
+        residentId: residentId,
+        staffName: "",
+        hour: null,
+        minute: null
+      };
+    } else {
+      // 通常レコードの場合は既存の検索ロジック
+      record = bathingRecords.find((r: any) => r.id === recordId);
+      if (!record) return;
+    }
+
+    // 現在の記入者名を取得
+    const currentStaffName = record.staffName || "";
+
+    // 記入者が入力されていて、かつ自分以外の場合は確認
+    if (currentStaffName && currentStaffName !== staffName) {
+      setPendingStaffAction({
+        recordId,
+        residentId,
+        currentStaffName
+      });
+      setShowStaffConfirm(true);
+      return;
+    }
+
+    // それ以外は即座に実行
+    executeStaffStamp(recordId, residentId);
   };
 
   // 新規入浴記録追加機能
@@ -1734,6 +1787,40 @@ export default function BathingList() {
           )}
         </div>
       </main>
+
+      {/* 記入者変更確認ダイアログ */}
+      <AlertDialog open={showStaffConfirm} onOpenChange={setShowStaffConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>記入者の変更確認</AlertDialogTitle>
+            <AlertDialogDescription>
+              現在「{pendingStaffAction?.currentStaffName}」が記入者として登録されています。
+              <br />
+              この記入者をクリアしてもよろしいですか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowStaffConfirm(false);
+              setPendingStaffAction(null);
+            }}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingStaffAction) {
+                executeStaffStamp(
+                  pendingStaffAction.recordId,
+                  pendingStaffAction.residentId
+                );
+              }
+              setShowStaffConfirm(false);
+              setPendingStaffAction(null);
+            }}>
+              変更する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">

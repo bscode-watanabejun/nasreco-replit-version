@@ -793,6 +793,15 @@ export default function WeightList() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [localWeight, setLocalWeight] = useState<Record<string, string>>({});
+
+  // 確認ダイアログ用の状態
+  const [showStaffConfirm, setShowStaffConfirm] = useState(false);
+  const [pendingStaffAction, setPendingStaffAction] = useState<{
+    weightId: string;
+    residentId?: string;
+    currentStaffName: string;
+    includeDateTime: boolean;
+  } | null>(null);
   
 
   // 共通スタイル定数
@@ -1199,8 +1208,8 @@ export default function WeightList() {
     { value: "5階", label: "5階" },
   ];
 
-  // スタッフ印機能
-  const handleStaffStamp = async (weightId: string, residentId?: string, includeDateTime: boolean = true) => {
+  // スタッフ印の実際の処理を実行する関数
+  const executeStaffStamp = async (weightId: string, residentId?: string, includeDateTime: boolean = true) => {
     const user = currentUser as any;
     // セッション職員情報があるか確認
     const staffName = user?.staffName || 
@@ -1242,6 +1251,37 @@ export default function WeightList() {
       updates: updateData,
       residentId,
     });
+  };
+
+  // スタッフ印機能（確認ダイアログ付き）
+  const handleStaffStamp = async (weightId: string, residentId?: string, includeDateTime: boolean = true) => {
+    const user = currentUser as any;
+    // セッション職員情報があるか確認
+    const staffName = user?.staffName ||
+      (user?.firstName && user?.lastName
+        ? `${user.lastName} ${user.firstName}`
+        : user?.email || "スタッフ");
+
+    // 現在の体重記録を取得
+    const weight = filteredWeightRecords.find((w: any) => w.id === weightId);
+    if (!weight) return;
+
+    const currentStaffName = weight.staffName || "";
+
+    // 承認者が入力されていて、かつ自分以外の場合は確認
+    if (currentStaffName && currentStaffName !== staffName) {
+      setPendingStaffAction({
+        weightId,
+        residentId,
+        currentStaffName,
+        includeDateTime
+      });
+      setShowStaffConfirm(true);
+      return;
+    }
+
+    // それ以外は即座に実行
+    executeStaffStamp(weightId, residentId, includeDateTime);
   };
 
   // 新規記録追加（空のカードを最下部に追加）
@@ -1544,6 +1584,40 @@ export default function WeightList() {
           </Button>
         </div>
       </div>
+
+      {/* 確認ダイアログ */}
+      <AlertDialog open={showStaffConfirm} onOpenChange={setShowStaffConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>承認者の変更確認</AlertDialogTitle>
+            <AlertDialogDescription>
+              現在「{pendingStaffAction?.currentStaffName}」が承認者として登録されています。
+              この記録を変更しますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowStaffConfirm(false);
+              setPendingStaffAction(null);
+            }}>
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingStaffAction) {
+                executeStaffStamp(
+                  pendingStaffAction.weightId,
+                  pendingStaffAction.residentId,
+                  pendingStaffAction.includeDateTime
+                );
+                setShowStaffConfirm(false);
+                setPendingStaffAction(null);
+              }
+            }}>
+              変更する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
