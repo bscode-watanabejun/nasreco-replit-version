@@ -575,7 +575,7 @@ function WeightCard({
   localWeight: Record<string, string>;
   setLocalWeight: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   updateMutation: any;
-  handleStaffStamp: (weightId: string, residentId?: string) => void;
+  handleStaffStamp: (weightId: string, residentId?: string, includeDateTime?: boolean) => void;
   deleteMutation: any;
   changeResidentMutation: any;
 }) {
@@ -694,6 +694,12 @@ function WeightCard({
                   residentId: weight.residentId,
                 })
               }
+              onClick={(e) => {
+                const currentValue = e.currentTarget.value;
+                if (!currentValue.trim() && isResidentSelected) {
+                  handleStaffStamp(weight.id, weight.residentId, false);
+                }
+              }}
               placeholder="承認者"
               className={`w-20 ${inputBaseClass} px-1 ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
@@ -1194,7 +1200,7 @@ export default function WeightList() {
   ];
 
   // スタッフ印機能
-  const handleStaffStamp = async (weightId: string, residentId?: string) => {
+  const handleStaffStamp = async (weightId: string, residentId?: string, includeDateTime: boolean = true) => {
     const user = currentUser as any;
     // セッション職員情報があるか確認
     const staffName = user?.staffName || 
@@ -1210,16 +1216,24 @@ export default function WeightList() {
     
     let updateData: any = {};
 
-    // 承認者名が空白の場合は現在時刻とスタッフ名を設定、入っている場合はクリア
+    // 承認者名が空白の場合はスタッフ名を設定、入っている場合はクリア
     if (!currentStaffName) {
       updateData = {
-        recordDate: new Date(),
         staffName: staffName
       };
+      // includeDateTimeがtrueの場合のみ日時も更新
+      if (includeDateTime) {
+        updateData.recordDate = new Date();
+      }
     } else {
+      // 承認者名が入っている場合はクリア
       updateData = {
         staffName: ""
       };
+      // includeDateTimeがtrueの場合（アイコンクリック時）は記録日時もクリア
+      if (includeDateTime) {
+        updateData.recordDate = null;
+      }
     }
 
     // 複数フィールドを一括更新

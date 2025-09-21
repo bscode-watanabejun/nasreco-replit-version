@@ -383,6 +383,7 @@ function VitalCard({
   changeResidentMutation,
   createMutation,
   selectedDate,
+  currentUser,
 }: {
   vital: any;
   residents: any[];
@@ -406,6 +407,7 @@ function VitalCard({
   changeResidentMutation: any;
   createMutation: any;
   selectedDate: Date;
+  currentUser: any;
 }) {
   const resident = residents.find((r: any) => r.id === vital.residentId);
   
@@ -480,6 +482,16 @@ function VitalCard({
                   data: { staffName: e.target.value }
                 })
               }
+              onClick={(e) => {
+                const currentValue = e.currentTarget.value;
+                if (!currentValue.trim() && isResidentSelected) {
+                  const user = currentUser as any;
+                  // セッション職員情報があるか確認
+                  const newStaffName = user?.staffName || user?.firstName || 'スタッフ';
+                  handleFieldUpdate(vital.id, "staffName", newStaffName);
+                  handleSaveRecord(vital.id, "staffName", newStaffName);
+                }
+              }}
               placeholder="記入者"
               className={`w-12 ${inputBaseClass} px-1 ${!isResidentSelected ? 'cursor-not-allowed bg-slate-100' : ''}`}
               disabled={!isResidentSelected}
@@ -1666,6 +1678,7 @@ export default function Vitals() {
               changeResidentMutation={changeResidentMutation}
               createMutation={createMutation}
               selectedDate={selectedDate}
+              currentUser={currentUser}
             />
           ))
         )}
