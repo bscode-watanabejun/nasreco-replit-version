@@ -9,6 +9,45 @@ import { db } from "./db";
 import { users, excretionRecords, staffManagement } from "../shared/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+
+// テナント抽出ミドルウェア
+const extractTenant = async (req: any, res: any, next: any) => {
+  try {
+    // サブドメインまたはヘッダーからテナントIDを取得
+    let tenantId: string | null = null;
+
+    // 1. リクエストヘッダーからテナントIDを取得
+    tenantId = req.headers['x-tenant-id'] as string;
+
+    // 2. サブドメインからテナントIDを取得（将来の機能拡張用）
+    if (!tenantId) {
+      const host = req.get('host');
+      if (host && host.includes('.')) {
+        const subdomain = host.split('.')[0];
+        if (subdomain !== 'www' && subdomain !== 'api') {
+          tenantId = subdomain;
+        }
+      }
+    }
+
+    // 3. スタッフセッションからテナントIDを取得
+    if (!tenantId && req.session?.staff?.tenantId) {
+      tenantId = req.session.staff.tenantId;
+    }
+
+    // テナントIDを設定
+    if (tenantId) {
+      storage.setCurrentTenant(tenantId);
+      req.tenantId = tenantId;
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in extractTenant middleware:', error);
+    next();
+  }
+};
+
 import {
   insertResidentSchema,
   insertCareRecordSchema,
@@ -73,9 +112,78 @@ const upload = multer({
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
-  
+
   // 静的ファイル配信
   app.use('/uploads', express.static(uploadDir));
+
+  // Global tenant extraction middleware for all API routes
+  app.use('/api', extractTenant);
+
+  // Tenant management routes (admin only)
+  app.get('/api/tenants', isAuthenticated, async (req, res) => {
+    try {
+      const tenants = await storage.getTenants();
+      res.json(tenants);
+    } catch (error: any) {
+      console.error("Error fetching tenants:", error);
+      res.status(500).json({ message: "Failed to fetch tenants" });
+    }
+  });
+
+  app.get('/api/tenants/:id', isAuthenticated, async (req, res) => {
+    try {
+      const tenant = await storage.getTenantById(req.params.id);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      res.json(tenant);
+    } catch (error: any) {
+      console.error("Error fetching tenant:", error);
+      res.status(500).json({ message: "Failed to fetch tenant" });
+    }
+  });
+
+  app.post('/api/tenants', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.session?.staff?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "認証が必要です" });
+      }
+
+      const validatedData = insertTenantSchema.parse(req.body);
+      const tenant = await storage.createTenant(validatedData, userId);
+      res.status(201).json(tenant);
+    } catch (error: any) {
+      console.error("Error creating tenant:", error);
+      res.status(400).json({ message: error.message || "Invalid tenant data" });
+    }
+  });
+
+  app.put('/api/tenants/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.session?.staff?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "認証が必要です" });
+      }
+
+      const validatedData = updateTenantApiSchema.parse({ id: req.params.id, ...req.body });
+      const tenant = await storage.updateTenant(validatedData, userId);
+      res.json(tenant);
+    } catch (error: any) {
+      console.error("Error updating tenant:", error);
+      res.status(400).json({ message: error.message || "Invalid tenant data" });
+    }
+  });
+
+  app.delete('/api/tenants/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteTenant(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting tenant:", error);
+      res.status(500).json({ message: "Failed to delete tenant" });
+    }
+  });
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

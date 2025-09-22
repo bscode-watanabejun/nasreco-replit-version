@@ -100,8 +100,8 @@ export interface IStorage {
   findUserByStaffInfo(staffId: string, staffName: string): Promise<User | undefined>;
 
   // Resident operations
-  getResidents(): Promise<Resident[]>;
-  getResident(id: string): Promise<Resident | undefined>;
+  getResidents(tenantId?: string): Promise<Resident[]>;
+  getResident(id: string, tenantId?: string): Promise<Resident | undefined>;
   createResident(resident: InsertResident): Promise<Resident>;
   updateResident(id: string, updates: Partial<InsertResident>): Promise<Resident>;
   deleteResident(id: string): Promise<void>;
@@ -510,17 +510,51 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Resident operations
-  async getResidents(): Promise<Resident[]> {
-    return await db.select().from(residents).where(eq(residents.isActive, true)).orderBy(residents.name);
+  async getResidents(tenantId?: string): Promise<Resident[]> {
+    // テナントIDが指定されている場合、テナントフィルタを追加
+    if (tenantId) {
+      return await db.select().from(residents)
+        .where(and(eq(residents.isActive, true), eq(residents.tenantId, tenantId)))
+        .orderBy(residents.name);
+    }
+    // 現在のテナントIDがある場合
+    else if (this.currentTenantId) {
+      return await db.select().from(residents)
+        .where(and(eq(residents.isActive, true), eq(residents.tenantId, this.currentTenantId)))
+        .orderBy(residents.name);
+    }
+
+    return await db.select().from(residents)
+      .where(eq(residents.isActive, true))
+      .orderBy(residents.name);
   }
 
-  async getResident(id: string): Promise<Resident | undefined> {
+  async getResident(id: string, tenantId?: string): Promise<Resident | undefined> {
+    // テナントIDが指定されている場合、テナントフィルタを追加
+    if (tenantId) {
+      const [resident] = await db.select().from(residents)
+        .where(and(eq(residents.id, id), eq(residents.tenantId, tenantId)));
+      return resident;
+    }
+    // 現在のテナントIDがある場合
+    else if (this.currentTenantId) {
+      const [resident] = await db.select().from(residents)
+        .where(and(eq(residents.id, id), eq(residents.tenantId, this.currentTenantId)));
+      return resident;
+    }
+
     const [resident] = await db.select().from(residents).where(eq(residents.id, id));
     return resident;
   }
 
   async createResident(resident: InsertResident): Promise<Resident> {
-    const [newResident] = await db.insert(residents).values(resident).returning();
+    // 現在のテナントIDを自動設定（未指定の場合）
+    const residentData = {
+      ...resident,
+      tenantId: resident.tenantId || this.currentTenantId
+    };
+
+    const [newResident] = await db.insert(residents).values(residentData).returning();
     return newResident;
   }
 
@@ -553,7 +587,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Care record operations
-  async getCareRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+  async getCareRecords(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<{
     id: string;
     residentId: string;
     staffId: string;
@@ -575,6 +609,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(careRecords.recordDate, endDate));
     }
 
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(careRecords.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(careRecords.tenantId, this.currentTenantId));
+    }
+
     return await db.select({
       id: careRecords.id,
       residentId: careRecords.residentId,
@@ -591,7 +632,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCareRecord(record: InsertCareRecord): Promise<CareRecord> {
-    const [newRecord] = await db.insert(careRecords).values(record).returning();
+    const recordData = {
+      ...record,
+      tenantId: record.tenantId || this.currentTenantId
+    };
+    const [newRecord] = await db.insert(careRecords).values(recordData).returning();
     return newRecord;
   }
 
@@ -609,7 +654,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Nursing record operations
-  async getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+  async getNursingRecords(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<{
     id: string;
     residentId: string | null;
     nurseId: string;
@@ -631,6 +676,13 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(lte(nursingRecords.recordDate, endDate));
+    }
+
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(nursingRecords.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(nursingRecords.tenantId, this.currentTenantId));
     }
 
     return await db.select({
@@ -682,7 +734,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createNursingRecord(record: InsertNursingRecord): Promise<NursingRecord> {
-    const [newRecord] = await db.insert(nursingRecords).values(record).returning();
+    const recordData = {
+      ...record,
+      tenantId: record.tenantId || this.currentTenantId
+    };
+    const [newRecord] = await db.insert(nursingRecords).values(recordData).returning();
     return newRecord;
   }
 
@@ -702,7 +758,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Vital signs operations
-  async getVitalSigns(residentId?: string, startDate?: Date, endDate?: Date): Promise<VitalSigns[]> {
+  async getVitalSigns(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<VitalSigns[]> {
     const conditions = [];
 
     if (residentId) {
@@ -715,6 +771,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(vitalSigns.recordDate, endDate));
     }
 
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(vitalSigns.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(vitalSigns.tenantId, this.currentTenantId));
+    }
+
     return await db.select()
       .from(vitalSigns)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -722,7 +785,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVitalSigns(vitals: InsertVitalSigns): Promise<VitalSigns> {
-    const [newVitals] = await db.insert(vitalSigns).values([vitals]).returning();
+    const vitalsData = {
+      ...vitals,
+      tenantId: vitals.tenantId || this.currentTenantId
+    };
+    const [newVitals] = await db.insert(vitalSigns).values([vitalsData]).returning();
     return newVitals;
   }
 
@@ -748,7 +815,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Meals and medication operations
-  async getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date): Promise<MealsAndMedication[]> {
+  async getMealsAndMedication(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<MealsAndMedication[]> {
     const conditions = [];
 
     if (residentId) {
@@ -759,6 +826,13 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(lte(mealsAndMedication.recordDate, endDate));
+    }
+
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(mealsAndMedication.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(mealsAndMedication.tenantId, this.currentTenantId));
     }
 
     return await db.select()
@@ -779,7 +853,8 @@ export class DatabaseStorage implements IStorage {
   async createMealsAndMedication(record: InsertMealsAndMedication): Promise<MealsAndMedication> {
     const recordToInsert = {
       ...record,
-      staffId: record.staffId || 'unknown' // Ensure staffId is not undefined
+      staffId: record.staffId || 'unknown', // Ensure staffId is not undefined
+      tenantId: record.tenantId || this.currentTenantId
     };
     const [newRecord] = await db.insert(mealsAndMedication).values([recordToInsert]).returning();
     return newRecord;
@@ -840,8 +915,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Bathing record operations
-  async getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<BathingRecord[]> {
-    
+  async getBathingRecords(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<BathingRecord[]> {
+
     const conditions = [];
 
     if (residentId) {
@@ -854,12 +929,19 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(bathingRecords.recordDate, endDate));
     }
 
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(bathingRecords.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(bathingRecords.tenantId, this.currentTenantId));
+    }
+
     try {
       const result = await db.select()
         .from(bathingRecords)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(bathingRecords.recordDate));
-      
+
       return result;
     } catch (error) {
       console.error("Error in getBathingRecords:", error);
@@ -868,7 +950,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBathingRecord(record: InsertBathingRecord): Promise<BathingRecord> {
-    const [newRecord] = await db.insert(bathingRecords).values(record).returning();
+    const recordData = {
+      ...record,
+      tenantId: record.tenantId || this.currentTenantId
+    };
+    const [newRecord] = await db.insert(bathingRecords).values(recordData).returning();
     return newRecord;
   }
 
@@ -898,7 +984,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Excretion record operations
-  async getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<{
+  async getExcretionRecords(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<{
     id: string;
     residentId: string;
     staffId: string;
@@ -923,6 +1009,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(excretionRecords.recordDate, endDate));
     }
 
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(excretionRecords.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(excretionRecords.tenantId, this.currentTenantId));
+    }
+
     return await db.select({
       id: excretionRecords.id,
       residentId: excretionRecords.residentId,
@@ -942,7 +1035,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createExcretionRecord(record: InsertExcretionRecord): Promise<ExcretionRecord> {
-    const [newRecord] = await db.insert(excretionRecords).values(record).returning();
+    const recordData = {
+      ...record,
+      tenantId: record.tenantId || this.currentTenantId
+    };
+    const [newRecord] = await db.insert(excretionRecords).values(recordData).returning();
     return newRecord;
   }
 
@@ -956,7 +1053,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Weight record operations
-  async getWeightRecords(residentId?: string, startDate?: Date, endDate?: Date): Promise<WeightRecord[]> {
+  async getWeightRecords(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<WeightRecord[]> {
     const conditions = [];
 
     if (residentId) {
@@ -969,6 +1066,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(weightRecords.recordDate, endDate));
     }
 
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(weightRecords.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(weightRecords.tenantId, this.currentTenantId));
+    }
+
     return await db.select()
       .from(weightRecords)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -976,7 +1080,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWeightRecord(record: InsertWeightRecord): Promise<WeightRecord> {
-    const [newRecord] = await db.insert(weightRecords).values(record).returning();
+    const recordData = {
+      ...record,
+      tenantId: record.tenantId || this.currentTenantId
+    };
+    const [newRecord] = await db.insert(weightRecords).values(recordData).returning();
     return newRecord;
   }
 
@@ -994,7 +1102,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Communication operations
-  async getCommunications(residentId?: string, startDate?: Date, endDate?: Date): Promise<Communication[]> {
+  async getCommunications(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Communication[]> {
     const conditions = [];
 
     if (residentId) {
@@ -1007,6 +1115,13 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(communications.recordDate, endDate));
     }
 
+    // テナントフィルタリング
+    if (tenantId) {
+      conditions.push(eq(communications.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(communications.tenantId, this.currentTenantId));
+    }
+
     return await db.select()
       .from(communications)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -1014,7 +1129,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCommunication(communication: InsertCommunication): Promise<Communication> {
-    const [newCommunication] = await db.insert(communications).values(communication).returning();
+    const communicationData = {
+      ...communication,
+      tenantId: communication.tenantId || this.currentTenantId
+    };
+    const [newCommunication] = await db.insert(communications).values(communicationData).returning();
     return newCommunication;
   }
 
@@ -1024,7 +1143,7 @@ export class DatabaseStorage implements IStorage {
 
 
   // Round record operations
-  async getRoundRecords(recordDate: Date): Promise<{
+  async getRoundRecords(recordDate: Date, tenantId?: string): Promise<{
     id: string;
     residentId: string;
     recordDate: string;
@@ -1037,6 +1156,40 @@ export class DatabaseStorage implements IStorage {
     createdAt: Date | null;
   }[]> {
     const formattedDate = recordDate.toISOString().split('T')[0];
+
+    // テナントフィルタリング
+    if (tenantId) {
+      return await db.select({
+        id: roundRecords.id,
+        residentId: roundRecords.residentId,
+        recordDate: roundRecords.recordDate,
+        hour: roundRecords.hour,
+        recordType: roundRecords.recordType,
+        staffName: roundRecords.staffName,
+        positionValue: roundRecords.positionValue,
+        notes: roundRecords.notes,
+        createdBy: roundRecords.createdBy,
+        createdAt: roundRecords.createdAt,
+      }).from(roundRecords)
+      .where(and(eq(roundRecords.recordDate, formattedDate), eq(roundRecords.tenantId, tenantId)))
+      .orderBy(roundRecords.hour);
+    } else if (this.currentTenantId) {
+      return await db.select({
+        id: roundRecords.id,
+        residentId: roundRecords.residentId,
+        recordDate: roundRecords.recordDate,
+        hour: roundRecords.hour,
+        recordType: roundRecords.recordType,
+        staffName: roundRecords.staffName,
+        positionValue: roundRecords.positionValue,
+        notes: roundRecords.notes,
+        createdBy: roundRecords.createdBy,
+        createdAt: roundRecords.createdAt,
+      }).from(roundRecords)
+      .where(and(eq(roundRecords.recordDate, formattedDate), eq(roundRecords.tenantId, this.currentTenantId)))
+      .orderBy(roundRecords.hour);
+    }
+
     return await db.select({
       id: roundRecords.id,
       residentId: roundRecords.residentId,
@@ -1046,7 +1199,7 @@ export class DatabaseStorage implements IStorage {
       staffName: roundRecords.staffName,
       positionValue: roundRecords.positionValue,
       notes: roundRecords.notes,
-      createdBy: roundRecords.createdBy,
+      createdBy: roundRecords.createdAt,
       createdAt: roundRecords.createdAt,
     }).from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
   }
@@ -1056,6 +1209,7 @@ export class DatabaseStorage implements IStorage {
     const recordToInsert = {
       ...record,
       recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+      tenantId: record.tenantId || this.currentTenantId,
       createdAt: jstTime,
       updatedAt: jstTime,
     };
@@ -1555,6 +1709,7 @@ export class DatabaseStorage implements IStorage {
     const recordToInsert = {
       ...record,
       recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+      tenantId: record.tenantId || this.currentTenantId,
       createdBy: record.createdBy || 'unknown' // Ensure createdBy is not undefined
     };
     const [newRecord] = await db.insert(medicationRecords).values([recordToInsert]).returning();
@@ -1566,6 +1721,7 @@ export class DatabaseStorage implements IStorage {
       const recordToUpsert = {
         ...record,
         recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+        tenantId: record.tenantId || this.currentTenantId,
         createdBy: record.createdBy || 'unknown' // Ensure createdBy is not undefined
       };
       
@@ -1650,10 +1806,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Staff notice operations
-  async getStaffNotices(facilityId?: string): Promise<StaffNotice[]> {
+  async getStaffNotices(tenantId?: string): Promise<StaffNotice[]> {
     const conditions = [eq(staffNotices.isActive, true)];
-    if (facilityId) {
-      conditions.push(eq(staffNotices.facilityId, facilityId));
+    if (tenantId) {
+      conditions.push(eq(staffNotices.tenantId, tenantId));
+    } else if (this.currentTenantId) {
+      conditions.push(eq(staffNotices.tenantId, this.currentTenantId));
     }
     return await db.select().from(staffNotices)
       .where(and(...conditions))
@@ -1661,7 +1819,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createStaffNotice(notice: InsertStaffNotice): Promise<StaffNotice> {
-    const [created] = await db.insert(staffNotices).values([notice]).returning();
+    const noticeData = {
+      ...notice,
+      tenantId: notice.tenantId || this.currentTenantId
+    };
+    const [created] = await db.insert(staffNotices).values([noticeData]).returning();
     return created;
   }
 
@@ -1750,6 +1912,7 @@ export class DatabaseStorage implements IStorage {
   async getAllCleaningLinenRecords(floor?: string): Promise<CleaningLinenRecord[]> {
     const results = await db.select({
       id: cleaningLinenRecords.id,
+      tenantId: cleaningLinenRecords.tenantId,
       residentId: cleaningLinenRecords.residentId,
       recordDate: cleaningLinenRecords.recordDate,
       recordTime: cleaningLinenRecords.recordTime,
@@ -1784,16 +1947,17 @@ export class DatabaseStorage implements IStorage {
       console.error('Invalid weekStartDate:', weekStartDate);
       return [];
     }
-    
+
     const weekEndDate = new Date(weekStartDate);
     weekEndDate.setDate(weekStartDate.getDate() + 6);
 
     const startDateStr = weekStartDate.toISOString().split('T')[0];
     const endDateStr = weekEndDate.toISOString().split('T')[0];
-    
+
 
     let query = db.select({
       id: cleaningLinenRecords.id,
+      tenantId: cleaningLinenRecords.tenantId,
       residentId: cleaningLinenRecords.residentId,
       recordDate: cleaningLinenRecords.recordDate,
       recordTime: cleaningLinenRecords.recordTime,
@@ -1830,6 +1994,7 @@ export class DatabaseStorage implements IStorage {
       // フィルターを重複しないよう、新しいクエリを作る
       query = db.select({
         id: cleaningLinenRecords.id,
+        tenantId: cleaningLinenRecords.tenantId,
         residentId: cleaningLinenRecords.residentId,
         recordDate: cleaningLinenRecords.recordDate,
         recordTime: cleaningLinenRecords.recordTime,
@@ -1877,6 +2042,7 @@ export class DatabaseStorage implements IStorage {
 
     let query = db.select({
       id: cleaningLinenRecords.id,
+      tenantId: cleaningLinenRecords.tenantId,
       residentId: cleaningLinenRecords.residentId,
       recordDate: cleaningLinenRecords.recordDate,
       recordTime: cleaningLinenRecords.recordTime,
@@ -1912,6 +2078,7 @@ export class DatabaseStorage implements IStorage {
 
       query = db.select({
         id: cleaningLinenRecords.id,
+        tenantId: cleaningLinenRecords.tenantId,
         residentId: cleaningLinenRecords.residentId,
         recordDate: cleaningLinenRecords.recordDate,
         recordTime: cleaningLinenRecords.recordTime,
@@ -1950,9 +2117,10 @@ export class DatabaseStorage implements IStorage {
   async createCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
     const recordWithStringDate: any = {
       ...record,
-      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0]
+      recordDate: typeof record.recordDate === 'string' ? record.recordDate : record.recordDate.toISOString().split('T')[0],
+      tenantId: record.tenantId || this.currentTenantId
     };
-    
+
     const [created] = await db.insert(cleaningLinenRecords)
       .values(recordWithStringDate)
       .returning();
@@ -2026,9 +2194,10 @@ export class DatabaseStorage implements IStorage {
       const recordWithStringDate = {
         ...record,
         recordDate: recordDateStr,
-        recordTime: recordTime
+        recordTime: recordTime,
+        tenantId: record.tenantId || this.currentTenantId
       };
-      
+
       const [created] = await db.insert(cleaningLinenRecords)
         .values(recordWithStringDate)
         .returning();
@@ -2040,8 +2209,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Staff Management methods
-  async getStaffManagement(): Promise<StaffManagement[]> {
-    return await db.select().from(staffManagement).orderBy(staffManagement.sortOrder, staffManagement.createdAt);
+  async getStaffManagement(tenantId?: string): Promise<StaffManagement[]> {
+    // テナントフィルタリング
+    if (tenantId) {
+      return await db.select().from(staffManagement)
+        .where(eq(staffManagement.tenantId, tenantId))
+        .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
+    } else if (this.currentTenantId) {
+      return await db.select().from(staffManagement)
+        .where(eq(staffManagement.tenantId, this.currentTenantId))
+        .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
+    }
+
+    return await db.select().from(staffManagement)
+      .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
   }
 
   async getStaffManagementById(id: string): Promise<StaffManagement | null> {
@@ -2070,6 +2251,7 @@ export class DatabaseStorage implements IStorage {
       const insertData = {
         ...record,
         password: hashedPassword,
+        tenantId: record.tenantId || this.currentTenantId,
         lastModifiedAt: jstNow,
         createdAt: jstNow,
         updatedAt: jstNow,
