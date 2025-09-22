@@ -198,6 +198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           authority: staffSession.authority,
           floor: staffSession.floor,
           jobRole: staffSession.jobRole,
+          tenantId: staffSession.tenantId,
           isStaff: true
         });
         return;
@@ -236,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "このアカウントはロックされています" });
       }
 
-      // セッションに職員情報を保存
+      // セッションに職員情報を保存（テナント情報含む）
       (req as any).session.staff = {
         id: staff.id,
         staffId: staff.staffId,
@@ -244,6 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authority: staff.authority,
         floor: staff.floor,
         jobRole: staff.jobRole,
+        tenantId: staff.tenantId,
       };
 
       res.json({
@@ -253,6 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authority: staff.authority,
         floor: staff.floor,
         jobRole: staff.jobRole,
+        tenantId: staff.tenantId,
       });
     } catch (error: any) {
       console.error("Error during staff login:", error);
@@ -315,6 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authority: staff.authority,
         floor: staff.floor,
         jobRole: staff.jobRole,
+        tenantId: staff.tenantId, // テナント情報を追加
         userId: correspondingUser?.id || null, // 対応するusersテーブルのIDを追加
       };
 

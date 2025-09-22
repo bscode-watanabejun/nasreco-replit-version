@@ -1199,7 +1199,7 @@ export class DatabaseStorage implements IStorage {
       staffName: roundRecords.staffName,
       positionValue: roundRecords.positionValue,
       notes: roundRecords.notes,
-      createdBy: roundRecords.createdAt,
+      createdBy: roundRecords.createdBy,
       createdAt: roundRecords.createdAt,
     }).from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
   }
