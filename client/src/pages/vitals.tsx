@@ -28,7 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import {
   Plus,
   Calendar,
@@ -1622,7 +1622,8 @@ export default function Vitals() {
                 const params = new URLSearchParams();
                 params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                 params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
-                const targetUrl = `/?${params.toString()}`;
+                const dashboardPath = getEnvironmentPath("/");
+                const targetUrl = `${dashboardPath}?${params.toString()}`;
                 setLocation(targetUrl);
               }}
               className="h-8 w-8 p-0"

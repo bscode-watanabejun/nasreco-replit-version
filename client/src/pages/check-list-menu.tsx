@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { ArrowLeft, ClipboardList, Plus, Utensils, Droplets, Bath, MapPin, Book, Pill, Activity, Sparkles, Weight, FileText, Footprints } from "lucide-react";
 
 export default function CheckListMenu() {
@@ -23,52 +24,62 @@ export default function CheckListMenu() {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/care-records-check${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/care-records-check");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "食事・水分一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/meal-water-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/meal-water-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "排泄一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/excretion-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/excretion-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "入浴一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/bathing-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/bathing-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "服薬一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/medication-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/medication-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "バイタル一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/vital-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/vital-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "清掃リネン一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/cleaning-linen-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/cleaning-linen-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "体重一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/weight-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/weight-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "ラウンド一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/round-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/round-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else if (label === "日誌一覧") {
       // URLパラメータを引き継ぎ
       const urlParams = new URLSearchParams(window.location.search);
       const params = urlParams.toString();
-      navigate(`/journal-check-list${params ? `?${params}` : ''}`);
+      const checkPath = getEnvironmentPath("/journal-check-list");
+      navigate(`${checkPath}${params ? `?${params}` : ''}`);
     } else {
       // その他は現在開発中
       console.log(`遷移先: ${path} (現在開発中)`);
@@ -83,7 +94,8 @@ export default function CheckListMenu() {
             // URLパラメータを保持してダッシュボードに戻る
             const urlParams = new URLSearchParams(window.location.search);
             const params = urlParams.toString();
-            navigate(`/${params ? `?${params}` : ''}`);
+            const dashboardPath = getEnvironmentPath("/");
+            navigate(`${dashboardPath}${params ? `?${params}` : ''}`);
           }}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >

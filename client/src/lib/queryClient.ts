@@ -1,5 +1,22 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// テナントIDを取得する関数（循環参照を避けるため後で定義）
+let getCurrentTenantId: () => string | null;
+
+// テナントヘッダーを含むheadersを生成する関数
+function getApiHeaders(additionalHeaders: Record<string, string> = {}): Record<string, string> {
+  const headers = { ...additionalHeaders };
+
+  if (getCurrentTenantId) {
+    const tenantId = getCurrentTenantId();
+    if (tenantId) {
+      headers['x-tenant-id'] = tenantId;
+    }
+  }
+
+  return headers;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorMessage = `${res.status}: ${res.statusText}`;
@@ -55,7 +72,7 @@ export async function apiRequest(
   
   const res = await fetch(url, {
     method,
-    headers: data && !isFormData ? { "Content-Type": "application/json" } : {},
+    headers: getApiHeaders(data && !isFormData ? { "Content-Type": "application/json" } : {}),
     body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
@@ -117,6 +134,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const res = await fetch(queryKey.join("/") as string, {
+      headers: getApiHeaders(),
       credentials: "include",
     });
 
@@ -145,3 +163,65 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// QueryClient作成後にテナントID取得関数を定義（循環参照を避けるため）
+getCurrentTenantId = () => {
+  // 1. URLパスから直接テナントIDを取得（最優先）
+  if (typeof window !== 'undefined') {
+    const pathMatch = window.location.pathname.match(/^\/tenant\/([^\/]+)/);
+    if (pathMatch) {
+      const tenantFromUrl = pathMatch[1];
+      // URLのテナントIDをセッションストレージにも保存
+      sessionStorage.setItem('selectedTenantId', tenantFromUrl);
+      return tenantFromUrl;
+    }
+  }
+
+  // 2. セッションストレージから選択されたテナントIDを確認
+  const selectedTenantId = typeof window !== 'undefined' ? sessionStorage.getItem('selectedTenantId') : null;
+  if (selectedTenantId) {
+    return selectedTenantId;
+  }
+
+  // 3. ReactQueryのキャッシュから認証ユーザー情報を取得
+  const staffUser = queryClient.getQueryData(["/api/auth/staff-user"]) as any;
+  const replitUser = queryClient.getQueryData(["/api/auth/user"]) as any;
+
+  // スタッフユーザーが優先、次にReplitユーザー
+  const user = staffUser || replitUser;
+
+  // URLパスがテナント環境でない場合はnullを返す（親環境）
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/tenant/')) {
+    return null;
+  }
+
+  return user?.tenantId || null;
+};
+
+// 現在の環境情報を取得する関数
+export function getCurrentEnvironment() {
+  const selectedTenantId = typeof window !== 'undefined' ? sessionStorage.getItem('selectedTenantId') : null;
+  const isParentEnvironment = !selectedTenantId;
+  const isTenantEnvironment = !!selectedTenantId;
+
+  return {
+    tenantId: selectedTenantId,
+    isParentEnvironment,
+    isTenantEnvironment,
+    environmentName: isParentEnvironment ? '親環境' : isTenantEnvironment ? `テナント: ${selectedTenantId}` : '不明'
+  };
+}
+
+// 現在の環境に合わせたパスを生成する関数
+export function getEnvironmentPath(path: string): string {
+  // セッションストレージを優先してテナント環境を判定
+  const selectedTenantId = typeof window !== 'undefined' ? sessionStorage.getItem('selectedTenantId') : null;
+
+  if (selectedTenantId) {
+    // テナント環境の場合は /tenant/{tenantId}/ を前に付ける
+    return `/tenant/${selectedTenantId}${path}`;
+  }
+
+  // 親環境の場合はそのまま
+  return path;
+}

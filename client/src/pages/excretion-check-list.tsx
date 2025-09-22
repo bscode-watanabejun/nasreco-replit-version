@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1037,7 +1038,8 @@ export default function ExcretionCheckList() {
             const params = new URLSearchParams();
             params.set('date', dateFrom);
             params.set('floor', selectedFloor);
-            navigate(`/check-list-menu?${params.toString()}`);
+            const menuPath = getEnvironmentPath("/check-list-menu");
+            navigate(`${menuPath}?${params.toString()}`);
           }}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >

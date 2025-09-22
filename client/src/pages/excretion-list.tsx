@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { Resident, FacilitySettings } from "@shared/schema";
 
@@ -1048,7 +1048,8 @@ export default function ExcretionList() {
               const params = new URLSearchParams();
               params.set('date', selectedDate);
               params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-              const targetUrl = `/?${params.toString()}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
             }}
             className="p-2"

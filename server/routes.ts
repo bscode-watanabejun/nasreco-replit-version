@@ -13,32 +13,81 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 // テナント抽出ミドルウェア
 const extractTenant = async (req: any, res: any, next: any) => {
   try {
-    // サブドメインまたはヘッダーからテナントIDを取得
     let tenantId: string | null = null;
+    let tenantSource: string = 'none';
 
     // 1. リクエストヘッダーからテナントIDを取得
     tenantId = req.headers['x-tenant-id'] as string;
+    if (tenantId) {
+      tenantSource = 'header';
+    }
 
-    // 2. サブドメインからテナントIDを取得（将来の機能拡張用）
+    // 2. サブドメインからテナントIDを取得
     if (!tenantId) {
       const host = req.get('host');
       if (host && host.includes('.')) {
         const subdomain = host.split('.')[0];
-        if (subdomain !== 'www' && subdomain !== 'api') {
-          tenantId = subdomain;
+        // 予約されたサブドメインをチェック
+        const reservedSubdomains = ['www', 'api', 'admin', 'mail', 'ftp', 'cpanel', 'webmail', 'localhost'];
+        if (subdomain && !reservedSubdomains.includes(subdomain.toLowerCase())) {
+          // サブドメインがテナントIDとして有効かDBで確認
+          try {
+            const tenants = await storage.getTenants();
+            const tenant = tenants.find(t => t.id === subdomain);
+            if (tenant) {
+              tenantId = subdomain;
+              tenantSource = 'subdomain';
+            }
+          } catch (error) {
+            console.warn(`Subdomain '${subdomain}' not found as tenant:`, error);
+          }
         }
       }
     }
 
-    // 3. スタッフセッションからテナントIDを取得
-    if (!tenantId && req.session?.staff?.tenantId) {
-      tenantId = req.session.staff.tenantId;
+    // 3. URLパスからテナントIDを取得 (/tenant/{tenantId}/...)
+    if (!tenantId) {
+      const pathMatch = req.path.match(/^\/tenant\/([^\/]+)/);
+      if (pathMatch) {
+        const pathTenantId = pathMatch[1];
+        try {
+          const tenants = await storage.getTenants();
+          const tenant = tenants.find(t => t.id === pathTenantId);
+          if (tenant) {
+            tenantId = pathTenantId;
+            tenantSource = 'path';
+          }
+        } catch (error) {
+          console.warn(`Path tenant '${pathTenantId}' not found:`, error);
+        }
+      }
     }
 
-    // テナントIDを設定
+    // 4. スタッフセッションからテナントIDを取得
+    if (!tenantId && req.session?.staff?.tenantId) {
+      tenantId = req.session.staff.tenantId;
+      tenantSource = 'staff_session';
+    }
+
+    // 5. ユーザーセッションからテナントIDを取得
+    if (!tenantId && req.session?.tenant?.currentTenantId) {
+      tenantId = req.session.tenant.currentTenantId;
+      tenantSource = 'user_session';
+    }
+
     if (tenantId) {
       storage.setCurrentTenant(tenantId);
       req.tenantId = tenantId;
+      req.tenantSource = tenantSource;
+
+      // デバッグログ
+      console.log(`🏢 Tenant extracted: ${tenantId} (source: ${tenantSource})`);
+    } else {
+      // テナントIDがない場合は明示的にnullに設定（親環境）
+      storage.setCurrentTenant(null);
+      req.tenantId = null;
+      req.tenantSource = 'parent_environment';
+      console.log(`🏠 Parent environment (no tenant)`);
     }
 
     next();
@@ -269,6 +318,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "ログアウトしました" });
   });
 
+  // テナント切り替えAPI
+  app.post('/api/auth/switch-tenant', isAuthenticated, async (req, res) => {
+    try {
+      const { tenantId } = req.body;
+
+      if (!tenantId) {
+        return res.status(400).json({ message: "テナントIDが必要です" });
+      }
+
+      // テナントの存在確認
+      const tenants = await storage.getTenants();
+      const tenant = tenants.find(t => t.id === tenantId);
+      if (!tenant) {
+        return res.status(404).json({ message: "指定されたテナントが見つかりません" });
+      }
+
+      // スタッフセッションの場合
+      const staffSession = (req as any).session?.staff;
+      if (staffSession) {
+        // スタッフがそのテナントにアクセス権限があるかチェック
+        if (staffSession.tenantId !== tenantId) {
+          return res.status(403).json({ message: "指定されたテナントへのアクセス権限がありません" });
+        }
+
+        // セッションを更新（すでに正しいテナントの場合）
+        (req as any).session.staff.tenantId = tenantId;
+        return res.json({ message: "テナントを切り替えました", tenantId });
+      }
+
+      // Replitユーザーセッションの場合
+      if (req.user && (req.user as any).claims) {
+        const userId = (req.user as any).claims.sub;
+        const users = await storage.getResidents(); // tenantsテーブルを使用すべきだが、ユーザー管理の実装は後で改善
+        const user = users.find((u: any) => u.id === userId);
+
+        if (!user) {
+          return res.status(404).json({ message: "ユーザーが見つかりません" });
+        }
+
+        // ユーザーがマルチテナントアクセス権限を持っているかチェック
+        // TODO: テナントアクセス権限のチェックロジックを実装
+        // 現在は全テナントへのアクセスを許可
+
+        // セッションにテナント情報を保存
+        if (!(req as any).session.tenant) {
+          (req as any).session.tenant = {};
+        }
+        (req as any).session.tenant.currentTenantId = tenantId;
+
+        return res.json({ message: "テナントを切り替えました", tenantId });
+      }
+
+      return res.status(401).json({ message: "認証が必要です" });
+    } catch (error: any) {
+      console.error("Error switching tenant:", error);
+      res.status(500).json({ message: "テナントの切り替えに失敗しました" });
+    }
+  });
+
   // Change staff password route
   app.post('/api/user/change-password', isAuthenticated, async (req, res) => {
     try {
@@ -332,7 +440,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Residents routes
   app.get('/api/residents', isAuthenticated, async (req, res) => {
     try {
-      const residents = await storage.getResidents();
+      const tenantId = storage.getCurrentTenant();
+      console.log('🏠 API /api/residents - tenantId:', tenantId);
+      const residents = await storage.getResidents(tenantId);
       res.json(residents);
     } catch (error: any) {
       console.error("Error fetching residents:", error);

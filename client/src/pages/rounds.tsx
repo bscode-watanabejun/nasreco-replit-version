@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { RoundRecord, Resident } from "@shared/schema";
 
@@ -303,7 +303,8 @@ export default function Rounds() {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor);
-              const targetUrl = `/?${params.toString()}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
             }}
             className="p-2"

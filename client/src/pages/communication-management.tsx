@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ArrowLeft, Info, Trash2, Calendar } from "lucide-react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { insertStaffNoticeSchema, type StaffNotice, type StaffNoticeReadStatus, type FacilitySettings } from "@shared/schema";
 import { z } from "zod";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -53,7 +54,6 @@ export default function CommunicationManagement() {
   const form = useForm<StaffNoticeFormData>({
     resolver: zodResolver(staffNoticeFormSchema),
     defaultValues: {
-      facilityId: "default-facility",
       content: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
       endDate: format(new Date(), 'yyyy-MM-dd'),
@@ -133,7 +133,10 @@ export default function CommunicationManagement() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setLocation('/management-menu')}
+                onClick={() => {
+                  const menuPath = getEnvironmentPath('/management-menu');
+                  setLocation(menuPath);
+                }}
                 className="p-2 text-pink-800 hover:bg-pink-200"
                 data-testid="button-back"
               >

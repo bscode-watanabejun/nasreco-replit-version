@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -466,7 +466,8 @@ export default function DailyRecords() {
     // URLパラメータから階数を直接取得して引き継ぎ
     const floorParam = urlParams.get('floor');
     if (floorParam) params.set('floor', floorParam);
-    const targetUrl = `/?${params.toString()}`;
+    const dashboardPath = getEnvironmentPath("/");
+    const targetUrl = `${dashboardPath}?${params.toString()}`;
     navigate(targetUrl);
   };
 

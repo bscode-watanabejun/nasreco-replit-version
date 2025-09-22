@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -960,7 +961,8 @@ export default function WeightCheckList() {
               const firstDay = format(startOfMonth(parseISO(selectedMonth + "-01")), "yyyy-MM-dd");
               params.set("date", firstDay);
             }
-            navigate(`/check-list-menu${params.toString() ? `?${params}` : ''}`);
+            const menuPath = getEnvironmentPath("/check-list-menu");
+            navigate(`${menuPath}${params.toString() ? `?${params}` : ''}`);
           }}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >

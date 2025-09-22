@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -1810,7 +1810,8 @@ export default function NursingRecordsList() {
             size="sm"
             onClick={() => {
               const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
-              const targetUrl = `/?date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${floorParam}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${floorParam}`;
               setLocation(targetUrl);
             }}
             className="p-2"

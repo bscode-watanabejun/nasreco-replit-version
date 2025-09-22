@@ -16,6 +16,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Users, Edit, ArrowLeft, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { useEffect } from "react";
 import ResidentAttachments from "@/components/ResidentAttachments";
 import type { InsertResident, Resident } from "@shared/schema";
@@ -300,7 +301,10 @@ export default function UserInfoManagement() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/management-menu")}
+                onClick={() => {
+                  const menuPath = getEnvironmentPath("/management-menu");
+                  navigate(menuPath);
+                }}
                 className="p-2 text-pink-800 hover:bg-pink-200"
                 data-testid="button-back-management"
               >

@@ -8,6 +8,7 @@ import ResidentAttachmentsView from "@/components/ResidentAttachmentsView";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import type { Resident } from "@shared/schema";
 
 
@@ -151,7 +152,8 @@ export default function UserInfoView() {
                   const params = new URLSearchParams();
                   if (selectedDate) params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                   if (selectedFloor) params.set('floor', selectedFloor);
-                  const targetUrl = `/?${params.toString()}`;
+                  const dashboardPath = getEnvironmentPath("/");
+                  const targetUrl = `${dashboardPath}?${params.toString()}`;
                   navigate(targetUrl);
                 }}
                 className="p-2 text-white hover:bg-orange-600"

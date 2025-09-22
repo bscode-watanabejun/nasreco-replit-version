@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { UserCog, Eye, EyeOff } from "lucide-react";
 
@@ -41,10 +41,21 @@ export default function StaffLogin() {
       queryClient.setQueryData(["/api/auth/staff-user"], data);
       // Replitユーザーのキャッシュを無効化してスタッフ認証を優先
       queryClient.setQueryData(["/api/auth/user"], null);
+
+      // 職員のテナント情報に基づいてsessionStorageを管理
+      if (data.tenantId) {
+        // 職員にテナントIDが設定されている場合
+        sessionStorage.setItem('selectedTenantId', data.tenantId);
+      } else {
+        // 職員にテナントIDがない場合（親環境用職員）
+        sessionStorage.removeItem('selectedTenantId');
+      }
+
       // 認証関連のクエリを再フェッチ
       queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
-      
-      navigate("/");
+
+      const dashboardPath = getEnvironmentPath("/");
+      navigate(dashboardPath);
     },
     onError: (error: any) => {
       toast({

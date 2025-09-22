@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { HeartPulse, User, Book, LogOut, Lock } from "lucide-react";
+import { HeartPulse, User, Book, LogOut, Lock, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -11,8 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import ChangePasswordDialog from "@/components/change-password-dialog";
+import { getEnvironmentPath } from "@/lib/queryClient";
 
 export default function Header() {
   const { user } = useAuth();
@@ -26,6 +27,17 @@ export default function Header() {
   // 職員ログインユーザーかどうかを判定
   const isStaffUser = !!(user as any)?.staffName;
 
+  // 現在の環境情報を取得（無限ループを防ぐためuseMemoを使用）
+  const environment = useMemo(() => {
+    const selectedTenantId = typeof window !== 'undefined' ? sessionStorage.getItem('selectedTenantId') : null;
+    return {
+      tenantId: selectedTenantId,
+      isParentEnvironment: !selectedTenantId,
+      isTenantEnvironment: !!selectedTenantId,
+      environmentName: selectedTenantId ? `テナント: ${selectedTenantId}` : '親環境'
+    };
+  }, []);
+
   function getGreeting() {
     const hour = currentDate.getHours();
     if (hour < 10) return "おはようございます";
@@ -34,7 +46,9 @@ export default function Header() {
   }
 
   const handleLogoClick = () => {
-    navigate("/");
+    // 現在の環境を維持してダッシュボードへ
+    const dashboardPath = getEnvironmentPath("/");
+    navigate(dashboardPath);
   };
 
   const handleManualClick = () => {
@@ -42,6 +56,8 @@ export default function Header() {
   };
 
   const handleLogout = () => {
+    // sessionStorageをクリアしてからログアウト
+    sessionStorage.clear();
     window.location.href = "/api/logout";
   };
 
@@ -79,6 +95,13 @@ export default function Header() {
           </div>
           
           <div className="flex items-center space-x-4">
+            {/* テナント環境表示 */}
+            <div className="flex items-center space-x-2 text-xs bg-slate-100 px-2 py-1 rounded-md border">
+              <Building2 className="w-3 h-3 text-slate-600" />
+              <span className={`font-medium ${environment.isParentEnvironment ? 'text-blue-600' : 'text-green-600'}`}>
+                {environment.environmentName}
+              </span>
+            </div>
             <div className="text-sm text-slate-600 hidden sm:block">
               <span>{formattedDate}</span>
             </div>

@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ import JournalCheckList from "@/pages/journal-check-list";
 import MultiTenantManagement from "@/pages/multi-tenant-management";
 import { useAuth } from "@/hooks/useAuth";
 
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -62,12 +63,58 @@ function Router() {
       {/* Public routes */}
       <Route path="/staff-login" component={StaffLogin} />
       <Route path="/landing" component={Landing} />
-      
-      {/* Protected routes */}
+
+      {/* Protected routes - both parent and tenant environments */}
       {!isAuthenticated ? (
-        <Route component={Landing} />
+        <>
+          {/* テナント環境の未認証時はスタッフログインへ */}
+          <Route path="/tenant/:tenantId">
+            {() => <StaffLogin />}
+          </Route>
+          <Route path="/tenant/:tenantId/*">
+            {() => <StaffLogin />}
+          </Route>
+          <Route component={Landing} />
+        </>
       ) : (
         <>
+          {/* Tenant environment routes */}
+          <Route path="/tenant/:tenantId" component={Dashboard} />
+          <Route path="/tenant/:tenantId/care-records" component={CareRecords} />
+          <Route path="/tenant/:tenantId/vitals" component={Vitals} />
+          <Route path="/tenant/:tenantId/meals-medication" component={MealsMedication} />
+          <Route path="/tenant/:tenantId/medication-list" component={MedicationList} />
+          <Route path="/tenant/:tenantId/user-info" component={UserInfoView} />
+          <Route path="/tenant/:tenantId/user-info-management" component={UserInfoManagement} />
+          <Route path="/tenant/:tenantId/rounds" component={Rounds} />
+          <Route path="/tenant/:tenantId/management-menu" component={ManagementMenu} />
+          <Route path="/tenant/:tenantId/facility-settings" component={FacilitySettings} />
+          <Route path="/tenant/:tenantId/communication-management" component={CommunicationManagement} />
+          <Route path="/tenant/:tenantId/communications" component={Communications} />
+          <Route path="/tenant/:tenantId/cleaning-linen-list" component={CleaningLinenList} />
+          <Route path="/tenant/:tenantId/bathing-list" component={BathingList} />
+          <Route path="/tenant/:tenantId/weight-list" component={WeightList} />
+          <Route path="/tenant/:tenantId/excretion" component={ExcretionList} />
+          <Route path="/tenant/:tenantId/nursing-records-list" component={NursingRecordsList} />
+          <Route path="/tenant/:tenantId/nursing-records" component={NursingRecords} />
+          <Route path="/tenant/:tenantId/staff-management" component={StaffManagement} />
+          <Route path="/tenant/:tenantId/treatment-list" component={TreatmentList} />
+          <Route path="/tenant/:tenantId/daily-records" component={DailyRecords} />
+          <Route path="/tenant/:tenantId/nursing-journal" component={NursingJournal} />
+          <Route path="/tenant/:tenantId/check-list-menu" component={CheckListMenu} />
+          <Route path="/tenant/:tenantId/care-records-check" component={CareRecordsCheck} />
+          <Route path="/tenant/:tenantId/meal-water-check-list" component={MealWaterCheckList} />
+          <Route path="/tenant/:tenantId/excretion-check-list" component={ExcretionCheckList} />
+          <Route path="/tenant/:tenantId/bathing-check-list" component={BathingCheckList} />
+          <Route path="/tenant/:tenantId/medication-check-list" component={MedicationCheckList} />
+          <Route path="/tenant/:tenantId/vital-check-list" component={VitalCheckList} />
+          <Route path="/tenant/:tenantId/cleaning-linen-check-list" component={CleaningLinenCheckList} />
+          <Route path="/tenant/:tenantId/weight-check-list" component={WeightCheckList} />
+          <Route path="/tenant/:tenantId/round-check-list" component={RoundCheckList} />
+          <Route path="/tenant/:tenantId/journal-check-list" component={JournalCheckList} />
+          <Route path="/tenant/:tenantId/multi-tenant-management" component={MultiTenantManagement} />
+
+          {/* Parent environment routes */}
           <Route path="/" component={Dashboard} />
           <Route path="/care-records" component={CareRecords} />
           <Route path="/vitals" component={Vitals} />

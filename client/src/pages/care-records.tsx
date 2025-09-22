@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -1871,7 +1871,8 @@ export default function CareRecords() {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor);
-              const targetUrl = `/?${params.toString()}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
             }}
             className="p-2"

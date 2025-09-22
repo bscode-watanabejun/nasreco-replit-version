@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { ArrowLeft, Save } from "lucide-react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertFacilitySettingsSchema, type InsertFacilitySettings, type FacilitySettings } from "@shared/schema";
@@ -108,7 +109,10 @@ export default function FacilitySettings() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/management-menu")}
+                onClick={() => {
+                  const menuPath = getEnvironmentPath("/management-menu");
+                  navigate(menuPath);
+                }}
                 className="p-2 text-pink-800 hover:bg-pink-200"
                 data-testid="button-back-management"
               >

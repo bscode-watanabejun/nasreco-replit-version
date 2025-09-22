@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -330,7 +330,8 @@ export default function NursingJournal() {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-    const targetUrl = `/?${params.toString()}`;
+    const dashboardPath = getEnvironmentPath("/");
+    const targetUrl = `${dashboardPath}?${params.toString()}`;
     navigate(targetUrl);
   };
 

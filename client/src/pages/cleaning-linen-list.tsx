@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { format, addDays, startOfWeek, getDay } from "date-fns";
 import { ja } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
@@ -370,7 +370,8 @@ export default function CleaningLinenList() {
               const params = new URLSearchParams();
               if (selectedDateFromUrl) params.set('date', selectedDateFromUrl);
               params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
-              const targetUrl = `/?${params.toString()}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
             }}
             className="h-8 w-8 p-0"

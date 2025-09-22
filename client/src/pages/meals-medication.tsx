@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon, Clock as ClockIcon, Building as BuildingIcon, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { MealsAndMedication, InsertMealsAndMedication } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -851,7 +851,8 @@ export default function MealsMedicationPage() {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-              const targetUrl = `/?${params.toString()}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
             }}
             className="p-2"
@@ -1164,7 +1165,8 @@ export default function MealsMedicationPage() {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-              setLocation(`/medication-list?${params.toString()}`);
+              const medicationPath = getEnvironmentPath("/medication-list");
+              setLocation(`${medicationPath}?${params.toString()}`);
             }}
             data-testid="button-medication-list"
             className="flex items-center gap-2"

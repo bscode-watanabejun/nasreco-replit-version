@@ -91,7 +91,7 @@ export interface IStorage {
   deleteTenant(id: string): Promise<void>;
 
   // Tenant utility
-  setCurrentTenant(tenantId: string): void;
+  setCurrentTenant(tenantId: string | null): void;
   getCurrentTenant(): string | null;
 
   // User operations (mandatory for Replit Auth)
@@ -298,8 +298,9 @@ export class DatabaseStorage implements IStorage {
   private currentTenantId: string | null = null;
 
   // Tenant utility
-  setCurrentTenant(tenantId: string): void {
+  setCurrentTenant(tenantId: string | null): void {
     this.currentTenantId = tenantId;
+    console.log(`🔧 Storage currentTenantId set to:`, tenantId);
   }
 
   getCurrentTenant(): string | null {
@@ -524,8 +525,9 @@ export class DatabaseStorage implements IStorage {
         .orderBy(residents.name);
     }
 
+    // テナントIDがない場合（親環境） - NULLデータのみ表示
     return await db.select().from(residents)
-      .where(eq(residents.isActive, true))
+      .where(and(eq(residents.isActive, true), isNull(residents.tenantId)))
       .orderBy(residents.name);
   }
 
@@ -614,6 +616,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(careRecords.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(careRecords.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(careRecords.tenantId));
     }
 
     return await db.select({
@@ -776,6 +781,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(vitalSigns.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(vitalSigns.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(vitalSigns.tenantId));
     }
 
     return await db.select()

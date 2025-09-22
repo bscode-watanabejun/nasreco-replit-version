@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -503,7 +504,8 @@ export default function MedicationCheckList() {
             const params = new URLSearchParams();
             if (selectedFloor !== "all") params.set("floor", selectedFloor);
             if (dateFrom !== format(new Date(), "yyyy-MM-dd")) params.set("date", dateFrom);
-            navigate(`/check-list-menu${params.toString() ? `?${params}` : ''}`);
+            const menuPath = getEnvironmentPath("/check-list-menu");
+            navigate(`${menuPath}${params.toString() ? `?${params}` : ''}`);
           }}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >

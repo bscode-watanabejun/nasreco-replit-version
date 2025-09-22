@@ -2,11 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, Archive, Building, UserCog, Database, HelpCircle, Bell, Shield } from "lucide-react";
 import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, useTenant } from "@/hooks/useAuth";
+import { TenantSelector } from "@/components/tenant-selector";
+import { getEnvironmentPath } from "@/lib/queryClient";
 
 export default function ManagementMenu() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const { hasMultipleTenants } = useTenant();
 
   // URLパラメータから日付・階数を取得
   const urlParams = new URLSearchParams(window.location.search);
@@ -23,7 +26,8 @@ export default function ManagementMenu() {
       title: "連絡事項管理",
       description: "職員への連絡事項を管理する画面です。職員への連絡事項の作成、確認、編集が行えます。",
       onClick: () => {
-        navigate("/communication-management");
+        const managementPath = getEnvironmentPath("/communication-management");
+        navigate(managementPath);
       }
     },
     {
@@ -32,7 +36,8 @@ export default function ManagementMenu() {
       title: "ご利用者管理",
       description: "入居者様の基本情報を管理する画面です。入居者様の個人情報、サービス内容の登録や変更が行えます。",
       onClick: () => {
-        navigate("/user-info-management");
+        const managementPath = getEnvironmentPath("/user-info-management");
+        navigate(managementPath);
       }
     },
     {
@@ -50,7 +55,8 @@ export default function ManagementMenu() {
       title: "職員管理",
       description: "職員の情報を管理する画面です。職員の基本情報、権限情報の登録や変更が行えます。",
       onClick: () => {
-        navigate("/staff-management");
+        const managementPath = getEnvironmentPath("/staff-management");
+        navigate(managementPath);
       }
     },
     {
@@ -59,7 +65,8 @@ export default function ManagementMenu() {
       title: "施設設定",
       description: "施設の基本情報を設定する画面です。施設の基本情報や、各種基準値、施設介護料介護システムの切り替えなどの設定が行えます。",
       onClick: () => {
-        navigate("/facility-settings");
+        const managementPath = getEnvironmentPath("/facility-settings");
+        navigate(managementPath);
       }
     },
     {
@@ -82,9 +89,10 @@ export default function ManagementMenu() {
     }
   ];
 
-  // システム管理者の場合のみマルチテナント管理を追加
+  // システム管理者かつ親環境の場合のみマルチテナント管理を追加
   const menuItems = [...baseMenuItems];
-  if (isSystemAdmin) {
+  const isParentEnvironment = !sessionStorage.getItem('selectedTenantId');
+  if (isSystemAdmin && isParentEnvironment) {
     // マスタ設定の後にマルチテナント管理を挿入
     const masterIndex = menuItems.findIndex(item => item.id === "master");
     if (masterIndex !== -1) {
@@ -94,7 +102,8 @@ export default function ManagementMenu() {
         title: "マルチテナント管理",
         description: "複数施設の情報を一元管理する画面です。施設の追加、編集、削除、および各施設のデータ管理が行えます。",
         onClick: () => {
-          navigate("/multi-tenant-management");
+          const managementPath = getEnvironmentPath("/multi-tenant-management");
+          navigate(managementPath);
         }
       });
     }
@@ -111,11 +120,31 @@ export default function ManagementMenu() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  console.log('🔍 === 戻るボタンクリック開始 ===');
+                  console.log('🔍 Before getEnvironmentPath - sessionStorage selectedTenantId:', sessionStorage.getItem('selectedTenantId'));
+                  console.log('🔍 Before getEnvironmentPath - current URL pathname:', window.location.pathname);
+                  console.log('🔍 Before getEnvironmentPath - full URL:', window.location.href);
+
                   const params = new URLSearchParams();
                   if (selectedDate) params.set('date', selectedDate);
                   if (selectedFloor) params.set('floor', selectedFloor);
-                  const targetUrl = `/?${params.toString()}`;
+
+                  const dashboardPath = getEnvironmentPath("/");
+                  console.log('🔍 getEnvironmentPath("/") result:', dashboardPath);
+
+                  const targetUrl = `${dashboardPath}?${params.toString()}`;
+                  console.log('🔍 Final navigate target URL:', targetUrl);
+
                   navigate(targetUrl);
+                  console.log('🔍 navigate() called with:', targetUrl);
+
+                  // ナビゲーション後の確認
+                  setTimeout(() => {
+                    console.log('🔍 === ナビゲーション後の状態 ===');
+                    console.log('🔍 After navigate - actual pathname:', window.location.pathname);
+                    console.log('🔍 After navigate - actual full URL:', window.location.href);
+                    console.log('🔍 After navigate - sessionStorage selectedTenantId:', sessionStorage.getItem('selectedTenantId'));
+                  }, 100);
                 }}
                 className="p-2"
                 data-testid="button-back-dashboard"
@@ -126,6 +155,13 @@ export default function ManagementMenu() {
                 管理メニュー
               </h1>
             </div>
+
+            {/* テナント選択（複数テナントアクセス権限がある場合のみ） */}
+            {hasMultipleTenants && (
+              <div className="flex items-center">
+                <TenantSelector compact />
+              </div>
+            )}
           </div>
         </div>
       </div>

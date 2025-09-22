@@ -15,6 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatJapanDateTime } from "@/lib/utils";
 import { Plus, UserCog, Edit, ArrowLeft, Trash2, Unlock, Lock } from "lucide-react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement, UpdateStaffManagementApi } from "@shared/schema";
 
@@ -300,7 +301,10 @@ export default function StaffManagement() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/management-menu")}
+                onClick={() => {
+                  const menuPath = getEnvironmentPath("/management-menu");
+                  navigate(menuPath);
+                }}
                 className="p-2 text-pink-800 hover:bg-pink-200"
               >
                 <ArrowLeft className="w-4 h-4" />

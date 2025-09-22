@@ -13,8 +13,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatJapanDateTime } from "@/lib/utils";
-import { Plus, Shield, Edit, ArrowLeft, Trash2 } from "lucide-react";
+import { Plus, Shield, Edit, ArrowLeft, Trash2, ExternalLink } from "lucide-react";
 import { useLocation } from "wouter";
+import { getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tenant, InsertTenant, UpdateTenant, UpdateTenantApi } from "@shared/schema";
 import type { TenantWithStaff } from "@/../../server/storage";
@@ -146,6 +147,12 @@ export default function MultiTenantManagement() {
     setDeleteOpen(true);
   };
 
+  const handleOpenTenant = (tenant: TenantWithStaff) => {
+    // テナント専用URLを生成して開く
+    const tenantUrl = `/tenant/${tenant.tenantId}/`;
+    window.open(tenantUrl, '_blank');
+  };
+
   const sortedTenants = [...tenantList].sort((a, b) => {
     const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -173,7 +180,10 @@ export default function MultiTenantManagement() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/management-menu")}
+                onClick={() => {
+                  const menuPath = getEnvironmentPath("/management-menu");
+                  navigate(menuPath);
+                }}
                 className="p-2 text-pink-800 hover:bg-pink-200"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -427,8 +437,19 @@ export default function MultiTenantManagement() {
                               size="sm"
                               onClick={() => handleEdit(tenant)}
                               className="text-blue-600 hover:bg-blue-50"
+                              title="テナント情報を編集"
                             >
                               <Edit className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenTenant(tenant)}
+                              className="text-green-600 hover:bg-green-50"
+                              title={`${tenant.tenantName}の環境にアクセス`}
+                            >
+                              <ExternalLink className="w-4 h-4" />
                             </Button>
 
                             <AlertDialog>
@@ -437,6 +458,7 @@ export default function MultiTenantManagement() {
                                   variant="ghost"
                                   size="sm"
                                   className="text-red-600 hover:bg-red-50"
+                                  title="テナントを削除"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
@@ -494,8 +516,19 @@ export default function MultiTenantManagement() {
                         size="sm"
                         onClick={() => handleEdit(tenant)}
                         className="text-blue-600 hover:bg-blue-50"
+                        title="テナント情報を編集"
                       >
                         <Edit className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenTenant(tenant)}
+                        className="text-green-600 hover:bg-green-50"
+                        title={`${tenant.tenantName}の環境にアクセス`}
+                      >
+                        <ExternalLink className="w-4 h-4" />
                       </Button>
 
                       <AlertDialog>
@@ -504,6 +537,7 @@ export default function MultiTenantManagement() {
                             variant="ghost"
                             size="sm"
                             className="text-red-600 hover:bg-red-50"
+                            title="テナントを削除"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

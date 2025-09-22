@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, useTenant } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
 import ModuleCard from "@/components/dashboard/module-card";
+import { TenantSelector } from "@/components/tenant-selector";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import {
   Users,
   Bell,
@@ -36,6 +37,7 @@ import { useUnreadStaffNoticesCount } from "@/hooks/useStaffNotices";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const { hasMultipleTenants } = useTenant();
   const [, navigate] = useLocation();
 
   // 日付とフロア選択のstate - デフォルト値で初期化
@@ -142,7 +144,9 @@ export default function Dashboard() {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('floor', selectedFloor);
-    navigate(`${path}?${params.toString()}`);
+    // 現在の環境に合わせたパスを生成
+    const environmentPath = getEnvironmentPath(path);
+    navigate(`${environmentPath}?${params.toString()}`);
   };
 
 
@@ -279,6 +283,12 @@ export default function Dashboard() {
       {/* 日付とフロア選択 */}
       <div className="bg-white p-3 shadow-sm border-b">
         <div className="flex gap-2 items-center justify-center">
+          {/* テナント選択（複数テナントアクセス権限がある場合のみ） */}
+          {hasMultipleTenants && (
+            <div className="mr-2">
+              <TenantSelector compact />
+            </div>
+          )}
           {/* 日付選択 */}
           <div className="flex items-center space-x-1">
             <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />

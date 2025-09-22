@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ArrowLeft, Info, Calendar, Building } from "lucide-react";
 import { useLocation } from "wouter";
 import { type StaffNotice } from "@shared/schema";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -316,7 +316,8 @@ export default function Communications() {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
               params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-              const targetUrl = `/?${params.toString()}`;
+              const dashboardPath = getEnvironmentPath("/");
+              const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
             }}
             className="text-white hover:bg-blue-700 p-1"

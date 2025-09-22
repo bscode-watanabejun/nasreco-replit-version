@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import type { MedicationRecord, InsertMedicationRecord, Resident } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
@@ -1237,7 +1237,8 @@ export default function MedicationList() {
             const params = new URLSearchParams();
             params.set('date', selectedDate);
             params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-            setLocation(`/meals-medication?${params.toString()}`);
+            const mealsPath = getEnvironmentPath("/meals-medication");
+            setLocation(`${mealsPath}?${params.toString()}`);
           }}>
             食事一覧へ
           </Button>
