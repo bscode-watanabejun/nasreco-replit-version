@@ -1,17 +1,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, Archive, Building, UserCog, Database, HelpCircle, Bell } from "lucide-react";
+import { ArrowLeft, Users, Archive, Building, UserCog, Database, HelpCircle, Bell, Shield } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ManagementMenu() {
   const [, navigate] = useLocation();
-  
+  const { user } = useAuth();
+
   // URLパラメータから日付・階数を取得
   const urlParams = new URLSearchParams(window.location.search);
   const selectedDate = urlParams.get('date');
   const selectedFloor = urlParams.get('floor');
 
-  const menuItems = [
+  // ログインユーザーがシステム管理者かどうかを判定
+  const isSystemAdmin = (user as any)?.authority === "システム管理者";
+
+  const baseMenuItems = [
     {
       id: "contacts",
       icon: <Bell className="w-8 h-8" />,
@@ -76,6 +81,24 @@ export default function ManagementMenu() {
       }
     }
   ];
+
+  // システム管理者の場合のみマルチテナント管理を追加
+  const menuItems = [...baseMenuItems];
+  if (isSystemAdmin) {
+    // マスタ設定の後にマルチテナント管理を挿入
+    const masterIndex = menuItems.findIndex(item => item.id === "master");
+    if (masterIndex !== -1) {
+      menuItems.splice(masterIndex + 1, 0, {
+        id: "multi-tenant",
+        icon: <Shield className="w-8 h-8" />,
+        title: "マルチテナント管理",
+        description: "複数施設の情報を一元管理する画面です。施設の追加、編集、削除、および各施設のデータ管理が行えます。",
+        onClick: () => {
+          navigate("/multi-tenant-management");
+        }
+      });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

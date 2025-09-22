@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,12 +15,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatJapanDateTime } from "@/lib/utils";
 import { Plus, UserCog, Edit, ArrowLeft, Trash2, Unlock, Lock } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement, UpdateStaffManagementApi } from "@shared/schema";
 
 
 export default function StaffManagement() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffManagement | null>(null);
@@ -29,6 +31,9 @@ export default function StaffManagement() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [unlockingStaff, setUnlockingStaff] = useState<StaffManagement | null>(null);
   const [newPassword, setNewPassword] = useState("");
+
+  // ログインユーザーがシステム管理者かどうかを判定
+  const isSystemAdmin = (user as any)?.authority === "システム管理者";
 
   const { data: staffList = [], isLoading, error } = useQuery<StaffManagement[]>({
     queryKey: ["/api/staff-management"],
@@ -212,7 +217,7 @@ export default function StaffManagement() {
       staffNameKana: staff.staffNameKana,
       floor: staff.floor as "全階" | "1階" | "2階" | "3階",
       jobRole: staff.jobRole as "全体" | "介護" | "施設看護" | "訪問看護",
-      authority: staff.authority as "管理者" | "準管理者" | "職員",
+      authority: staff.authority as "システム管理者" | "管理者" | "準管理者" | "職員",
       sortOrder: staff.sortOrder || 0,
     });
     setEditOpen(true);
@@ -232,7 +237,15 @@ export default function StaffManagement() {
     lockMutation.mutate(staff.id);
   };
 
-  const sortedStaff = [...staffList].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  // システム管理者以外の場合、システム管理者権限の職員をフィルタリング
+  const filteredStaff = useMemo(() => {
+    if (isSystemAdmin) {
+      return staffList;
+    }
+    return staffList.filter(staff => staff.authority !== "システム管理者");
+  }, [staffList, isSystemAdmin]);
+
+  const sortedStaff = [...filteredStaff].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
   const floorOptions = [
     { value: "全階", label: "全階" },
@@ -248,11 +261,23 @@ export default function StaffManagement() {
     { value: "訪問看護", label: "訪問看護" },
   ];
 
-  const authorityOptions = [
-    { value: "管理者", label: "管理者" },
-    { value: "準管理者", label: "準管理者" },
-    { value: "職員", label: "職員" },
-  ];
+  // 権限の選択肢をログインユーザーの権限に応じて動的に生成
+  const authorityOptions = useMemo(() => {
+    const baseOptions = [
+      { value: "管理者", label: "管理者" },
+      { value: "準管理者", label: "準管理者" },
+      { value: "職員", label: "職員" },
+    ];
+
+    if (isSystemAdmin) {
+      return [
+        { value: "システム管理者", label: "システム管理者" },
+        ...baseOptions
+      ];
+    }
+
+    return baseOptions;
+  }, [isSystemAdmin]);
 
   if (isLoading) {
     return (

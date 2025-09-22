@@ -708,7 +708,7 @@ export const insertStaffManagementSchema = createInsertSchema(staffManagement, {
     .regex(/^[ァ-ヶー\s]+$/, "職員名フリガナはカタカナのみ使用できます"),
   floor: z.enum(["全階", "1階", "2階", "3階"]),
   jobRole: z.enum(["全体", "介護", "施設看護", "訪問看護"]),
-  authority: z.enum(["管理者", "準管理者", "職員"]),
+  authority: z.enum(["システム管理者", "管理者", "準管理者", "職員"]),
   status: z.enum(["ロック", "ロック解除"]).default("ロック"),
   sortOrder: z.coerce.number().int().default(0),
   password: z.string().min(6, "パスワードは6文字以上で入力してください")
@@ -794,6 +794,53 @@ export const insertResidentAttachmentSchema = createInsertSchema(residentAttachm
 
 export type ResidentAttachment = typeof residentAttachments.$inferSelect;
 export type InsertResidentAttachment = z.infer<typeof insertResidentAttachmentSchema>;
+
+// Multi-tenant Management table
+export const tenants = pgTable("tenants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").unique().notNull(), // テナントID（一意識別子）
+  tenantName: varchar("tenant_name").notNull(), // テナント名
+  status: varchar("status").default("有効").notNull(), // ステータス（有効/無効）
+  createdBy: varchar("created_by").references(() => staffManagement.id), // 登録者
+  updatedBy: varchar("updated_by").references(() => staffManagement.id), // 更新者
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+});
+
+// サブドメイン名として使用不可の予約語リスト
+const RESERVED_SUBDOMAINS = [
+  'www', 'api', 'admin', 'app', 'mail', 'ftp', 'blog',
+  'test', 'dev', 'staging', 'prod', 'production',
+  'support', 'help', 'docs', 'status', 'security',
+  'assets', 'static', 'cdn', 'media', 'files',
+  'login', 'logout', 'signin', 'signup', 'register',
+  'dashboard', 'portal', 'console', 'manage'
+];
+
+// Tenant insert schema
+export const insertTenantSchema = createInsertSchema(tenants, {
+  tenantId: z.string()
+    .min(3, "テナントIDは3文字以上で入力してください")
+    .max(20, "テナントIDは20文字以下で入力してください")
+    .regex(/^[a-z0-9]+([a-z0-9-]*[a-z0-9])?$/, "テナントIDは英小文字・数字・ハイフンのみ使用可能で、ハイフンで開始・終了はできません")
+    .refine((val) => !RESERVED_SUBDOMAINS.includes(val.toLowerCase()), "このテナントIDは予約語のため使用できません")
+    .transform((val) => val.toLowerCase()),
+  tenantName: z.string().min(1, "テナント名を入力してください"),
+  status: z.enum(["有効", "無効"]).default("有効"),
+}).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+
+// Update schema
+export const updateTenantSchema = insertTenantSchema.partial();
+
+// API用の更新スキーマ（idを含む）
+export const updateTenantApiSchema = updateTenantSchema.extend({
+  id: z.string(),
+});
+
+export type Tenant = typeof tenants.$inferSelect;
+export type InsertTenant = z.infer<typeof insertTenantSchema>;
+export type UpdateTenant = z.infer<typeof updateTenantSchema>;
+export type UpdateTenantApi = z.infer<typeof updateTenantApiSchema>;
 
 // Journal Checkboxes table (日誌チェック状態管理)
 export const journalCheckboxes = pgTable("journal_checkboxes", {

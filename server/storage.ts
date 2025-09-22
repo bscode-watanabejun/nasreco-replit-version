@@ -19,6 +19,7 @@ import {
   residentAttachments,
   journalCheckboxes,
   journalEntries,
+  tenants,
   type User,
   type UpsertUser,
   type Resident,
@@ -61,6 +62,9 @@ import {
   type InsertJournalCheckbox,
   type JournalEntry,
   type InsertJournalEntry,
+  type Tenant,
+  type InsertTenant,
+  type UpdateTenantApi,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not, ne } from "drizzle-orm";
@@ -72,7 +76,20 @@ function getJSTTime(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
 }
 
+// テナントに職員情報をJOINした型
+export type TenantWithStaff = Tenant & {
+  createdByName?: string | null;
+  updatedByName?: string | null;
+};
+
 export interface IStorage {
+  // Tenants
+  getTenants(): Promise<TenantWithStaff[]>;
+  getTenantById(id: string): Promise<TenantWithStaff | undefined>;
+  createTenant(data: InsertTenant, userId: string): Promise<Tenant>;
+  updateTenant(data: UpdateTenantApi, userId: string): Promise<Tenant>;
+  deleteTenant(id: string): Promise<void>;
+
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -247,6 +264,7 @@ export interface IStorage {
   // Staff Management operations
   getStaffManagement(): Promise<StaffManagement[]>;
   getStaffManagementById(id: string): Promise<StaffManagement | null>;
+  getStaffByUserId(userId: string): Promise<StaffManagement | null>;
   createStaffManagement(staff: InsertStaffManagement): Promise<StaffManagement>;
   updateStaffManagement(staff: UpdateStaffManagementApi): Promise<StaffManagement>;
   deleteStaffManagement(id: string): Promise<void>;
@@ -273,6 +291,120 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Tenants
+  async getTenants(): Promise<TenantWithStaff[]> {
+    const result = await db
+      .select({
+        id: tenants.id,
+        tenantId: tenants.tenantId,
+        tenantName: tenants.tenantName,
+        status: tenants.status,
+        createdBy: tenants.createdBy,
+        updatedBy: tenants.updatedBy,
+        createdAt: tenants.createdAt,
+        updatedAt: tenants.updatedAt,
+        createdByName: sql<string>`created_by_staff.staff_name`.as('created_by_name'),
+        updatedByName: sql<string>`updated_by_staff.staff_name`.as('updated_by_name'),
+      })
+      .from(tenants)
+      .leftJoin(
+        sql`${staffManagement} AS created_by_staff`,
+        sql`${tenants.createdBy} = created_by_staff.id`
+      )
+      .leftJoin(
+        sql`${staffManagement} AS updated_by_staff`,
+        sql`${tenants.updatedBy} = updated_by_staff.id`
+      )
+      .orderBy(desc(tenants.createdAt));
+
+    return result as TenantWithStaff[];
+  }
+
+  async getTenantById(id: string): Promise<TenantWithStaff | undefined> {
+    const result = await db
+      .select({
+        id: tenants.id,
+        tenantId: tenants.tenantId,
+        tenantName: tenants.tenantName,
+        status: tenants.status,
+        createdBy: tenants.createdBy,
+        updatedBy: tenants.updatedBy,
+        createdAt: tenants.createdAt,
+        updatedAt: tenants.updatedAt,
+        createdByName: sql<string>`created_by_staff.staff_name`.as('created_by_name'),
+        updatedByName: sql<string>`updated_by_staff.staff_name`.as('updated_by_name'),
+      })
+      .from(tenants)
+      .leftJoin(
+        sql`${staffManagement} AS created_by_staff`,
+        sql`${tenants.createdBy} = created_by_staff.id`
+      )
+      .leftJoin(
+        sql`${staffManagement} AS updated_by_staff`,
+        sql`${tenants.updatedBy} = updated_by_staff.id`
+      )
+      .where(eq(tenants.id, id));
+
+    return result[0] as TenantWithStaff | undefined;
+  }
+
+  async createTenant(data: InsertTenant, userId: string): Promise<Tenant> {
+    // テナントIDの重複チェック
+    const existing = await db.select().from(tenants).where(eq(tenants.tenantId, data.tenantId));
+    if (existing.length > 0) {
+      throw new Error(`テナントID「${data.tenantId}」は既に使用されています`);
+    }
+
+    const [tenant] = await db.insert(tenants).values({
+      ...data,
+      createdBy: userId,
+      updatedBy: userId,
+      createdAt: getJSTTime(),
+      updatedAt: getJSTTime(),
+    }).returning();
+
+    return tenant;
+  }
+
+  async updateTenant(data: UpdateTenantApi, userId: string): Promise<Tenant> {
+    const { id, ...updateData } = data;
+
+    // テナントIDの重複チェック（更新時）
+    if (updateData.tenantId) {
+      const existing = await db
+        .select()
+        .from(tenants)
+        .where(and(
+          eq(tenants.tenantId, updateData.tenantId),
+          ne(tenants.id, id)
+        ));
+
+      if (existing.length > 0) {
+        throw new Error(`テナントID「${updateData.tenantId}」は既に使用されています`);
+      }
+    }
+
+    const [tenant] = await db
+      .update(tenants)
+      .set({
+        ...updateData,
+        updatedBy: userId,
+        updatedAt: getJSTTime(),
+      })
+      .where(eq(tenants.id, id))
+      .returning();
+
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    return tenant;
+  }
+
+  async deleteTenant(id: string): Promise<void> {
+    await db.delete(tenants).where(eq(tenants.id, id));
+  }
+
   // User operations (mandatory for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));

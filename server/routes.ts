@@ -32,6 +32,8 @@ import {
   insertStaffManagementSchema,
   updateStaffManagementApiSchema,
   insertResidentAttachmentSchema,
+  insertTenantSchema,
+  updateTenantApiSchema,
   insertJournalEntrySchema,
 } from "@shared/schema";
 
@@ -4153,6 +4155,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error locking staff account:", error);
       res.status(400).json({ message: "アカウントロックに失敗しました" });
+    }
+  });
+
+  // Tenant Management routes
+  app.get('/api/tenants', isAuthenticated, async (req, res) => {
+    try {
+      const tenantList = await storage.getTenants();
+      res.json(tenantList);
+    } catch (error: any) {
+      console.error("Error fetching tenants:", error);
+      res.status(500).json({ message: "Failed to fetch tenants" });
+    }
+  });
+
+  app.get('/api/tenants/:id', isAuthenticated, async (req, res) => {
+    try {
+      const tenant = await storage.getTenantById(req.params.id);
+      if (!tenant) {
+        return res.status(404).json({ message: "Tenant not found" });
+      }
+      res.json(tenant);
+    } catch (error: any) {
+      console.error("Error fetching tenant:", error);
+      res.status(500).json({ message: "Failed to fetch tenant" });
+    }
+  });
+
+  app.post('/api/tenants', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertTenantSchema.parse(req.body);
+      const user = req.user as any;
+
+      // ログインユーザーのstaff IDを取得
+      let staffId: string | null = null;
+
+      if (user?.claims?.sub) {
+        // Replit認証の場合、対応するstaff_managementレコードを検索
+        const staff = await storage.getStaffByUserId(user.claims.sub);
+        if (staff) {
+          staffId = staff.id;
+        }
+      } else if ((req as any).session?.staff?.id) {
+        // 職員認証の場合
+        staffId = (req as any).session.staff.id;
+      }
+
+      if (!staffId) {
+        return res.status(400).json({ message: "ユーザー情報が見つかりません" });
+      }
+
+      const tenant = await storage.createTenant(validatedData, staffId);
+      res.status(201).json(tenant);
+    } catch (error: any) {
+      console.error("Error creating tenant:", error);
+
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          message: "入力データが正しくありません",
+          errors: error.errors
+        });
+      }
+
+      res.status(400).json({ message: error.message || "テナントの作成に失敗しました" });
+    }
+  });
+
+  app.patch('/api/tenants/:id', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = updateTenantApiSchema.parse({
+        ...req.body,
+        id: req.params.id,
+      });
+
+      const user = req.user as any;
+
+      // ログインユーザーのstaff IDを取得
+      let staffId: string | null = null;
+
+      if (user?.claims?.sub) {
+        // Replit認証の場合、対応するstaff_managementレコードを検索
+        const staff = await storage.getStaffByUserId(user.claims.sub);
+        if (staff) {
+          staffId = staff.id;
+        }
+      } else if ((req as any).session?.staff?.id) {
+        // 職員認証の場合
+        staffId = (req as any).session.staff.id;
+      }
+
+      if (!staffId) {
+        return res.status(400).json({ message: "ユーザー情報が見つかりません" });
+      }
+
+      const tenant = await storage.updateTenant(validatedData, staffId);
+      res.json(tenant);
+    } catch (error: any) {
+      console.error("Error updating tenant:", error);
+      res.status(400).json({ message: error.message || "テナントの更新に失敗しました" });
+    }
+  });
+
+  app.delete('/api/tenants/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteTenant(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting tenant:", error);
+      res.status(500).json({ message: "Failed to delete tenant" });
     }
   });
 

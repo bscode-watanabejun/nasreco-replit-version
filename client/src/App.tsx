@@ -40,6 +40,7 @@ import CleaningLinenCheckList from "@/pages/cleaning-linen-check-list";
 import WeightCheckList from "@/pages/weight-check-list";
 import RoundCheckList from "@/pages/round-check-list";
 import JournalCheckList from "@/pages/journal-check-list";
+import MultiTenantManagement from "@/pages/multi-tenant-management";
 import { useAuth } from "@/hooks/useAuth";
 
 function Router() {
@@ -100,6 +101,7 @@ function Router() {
           <Route path="/weight-check-list" component={WeightCheckList} />
           <Route path="/round-check-list" component={RoundCheckList} />
           <Route path="/journal-check-list" component={JournalCheckList} />
+          <Route path="/multi-tenant-management" component={MultiTenantManagement} />
           <Route component={NotFound} />
         </>
       )}
