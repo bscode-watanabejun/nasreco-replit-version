@@ -1885,18 +1885,20 @@ export default function CareRecords() {
 
       {/* Filter Controls */}
       <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
-        <div className="flex gap-2 items-center justify-center">
-          {/* 一括登録モード時の全選択チェックボックス */}
-          {bulkMode && (
-            <div className="flex items-center mr-2">
+        <div className="flex items-center justify-between">
+          {/* 一括登録モード時の全選択チェックボックス（左寄せ） */}
+          <div className="flex items-center">
+            {bulkMode && (
               <input
                 type="checkbox"
                 checked={selectedResidentIds.size === filteredResidents.length && filteredResidents.length > 0}
                 onChange={handleSelectAll}
                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* 中央：日付・フロア選択 */}
           <div className="flex gap-2 items-center">
             {/* 日付選択 */}
             <div className="flex items-center space-x-1">
@@ -1908,7 +1910,7 @@ export default function CareRecords() {
                 className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
               />
             </div>
-            
+
             {/* フロア選択 */}
             <div className="flex items-center space-x-1">
               <Building className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -1926,6 +1928,9 @@ export default function CareRecords() {
               </select>
             </div>
           </div>
+
+          {/* 右側：スペースを確保 */}
+          <div className="w-4"></div>
         </div>
       </div>
 
