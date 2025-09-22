@@ -133,8 +133,10 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const headers = getApiHeaders();
+
     const res = await fetch(queryKey.join("/") as string, {
-      headers: getApiHeaders(),
+      headers,
       credentials: "include",
     });
 
@@ -190,12 +192,9 @@ getCurrentTenantId = () => {
   // スタッフユーザーが優先、次にReplitユーザー
   const user = staffUser || replitUser;
 
-  // URLパスがテナント環境でない場合はnullを返す（親環境）
-  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/tenant/')) {
-    return null;
-  }
+  const result = user?.tenantId || null;
 
-  return user?.tenantId || null;
+  return result;
 };
 
 // 現在の環境情報を取得する関数

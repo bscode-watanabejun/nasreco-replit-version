@@ -16,6 +16,7 @@ const extractTenant = async (req: any, res: any, next: any) => {
     let tenantId: string | null = null;
     let tenantSource: string = 'none';
 
+
     // 1. リクエストヘッダーからテナントIDを取得
     tenantId = req.headers['x-tenant-id'] as string;
     if (tenantId) {
@@ -75,19 +76,17 @@ const extractTenant = async (req: any, res: any, next: any) => {
       tenantSource = 'user_session';
     }
 
+
     if (tenantId) {
       storage.setCurrentTenant(tenantId);
       req.tenantId = tenantId;
       req.tenantSource = tenantSource;
 
-      // デバッグログ
-      console.log(`🏢 Tenant extracted: ${tenantId} (source: ${tenantSource})`);
     } else {
       // テナントIDがない場合は明示的にnullに設定（親環境）
       storage.setCurrentTenant(null);
       req.tenantId = null;
       req.tenantSource = 'parent_environment';
-      console.log(`🏠 Parent environment (no tenant)`);
     }
 
     next();
@@ -442,7 +441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const tenantId = storage.getCurrentTenant();
       console.log('🏠 API /api/residents - tenantId:', tenantId);
-      const residents = await storage.getResidents(tenantId);
+      const residents = await storage.getResidents(tenantId || undefined);
       res.json(residents);
     } catch (error: any) {
       console.error("Error fetching residents:", error);
@@ -3593,11 +3592,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/communications', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
+      const tenantId = storage.getCurrentTenant();
+
+      console.log('📡 /api/communications - getCurrentTenant():', tenantId);
+      console.log('📡 /api/communications - query params:', { residentId, startDate, endDate });
+
       const communications = await storage.getCommunications(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+        endDate ? new Date(endDate as string) : undefined,
+        tenantId || undefined
       );
+
+      console.log('📡 /api/communications - returning', communications.length, 'items');
       res.json(communications);
     } catch (error: any) {
       console.error("Error fetching communications:", error);
@@ -3916,8 +3923,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Staff notice routes (連絡事項管理)
   app.get('/api/staff-notices', isAuthenticated, async (req, res) => {
     try {
-      const { facilityId } = req.query;
-      const notices = await storage.getStaffNotices(facilityId as string);
+      const tenantId = storage.getCurrentTenant();
+      console.log('🔍 /api/staff-notices - getCurrentTenant():', tenantId);
+      console.log('🔍 /api/staff-notices - req.query:', req.query);
+
+      const notices = await storage.getStaffNotices(tenantId || undefined);
+
+      console.log('🔍 /api/staff-notices - returned notices count:', notices.length);
+      if (notices.length > 0) {
+        console.log('🔍 /api/staff-notices - sample tenant_ids:', notices.slice(0, 3).map(n => n.tenantId));
+      }
+
       res.json(notices);
     } catch (error: any) {
       console.error("Error fetching staff notices:", error);

@@ -1111,6 +1111,15 @@ export class DatabaseStorage implements IStorage {
 
   // Communication operations
   async getCommunications(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Communication[]> {
+    // デバッグログ追加
+    console.log('🔍 getCommunications called with:', {
+      residentId,
+      startDate,
+      endDate,
+      tenantId,
+      currentTenantId: this.currentTenantId
+    });
+
     const conditions = [];
 
     if (residentId) {
@@ -1125,15 +1134,29 @@ export class DatabaseStorage implements IStorage {
 
     // テナントフィルタリング
     if (tenantId) {
+      console.log('🔍 Using provided tenantId:', tenantId);
       conditions.push(eq(communications.tenantId, tenantId));
     } else if (this.currentTenantId) {
+      console.log('🔍 Using currentTenantId:', this.currentTenantId);
       conditions.push(eq(communications.tenantId, this.currentTenantId));
+    } else {
+      console.log('🔍 Parent environment: filtering NULL tenant');
+      conditions.push(isNull(communications.tenantId));
     }
 
-    return await db.select()
+    console.log('🔍 Final conditions count:', conditions.length);
+
+    const result = await db.select()
       .from(communications)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(communications.recordDate));
+
+    console.log('🔍 Result count:', result.length);
+    if (result.length > 0) {
+      console.log('🔍 Sample tenant_ids:', result.slice(0, 3).map(r => r.tenantId));
+    }
+
+    return result;
   }
 
   async createCommunication(communication: InsertCommunication): Promise<Communication> {
@@ -1815,15 +1838,36 @@ export class DatabaseStorage implements IStorage {
 
   // Staff notice operations
   async getStaffNotices(tenantId?: string): Promise<StaffNotice[]> {
+    console.log('🔍 getStaffNotices called with:', {
+      tenantId,
+      currentTenantId: this.currentTenantId
+    });
+
     const conditions = [eq(staffNotices.isActive, true)];
+
     if (tenantId) {
+      console.log('🔍 Using provided tenantId:', tenantId);
       conditions.push(eq(staffNotices.tenantId, tenantId));
     } else if (this.currentTenantId) {
+      console.log('🔍 Using currentTenantId:', this.currentTenantId);
       conditions.push(eq(staffNotices.tenantId, this.currentTenantId));
+    } else {
+      console.log('🔍 Parent environment: filtering NULL tenant');
+      conditions.push(isNull(staffNotices.tenantId));
     }
-    return await db.select().from(staffNotices)
+
+    console.log('🔍 Final conditions count:', conditions.length);
+
+    const result = await db.select().from(staffNotices)
       .where(and(...conditions))
       .orderBy(desc(staffNotices.createdAt));
+
+    console.log('🔍 getStaffNotices result count:', result.length);
+    if (result.length > 0) {
+      console.log('🔍 getStaffNotices sample tenant_ids:', result.slice(0, 3).map(r => r.tenantId));
+    }
+
+    return result;
   }
 
   async createStaffNotice(notice: InsertStaffNotice): Promise<StaffNotice> {

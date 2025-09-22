@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ArrowLeft, Info, Calendar, Building } from "lucide-react";
 import { useLocation } from "wouter";
 import { type StaffNotice } from "@shared/schema";
-import { queryClient, getEnvironmentPath } from "@/lib/queryClient";
+import { queryClient, getEnvironmentPath, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -48,17 +48,6 @@ export default function Communications() {
   // Fetch staff notices
   const { data: notices = [], isLoading: isLoadingNotices } = useQuery<StaffNotice[]>({
     queryKey: ['/api/staff-notices'],
-    queryFn: async () => {
-      const response = await fetch('/api/staff-notices', {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('連絡事項の取得に失敗しました');
-      }
-
-      return response.json();
-    },
     refetchOnMount: true, // マウント時に必ず再取得
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
     staleTime: 0, // 常に最新データを取得
@@ -76,15 +65,7 @@ export default function Communications() {
       const results = await Promise.all(
         notices.map(async (notice) => {
           try {
-            const response = await fetch(`/api/staff-notices/${notice.id}/read-status`, {
-              credentials: 'include'
-            });
-
-            if (!response.ok) {
-              return { noticeId: notice.id, statuses: [] };
-            }
-
-            const data = await response.json();
+            const data = await apiRequest(`/api/staff-notices/${notice.id}/read-status`);
             return { noticeId: notice.id, statuses: data };
           } catch (error) {
             return { noticeId: notice.id, statuses: [] };
@@ -108,16 +89,7 @@ export default function Communications() {
   // Mark notice as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: async (noticeId: string) => {
-      const response = await fetch(`/api/staff-notices/${noticeId}/mark-read`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to mark as read');
-      }
-      return response.json();
+      return await apiRequest(`/api/staff-notices/${noticeId}/mark-read`, 'POST');
     },
     onSuccess: () => {
       if (!selectedNotice || !user || !(user as any)?.id) {
@@ -239,16 +211,7 @@ export default function Communications() {
   // Mark notice as unread mutation
   const markAsUnreadMutation = useMutation({
     mutationFn: async (noticeId: string) => {
-      const response = await fetch(`/api/staff-notices/${noticeId}/mark-unread`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to mark as unread');
-      }
-      return response.json();
+      return await apiRequest(`/api/staff-notices/${noticeId}/mark-unread`, 'POST');
     },
     onSuccess: () => {
       if (!selectedNotice || !user || !(user as any)?.id) {

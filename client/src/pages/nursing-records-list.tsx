@@ -1826,60 +1826,67 @@ export default function NursingRecordsList() {
 
         {/* Filter Controls */}
         <div className="bg-white p-3 shadow-sm border-b sticky top-16 z-40">
-          <div className="flex gap-2 sm:gap-4 items-center justify-center">
-            {/* 一括登録モード時の全選択チェックボックス */}
-            {bulkMode && (
-              <div className="flex items-center mr-2">
+          <div className="flex items-center justify-between">
+            {/* 一括登録モード時の全選択チェックボックス（左寄せ） */}
+            <div className="flex items-center mr-3 sm:mr-4">
+              {bulkMode && (
                 <input
                   type="checkbox"
                   checked={selectedResidentIds.size === filteredResidents.length && filteredResidents.length > 0}
                   onChange={handleSelectAll}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-              </div>
-            )}
-            {/* 日付選択 */}
-            <div className="flex items-center space-x-1">
-              <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
-              <input
-                type="date"
-                value={format(selectedDate, 'yyyy-MM-dd')}
-                onChange={(e) => setSelectedDate(new Date(e.target.value))}
-                className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
-              />
-            </div>
-            
-            {/* フロア選択 */}
-            <div className="flex items-center space-x-1">
-              <Building className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
-              <select
-                value={selectedFloor}
-                onChange={(e) => setSelectedFloor(e.target.value)}
-                className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {floorOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              )}
             </div>
 
-            {/* 入浴チェックのみフィルタ */}
-            <div className="flex items-center">
-              <label className="flex items-center cursor-pointer">
+            {/* 中央：日付・フロア選択・入浴チェックフィルタ */}
+            <div className="flex gap-2 sm:gap-4 items-center">
+              {/* 日付選択 */}
+              <div className="flex items-center space-x-1">
+                <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
                 <input
-                  type="checkbox"
-                  id="bathing-only-filter"
-                  checked={showBathingOnly}
-                  onChange={(e) => setShowBathingOnly(e.target.checked)}
-                  className="h-3 w-3 sm:h-4 sm:w-4"
+                  type="date"
+                  value={format(selectedDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setSelectedDate(new Date(e.target.value))}
+                  className="px-1 py-0.5 text-xs sm:text-sm border border-slate-300 rounded-md text-slate-700 bg-white"
                 />
-                <span className="ml-1 text-[10px] sm:text-xs text-slate-700">
-                  入浴チェックのみ
-                </span>
-              </label>
+              </div>
+
+              {/* フロア選択 */}
+              <div className="flex items-center space-x-1">
+                <Building className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
+                <select
+                  value={selectedFloor}
+                  onChange={(e) => setSelectedFloor(e.target.value)}
+                  className="w-16 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  {floorOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 入浴チェックのみフィルタ */}
+              <div className="flex items-center">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="bathing-only-filter"
+                    checked={showBathingOnly}
+                    onChange={(e) => setShowBathingOnly(e.target.checked)}
+                    className="h-3 w-3 sm:h-4 sm:w-4"
+                  />
+                  <span className="ml-1 text-[10px] sm:text-xs text-slate-700">
+                    入浴チェックのみ
+                  </span>
+                </label>
+              </div>
             </div>
+
+            {/* 右側：スペースを確保 */}
+            <div className="w-4"></div>
           </div>
         </div>
 
