@@ -90,6 +90,10 @@ export interface IStorage {
   updateTenant(data: UpdateTenantApi, userId: string): Promise<Tenant>;
   deleteTenant(id: string): Promise<void>;
 
+  // Tenant utility
+  setCurrentTenant(tenantId: string): void;
+  getCurrentTenant(): string | null;
+
   // User operations (mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -291,6 +295,17 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private currentTenantId: string | null = null;
+
+  // Tenant utility
+  setCurrentTenant(tenantId: string): void {
+    this.currentTenantId = tenantId;
+  }
+
+  getCurrentTenant(): string | null {
+    return this.currentTenantId;
+  }
+
   // Tenants
   async getTenants(): Promise<TenantWithStaff[]> {
     const result = await db

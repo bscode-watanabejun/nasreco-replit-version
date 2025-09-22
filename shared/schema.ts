@@ -15,6 +15,18 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Multi-tenant Management table (must be defined first for references)
+export const tenants = pgTable("tenants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").unique().notNull(), // テナントID（一意識別子）
+  tenantName: varchar("tenant_name").notNull(), // テナント名
+  status: varchar("status").default("有効").notNull(), // ステータス（有効/無効）
+  createdBy: varchar("created_by"), // 登録者（後でstaffManagementとの循環参照を解決）
+  updatedBy: varchar("updated_by"), // 更新者（後でstaffManagementとの循環参照を解決）
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+});
+
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessions = pgTable(
@@ -23,6 +35,7 @@ export const sessions = pgTable(
     sid: varchar("sid").primaryKey(),
     sess: jsonb("sess").notNull(),
     expire: timestamp("expire").notNull(),
+    tenantId: varchar("tenant_id").references(() => tenants.tenantId),
   },
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
@@ -36,6 +49,7 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").default("staff"), // staff, nurse, admin
+  tenantId: varchar("tenant_id").references(() => tenants.tenantId),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -43,6 +57,7 @@ export const users = pgTable("users", {
 // Residents/Patients table
 export const residents = pgTable("residents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   roomNumber: varchar("room_number"), // 居室番号
   floor: varchar("floor"), // 階
   name: varchar("name").notNull(), // 利用者名
@@ -154,6 +169,7 @@ export const residents = pgTable("residents", {
 // Care records
 export const careRecords = pgTable("care_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -166,6 +182,7 @@ export const careRecords = pgTable("care_records", {
 // Nursing records
 export const nursingRecords = pgTable("nursing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").references(() => residents.id), // notNull()を削除してオプショナルに
   nurseId: varchar("nurse_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -181,6 +198,7 @@ export const nursingRecords = pgTable("nursing_records", {
 // Vital signs
 export const vitalSigns = pgTable("vital_signs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -203,6 +221,7 @@ export const vitalSigns = pgTable("vital_signs", {
 // Meals and medication
 export const mealsAndMedication = pgTable("meals_and_medication", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -221,6 +240,7 @@ export const mealsAndMedication = pgTable("meals_and_medication", {
 // Bathing records (入浴一覧用)
 export const bathingRecords = pgTable("bathing_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").references(() => residents.id),
   staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -245,6 +265,7 @@ export const bathingRecords = pgTable("bathing_records", {
 // Excretion records
 export const excretionRecords = pgTable("excretion_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -260,6 +281,7 @@ export const excretionRecords = pgTable("excretion_records", {
 // Weight records
 export const weightRecords = pgTable("weight_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   staffId: varchar("staff_id").references(() => staffManagement.id),
   recordDate: timestamp("record_date"), // 記録日時（年月日時分を一元管理）- optionalに変更
@@ -273,6 +295,7 @@ export const weightRecords = pgTable("weight_records", {
 // Communication/notes
 export const communications = pgTable("communications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").references(() => residents.id),
   staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   recordDate: timestamp("record_date").notNull(),
@@ -288,7 +311,7 @@ export const communications = pgTable("communications", {
 // Staff notices/announcements (連絡事項管理)
 export const staffNotices = pgTable("staff_notices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  facilityId: varchar("facility_id").notNull(), // 施設ID
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   createdBy: varchar("created_by").notNull().references(() => staffManagement.id), // 作成者（管理者）
   title: varchar("title"), // タイトル (optional)
   content: text("content").notNull(), // 連絡事項内容
@@ -304,6 +327,7 @@ export const staffNotices = pgTable("staff_notices", {
 // Staff notice read status (既読情報)
 export const staffNoticeReadStatus = pgTable("staff_notice_read_status", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   noticeId: varchar("notice_id").notNull().references(() => staffNotices.id, { onDelete: 'cascade' }),
   staffId: varchar("staff_id").notNull().references(() => staffManagement.id),
   readAt: timestamp("read_at").defaultNow(),
@@ -313,6 +337,7 @@ export const staffNoticeReadStatus = pgTable("staff_notice_read_status", {
 
 // Insert schemas
 export const insertResidentSchema = createInsertSchema(residents, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   dateOfBirth: z.union([z.string(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return undefined;
     return val;
@@ -344,6 +369,7 @@ export const insertResidentSchema = createInsertSchema(residents, {
 });
 
 export const insertCareRecordSchema = createInsertSchema(careRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
   staffId: z.string().uuid("有効な職員IDを指定してください"),
 }).omit({
@@ -352,6 +378,7 @@ export const insertCareRecordSchema = createInsertSchema(careRecords, {
 });
 
 export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
   description: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
@@ -363,6 +390,7 @@ export const insertNursingRecordSchema = createInsertSchema(nursingRecords, {
 });
 
 export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
     if (val instanceof Date) return val;
     return new Date(val);
@@ -411,6 +439,7 @@ export const insertVitalSignsSchema = createInsertSchema(vitalSigns, {
 });
 
 export const insertMealsAndMedicationSchema = z.object({
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   residentId: z.string(),
   staffId: z.string().optional(), // オプションに変更（サーバー側で設定）
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
@@ -428,6 +457,7 @@ export const insertMealsAndMedicationSchema = z.object({
 });
 
 export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
     if (val instanceof Date) return val;
     return new Date(val);
@@ -455,6 +485,7 @@ export const insertBathingRecordSchema = createInsertSchema(bathingRecords, {
 });
 
 export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
 }).omit({
   id: true,
@@ -462,6 +493,7 @@ export const insertExcretionRecordSchema = createInsertSchema(excretionRecords, 
 });
 
 export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.union([z.string(), z.date(), z.null()]).optional().transform((val) => {
     if (val === null || val === undefined || val === '') return null;
     if (val instanceof Date) return val;
@@ -479,6 +511,7 @@ export const insertWeightRecordSchema = createInsertSchema(weightRecords, {
 });
 
 export const insertCommunicationSchema = createInsertSchema(communications, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
 }).omit({
   id: true,
@@ -487,6 +520,7 @@ export const insertCommunicationSchema = createInsertSchema(communications, {
 });
 
 export const insertStaffNoticeSchema = createInsertSchema(staffNotices, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   startDate: z.string().transform((str) => str),
   endDate: z.string().transform((str) => str),
   targetFloor: z.enum(["全階", "1階", "2階", "3階", "4階"]),
@@ -497,7 +531,9 @@ export const insertStaffNoticeSchema = createInsertSchema(staffNotices, {
   updatedAt: true,
 });
 
-export const insertStaffNoticeReadStatusSchema = createInsertSchema(staffNoticeReadStatus, {}).omit({
+export const insertStaffNoticeReadStatusSchema = createInsertSchema(staffNoticeReadStatus, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -506,6 +542,7 @@ export const insertStaffNoticeReadStatusSchema = createInsertSchema(staffNoticeR
 // Round Records table - ラウンド記録
 export const roundRecords = pgTable("round_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull(),
   recordDate: date("record_date").notNull(),
   hour: integer("hour").notNull(), // 0-23 (時間)
@@ -519,6 +556,7 @@ export const roundRecords = pgTable("round_records", {
 });
 
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
 }).omit({
   id: true,
@@ -529,6 +567,7 @@ export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
 // Medication Records table - 服薬記録
 export const medicationRecords = pgTable("medication_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull(),
   recordDate: date("record_date").notNull(), // 記録日
   timing: varchar("timing").notNull(), // 服薬タイミング: "起床後", "朝前", "朝後", "昼前", "昼後", "夕前", "夕後", "眠前", "頓服"
@@ -546,6 +585,7 @@ export const medicationRecords = pgTable("medication_records", {
 }));
 
 export const insertMedicationRecordSchema = createInsertSchema(medicationRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.union([
     z.string().transform((str) => new Date(str)),
     z.date()
@@ -608,6 +648,7 @@ export type InsertMedicationRecord = z.infer<typeof insertMedicationRecordSchema
 // Facility Settings table
 export const facilitySettings = pgTable("facility_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   careType: varchar("care_type"), // 介護施設種別: 訪問介護, デイケア, デイサービス
   facilityName: varchar("facility_name"), // 施設名
   facilityAddress: varchar("facility_address"), // 施設住所
@@ -625,6 +666,7 @@ export const facilitySettings = pgTable("facility_settings", {
 
 // Facility Settings insert schema
 export const insertFacilitySettingsSchema = createInsertSchema(facilitySettings, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   careType: z.enum(["訪問介護", "デイケア", "デイサービス"]).optional(),
   facilityName: z.string().min(1, "施設名を入力してください").optional(),
   facilityAddress: z.string().optional(),
@@ -644,6 +686,7 @@ export type InsertFacilitySettings = z.infer<typeof insertFacilitySettingsSchema
 // Cleaning Linen Records table
 export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull(),
   recordDate: date("record_date").notNull(), // 記録日
   recordTime: timestamp("record_time").defaultNow(), // 記録時刻（記録内容の作成・更新時刻）
@@ -661,6 +704,7 @@ export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
 
 // Cleaning Linen Records insert schema
 export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenRecords, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   residentId: z.string().min(1, "利用者IDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
   recordTime: z.string().optional().transform((str) => str ? new Date(str) : new Date()), // 記録時刻（デフォルトは現在時刻）
@@ -683,6 +727,7 @@ export type UpdateCleaningLinenRecord = z.infer<typeof updateCleaningLinenRecord
 // Staff Management table
 export const staffManagement = pgTable("staff_management", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   staffId: varchar("staff_id").unique().notNull(), // 職員ID（ログインID）
   staffName: varchar("staff_name").notNull(), // 職員名
   staffNameKana: varchar("staff_name_kana").notNull(), // 職員名フリガナ
@@ -697,8 +742,12 @@ export const staffManagement = pgTable("staff_management", {
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
 });
 
+// Tenant外部キー参照を後で追加（循環参照回避のため）
+// これらはAPIレベルで制御します
+
 // Staff Management insert schema
 export const insertStaffManagementSchema = createInsertSchema(staffManagement, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   staffId: z.string()
     .min(1, "職員IDを入力してください")
     .regex(/^[a-zA-Z0-9]+$/, "職員IDは英字と数字のみ使用できます"),
@@ -734,6 +783,7 @@ export type UpdateStaffManagementApi = z.infer<typeof updateStaffManagementApiSc
 // Journal Entries table (日誌エントリテーブル)
 export const journalEntries = pgTable("journal_entries", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   recordDate: date("record_date").notNull(), // 記録日
   recordType: varchar("record_type").notNull(), // 種別（日中/夜間/看護）
   enteredBy: varchar("entered_by"), // 記入者（NULL可能）
@@ -748,6 +798,7 @@ export const journalEntries = pgTable("journal_entries", {
 // Resident Attachments table
 export const residentAttachments = pgTable("resident_attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   residentId: varchar("resident_id").notNull().references(() => residents.id),
   fileName: varchar("file_name").notNull(), // 元のファイル名
   filePath: varchar("file_path").notNull(), // サーバー上のファイルパス
@@ -761,6 +812,7 @@ export const residentAttachments = pgTable("resident_attachments", {
 
 // Journal Entries insert schema
 export const insertJournalEntrySchema = createInsertSchema(journalEntries, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
     // データベースはdate型なので、Date objectのままにする
     // ただし、stringの場合は有効なDateオブジェクトに変換
@@ -784,6 +836,7 @@ export type InsertJournalEntry = z.infer<typeof insertJournalEntrySchema>;
 
 // Resident Attachments insert schema
 export const insertResidentAttachmentSchema = createInsertSchema(residentAttachments, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   fileName: z.string().min(1, "ファイル名は必須です"),
   filePath: z.string().min(1, "ファイルパスは必須です"),
   fileSize: z.coerce.number().int().min(1, "ファイルサイズは必須です"),
@@ -795,17 +848,6 @@ export const insertResidentAttachmentSchema = createInsertSchema(residentAttachm
 export type ResidentAttachment = typeof residentAttachments.$inferSelect;
 export type InsertResidentAttachment = z.infer<typeof insertResidentAttachmentSchema>;
 
-// Multi-tenant Management table
-export const tenants = pgTable("tenants", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").unique().notNull(), // テナントID（一意識別子）
-  tenantName: varchar("tenant_name").notNull(), // テナント名
-  status: varchar("status").default("有効").notNull(), // ステータス（有効/無効）
-  createdBy: varchar("created_by").references(() => staffManagement.id), // 登録者
-  updatedBy: varchar("updated_by").references(() => staffManagement.id), // 更新者
-  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
-  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
-});
 
 // サブドメイン名として使用不可の予約語リスト
 const RESERVED_SUBDOMAINS = [
@@ -845,6 +887,7 @@ export type UpdateTenantApi = z.infer<typeof updateTenantApiSchema>;
 // Journal Checkboxes table (日誌チェック状態管理)
 export const journalCheckboxes = pgTable("journal_checkboxes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().references(() => tenants.tenantId),
   recordDate: date("record_date").notNull(), // 記録日
   recordId: varchar("record_id").notNull(), // 記録ID（care_records, nursing_records, etc.の各ID）
   recordType: varchar("record_type").notNull(), // 記録タイプ（care_records, nursing_records, etc.）
@@ -856,6 +899,7 @@ export const journalCheckboxes = pgTable("journal_checkboxes", {
 
 // Journal Checkboxes insert schema
 export const insertJournalCheckboxSchema = createInsertSchema(journalCheckboxes, {
+  tenantId: z.string().min(1, "テナントIDは必須です"),
   recordDate: z.union([z.string(), z.date()]).transform((val) => {
     if (val instanceof Date) return val;
     return new Date(val);
