@@ -871,8 +871,8 @@ export const insertTenantSchema = createInsertSchema(tenants, {
   status: z.enum(["有効", "無効"]).default("有効"),
 }).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
 
-// Update schema
-export const updateTenantSchema = insertTenantSchema.partial();
+// Update schema（テナントIDの変更を禁止）
+export const updateTenantSchema = insertTenantSchema.partial().omit({ tenantId: true });
 
 // API用の更新スキーマ（idを含む）
 export const updateTenantApiSchema = updateTenantSchema.extend({

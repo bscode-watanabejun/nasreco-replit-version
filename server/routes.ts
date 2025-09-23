@@ -31,13 +31,21 @@ const extractTenant = async (req: any, res: any, next: any) => {
         // 予約されたサブドメインをチェック
         const reservedSubdomains = ['www', 'api', 'admin', 'mail', 'ftp', 'cpanel', 'webmail', 'localhost'];
         if (subdomain && !reservedSubdomains.includes(subdomain.toLowerCase())) {
-          // サブドメインがテナントIDとして有効かDBで確認
+          // サブドメインがテナントIDとして有効かつステータスが有効かDBで確認
           try {
             const tenants = await storage.getTenants();
-            const tenant = tenants.find(t => t.id === subdomain);
+            const tenant = tenants.find(t => t.tenantId === subdomain && t.status === '有効');
             if (tenant) {
               tenantId = subdomain;
               tenantSource = 'subdomain';
+            } else {
+              // テナントが無効または存在しない場合
+              const existingTenant = tenants.find(t => t.tenantId === subdomain);
+              if (existingTenant && existingTenant.status === '無効') {
+                return res.status(403).json({
+                  error: 'このテナント環境は現在無効化されています。管理者にお問い合わせください。'
+                });
+              }
             }
           } catch (error) {
             console.warn(`Subdomain '${subdomain}' not found as tenant:`, error);
@@ -53,10 +61,18 @@ const extractTenant = async (req: any, res: any, next: any) => {
         const pathTenantId = pathMatch[1];
         try {
           const tenants = await storage.getTenants();
-          const tenant = tenants.find(t => t.id === pathTenantId);
+          const tenant = tenants.find(t => t.tenantId === pathTenantId && t.status === '有効');
           if (tenant) {
             tenantId = pathTenantId;
             tenantSource = 'path';
+          } else {
+            // テナントが無効または存在しない場合
+            const existingTenant = tenants.find(t => t.tenantId === pathTenantId);
+            if (existingTenant && existingTenant.status === '無効') {
+              return res.status(403).json({
+                error: 'このテナント環境は現在無効化されています。管理者にお問い合わせください。'
+              });
+            }
           }
         } catch (error) {
           console.warn(`Path tenant '${pathTenantId}' not found:`, error);
@@ -65,15 +81,32 @@ const extractTenant = async (req: any, res: any, next: any) => {
     }
 
     // 4. スタッフセッションからテナントIDを取得
+    // ただし、URLパスが明示的に親環境を示している場合（/staff-login など）は無視
     if (!tenantId && req.session?.staff?.tenantId) {
-      tenantId = req.session.staff.tenantId;
-      tenantSource = 'staff_session';
+      // 親環境でのAPIエンドポイント（ログイン等）の場合はセッション情報を無視
+      const isParentEnvironmentEndpoint = req.path === '/api/auth/staff-login' &&
+                                         !req.path.includes('/tenant/') &&
+                                         !req.headers['x-tenant-id'] &&
+                                         !req.get('host')?.includes('.');
+
+      if (!isParentEnvironmentEndpoint) {
+        tenantId = req.session.staff.tenantId;
+        tenantSource = 'staff_session';
+      }
     }
 
     // 5. ユーザーセッションからテナントIDを取得
+    // 同様に親環境エンドポイントの場合は無視
     if (!tenantId && req.session?.tenant?.currentTenantId) {
-      tenantId = req.session.tenant.currentTenantId;
-      tenantSource = 'user_session';
+      const isParentEnvironmentEndpoint = req.path === '/api/auth/staff-login' &&
+                                         !req.path.includes('/tenant/') &&
+                                         !req.headers['x-tenant-id'] &&
+                                         !req.get('host')?.includes('.');
+
+      if (!isParentEnvironmentEndpoint) {
+        tenantId = req.session.tenant.currentTenantId;
+        tenantSource = 'user_session';
+      }
     }
 
 
@@ -267,16 +300,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Staff login route
-  app.post('/api/auth/staff-login', async (req, res) => {
+  app.post('/api/auth/staff-login', extractTenant, async (req, res) => {
     try {
       const { staffId, password } = req.body;
-      
+      const requestTenantId = (req as any).tenantId; // extractTenantミドルウェアから取得
+
       if (!staffId || !password) {
         return res.status(400).json({ message: "職員IDとパスワードを入力してください" });
       }
 
       const staff = await storage.authenticateStaff(staffId, password);
-      
+
       if (!staff) {
         return res.status(401).json({ message: "職員IDまたはパスワードが正しくありません" });
       }
@@ -285,7 +319,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "このアカウントはロックされています" });
       }
 
+      // テナント権限チェック
+      if (requestTenantId) {
+        // テナント環境でのログイン
+        if (staff.authority === "システム管理者") {
+          // システム管理者は全テナントアクセス可能
+        } else {
+          // 一般職員の場合、所属テナントのみアクセス可能
+          if (staff.tenantId !== requestTenantId) {
+            return res.status(403).json({
+              message: "このテナント環境へのアクセス権限がありません。所属するテナント環境でログインしてください。"
+            });
+          }
+        }
+      } else {
+        // 親環境でのログイン
+        if (staff.authority !== "システム管理者") {
+          // 一般職員は親環境でのログイン不可
+          return res.status(403).json({
+            message: "親環境へのアクセスはシステム管理者のみ許可されています。"
+          });
+        }
+      }
+
       // セッションに職員情報を保存（テナント情報含む）
+      let sessionTenantId: string | null = null;
+
+      if (requestTenantId) {
+        // テナント環境でのログイン
+        sessionTenantId = staff.authority === "システム管理者"
+          ? requestTenantId  // システム管理者の場合は要求されたテナント
+          : staff.tenantId;  // 一般職員の場合は所属テナント
+      } else {
+        // 親環境でのログイン（システム管理者のみ）
+        sessionTenantId = null;  // 親環境ではテナントIDをnullに設定
+      }
+
       (req as any).session.staff = {
         id: staff.id,
         staffId: staff.staffId,
@@ -293,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authority: staff.authority,
         floor: staff.floor,
         jobRole: staff.jobRole,
-        tenantId: staff.tenantId,
+        tenantId: sessionTenantId,
       };
 
       res.json({
@@ -303,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authority: staff.authority,
         floor: staff.floor,
         jobRole: staff.jobRole,
-        tenantId: staff.tenantId,
+        tenantId: sessionTenantId,
       });
     } catch (error: any) {
       console.error("Error during staff login:", error);
@@ -312,10 +381,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Staff logout route
-  app.post('/api/auth/staff-logout', (req, res) => {
-    (req as any).session.staff = null;
-    // スタッフログイン画面へ遷移するようクライアントに指示
-    res.json({ message: "ログアウトしました", redirect: "/staff-login" });
+  app.post('/api/auth/staff-logout', extractTenant, (req, res) => {
+    // テナント情報を保持（セッションクリア前に取得）
+    const tenantId = (req as any).tenantId;
+    const staffSession = (req as any).session?.staff;
+    const staffTenantId = staffSession?.tenantId;
+
+    // セッション完全削除処理
+    if ((req as any).session) {
+      // スタッフ関連情報の削除
+      delete (req as any).session.staff;
+
+      // テナント関連情報の削除
+      if ((req as any).session.tenant) {
+        delete (req as any).session.tenant;
+      }
+
+      // セッション全体を破棄して新しいセッションを作成
+      (req as any).session.regenerate((err: any) => {
+        if (err) {
+          console.error('Session regeneration error:', err);
+        }
+      });
+    }
+
+    // テナント環境に応じたリダイレクトURL生成
+    // 優先順位: 1. URL/ヘッダーから取得したtenantId, 2. スタッフセッションのtenantId
+    const targetTenantId = tenantId || staffTenantId;
+    const redirectUrl = targetTenantId
+      ? `/tenant/${targetTenantId}/staff-login`
+      : '/staff-login';
+
+    res.json({
+      message: "ログアウトしました",
+      redirect: redirectUrl,
+      tenantId: targetTenantId,
+      sessionCleared: true // クライアントに完全なセッションクリアを通知
+    });
   });
 
   // テナント切り替えAPI

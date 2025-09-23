@@ -385,20 +385,7 @@ export class DatabaseStorage implements IStorage {
   async updateTenant(data: UpdateTenantApi, userId: string): Promise<Tenant> {
     const { id, ...updateData } = data;
 
-    // テナントIDの重複チェック（更新時）
-    if (updateData.tenantId) {
-      const existing = await db
-        .select()
-        .from(tenants)
-        .where(and(
-          eq(tenants.tenantId, updateData.tenantId),
-          ne(tenants.id, id)
-        ));
-
-      if (existing.length > 0) {
-        throw new Error(`テナントID「${updateData.tenantId}」は既に使用されています`);
-      }
-    }
+    // テナントIDは更新不可（スキーマレベルで制御済み）
 
     const [tenant] = await db
       .update(tenants)

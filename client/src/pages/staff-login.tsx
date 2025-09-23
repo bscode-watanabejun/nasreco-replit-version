@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,9 +20,27 @@ const staffLoginSchema = z.object({
 type StaffLoginForm = z.infer<typeof staffLoginSchema>;
 
 export default function StaffLogin() {
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
+
+  // URLからテナントIDを抽出
+  const tenantInfo = useMemo(() => {
+    const currentPath = location;
+    const tenantMatch = currentPath.match(/^\/tenant\/([^\/]+)/);
+    const isParentEnvironment = currentPath === '/staff-login';
+
+    // 親環境でのアクセスの場合、sessionStorageのテナント情報をクリア
+    if (isParentEnvironment) {
+      sessionStorage.removeItem('selectedTenantId');
+    }
+
+    return {
+      tenantId: tenantMatch ? tenantMatch[1] : null,
+      isTenantEnvironment: !!tenantMatch,
+      isParentEnvironment,
+    };
+  }, [location]);
 
   const form = useForm<StaffLoginForm>({
     resolver: zodResolver(staffLoginSchema),
@@ -34,6 +52,14 @@ export default function StaffLogin() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: StaffLoginForm) => {
+      // 親環境でのログインの場合はsessionStorageを事前にクリア
+      if (tenantInfo.isParentEnvironment) {
+        sessionStorage.removeItem('selectedTenantId');
+      } else if (tenantInfo.tenantId) {
+        // テナント環境の場合のみsessionStorageに設定
+        sessionStorage.setItem('selectedTenantId', tenantInfo.tenantId);
+      }
+
       return await apiRequest("/api/auth/staff-login", "POST", data);
     },
     onSuccess: (data) => {
@@ -54,8 +80,19 @@ export default function StaffLogin() {
       // 認証関連のクエリを再フェッチ
       queryClient.invalidateQueries({ queryKey: ["/api/auth"] });
 
-      const dashboardPath = getEnvironmentPath("/");
-      navigate(dashboardPath);
+      // テナント環境に応じたリダイレクト
+      if (tenantInfo.isParentEnvironment) {
+        // 親環境でのログイン成功時（システム管理者）
+        navigate("/");  // 親環境のダッシュボードに直接遷移
+      } else if (tenantInfo.isTenantEnvironment && data.tenantId) {
+        // テナント環境でのログイン成功時
+        const dashboardPath = `/tenant/${data.tenantId}/`;
+        navigate(dashboardPath);
+      } else {
+        // フォールバック処理
+        const dashboardPath = getEnvironmentPath("/");
+        navigate(dashboardPath);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -82,9 +119,17 @@ export default function StaffLogin() {
             />
           </div>
           <div>
-            <CardTitle className="text-xl font-bold text-pink-800">職員ログイン</CardTitle>
+            <CardTitle className="text-xl font-bold text-pink-800">
+              {tenantInfo.isTenantEnvironment
+                ? `職員ログイン - テナント: ${tenantInfo.tenantId}`
+                : "職員ログイン"
+              }
+            </CardTitle>
             <CardDescription className="text-gray-600 mt-2">
-              登録済みの職員IDとパスワードでログインしてください
+              {tenantInfo.isTenantEnvironment
+                ? `テナント「${tenantInfo.tenantId}」の職員IDとパスワードでログインしてください`
+                : "登録済みの職員IDとパスワードでログインしてください"
+              }
             </CardDescription>
           </div>
         </CardHeader>

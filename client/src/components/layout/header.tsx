@@ -56,28 +56,60 @@ export default function Header() {
   };
 
   const handleLogout = async () => {
-    // sessionStorageをクリアしてからログアウト
-    sessionStorage.clear();
-
     // スタッフユーザーの場合はスタッフログアウトAPIを使用
     if (isStaffUser) {
       try {
+        // テナント情報を事前に取得（sessionStorageクリア前）
+        const selectedTenantId = sessionStorage.getItem('selectedTenantId');
+
+        // ヘッダーでテナント情報を送信（APIがテナント判定するため）
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json"
+        };
+
+        // テナント情報があればヘッダーに追加
+        if (selectedTenantId) {
+          headers['x-tenant-id'] = selectedTenantId;
+        }
+
         const response = await fetch("/api/auth/staff-logout", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          }
+          headers
         });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
-        // スタッフログイン画面へリダイレクト
+
+        // sessionStorageをクリア（APIコール後）
+        sessionStorage.clear();
+
+        // APIから返されたリダイレクトURLを使用
         window.location.href = data.redirect || "/staff-login";
       } catch (error) {
         console.error("Logout error:", error);
-        // エラーが発生してもスタッフログイン画面へ遷移
-        window.location.href = "/staff-login";
+
+        // エラーが発生した場合のフォールバック処理
+        sessionStorage.clear();
+
+        // テナント環境にいるかを判定してフォールバックリダイレクト
+        const currentPath = window.location.pathname;
+        const tenantMatch = currentPath.match(/^\/tenant\/([^\/]+)/);
+
+        if (tenantMatch) {
+          // テナント環境の場合
+          const tenantId = tenantMatch[1];
+          window.location.href = `/tenant/${tenantId}/staff-login`;
+        } else {
+          // 親環境の場合
+          window.location.href = "/staff-login";
+        }
       }
     } else {
       // Replitユーザーの場合は従来のログアウト処理
+      sessionStorage.clear();
       window.location.href = "/api/logout";
     }
   };

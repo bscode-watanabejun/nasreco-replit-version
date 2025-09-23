@@ -62,6 +62,7 @@ function Router() {
     <Switch>
       {/* Public routes */}
       <Route path="/staff-login" component={StaffLogin} />
+      <Route path="/tenant/:tenantId/staff-login" component={StaffLogin} />
       <Route path="/landing" component={Landing} />
 
       {/* Protected routes - both parent and tenant environments */}

@@ -21,7 +21,7 @@ async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorMessage = `${res.status}: ${res.statusText}`;
     let errorDetails = null;
-    
+
     try {
       // Response bodyを一度だけ読み取る
       const contentType = res.headers.get('content-type');
@@ -35,8 +35,18 @@ async function throwIfResNotOk(res: Response) {
             console.error(`  Error ${index + 1}:`, JSON.stringify(err, null, 2));
           });
         }
-        errorMessage = errorData.message || errorMessage;
+        errorMessage = errorData.error || errorData.message || errorMessage;
         errorDetails = errorData;
+
+        // 403 Forbidden の場合は特別な処理
+        if (res.status === 403 && errorData.error) {
+          // テナント無効化エラーの場合、トップページへリダイレクト
+          if (errorData.error.includes('無効化されています')) {
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 3000); // 3秒後にリダイレクト
+          }
+        }
       } else {
         const text = await res.text();
         console.error("❌ API Error (text):", text);
@@ -46,11 +56,12 @@ async function throwIfResNotOk(res: Response) {
       console.error("❌ Error parsing response:", parseError);
       // パースエラーの場合はデフォルトメッセージを使用
     }
-    
+
     const error = new Error(errorMessage);
     // エラー詳細を Error オブジェクトに追加
     (error as any).errors = errorDetails?.errors;
     (error as any).details = errorDetails;
+    (error as any).status = res.status;
     throw error;
   }
 }

@@ -135,7 +135,6 @@ export default function MultiTenantManagement() {
   const handleEdit = (tenant: TenantWithStaff) => {
     setEditingTenant(tenant);
     editForm.reset({
-      tenantId: tenant.tenantId,
       tenantName: tenant.tenantName,
       status: tenant.status as "有効" | "無効",
     });
@@ -214,9 +213,6 @@ export default function MultiTenantManagement() {
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>新しいテナントを追加</DialogTitle>
-                <DialogDescription>
-                  テナントの基本情報を入力してください。
-                </DialogDescription>
               </DialogHeader>
 
               <Form {...form}>
@@ -243,7 +239,10 @@ export default function MultiTenantManagement() {
                           />
                         </FormControl>
                         <p className="text-xs text-gray-500 mt-1">
-                          英小文字・数字・ハイフンのみ。3-20文字。https://nasreco/{field.value || "テナントID"}/として使用されます。
+                          英小文字・数字・ハイフンのみ。3-20文字。https://nasreco/tenant/{field.value || "[テナントID]"}/として使用されます。
+                        </p>
+                        <p className="text-xs text-amber-600 mt-1 font-medium">
+                          ⚠️ 作成後は変更できません。慎重に入力してください。
                         </p>
                         <FormMessage />
                       </FormItem>
@@ -302,41 +301,21 @@ export default function MultiTenantManagement() {
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>テナント情報を編集</DialogTitle>
-                <DialogDescription>
-                  テナントの情報を編集してください。
-                </DialogDescription>
               </DialogHeader>
 
               <Form {...editForm}>
                 <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                  <FormField
-                    control={editForm.control}
-                    name="tenantId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>テナントID（サブドメイン名）</FormLabel>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder="facility-a"
-                            onChange={(e) => {
-                              // 小文字に変換し、無効文字を除去
-                              const cleaned = e.target.value
-                                .toLowerCase()
-                                .replace(/[^a-z0-9-]/g, '')
-                                .replace(/^-+|-+$/g, '') // 先頭・末尾のハイフンを除去
-                                .replace(/-{2,}/g, '-'); // 連続するハイフンを1つに
-                              field.onChange(cleaned);
-                            }}
-                          />
-                        </FormControl>
-                        <p className="text-xs text-gray-500 mt-1">
-                          英小文字・数字・ハイフンのみ。3-20文字。https://nasreco/{field.value || "テナントID"}/として使用されます。
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">テナントID（サブドメイン名）</label>
+                    <Input
+                      value={editingTenant?.tenantId || ""}
+                      readOnly
+                      className="bg-gray-100 text-gray-900 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-amber-600 mt-1 font-medium">
+                      ⚠️ テナントIDは作成後は変更できません。URLやデータベース参照に影響するためです。
+                    </p>
+                  </div>
                   <FormField
                     control={editForm.control}
                     name="tenantName"
