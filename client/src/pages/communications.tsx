@@ -81,8 +81,8 @@ export default function Communications() {
     },
     enabled: notices.length > 0 && !!user && !!(user as any)?.id,
     refetchOnMount: true, // マウント時に必ず再取得
-    refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
-    staleTime: 0, // 常に最新データを取得
+    refetchOnWindowFocus: false, // ウィンドウフォーカス時の自動再取得を無効化（楽観的更新を維持）
+    staleTime: 60000, // 1分間はキャッシュを維持
     retry: 3, // 失敗時に3回まで再試行
   });
 
@@ -119,20 +119,20 @@ export default function Communications() {
         return newData;
       });
 
-      // バックグラウンドでデータを再検証
-      queryClient.invalidateQueries({
-        queryKey: ['/api/staff-notices-read-status'],
-      });
-
       // トップ画面の未読件数を楽観的に更新（-1）
       queryClient.setQueryData<number>(["staff-notices", "unread-count"], (oldCount) => {
         return Math.max(0, (oldCount || 0) - 1);
       });
 
-      // トップ画面の未読件数も更新（バックグラウンド再検証）
-      queryClient.invalidateQueries({
-        queryKey: ["staff-notices", "unread-count"],
-      });
+      // 遅延してからバックグラウンドでデータを再検証（楽観的更新を維持するため）
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ['/api/staff-notices-read-status'],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["staff-notices", "unread-count"],
+        });
+      }, 1000);
 
       setIsDialogOpen(false);
     },
@@ -235,20 +235,20 @@ export default function Communications() {
         return newData;
       });
 
-      // バックグラウンドでデータを再検証
-      queryClient.invalidateQueries({
-        queryKey: ['/api/staff-notices-read-status'],
-      });
-
       // トップ画面の未読件数を楽観的に更新（+1）
       queryClient.setQueryData<number>(["staff-notices", "unread-count"], (oldCount) => {
         return (oldCount || 0) + 1;
       });
 
-      // トップ画面の未読件数も更新（バックグラウンド再検証）
-      queryClient.invalidateQueries({
-        queryKey: ["staff-notices", "unread-count"],
-      });
+      // 遅延してからバックグラウンドでデータを再検証（楽観的更新を維持するため）
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: ['/api/staff-notices-read-status'],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["staff-notices", "unread-count"],
+        });
+      }, 1000);
 
       setIsDialogOpen(false);
     },

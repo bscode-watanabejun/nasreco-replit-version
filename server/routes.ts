@@ -241,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (staffSession) {
         // Return staff information
         res.json({
-          id: staffSession.staffId,
+          id: staffSession.id, // staff_managementテーブルのプライマリキー（UUID）を使用
           staffName: staffSession.staffName,
           authority: staffSession.authority,
           floor: staffSession.floor,
