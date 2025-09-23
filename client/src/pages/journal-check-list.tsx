@@ -149,11 +149,11 @@ export default function JournalCheckList() {
         <div className="flex items-center gap-4 flex-wrap">
           {/* 表示期間 */}
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">表示期間:</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => handleDateFromChange(e.target.value)}
+              placeholder="開始日"
               className="h-8 text-sm border rounded px-2"
             />
             <span>〜</span>
@@ -161,6 +161,7 @@ export default function JournalCheckList() {
               type="date"
               value={dateTo}
               onChange={(e) => handleDateToChange(e.target.value)}
+              placeholder="終了日"
               className="h-8 text-sm border rounded px-2"
             />
           </div>
@@ -168,7 +169,7 @@ export default function JournalCheckList() {
           {/* 種別 */}
           <Select value={selectedRecordType} onValueChange={setSelectedRecordType}>
             <SelectTrigger className="w-32 h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="種別" />
             </SelectTrigger>
             <SelectContent>
               {recordTypeOptions.map(option => (
@@ -182,7 +183,7 @@ export default function JournalCheckList() {
           {/* 階数 */}
           <Select value={selectedFloor} onValueChange={setSelectedFloor}>
             <SelectTrigger className="w-32 h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="階数" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全階</SelectItem>

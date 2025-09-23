@@ -720,11 +720,11 @@ export default function CareRecordsCheck() {
       <div className="bg-white p-3 border-b">
         <div className="flex flex-wrap gap-2 items-center">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">表示期間:</span>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
+              placeholder="開始日"
               className="border rounded px-2 py-1 text-sm"
             />
             <span className="text-sm">〜</span>
@@ -732,15 +732,15 @@ export default function CareRecordsCheck() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
+              placeholder="終了日"
               className="border rounded px-2 py-1 text-sm"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">記録カテゴリ:</span>
             <Select value={recordCategory} onValueChange={setRecordCategory}>
               <SelectTrigger className="w-32">
-                <SelectValue placeholder="選択してください" />
+                <SelectValue placeholder="記録カテゴリ" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">未選択</SelectItem>
@@ -752,10 +752,9 @@ export default function CareRecordsCheck() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">階数:</span>
             <Select value={selectedFloor} onValueChange={setSelectedFloor}>
               <SelectTrigger className="w-20">
-                <SelectValue placeholder="全階" />
+                <SelectValue placeholder="階数" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全階</SelectItem>
@@ -769,10 +768,9 @@ export default function CareRecordsCheck() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">利用者:</span>
             <Select value={selectedResident} onValueChange={setSelectedResident}>
               <SelectTrigger className="w-32">
-                <SelectValue placeholder="全利用者" />
+                <SelectValue placeholder="利用者" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全利用者</SelectItem>

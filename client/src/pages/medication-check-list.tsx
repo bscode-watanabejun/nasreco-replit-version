@@ -520,11 +520,11 @@ export default function MedicationCheckList() {
         <div className="flex items-center gap-4 flex-wrap">
           {/* 表示期間 */}
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">表示期間:</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => handleDateFromChange(e.target.value)}
+              placeholder="開始日"
               className="h-8 text-sm border rounded px-2"
             />
             <span>〜</span>
@@ -532,6 +532,7 @@ export default function MedicationCheckList() {
               type="date"
               value={dateTo}
               onChange={(e) => handleDateToChange(e.target.value)}
+              placeholder="終了日"
               className="h-8 text-sm border rounded px-2"
             />
           </div>
@@ -539,7 +540,7 @@ export default function MedicationCheckList() {
           {/* 服薬時間帯 */}
           <Select value={selectedTiming} onValueChange={setSelectedTiming}>
             <SelectTrigger className="w-32 h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="服薬時間帯" />
             </SelectTrigger>
             <SelectContent>
               {timingOptions.map(option => (
@@ -553,7 +554,7 @@ export default function MedicationCheckList() {
           {/* 階数 */}
           <Select value={selectedFloor} onValueChange={setSelectedFloor}>
             <SelectTrigger className="w-32 h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="階数" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全階</SelectItem>
@@ -567,7 +568,7 @@ export default function MedicationCheckList() {
           {/* 利用者 */}
           <Select value={selectedResident} onValueChange={setSelectedResident}>
             <SelectTrigger className="w-40 h-8 text-sm">
-              <SelectValue />
+              <SelectValue placeholder="利用者" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全利用者</SelectItem>
