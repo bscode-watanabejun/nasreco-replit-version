@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import { UserCog, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 const staffLoginSchema = z.object({
   staffId: z.string().min(1, "職員IDを入力してください"),
@@ -74,11 +74,15 @@ export default function StaffLogin() {
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-lg border-pink-200">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center">
-            <UserCog className="w-8 h-8 text-pink-600" />
+          <div className="flex justify-center">
+            <img
+              src="/uploads/nasreco-logo.png"
+              alt="NASRECO"
+              className="h-24 w-auto object-contain"
+            />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold text-pink-800">職員ログイン</CardTitle>
+            <CardTitle className="text-xl font-bold text-pink-800">職員ログイン</CardTitle>
             <CardDescription className="text-gray-600 mt-2">
               登録済みの職員IDとパスワードでログインしてください
             </CardDescription>

@@ -314,7 +314,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Staff logout route
   app.post('/api/auth/staff-logout', (req, res) => {
     (req as any).session.staff = null;
-    res.json({ message: "ログアウトしました" });
+    // スタッフログイン画面へ遷移するようクライアントに指示
+    res.json({ message: "ログアウトしました", redirect: "/staff-login" });
   });
 
   // テナント切り替えAPI

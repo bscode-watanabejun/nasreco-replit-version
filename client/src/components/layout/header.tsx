@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { HeartPulse, User, Book, LogOut, Lock, Building2 } from "lucide-react";
+import { User, Book, LogOut, Lock, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -55,10 +55,31 @@ export default function Header() {
     window.open('https://manual.nasreco.bscode.co.jp/', '_blank');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // sessionStorageをクリアしてからログアウト
     sessionStorage.clear();
-    window.location.href = "/api/logout";
+
+    // スタッフユーザーの場合はスタッフログアウトAPIを使用
+    if (isStaffUser) {
+      try {
+        const response = await fetch("/api/auth/staff-logout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+        const data = await response.json();
+        // スタッフログイン画面へリダイレクト
+        window.location.href = data.redirect || "/staff-login";
+      } catch (error) {
+        console.error("Logout error:", error);
+        // エラーが発生してもスタッフログイン画面へ遷移
+        window.location.href = "/staff-login";
+      }
+    } else {
+      // Replitユーザーの場合は従来のログアウト処理
+      window.location.href = "/api/logout";
+    }
   };
 
   return (
@@ -66,14 +87,12 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
-            <div 
-              className="flex items-center space-x-2 cursor-pointer"
-              onClick={handleLogoClick}
-            >
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <HeartPulse className="w-4 h-4 text-white" />
-              </div>
-              <h1 className="text-xl font-semibold text-slate-900">NASRECO</h1>
+            <div>
+              <img
+                src="/uploads/nasreco-logo.png"
+                alt="NASRECO"
+                className="h-14 w-auto object-contain"
+              />
             </div>
             <div className="hidden sm:block text-slate-600">
               <span className="mr-1">{greeting}</span>
