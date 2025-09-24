@@ -968,9 +968,9 @@ export default function CleaningLinenCheckList() {
                     </thead>
                     <tbody>
                       {monthlyData.map((resident, index) => (
-                        <React.Fragment key={resident.id}>
+                        <>
                           {/* 清掃行 */}
-                          <tr className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <tr key={`${resident.id}-cleaning`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                             <td rowSpan={2} className="text-xs border border-gray-300 text-center px-1 py-1 sticky left-0 z-10 w-12" style={{ backgroundColor: index % 2 === 0 ? "white" : "rgb(249 250 251)" }}>
                               {resident.roomNumber || "-"}
                             </td>
@@ -991,7 +991,7 @@ export default function CleaningLinenCheckList() {
                             })}
                           </tr>
                           {/* リネン行 */}
-                          <tr className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <tr key={`${resident.id}-linen`} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                             <td className="text-xs border border-gray-300 px-1 py-1 w-16">リネン</td>
                             {dates.map(date => {
                               const record = filteredData.find(r =>
@@ -1005,7 +1005,7 @@ export default function CleaningLinenCheckList() {
                               );
                             })}
                           </tr>
-                        </React.Fragment>
+                        </>
                       ))}
                     </tbody>
                   </table>
