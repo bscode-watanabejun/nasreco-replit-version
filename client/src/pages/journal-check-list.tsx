@@ -87,17 +87,8 @@ export default function JournalCheckList() {
           params.set('floor', selectedFloor);
         }
 
-        const response = await fetch(`/api/journal-entries?${params.toString()}`, {
-          credentials: 'include'
-        });
-
-        if (response.ok) {
-          const entries = await response.json();
-          return entries;
-        } else {
-          console.error('Failed to fetch journal entries:', response.statusText);
-          return [];
-        }
+        const entries = await apiRequest(`/api/journal-entries?${params.toString()}`, 'GET');
+        return entries || [];
       } catch (error) {
         console.error('Error fetching journal entries:', error);
         return [];

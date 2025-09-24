@@ -525,11 +525,13 @@ export default function ExcretionList() {
       startDate.setDate(endDate.getDate() - 29); // 過去30日間のデータを取得
       startDate.setHours(0, 0, 0, 0);
 
-      const response = await fetch(`/api/excretion-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch excretion records');
+      try {
+        const data = await apiRequest(`/api/excretion-records?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`, 'GET');
+        return data || [];
+      } catch (error) {
+        console.error('Failed to fetch excretion records:', error);
+        return [];
       }
-      return response.json();
     }
   });
 

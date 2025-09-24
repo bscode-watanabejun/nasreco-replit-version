@@ -556,7 +556,6 @@ export const roundRecords = pgTable("round_records", {
 });
 
 export const insertRoundRecordSchema = createInsertSchema(roundRecords, {
-  tenantId: z.string().min(1, "テナントIDは必須です").optional(),
   recordDate: z.string().transform((str) => new Date(str)),
 }).omit({
   id: true,
@@ -704,7 +703,6 @@ export const cleaningLinenRecords = pgTable("cleaning_linen_records", {
 
 // Cleaning Linen Records insert schema
 export const insertCleaningLinenRecordSchema = createInsertSchema(cleaningLinenRecords, {
-  tenantId: z.string().min(1, "テナントIDは必須です").optional(),
   residentId: z.string().min(1, "利用者IDは必須です"),
   recordDate: z.string().transform((str) => new Date(str)),
   recordTime: z.string().optional().transform((str) => str ? new Date(str) : new Date()), // 記録時刻（デフォルトは現在時刻）

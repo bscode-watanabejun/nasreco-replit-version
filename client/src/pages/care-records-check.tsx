@@ -619,17 +619,10 @@ export default function CareRecordsCheck() {
         const apiEndpoint = `/api/${apiTable}/${record.originalId}`;
         const method = (['meals', 'medication'].includes(record.originalTable)) ? 'PUT' : 'PATCH';
         
-        const response = await fetch(apiEndpoint, {
-          method,
-          body: JSON.stringify(updateData),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        try {
+          await apiRequest(apiEndpoint, method, updateData);
+        } catch (error: any) {
+          throw new Error(`API error: ${error.message || error}`);
         }
         
         // 更新成功後、関連するクエリキャッシュを無効化

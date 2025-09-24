@@ -29,6 +29,8 @@ export default function MultiTenantManagement() {
   const [editingTenant, setEditingTenant] = useState<TenantWithStaff | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingTenant, setDeletingTenant] = useState<TenantWithStaff | null>(null);
+  const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
+  const [pendingStatusData, setPendingStatusData] = useState<UpdateTenant | null>(null);
 
   // ログインユーザーがシステム管理者かどうかを判定
   const isSystemAdmin = (user as any)?.authority === "システム管理者";
@@ -127,8 +129,23 @@ export default function MultiTenantManagement() {
 
   const onEditSubmit = (data: UpdateTenant) => {
     if (editingTenant) {
-      const updateData = { ...data, id: editingTenant.id };
+      // 「有効」から「無効」に変更する場合は警告を表示
+      if (editingTenant.status === "有効" && data.status === "無効") {
+        setPendingStatusData(data);
+        setStatusConfirmOpen(true);
+      } else {
+        const updateData = { ...data, id: editingTenant.id };
+        updateMutation.mutate(updateData);
+      }
+    }
+  };
+
+  const handleStatusConfirm = () => {
+    if (editingTenant && pendingStatusData) {
+      const updateData = { ...pendingStatusData, id: editingTenant.id };
       updateMutation.mutate(updateData);
+      setStatusConfirmOpen(false);
+      setPendingStatusData(null);
     }
   };
 
@@ -296,6 +313,48 @@ export default function MultiTenantManagement() {
             </DialogContent>
           </Dialog>
 
+          {/* ステータス変更の警告ダイアログ */}
+          <AlertDialog open={statusConfirmOpen} onOpenChange={setStatusConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>テナントを無効化しますか？</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <p>
+                    <span className="font-semibold">"{editingTenant?.tenantName}"</span>を無効化しようとしています。
+                  </p>
+                  <p className="text-red-600 font-medium">
+                    ⚠️ 警告: テナントを無効にすると、該当のテナント環境にアクセスできなくなります。
+                  </p>
+                  <p>
+                    この操作により、以下の影響があります：
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-sm">
+                    <li>テナント専用URLへのアクセスが無効になります</li>
+                    <li>該当テナントのスタッフがログインできなくなります</li>
+                    <li>すべてのデータへのアクセスが一時的に制限されます</li>
+                  </ul>
+                  <p className="pt-2">
+                    本当に無効化してもよろしいですか？
+                  </p>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => {
+                  setStatusConfirmOpen(false);
+                  setPendingStatusData(null);
+                }}>
+                  キャンセル
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleStatusConfirm}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  無効化する
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* 編集用Dialog */}
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
             <DialogContent className="max-w-md">
@@ -444,9 +503,26 @@ export default function MultiTenantManagement() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>テナント削除</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    このテナントを完全に削除しますか？この操作は取り消せません。
+                                  <AlertDialogTitle>テナントを削除しますか？</AlertDialogTitle>
+                                  <AlertDialogDescription className="space-y-2">
+                                    <p>
+                                      <span className="font-semibold">"{tenant.tenantName}"</span>を削除しようとしています。
+                                    </p>
+                                    <p className="text-red-600 font-medium">
+                                      ⚠️ 警告: この操作は取り消せません。
+                                    </p>
+                                    <p>
+                                      テナントを削除すると、以下のデータがすべて失われます：
+                                    </p>
+                                    <ul className="list-disc pl-5 space-y-1 text-sm">
+                                      <li>テナントに所属するすべての入居者情報</li>
+                                      <li>ケア記録、看護記録、バイタルデータ</li>
+                                      <li>スタッフアカウント情報</li>
+                                      <li>アップロードされたファイルや画像</li>
+                                    </ul>
+                                    <p className="pt-2 font-medium">
+                                      本当に削除してもよろしいですか？
+                                    </p>
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -523,9 +599,26 @@ export default function MultiTenantManagement() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>テナント削除</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              このテナントを完全に削除しますか？この操作は取り消せません。
+                            <AlertDialogTitle>テナントを削除しますか？</AlertDialogTitle>
+                            <AlertDialogDescription className="space-y-2">
+                              <p>
+                                <span className="font-semibold">"{tenant.tenantName}"</span>を削除しようとしています。
+                              </p>
+                              <p className="text-red-600 font-medium">
+                                ⚠️ 警告: この操作は取り消せません。
+                              </p>
+                              <p>
+                                テナントを削除すると、以下のデータがすべて失われます：
+                              </p>
+                              <ul className="list-disc pl-5 space-y-1 text-sm">
+                                <li>テナントに所属するすべての入居者情報</li>
+                                <li>ケア記録、看護記録、バイタルデータ</li>
+                                <li>スタッフアカウント情報</li>
+                                <li>アップロードされたファイルや画像</li>
+                              </ul>
+                              <p className="pt-2 font-medium">
+                                本当に削除してもよろしいですか？
+                              </p>
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -591,9 +684,26 @@ export default function MultiTenantManagement() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>テナント削除の確認</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deletingTenant?.tenantName}を完全に削除しますか？この操作は取り消せません。
+            <AlertDialogTitle>テナントを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                <span className="font-semibold">"{deletingTenant?.tenantName}"</span>を削除しようとしています。
+              </p>
+              <p className="text-red-600 font-medium">
+                ⚠️ 警告: この操作は取り消せません。
+              </p>
+              <p>
+                テナントを削除すると、以下のデータがすべて失われます：
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-sm">
+                <li>テナントに所属するすべての入居者情報</li>
+                <li>ケア記録、看護記録、バイタルデータ</li>
+                <li>スタッフアカウント情報</li>
+                <li>アップロードされたファイルや画像</li>
+              </ul>
+              <p className="pt-2 font-medium">
+                本当に削除してもよろしいですか？
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

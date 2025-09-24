@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { type StaffNotice } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
 // フィルタ条件の型定義
 interface NoticeFilter {
@@ -20,18 +21,16 @@ export function useUnreadStaffNoticesCount(filter?: NoticeFilter) {
       // フィルタ条件が指定されている場合はフロントエンドでフィルタリング
       if (filter) {
         // 全ての連絡事項を取得
-        const noticesResponse = await fetch("/api/staff-notices", {
-          credentials: "include"
-        });
-
-        if (!noticesResponse.ok) {
-          if (noticesResponse.status === 401) {
+        let notices: StaffNotice[];
+        try {
+          notices = await apiRequest("/api/staff-notices", "GET") || [];
+        } catch (error: any) {
+          if (error.message?.includes("401")) {
             return 0;
           }
-          throw new Error("連絡事項の取得に失敗しました");
+          console.error("連絡事項の取得に失敗しました:", error);
+          return 0;
         }
-
-        const notices: StaffNotice[] = await noticesResponse.json();
 
         // 日付、職種、階数でフィルタリング
         const filteredNotices = notices.filter(notice => {
@@ -70,15 +69,10 @@ export function useUnreadStaffNoticesCount(filter?: NoticeFilter) {
         const unreadCount = await Promise.all(
           filteredNotices.map(async (notice) => {
             try {
-              const response = await fetch(`/api/staff-notices/${notice.id}/read-status`, {
-                credentials: "include"
-              });
-
-              if (!response.ok) {
+              const readStatuses = await apiRequest(`/api/staff-notices/${notice.id}/read-status`, "GET");
+              if (!readStatuses) {
                 return false;
               }
-
-              const readStatuses = await response.json();
 
               // 未読かどうか判定
               return !readStatuses.some((status: any) => status.staffId === staffId);
@@ -91,19 +85,16 @@ export function useUnreadStaffNoticesCount(filter?: NoticeFilter) {
         return unreadCount.filter(Boolean).length;
       } else {
         // フィルタ条件がない場合は従来のAPIを使用
-        const response = await fetch("/api/staff-notices/unread-count", {
-          credentials: "include"
-        });
-
-        if (!response.ok) {
-          if (response.status === 401) {
+        try {
+          const data = await apiRequest("/api/staff-notices/unread-count", "GET");
+          return data?.count || 0;
+        } catch (error: any) {
+          if (error.message?.includes("401")) {
             return 0;
           }
-          throw new Error("未読連絡事項数の取得に失敗しました");
+          console.error("未読連絡事項数の取得に失敗しました:", error);
+          return 0;
         }
-
-        const data = await response.json();
-        return data.count as number;
       }
     },
     refetchInterval: 5000, // 5秒ごとに更新

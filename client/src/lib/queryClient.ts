@@ -40,11 +40,10 @@ async function throwIfResNotOk(res: Response) {
 
         // 403 Forbidden の場合は特別な処理
         if (res.status === 403 && errorData.error) {
-          // テナント無効化エラーの場合、トップページへリダイレクト
+          // テナント無効化エラーの場合、エラーメッセージのみ表示（自動リダイレクトを無効化）
           if (errorData.error.includes('無効化されています')) {
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 3000); // 3秒後にリダイレクト
+            console.warn('無効テナントエラー:', errorData.error);
+            // 自動リダイレクトを削除してリダイレクトループを防止
           }
         }
       } else {
@@ -184,8 +183,14 @@ getCurrentTenantId = () => {
     const pathMatch = window.location.pathname.match(/^\/tenant\/([^\/]+)/);
     if (pathMatch) {
       const tenantFromUrl = pathMatch[1];
-      // URLのテナントIDをセッションストレージにも保存
-      sessionStorage.setItem('selectedTenantId', tenantFromUrl);
+
+      // 認証済みの場合のみsessionStorageに保存（認証前の保存を防止）
+      const staffUser = queryClient.getQueryData(["/api/auth/staff-user"]) as any;
+      const replitUser = queryClient.getQueryData(["/api/auth/user"]) as any;
+      if (staffUser || replitUser) {
+        sessionStorage.setItem('selectedTenantId', tenantFromUrl);
+      }
+
       return tenantFromUrl;
     }
   }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { getEnvironmentPath } from "@/lib/queryClient";
+import { getEnvironmentPath, apiRequest } from "@/lib/queryClient";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ import {
 import { format, parseISO, startOfDay, endOfDay, addMonths, eachDayOfInterval } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import type { MedicationRecord, Resident, InsertMedicationRecord } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -247,17 +246,8 @@ export default function MedicationCheckList() {
     queryKey: ["medication-records-range", dateFrom, dateTo],
     queryFn: async () => {
       try {
-        const response = await fetch(`/api/medication-records?dateFrom=${dateFrom}&dateTo=${dateTo}&timing=all&floor=all`, {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const records = await response.json();
-          return records;
-        } else {
-          console.error('Failed to fetch medication records:', response.statusText);
-          return [];
-        }
+        const data = await apiRequest(`/api/medication-records?dateFrom=${dateFrom}&dateTo=${dateTo}&timing=all&floor=all`, 'GET');
+        return data || [];
       } catch (error) {
         console.error('Error fetching medication records:', error);
         return [];

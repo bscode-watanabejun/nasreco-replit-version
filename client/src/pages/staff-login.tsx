@@ -55,10 +55,8 @@ export default function StaffLogin() {
       // 親環境でのログインの場合はsessionStorageを事前にクリア
       if (tenantInfo.isParentEnvironment) {
         sessionStorage.removeItem('selectedTenantId');
-      } else if (tenantInfo.tenantId) {
-        // テナント環境の場合のみsessionStorageに設定
-        sessionStorage.setItem('selectedTenantId', tenantInfo.tenantId);
       }
+      // テナントIDのsessionStorage設定はログイン成功後に行う（認証前の設定を削除）
 
       return await apiRequest("/api/auth/staff-login", "POST", data);
     },
@@ -120,22 +118,31 @@ export default function StaffLogin() {
           </div>
           <div>
             <CardTitle className="text-xl font-bold text-pink-800">
-              {tenantInfo.isTenantEnvironment
-                ? `職員ログイン - テナント: ${tenantInfo.tenantId}`
-                : "職員ログイン"
-              }
+              職員ログイン
             </CardTitle>
             <CardDescription className="text-gray-600 mt-2">
-              {tenantInfo.isTenantEnvironment
-                ? `テナント「${tenantInfo.tenantId}」の職員IDとパスワードでログインしてください`
-                : "登録済みの職員IDとパスワードでログインしてください"
-              }
+              登録済みの職員IDとパスワードでログインしてください
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* テナント情報フィールド（読み取り専用） */}
+              <FormItem>
+                <FormLabel className="text-pink-800 font-medium">テナントID</FormLabel>
+                <FormControl>
+                  <Input
+                    value={tenantInfo.isTenantEnvironment
+                      ? tenantInfo.tenantId || ""
+                      : "親環境"}
+                    readOnly
+                    className="border-pink-200 bg-gray-50 text-gray-700 cursor-not-allowed"
+                    disabled
+                  />
+                </FormControl>
+              </FormItem>
+
               <FormField
                 control={form.control}
                 name="staffId"
@@ -145,7 +152,6 @@ export default function StaffLogin() {
                     <FormControl>
                       <Input
                         {...field}
-                        placeholder="staff001"
                         className="border-pink-200 focus:border-pink-500 focus:ring-pink-500"
                         disabled={loginMutation.isPending}
                       />
@@ -165,7 +171,6 @@ export default function StaffLogin() {
                         <Input
                           {...field}
                           type={showPassword ? "text" : "password"}
-                          placeholder="パスワードを入力"
                           className="border-pink-200 focus:border-pink-500 focus:ring-pink-500 pr-10"
                           disabled={loginMutation.isPending}
                         />

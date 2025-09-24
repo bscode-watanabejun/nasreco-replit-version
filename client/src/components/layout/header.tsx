@@ -14,10 +14,11 @@ import {
 import { useState, useMemo } from "react";
 import ChangePasswordDialog from "@/components/change-password-dialog";
 import { getEnvironmentPath } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Header() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   const currentDate = new Date();
@@ -27,16 +28,51 @@ export default function Header() {
   // 職員ログインユーザーかどうかを判定
   const isStaffUser = !!(user as any)?.staffName;
 
-  // 現在の環境情報を取得（無限ループを防ぐためuseMemoを使用）
+  // テナント一覧を取得（テナント名表示用）
+  const { data: tenantList = [] } = useQuery<any[]>({
+    queryKey: ["/api/tenants"],
+    enabled: !!user, // ユーザー認証後に取得
+    staleTime: 10 * 60 * 1000, // 10分間キャッシュ
+  });
+
+  // 現在の環境情報を取得
   const environment = useMemo(() => {
+    // 1. まずURLパスからテナントIDを取得（最優先）
+    if (typeof window !== 'undefined') {
+      const pathMatch = window.location.pathname.match(/^\/tenant\/([^\/]+)/);
+      if (pathMatch) {
+        const tenantFromUrl = pathMatch[1];
+        // URLにテナントが含まれている場合は、そのテナント情報を使用
+        const tenant = tenantList.find(t => t.tenantId === tenantFromUrl);
+        return {
+          tenantId: tenantFromUrl,
+          isParentEnvironment: false,
+          isTenantEnvironment: true,
+          environmentName: tenant ? tenant.tenantName : tenantFromUrl
+        };
+      }
+    }
+
+    // 2. URLにテナントが含まれていない場合はsessionStorageを確認
     const selectedTenantId = typeof window !== 'undefined' ? sessionStorage.getItem('selectedTenantId') : null;
+    if (selectedTenantId) {
+      const tenant = tenantList.find(t => t.tenantId === selectedTenantId);
+      return {
+        tenantId: selectedTenantId,
+        isParentEnvironment: false,
+        isTenantEnvironment: true,
+        environmentName: tenant ? tenant.tenantName : selectedTenantId
+      };
+    }
+
+    // 3. どちらもない場合は親環境
     return {
-      tenantId: selectedTenantId,
-      isParentEnvironment: !selectedTenantId,
-      isTenantEnvironment: !!selectedTenantId,
-      environmentName: selectedTenantId ? `テナント: ${selectedTenantId}` : '親環境'
+      tenantId: null,
+      isParentEnvironment: true,
+      isTenantEnvironment: false,
+      environmentName: '親環境'
     };
-  }, []);
+  }, [location, tenantList]); // locationとtenantListを依存配列に追加
 
   function getGreeting() {
     const hour = currentDate.getHours();

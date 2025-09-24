@@ -18,9 +18,29 @@ const extractTenant = async (req: any, res: any, next: any) => {
 
 
     // 1. リクエストヘッダーからテナントIDを取得
-    tenantId = req.headers['x-tenant-id'] as string;
-    if (tenantId) {
-      tenantSource = 'header';
+    const headerTenantId = req.headers['x-tenant-id'] as string;
+    if (headerTenantId) {
+      try {
+        const tenants = await storage.getTenants();
+        const tenant = tenants.find(t => t.tenantId === headerTenantId && t.status === '有効');
+        if (tenant) {
+          tenantId = headerTenantId;
+          tenantSource = 'header';
+        } else {
+          // テナントが無効または存在しない場合
+          const existingTenant = tenants.find(t => t.tenantId === headerTenantId);
+          if (existingTenant && existingTenant.status === '無効') {
+            // 無効テナントの場合、権限チェックのため情報を保存
+            tenantId = headerTenantId;
+            tenantSource = 'header';
+            req.isInvalidTenant = true;
+            req.invalidTenantInfo = existingTenant;
+            console.log(`無効テナント '${headerTenantId}' がx-tenant-idヘッダーで検出されました`);
+          }
+        }
+      } catch (error) {
+        console.warn(`Header tenant '${headerTenantId}' not found:`, error);
+      }
     }
 
     // 2. サブドメインからテナントIDを取得
@@ -42,9 +62,11 @@ const extractTenant = async (req: any, res: any, next: any) => {
               // テナントが無効または存在しない場合
               const existingTenant = tenants.find(t => t.tenantId === subdomain);
               if (existingTenant && existingTenant.status === '無効') {
-                return res.status(403).json({
-                  error: 'このテナント環境は現在無効化されています。管理者にお問い合わせください。'
-                });
+                // 無効テナントの場合、即座に403を返さずに権限チェックのため情報を保存
+                tenantId = subdomain;
+                tenantSource = 'subdomain';
+                req.isInvalidTenant = true;
+                req.invalidTenantInfo = existingTenant;
               }
             }
           } catch (error) {
@@ -69,9 +91,11 @@ const extractTenant = async (req: any, res: any, next: any) => {
             // テナントが無効または存在しない場合
             const existingTenant = tenants.find(t => t.tenantId === pathTenantId);
             if (existingTenant && existingTenant.status === '無効') {
-              return res.status(403).json({
-                error: 'このテナント環境は現在無効化されています。管理者にお問い合わせください。'
-              });
+              // 無効テナントの場合、即座に403を返さずに権限チェックのため情報を保存
+              tenantId = pathTenantId;
+              tenantSource = 'path';
+              req.isInvalidTenant = true;
+              req.invalidTenantInfo = existingTenant;
             }
           }
         } catch (error) {
@@ -127,6 +151,33 @@ const extractTenant = async (req: any, res: any, next: any) => {
     console.error('Error in extractTenant middleware:', error);
     next();
   }
+};
+
+// 無効テナントアクセス権限チェックミドルウェア
+const checkInvalidTenantAccess = async (req: any, res: any, next: any) => {
+  // 無効テナントではない場合はスキップ
+  if (!req.isInvalidTenant) {
+    return next();
+  }
+
+  // スタッフセッションから権限を確認
+  const staffSession = req.session?.staff;
+  if (!staffSession) {
+    return res.status(403).json({
+      error: 'このテナント環境は現在無効化されています。管理者にお問い合わせください。'
+    });
+  }
+
+  // システム管理者権限チェック
+  if (staffSession.authority !== 'システム管理者') {
+    return res.status(403).json({
+      error: 'このテナント環境は現在無効化されています。システム管理者権限が必要です。'
+    });
+  }
+
+  // システム管理者の場合はアクセス許可
+  console.log(`システム管理者 ${staffSession.staffName} が無効テナント ${req.tenantId} にアクセス`);
+  next();
 };
 
 import {
@@ -198,7 +249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/uploads', express.static(uploadDir));
 
   // Global tenant extraction middleware for all API routes
-  app.use('/api', extractTenant);
+  app.use('/api', extractTenant, checkInvalidTenantAccess);
 
   // Tenant management routes (admin only)
   app.get('/api/tenants', isAuthenticated, async (req, res) => {
@@ -322,8 +373,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // テナント権限チェック
       if (requestTenantId) {
         // テナント環境でのログイン
+
+        // 無効テナントへのアクセスチェック
+        if ((req as any).isInvalidTenant) {
+          if (staff.authority !== "システム管理者") {
+            return res.status(403).json({
+              message: "このテナント環境は現在無効化されています。システム管理者権限が必要です。"
+            });
+          }
+          console.log(`システム管理者 ${staff.staffName} が無効テナント ${requestTenantId} にログイン`);
+        }
+
         if (staff.authority === "システム管理者") {
-          // システム管理者は全テナントアクセス可能
+          // システム管理者は全テナント（無効テナント含む）アクセス可能
         } else {
           // 一般職員の場合、所属テナントのみアクセス可能
           if (staff.tenantId !== requestTenantId) {
@@ -606,10 +668,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/care-records', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
+      const tenantId = storage.getCurrentTenant();
       const records = await storage.getCareRecords(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+        endDate ? new Date(endDate as string) : undefined,
+        tenantId || undefined
       );
       
       // recordDateをJST時刻として正しく返すために変換
@@ -1322,10 +1386,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/vital-signs', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
+      const tenantId = storage.getCurrentTenant();
       const vitals = await storage.getVitalSigns(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+        endDate ? new Date(endDate as string) : undefined,
+        tenantId || undefined
       );
       
       // recordDateをJST時刻として正しく返すために変換
@@ -1628,11 +1694,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/bathing-records', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
-      
+      const tenantId = storage.getCurrentTenant();
+
       const records = await storage.getBathingRecords(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+        endDate ? new Date(endDate as string) : undefined,
+        tenantId || undefined
       );
       
       
@@ -1783,10 +1851,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/excretion-records', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
+      const tenantId = storage.getCurrentTenant();
       const records = await storage.getExcretionRecords(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+        endDate ? new Date(endDate as string) : undefined,
+        tenantId || undefined
       );
       
       // recordDateをJST時刻として正しく返すために変換
@@ -3566,10 +3636,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/weight-records', isAuthenticated, async (req, res) => {
     try {
       const { residentId, startDate, endDate } = req.query;
+      const tenantId = storage.getCurrentTenant();
       const records = await storage.getWeightRecords(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
-        endDate ? new Date(endDate as string) : undefined
+        endDate ? new Date(endDate as string) : undefined,
+        tenantId || undefined
       );
       
       // recordDateをJST時刻として正しく返すために変換
@@ -3696,10 +3768,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { residentId, startDate, endDate } = req.query;
       const tenantId = storage.getCurrentTenant();
-
-      console.log('📡 /api/communications - getCurrentTenant():', tenantId);
-      console.log('📡 /api/communications - query params:', { residentId, startDate, endDate });
-
       const communications = await storage.getCommunications(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
@@ -3775,17 +3843,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertRoundRecordSchema.parse({
         ...req.body,
-        createdBy: createdBy,
+        createdBy: createdBy
       });
       
       // created_atとupdated_atをJST時刻として明示的に設定
       const now = new Date();
       const jstOffset = 9 * 60 * 60 * 1000;
       const jstNow = new Date(now.getTime() + jstOffset);
-      (validatedData as any).createdAt = jstNow;
-      (validatedData as any).updatedAt = jstNow;
-      
-      const roundRecord = await storage.createRoundRecord(validatedData);
+      const recordWithCreatedAt = {
+        ...validatedData,
+        createdAt: jstNow,
+        updatedAt: jstNow
+      } as any;
+
+      const roundRecord = await storage.createRoundRecord(recordWithCreatedAt);
       res.status(201).json(roundRecord);
     } catch (error: any) {
       console.error("Error creating round record:", error);
@@ -3994,7 +4065,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/facility-settings', isAuthenticated, async (req, res) => {
     try {
       const settings = await storage.getFacilitySettings();
-      res.json(settings);
+      // 設定が存在しない場合はnullを返す（新規テナントでレコードがない場合）
+      res.json(settings || null);
     } catch (error: any) {
       console.error("Error fetching facility settings:", error);
       res.status(500).json({ message: "Failed to fetch facility settings" });
@@ -4027,15 +4099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/staff-notices', isAuthenticated, async (req, res) => {
     try {
       const tenantId = storage.getCurrentTenant();
-      console.log('🔍 /api/staff-notices - getCurrentTenant():', tenantId);
-      console.log('🔍 /api/staff-notices - req.query:', req.query);
-
       const notices = await storage.getStaffNotices(tenantId || undefined);
-
-      console.log('🔍 /api/staff-notices - returned notices count:', notices.length);
-      if (notices.length > 0) {
-        console.log('🔍 /api/staff-notices - sample tenant_ids:', notices.slice(0, 3).map(n => n.tenantId));
-      }
 
       res.json(notices);
     } catch (error: any) {
@@ -4344,7 +4408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const validatedData = insertCleaningLinenRecordSchema.parse({
         ...req.body,
-        staffId: staffId,
+        staffId: staffId
       });
       
       // recordDateをJST時刻として明示的に処理
@@ -4384,10 +4448,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentTime = new Date();
       const jstOffset2 = 9 * 60 * 60 * 1000;
       const jstNow = new Date(currentTime.getTime() + jstOffset2);
-      (validatedData as any).createdAt = jstNow;
-      (validatedData as any).updatedAt = jstNow;
-      
-      const record = await storage.upsertCleaningLinenRecord(validatedData);
+      const recordWithCreatedAt = {
+        ...validatedData,
+        createdAt: jstNow,
+        updatedAt: jstNow
+      } as any;
+
+      const record = await storage.upsertCleaningLinenRecord(recordWithCreatedAt);
       res.status(201).json(record);
     } catch (error: any) {
       console.error("Error upserting cleaning linen record:", error);

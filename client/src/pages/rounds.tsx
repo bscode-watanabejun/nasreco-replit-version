@@ -79,8 +79,7 @@ export default function Rounds() {
   const { data: allRoundRecords = [], isLoading } = useQuery<RoundRecord[]>({
     queryKey: ['/api/round-records', format(selectedDate, 'yyyy-MM-dd')],
     queryFn: async () => {
-      const response = await fetch(`/api/round-records?recordDate=${format(selectedDate, 'yyyy-MM-dd')}`);
-      const data = await response.json();
+      const data = await apiRequest(`/api/round-records?recordDate=${format(selectedDate, 'yyyy-MM-dd')}`, 'GET');
       return Array.isArray(data) ? data : [];
     },
   });
@@ -101,28 +100,21 @@ export default function Rounds() {
       recordType: 'patrol' | 'position_change';
       positionValue?: string;
     }) => {
-      const response = await fetch('/api/round-records', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...data,
-          recordDate: selectedDate,
-          staffName: (() => {
-            // 職員ログインの場合
-            if ((user as any)?.staffName) {
-              return (user as any).staffName.charAt(0);
-            }
-            // Replitユーザーの場合
-            if ((user as any)?.firstName) {
-              return (user as any).firstName.charAt(0);
-            }
-            return '?';
-          })(),
-        }),
+      return await apiRequest('/api/round-records', 'POST', {
+        ...data,
+        recordDate: selectedDate,
+        staffName: (() => {
+          // 職員ログインの場合
+          if ((user as any)?.staffName) {
+            return (user as any).staffName.charAt(0);
+          }
+          // Replitユーザーの場合
+          if ((user as any)?.firstName) {
+            return (user as any).firstName.charAt(0);
+          }
+          return '?';
+        })(),
       });
-      return response.json();
     },
     onMutate: async (newRecord) => {
       // 進行中のクエリをキャンセル
@@ -190,8 +182,7 @@ export default function Rounds() {
   // ラウンド記録削除のミューテーション
   const deleteRoundMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/round-records/${id}`, { method: 'DELETE' });
-      return response.json();
+      return await apiRequest(`/api/round-records/${id}`, 'DELETE');
     },
     onMutate: async (deletedId) => {
       // 進行中のクエリをキャンセル

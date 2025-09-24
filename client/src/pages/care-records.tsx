@@ -888,11 +888,13 @@ export default function CareRecords() {
     queryKey: ["/api/vital-signs", selectedResident?.id],
     queryFn: async () => {
       if (!selectedResident?.id) return [];
-      const response = await fetch(`/api/vital-signs?residentId=${selectedResident.id}`, {
-        credentials: "include"
-      });
-      if (!response.ok) throw new Error("Failed to fetch vitals");
-      return response.json();
+      try {
+        const data = await apiRequest(`/api/vital-signs?residentId=${selectedResident.id}`, 'GET');
+        return data || [];
+      } catch (error) {
+        console.error('Failed to fetch vitals:', error);
+        return [];
+      }
     },
     enabled: !!selectedResident,
   });
@@ -901,14 +903,16 @@ export default function CareRecords() {
     queryKey: ["/api/meal-records", selectedResident?.id],
     queryFn: async () => {
       if (!selectedResident?.id) return [];
-      // meals-and-medication APIを使用し、フロントエンドで利用者IDでフィルタ
-      const response = await fetch(`/api/meals-medication`, {
-        credentials: "include"
-      });
-      if (!response.ok) throw new Error("Failed to fetch meal records");
-      const allRecords = await response.json();
-      // 選択された利用者の記録のみを返す
-      return allRecords.filter((record: any) => record.residentId === selectedResident.id);
+      try {
+        // meals-and-medication APIを使用し、フロントエンドで利用者IDでフィルタ
+        const allRecords = await apiRequest(`/api/meals-medication`, 'GET');
+        if (!allRecords) return [];
+        // 選択された利用者の記録のみを返す
+        return allRecords.filter((record: any) => record.residentId === selectedResident.id);
+      } catch (error) {
+        console.error('Failed to fetch meal records:', error);
+        return [];
+      }
     },
     enabled: !!selectedResident,
   });

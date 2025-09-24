@@ -737,19 +737,8 @@ export default function BathingList() {
     queryKey: ["/api/bathing-records"],
     queryFn: async () => {
       try {
-        const response = await fetch("/api/bathing-records", {
-          credentials: "include",
-          headers: {
-            "Accept": "application/json"
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
+        const data = await apiRequest("/api/bathing-records", "GET");
+
         if (Array.isArray(data)) {
           return data;
         } else if (data === null || data === undefined) {

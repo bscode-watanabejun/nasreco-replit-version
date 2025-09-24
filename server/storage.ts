@@ -300,7 +300,6 @@ export class DatabaseStorage implements IStorage {
   // Tenant utility
   setCurrentTenant(tenantId: string | null): void {
     this.currentTenantId = tenantId;
-    console.log(`🔧 Storage currentTenantId set to:`, tenantId);
   }
 
   getCurrentTenant(): string | null {
@@ -866,10 +865,14 @@ export class DatabaseStorage implements IStorage {
 
   async getMealList(recordDate: string, mealTime: string, floor: string): Promise<any[]> {
     const targetDate = new Date(recordDate + 'T00:00:00');
-    
+
     let whereConditions = and(
       eq(mealsAndMedication.recordDate, targetDate),
-      eq(mealsAndMedication.type, 'meal')
+      eq(mealsAndMedication.type, 'meal'),
+      // テナントフィルタリング
+      this.currentTenantId
+        ? eq(mealsAndMedication.tenantId, this.currentTenantId)
+        : isNull(mealsAndMedication.tenantId)
     );
 
     if (mealTime && mealTime !== 'all') {
@@ -1098,15 +1101,6 @@ export class DatabaseStorage implements IStorage {
 
   // Communication operations
   async getCommunications(residentId?: string, startDate?: Date, endDate?: Date, tenantId?: string): Promise<Communication[]> {
-    // デバッグログ追加
-    console.log('🔍 getCommunications called with:', {
-      residentId,
-      startDate,
-      endDate,
-      tenantId,
-      currentTenantId: this.currentTenantId
-    });
-
     const conditions = [];
 
     if (residentId) {
@@ -1121,17 +1115,12 @@ export class DatabaseStorage implements IStorage {
 
     // テナントフィルタリング
     if (tenantId) {
-      console.log('🔍 Using provided tenantId:', tenantId);
       conditions.push(eq(communications.tenantId, tenantId));
     } else if (this.currentTenantId) {
-      console.log('🔍 Using currentTenantId:', this.currentTenantId);
       conditions.push(eq(communications.tenantId, this.currentTenantId));
     } else {
-      console.log('🔍 Parent environment: filtering NULL tenant');
       conditions.push(isNull(communications.tenantId));
     }
-
-    console.log('🔍 Final conditions count:', conditions.length);
 
     const result = await db.select()
       .from(communications)
@@ -1251,6 +1240,14 @@ export class DatabaseStorage implements IStorage {
 
   // Nursing record operations - parameterless query for all records
   async getAllNursingRecords(floor?: string): Promise<any[]> {
+    // テナントフィルタリング条件を準備
+    const conditions = [];
+    if (this.currentTenantId) {
+      conditions.push(eq(nursingRecords.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(nursingRecords.tenantId));
+    }
+
     const results = await db.select({
       // nursing_records のフィールド
       id: nursingRecords.id,
@@ -1273,6 +1270,7 @@ export class DatabaseStorage implements IStorage {
     .from(nursingRecords)
     .leftJoin(residents, eq(nursingRecords.residentId, residents.id))
     .leftJoin(staffManagement, eq(nursingRecords.nurseId, staffManagement.id))
+    .where(and(...conditions))
     .orderBy(desc(nursingRecords.recordDate));
 
     // 階数でフィルタリング（JavaScriptで処理）
@@ -1285,6 +1283,14 @@ export class DatabaseStorage implements IStorage {
 
   // Medication record operations
   async getAllMedicationRecords(floor?: string): Promise<any[]> {
+    // テナントフィルタリング条件を準備
+    const conditions = [];
+    if (this.currentTenantId) {
+      conditions.push(eq(medicationRecords.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(medicationRecords.tenantId));
+    }
+
     const results = await db.select({
       // medication_records のフィールド
       id: medicationRecords.id,
@@ -1306,6 +1312,7 @@ export class DatabaseStorage implements IStorage {
     })
     .from(medicationRecords)
     .leftJoin(residents, eq(medicationRecords.residentId, residents.id))
+    .where(and(...conditions))
     .orderBy(desc(medicationRecords.recordDate));
 
     // 階数でフィルタリング（JavaScriptで処理）
@@ -1351,7 +1358,14 @@ export class DatabaseStorage implements IStorage {
 
     // 1. 既存の服薬記録を取得
     const conditions = [eq(medicationRecords.recordDate, recordDate)];
-    
+
+    // テナントフィルタリングを追加
+    if (this.currentTenantId) {
+      conditions.push(eq(medicationRecords.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(medicationRecords.tenantId));
+    }
+
     if (timing && timing !== 'all') {
       conditions.push(eq(medicationRecords.timing, timing));
     }
@@ -1387,6 +1401,14 @@ export class DatabaseStorage implements IStorage {
     if (timing && timing !== 'all') {
       // 利用者を取得（フロアフィルタ適用）
       let residentConditions = [eq(residents.isActive, true)];
+
+      // テナントフィルタリングを追加
+      if (this.currentTenantId) {
+        residentConditions.push(eq(residents.tenantId, this.currentTenantId));
+      } else {
+        residentConditions.push(isNull(residents.tenantId));
+      }
+
       if (floor && floor !== 'all') {
         residentConditions.push(eq(residents.floor, floor));
       }
@@ -1588,7 +1610,14 @@ export class DatabaseStorage implements IStorage {
       gte(medicationRecords.recordDate, dateFrom),
       lte(medicationRecords.recordDate, dateTo)
     ];
-    
+
+    // テナントフィルタリングを追加
+    if (this.currentTenantId) {
+      conditions.push(eq(medicationRecords.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(medicationRecords.tenantId));
+    }
+
     if (timing && timing !== 'all') {
       conditions.push(eq(medicationRecords.timing, timing));
     }
@@ -1622,6 +1651,14 @@ export class DatabaseStorage implements IStorage {
 
     // プレースホルダーカード生成のため、全利用者を取得
     const residentConditions = [eq(residents.isActive, true)];
+
+    // テナントフィルタリングを追加
+    if (this.currentTenantId) {
+      residentConditions.push(eq(residents.tenantId, this.currentTenantId));
+    } else {
+      residentConditions.push(isNull(residents.tenantId));
+    }
+
     if (floor && floor !== 'all') {
       residentConditions.push(eq(residents.floor, floor));
     }
@@ -1795,13 +1832,25 @@ export class DatabaseStorage implements IStorage {
 
   // Facility settings operations
   async getFacilitySettings(): Promise<FacilitySettings | undefined> {
-    const [settings] = await db.select().from(facilitySettings).limit(1);
-    return settings;
+    if (this.currentTenantId) {
+      // テナント環境：該当テナントの設定を取得
+      const [settings] = await db.select().from(facilitySettings)
+        .where(eq(facilitySettings.tenantId, this.currentTenantId))
+        .limit(1);
+      return settings;
+    } else {
+      // 親環境：tenant_id が NULL の設定を取得
+      const [settings] = await db.select().from(facilitySettings)
+        .where(isNull(facilitySettings.tenantId))
+        .limit(1);
+      return settings;
+    }
   }
 
   async createFacilitySettings(settings: InsertFacilitySettings): Promise<FacilitySettings> {
     const settingsToInsert = {
       ...settings,
+      tenantId: this.currentTenantId, // 現在のテナントIDを設定
       weightBaseline: settings.weightBaseline?.toString(),
       excretionBaseline: settings.excretionBaseline,
     };
@@ -1816,43 +1865,37 @@ export class DatabaseStorage implements IStorage {
       excretionBaseline: settings.excretionBaseline,
       updatedAt: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" })),
     };
+
+    // テナント制限を追加して、他のテナントの設定を誤って更新しないようにする
+    const whereConditions = [eq(facilitySettings.id, id)];
+    if (this.currentTenantId) {
+      whereConditions.push(eq(facilitySettings.tenantId, this.currentTenantId));
+    } else {
+      whereConditions.push(isNull(facilitySettings.tenantId));
+    }
+
     const [updated] = await db.update(facilitySettings)
       .set(settingsToUpdate)
-      .where(eq(facilitySettings.id, id))
+      .where(and(...whereConditions))
       .returning();
     return updated;
   }
 
   // Staff notice operations
   async getStaffNotices(tenantId?: string): Promise<StaffNotice[]> {
-    console.log('🔍 getStaffNotices called with:', {
-      tenantId,
-      currentTenantId: this.currentTenantId
-    });
-
     const conditions = [eq(staffNotices.isActive, true)];
 
     if (tenantId) {
-      console.log('🔍 Using provided tenantId:', tenantId);
       conditions.push(eq(staffNotices.tenantId, tenantId));
     } else if (this.currentTenantId) {
-      console.log('🔍 Using currentTenantId:', this.currentTenantId);
       conditions.push(eq(staffNotices.tenantId, this.currentTenantId));
     } else {
-      console.log('🔍 Parent environment: filtering NULL tenant');
       conditions.push(isNull(staffNotices.tenantId));
     }
-
-    console.log('🔍 Final conditions count:', conditions.length);
 
     const result = await db.select().from(staffNotices)
       .where(and(...conditions))
       .orderBy(desc(staffNotices.createdAt));
-
-    console.log('🔍 getStaffNotices result count:', result.length);
-    if (result.length > 0) {
-      console.log('🔍 getStaffNotices sample tenant_ids:', result.slice(0, 3).map(r => r.tenantId));
-    }
 
     return result;
   }
@@ -1940,7 +1983,11 @@ export class DatabaseStorage implements IStorage {
           eq(staffNotices.isActive, true),
           lte(staffNotices.startDate, sql`CURRENT_DATE`),
           gte(staffNotices.endDate, sql`CURRENT_DATE`),
-          isNull(staffNoticeReadStatus.id)
+          isNull(staffNoticeReadStatus.id),
+          // テナントフィルタリング
+          this.currentTenantId
+            ? eq(staffNotices.tenantId, this.currentTenantId)
+            : isNull(staffNotices.tenantId)
         )
       );
     
@@ -1949,6 +1996,14 @@ export class DatabaseStorage implements IStorage {
 
   // Cleaning Linen operations
   async getAllCleaningLinenRecords(floor?: string): Promise<CleaningLinenRecord[]> {
+    // テナントフィルタリング条件を準備
+    const conditions = [];
+    if (this.currentTenantId) {
+      conditions.push(eq(cleaningLinenRecords.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(cleaningLinenRecords.tenantId));
+    }
+
     const results = await db.select({
       id: cleaningLinenRecords.id,
       tenantId: cleaningLinenRecords.tenantId,
@@ -1970,6 +2025,7 @@ export class DatabaseStorage implements IStorage {
     .from(cleaningLinenRecords)
     .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
     .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.id))
+    .where(and(...conditions))
     .orderBy(desc(cleaningLinenRecords.recordDate));
 
     // 階数でフィルタリング（JavaScriptで処理）
@@ -2018,7 +2074,11 @@ export class DatabaseStorage implements IStorage {
     .where(
       and(
         gte(cleaningLinenRecords.recordDate, startDateStr),
-        lte(cleaningLinenRecords.recordDate, endDateStr)
+        lte(cleaningLinenRecords.recordDate, endDateStr),
+        // テナントフィルタリング
+        this.currentTenantId
+          ? eq(cleaningLinenRecords.tenantId, this.currentTenantId)
+          : isNull(cleaningLinenRecords.tenantId)
       )
     );
 
@@ -2056,6 +2116,10 @@ export class DatabaseStorage implements IStorage {
         and(
           gte(cleaningLinenRecords.recordDate, startDateStr),
           lte(cleaningLinenRecords.recordDate, endDateStr),
+          // テナントフィルタリング
+          this.currentTenantId
+            ? eq(cleaningLinenRecords.tenantId, this.currentTenantId)
+            : isNull(cleaningLinenRecords.tenantId),
           or(
             eq(residents.floor, floorToMatch),
             eq(residents.floor, floor), // 元の値でもマッチ
@@ -2103,7 +2167,11 @@ export class DatabaseStorage implements IStorage {
     .where(
       and(
         gte(cleaningLinenRecords.recordDate, startDateStr),
-        lte(cleaningLinenRecords.recordDate, endDateStr)
+        lte(cleaningLinenRecords.recordDate, endDateStr),
+        // テナントフィルタリング
+        this.currentTenantId
+          ? eq(cleaningLinenRecords.tenantId, this.currentTenantId)
+          : isNull(cleaningLinenRecords.tenantId)
       )
     );
 
@@ -2140,6 +2208,10 @@ export class DatabaseStorage implements IStorage {
         and(
           gte(cleaningLinenRecords.recordDate, startDateStr),
           lte(cleaningLinenRecords.recordDate, endDateStr),
+          // テナントフィルタリング
+          this.currentTenantId
+            ? eq(cleaningLinenRecords.tenantId, this.currentTenantId)
+            : isNull(cleaningLinenRecords.tenantId),
           or(
             eq(residents.floor, floorToMatch),
             eq(residents.floor, floor), // 元の値でもマッチ
@@ -2258,10 +2330,12 @@ export class DatabaseStorage implements IStorage {
       return await db.select().from(staffManagement)
         .where(eq(staffManagement.tenantId, this.currentTenantId))
         .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
+    } else {
+      // 親環境では tenant_id が NULL の職員のみ
+      return await db.select().from(staffManagement)
+        .where(isNull(staffManagement.tenantId))
+        .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
     }
-
-    return await db.select().from(staffManagement)
-      .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
   }
 
   async getStaffManagementById(id: string): Promise<StaffManagement | null> {
@@ -2507,18 +2581,34 @@ export class DatabaseStorage implements IStorage {
 
   // Resident Attachment operations
   async getResidentAttachments(residentId: string): Promise<ResidentAttachment[]> {
+    const conditions = [eq(residentAttachments.residentId, residentId)];
+
+    if (this.currentTenantId) {
+      conditions.push(eq(residentAttachments.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(residentAttachments.tenantId));
+    }
+
     return await db
       .select()
       .from(residentAttachments)
-      .where(eq(residentAttachments.residentId, residentId))
+      .where(and(...conditions))
       .orderBy(desc(residentAttachments.createdAt));
   }
 
   async getResidentAttachment(id: string): Promise<ResidentAttachment | null> {
+    const conditions = [eq(residentAttachments.id, id)];
+
+    if (this.currentTenantId) {
+      conditions.push(eq(residentAttachments.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(residentAttachments.tenantId));
+    }
+
     const [attachment] = await db
       .select()
       .from(residentAttachments)
-      .where(eq(residentAttachments.id, id));
+      .where(and(...conditions));
     return attachment || null;
   }
 
@@ -2536,7 +2626,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteResidentAttachment(id: string): Promise<void> {
-    await db.delete(residentAttachments).where(eq(residentAttachments.id, id));
+    const conditions = [eq(residentAttachments.id, id)];
+
+    if (this.currentTenantId) {
+      conditions.push(eq(residentAttachments.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(residentAttachments.tenantId));
+    }
+
+    await db.delete(residentAttachments).where(and(...conditions));
   }
 
   // Daily Records operations - 統合記録取得
@@ -2639,7 +2737,7 @@ export class DatabaseStorage implements IStorage {
           if (resident) {
             const mappedStaffName = staffMap.get(record.staffId);
             const fallbackUserName = usersMap.get(record.staffId);
-            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            const finalStaffName = mappedStaffName || fallbackUserName || '不明';
             
             // DBから取得したJST時刻をそのまま使用（タイムゾーンオフセットなし）
             const recordDate = new Date(record.recordDate);
@@ -2772,7 +2870,7 @@ export class DatabaseStorage implements IStorage {
             const content = record.notes || '';
             const mappedStaffName = staffMap.get(record.staffId);
             const fallbackUserName = usersMap.get(record.staffId);
-            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            const finalStaffName = mappedStaffName || fallbackUserName || '不明';
             
             // 食事タイミングに応じた時刻マッピング（JST基準）
             const getMealTime = (timing: string) => {
@@ -3055,7 +3153,7 @@ export class DatabaseStorage implements IStorage {
             
             const mappedStaffName = staffMap.get(notesRecord?.staffId);
             const fallbackUserName = usersMap.get(notesRecord?.staffId);
-            const finalStaffName = mappedStaffName || fallbackUserName || notesRecord?.staffId || '不明';
+            const finalStaffName = mappedStaffName || fallbackUserName || '不明';
             
             const timeCategory = getTimeCategory(new Date(recordTime));
             
@@ -3166,7 +3264,7 @@ export class DatabaseStorage implements IStorage {
             const content = record.recordNote || '';
             const mappedStaffName = staffMap.get(record.staffId);
             const fallbackUserName = usersMap.get(record.staffId);
-            const finalStaffName = mappedStaffName || fallbackUserName || record.staffId;
+            const finalStaffName = mappedStaffName || fallbackUserName || '不明';
             
             // 清掃リネン記録の時刻処理を修正
             // recordTimeが存在する場合はそれを使用し、ない場合のみデフォルト時刻を使用
@@ -3388,7 +3486,15 @@ export class DatabaseStorage implements IStorage {
   async getJournalCheckboxes(recordDate: string): Promise<JournalCheckbox[]> {
     return await db.select()
       .from(journalCheckboxes)
-      .where(eq(journalCheckboxes.recordDate, recordDate));
+      .where(
+        and(
+          eq(journalCheckboxes.recordDate, recordDate),
+          // テナントフィルタリング
+          this.currentTenantId
+            ? eq(journalCheckboxes.tenantId, this.currentTenantId)
+            : isNull(journalCheckboxes.tenantId)
+        )
+      );
   }
 
   async upsertJournalCheckbox(
@@ -3426,6 +3532,7 @@ export class DatabaseStorage implements IStorage {
         checkboxType,
         isChecked,
         recordDate,
+        tenantId: this.currentTenantId,
         createdAt: getJSTTime(),
         updatedAt: getJSTTime()
       });
@@ -3440,6 +3547,13 @@ export class DatabaseStorage implements IStorage {
     floor?: string
   ): Promise<JournalEntry[]> {
     const conditions = [];
+
+    // テナントフィルタリング
+    if (this.currentTenantId) {
+      conditions.push(eq(journalEntries.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(journalEntries.tenantId));
+    }
 
     // 日付範囲フィルタ
     if (dateFrom) {
@@ -3460,14 +3574,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(journalEntries.floor, floorValue));
     }
 
-    if (conditions.length > 0) {
-      return await db.select().from(journalEntries)
-        .where(and(...conditions))
-        .orderBy(desc(journalEntries.recordDate), desc(journalEntries.recordType));
-    } else {
-      return await db.select().from(journalEntries)
-        .orderBy(desc(journalEntries.recordDate), desc(journalEntries.recordType));
-    }
+    return await db.select().from(journalEntries)
+      .where(and(...conditions))
+      .orderBy(desc(journalEntries.recordDate), desc(journalEntries.recordType));
   }
 
   async getJournalEntry(
@@ -3484,6 +3593,13 @@ export class DatabaseStorage implements IStorage {
       eq(journalEntries.recordDate, dateString),
       eq(journalEntries.recordType, recordType)
     ];
+
+    // テナントフィルタリング
+    if (this.currentTenantId) {
+      conditions.push(eq(journalEntries.tenantId, this.currentTenantId));
+    } else {
+      conditions.push(isNull(journalEntries.tenantId));
+    }
 
     if (floor && floor !== "all") {
       const floorValue = floor.replace("階", "");

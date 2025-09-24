@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, getEnvironmentPath } from "@/lib/queryClient";
+import { queryClient, getEnvironmentPath, apiRequest } from "@/lib/queryClient";
 import { format, addDays, startOfWeek, getDay } from "date-fns";
 import { ja } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
@@ -137,9 +137,7 @@ export default function CleaningLinenList() {
   const { data: cleaningLinenRecords = [] } = useQuery<CleaningLinenRecord[]>({
     queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor],
     queryFn: async () => {
-      const response = await fetch(`/api/cleaning-linen?weekStartDate=${selectedWeek.toISOString().split('T')[0]}&floor=${selectedFloor}`);
-      if (!response.ok) throw new Error('Failed to fetch cleaning linen records');
-      return response.json();
+      return await apiRequest(`/api/cleaning-linen?weekStartDate=${selectedWeek.toISOString().split('T')[0]}&floor=${selectedFloor}`, 'GET');
     },
   });
 
@@ -152,13 +150,7 @@ export default function CleaningLinenList() {
       linenValue?: string;
       recordNote?: string;
     }) => {
-      const response = await fetch('/api/cleaning-linen/upsert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error('Failed to save record');
-      return response.json();
+      return await apiRequest('/api/cleaning-linen/upsert', 'POST', data);
     },
     onMutate: async (newRecord) => {
       // 楽観的更新の実装

@@ -309,19 +309,18 @@ export default function MedicationList() {
   const { data: medicationRecords = [], isLoading, error, refetch } = useQuery<MedicationRecordWithResident[]>({
     queryKey: ["/api/medication-records", selectedDate, selectedTiming, selectedFloor],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        recordDate: selectedDate,
-        timing: selectedTiming,
-        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', '')
-      });
-      const response = await fetch(`/api/medication-records?${params}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      try {
+        const params = new URLSearchParams({
+          recordDate: selectedDate,
+          timing: selectedTiming,
+          floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', '')
+        });
+        const data = await apiRequest(`/api/medication-records?${params}`, 'GET');
+        return data || [];
+      } catch (error) {
+        console.error('Failed to fetch medication records:', error);
+        return [];
       }
-      const data = await response.json();
-      return data;
     },
     staleTime: 0, // キャッシュを即座に古いものとする
     gcTime: 1000 * 60, // 1分後にガベージコレクション（旧cacheTime）
