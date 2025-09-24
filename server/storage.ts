@@ -932,6 +932,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(bathingRecords.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(bathingRecords.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(bathingRecords.tenantId));
     }
 
     try {
