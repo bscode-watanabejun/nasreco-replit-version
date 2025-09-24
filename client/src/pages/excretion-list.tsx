@@ -513,6 +513,8 @@ export default function ExcretionList() {
   // 利用者データを取得
   const { data: allResidents = [] } = useQuery<Resident[]>({
     queryKey: ['/api/residents'],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 排泄記録データを取得
@@ -532,12 +534,16 @@ export default function ExcretionList() {
         console.error('Failed to fetch excretion records:', error);
         return [];
       }
-    }
+    },
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 施設設定を取得
   const { data: facilitySettings } = useQuery<FacilitySettings>({
     queryKey: ["/api/facility-settings"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 日付や階数が変更されたときにローカル状態をリセット

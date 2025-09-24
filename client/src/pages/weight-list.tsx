@@ -840,14 +840,20 @@ export default function WeightList() {
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   const { data: weightRecords = [] } = useQuery<any[]>({
     queryKey: ["/api/weight-records"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/user"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
 

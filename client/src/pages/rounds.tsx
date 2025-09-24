@@ -47,6 +47,8 @@ export default function Rounds() {
   // ご利用者一覧を取得（階数でフィルタリング）
   const { data: allResidents = [] } = useQuery<Resident[]>({
     queryKey: ['/api/residents'],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 選択された階数に基づいてフィルタリングし、居室番号順でソート
@@ -82,6 +84,8 @@ export default function Rounds() {
       const data = await apiRequest(`/api/round-records?recordDate=${format(selectedDate, 'yyyy-MM-dd')}`, 'GET');
       return Array.isArray(data) ? data : [];
     },
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 選択された階数の利用者IDを取得

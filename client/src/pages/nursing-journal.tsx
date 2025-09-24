@@ -209,6 +209,8 @@ export default function NursingJournal() {
       return response as Resident[];
     },
     enabled: !!isAuthenticated,
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 日誌チェックボックス状態を取得
@@ -226,6 +228,8 @@ export default function NursingJournal() {
       }>;
     },
     enabled: !!isAuthenticated && !!selectedDate,
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 記録データを取得（「今日の記録一覧」画面と同様）
@@ -234,12 +238,13 @@ export default function NursingJournal() {
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-      
+
       const response = await apiRequest(`/api/daily-records?${params.toString()}`);
       return response as DailyRecord[];
     },
     enabled: !!isAuthenticated && !!selectedDate,
-    staleTime: 30000, // 30秒間キャッシュ
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 階数オプション（住民データから動的に生成）
@@ -367,6 +372,8 @@ export default function NursingJournal() {
       ) || null;
     },
     enabled: !!isAuthenticated && !!selectedDate && !!selectedRecordType,
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 日誌エントリが取得されたら記入者を設定

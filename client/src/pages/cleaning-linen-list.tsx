@@ -132,6 +132,8 @@ export default function CleaningLinenList() {
 
   const { data: residents = [] } = useQuery<Resident[]>({
     queryKey: ["/api/residents"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   const { data: cleaningLinenRecords = [] } = useQuery<CleaningLinenRecord[]>({
@@ -139,6 +141,8 @@ export default function CleaningLinenList() {
     queryFn: async () => {
       return await apiRequest(`/api/cleaning-linen?weekStartDate=${selectedWeek.toISOString().split('T')[0]}&floor=${selectedFloor}`, 'GET');
     },
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   const upsertRecordMutation = useMutation({

@@ -199,17 +199,27 @@ export default function TreatmentList() {
 
   const { data: residents = [] } = useQuery<any[]>({
     queryKey: ["/api/residents"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   const { data: allNursingRecords = [] } = useQuery<any[]>({
     queryKey: ["/api/nursing-records"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 職員認証を優先して使用
-  const { data: staffUser } = useQuery({ queryKey: ["/api/auth/staff-user"] });
-  const { data: replitUser } = useQuery({ 
+  const { data: staffUser } = useQuery({
+    queryKey: ["/api/auth/staff-user"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
+  });
+  const { data: replitUser } = useQuery({
     queryKey: ["/api/auth/user"],
-    enabled: !staffUser // 職員ログイン時は無効化
+    enabled: !staffUser, // 職員ログイン時は無効化
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
   
   // 職員ログインを優先、フォールバックでReplitユーザーを使用

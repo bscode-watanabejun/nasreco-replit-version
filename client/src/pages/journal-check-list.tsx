@@ -94,8 +94,8 @@ export default function JournalCheckList() {
         return [];
       }
     },
-    staleTime: 5 * 60 * 1000,    // 5分間はキャッシュから取得
-    gcTime: 30 * 60 * 1000,      // 30分間メモリに保持
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // 表示用データの整形

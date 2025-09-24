@@ -34,6 +34,8 @@ export default function UserInfoView() {
   // Fetch all residents
   const { data: residents = [], isLoading } = useQuery<Resident[]>({
     queryKey: ["/api/residents"],
+    refetchOnMount: true, // ページ遷移時に必ず最新データを取得
+    staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
   // Handle loading state
