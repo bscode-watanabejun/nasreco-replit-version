@@ -73,12 +73,15 @@ export async function apiRequest(
   // FormDataの場合は、Content-Typeヘッダーを設定しない（ブラウザが自動設定）
   const isFormData = data instanceof FormData;
   
-  console.log('🌐 API Request:', {
-    url,
-    method,
-    data,
-    isFormData
-  });
+  // デバッグモードが明示的に有効な場合のみログ出力
+  if (import.meta.env.VITE_API_DEBUG === 'true') {
+    console.log('🌐 API Request:', {
+      url,
+      method,
+      data,
+      isFormData
+    });
+  }
   
   const res = await fetch(url, {
     method,
@@ -87,13 +90,16 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  console.log('📡 API Response:', {
-    url,
-    status: res.status,
-    statusText: res.statusText,
-    contentType: res.headers.get('content-type'),
-    contentLength: res.headers.get('content-length')
-  });
+  // デバッグモードが明示的に有効な場合のみログ出力
+  if (import.meta.env.VITE_API_DEBUG === 'true') {
+    console.log('📡 API Response:', {
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      contentType: res.headers.get('content-type'),
+      contentLength: res.headers.get('content-length')
+    });
+  }
 
   await throwIfResNotOk(res);
   
@@ -111,9 +117,8 @@ export async function apiRequest(
   try {
     const responseText = await res.text();
 
-    // 開発環境でのみレスポンステキストを出力
-    const shouldLog = import.meta.env.DEV && import.meta.env.VITE_API_DEBUG !== 'false';
-    if (shouldLog) {
+    // デバッグモードが明示的に有効な場合のみレスポンステキストを出力
+    if (import.meta.env.VITE_API_DEBUG === 'true') {
       console.log('📄 Response text:', responseText);
     }
 
