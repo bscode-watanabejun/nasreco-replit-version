@@ -396,10 +396,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } else {
         // 親環境でのログイン
-        if (staff.authority !== "システム管理者") {
-          // 一般職員は親環境でのログイン不可
+        // テナント専属職員（tenantIdが設定されている職員）は親環境アクセス不可
+        // 親環境用職員（tenantIdがnull）は権限に関係なくログイン可能
+        if (staff.tenantId !== null) {
           return res.status(403).json({
-            message: "親環境へのアクセスはシステム管理者のみ許可されています。"
+            message: "テナント専属職員は親環境にアクセスできません。所属するテナント環境でログインしてください。"
           });
         }
       }
