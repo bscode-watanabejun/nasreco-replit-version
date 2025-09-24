@@ -250,8 +250,9 @@ function ResidentSelector({
     setPendingResidentId(null);
   }, [record.id, record.residentId]);
   
-  // 全項目未入力でない、かつ、一時的レコードでない場合は変更不可
-  const disabled = !isAllEmpty && !record.id.startsWith('temp-');
+  // 追加ボタンで作成されたカード（isUserAdded: true）のみ利用者変更可能
+  // 初期表示カード（入浴曜日設定ベース）は全て変更不可
+  const disabled = record.isUserAdded !== true;
 
   return (
     <div className="font-medium text-sm truncate w-16 sm:w-24 flex-shrink-0">
