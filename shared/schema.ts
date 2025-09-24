@@ -368,6 +368,10 @@ export const insertResidentSchema = createInsertSchema(residents, {
   updatedAt: true,
 });
 
+export const updateResidentSchema = insertResidentSchema.partial().extend({
+  tenantId: z.string().optional().nullable(),
+});
+
 export const insertCareRecordSchema = createInsertSchema(careRecords, {
   tenantId: z.string().min(1, "テナントIDは必須です").optional(),
   recordDate: z.string().transform((str) => new Date(str)),
@@ -601,6 +605,7 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type Resident = typeof residents.$inferSelect;
 export type InsertResident = z.infer<typeof insertResidentSchema>;
+export type UpdateResident = z.infer<typeof updateResidentSchema>;
 export type CareRecord = typeof careRecords.$inferSelect;
 export type InsertCareRecord = z.infer<typeof insertCareRecordSchema>;
 export type NursingRecord = typeof nursingRecords.$inferSelect;

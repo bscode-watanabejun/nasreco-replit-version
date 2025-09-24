@@ -137,7 +137,8 @@ export default function UserInfoManagement() {
   });
 
   const editForm = useForm<any>({
-    resolver: zodResolver(insertResidentSchema),
+    // 編集時はバリデーションを緩和（既存データを含むため）
+    mode: 'onSubmit',
     defaultValues: form.getValues(),
   });
 
@@ -180,17 +181,21 @@ export default function UserInfoManagement() {
   });
 
   const updateResidentMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: InsertResident }) => 
+    mutationFn: ({ id, data }: { id: string; data: InsertResident }) =>
       apiRequest(`/api/residents/${id}`, "PUT", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/residents"] });
       setEditOpen(false);
       setEditingResident(null);
+      toast({
+        title: "成功",
+        description: "利用者情報が更新されました",
+      });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "エラー",
-        description: "利用者情報の更新に失敗しました",
+        description: error?.message || "利用者情報の更新に失敗しました",
         variant: "destructive",
       });
     },
@@ -227,9 +232,15 @@ export default function UserInfoManagement() {
       careAuthorizationPeriodStart: data.careAuthorizationPeriodStart === "" || data.careAuthorizationPeriodStart === undefined ? null : data.careAuthorizationPeriodStart,
       careAuthorizationPeriodEnd: data.careAuthorizationPeriodEnd === "" || data.careAuthorizationPeriodEnd === undefined ? null : data.careAuthorizationPeriodEnd,
     } as any;
-    
+
     if (editingResident) {
       updateResidentMutation.mutate({ id: editingResident.id, data: processedData });
+    } else {
+      toast({
+        title: "エラー",
+        description: "編集対象の利用者が選択されていません。",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1843,7 +1854,13 @@ export default function UserInfoManagement() {
           </DialogHeader>
           
           <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
+            <form onSubmit={editForm.handleSubmit(onEditSubmit, (errors) => {
+              toast({
+                title: "入力エラー",
+                description: "入力項目にエラーがあります。赤色で表示された項目を確認してください。",
+                variant: "destructive",
+              });
+            })} className="space-y-6">
               {/* Basic Information */}
               <Card>
                 <CardContent className="p-4 space-y-4">
@@ -3176,7 +3193,10 @@ export default function UserInfoManagement() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setEditOpen(false)}
+                  onClick={() => {
+                    setEditOpen(false);
+                    setEditingResident(null);
+                  }}
                 >
                   キャンセル
                 </Button>
@@ -3184,6 +3204,9 @@ export default function UserInfoManagement() {
                   type="submit"
                   disabled={updateResidentMutation.isPending}
                   className="bg-pink-500 hover:bg-pink-600 text-white"
+                  onClick={() => {
+                    onEditSubmit(editForm.getValues());
+                  }}
                 >
                   {updateResidentMutation.isPending ? "更新中..." : "更新"}
                 </Button>

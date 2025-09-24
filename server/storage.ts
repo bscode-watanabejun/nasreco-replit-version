@@ -103,7 +103,7 @@ export interface IStorage {
   getResidents(tenantId?: string): Promise<Resident[]>;
   getResident(id: string, tenantId?: string): Promise<Resident | undefined>;
   createResident(resident: InsertResident): Promise<Resident>;
-  updateResident(id: string, updates: Partial<InsertResident>): Promise<Resident>;
+  updateResident(id: string, updates: any): Promise<Resident>;
   deleteResident(id: string): Promise<void>;
 
   // Care record operations
@@ -546,7 +546,7 @@ export class DatabaseStorage implements IStorage {
     return newResident;
   }
 
-  async updateResident(id: string, updates: Partial<InsertResident>): Promise<Resident> {
+  async updateResident(id: string, updates: any): Promise<Resident> {
     // null値をデータベースに明示的に設定するため、undefined値や空文字列もnullに変換
     const processedUpdates = Object.keys(updates).reduce((acc: any, key) => {
       const value = (updates as any)[key];

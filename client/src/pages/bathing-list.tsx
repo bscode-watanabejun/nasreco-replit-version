@@ -255,7 +255,7 @@ function ResidentSelector({
   const disabled = record.isUserAdded !== true;
 
   return (
-    <div className="font-medium text-sm truncate w-16 sm:w-24 flex-shrink-0">
+    <div className="font-medium text-sm truncate w-20 sm:w-32 flex-shrink-0">
       {disabled ? (
         <span className="text-slate-800">
           {currentResident?.name || "未選択"}
