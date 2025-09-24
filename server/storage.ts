@@ -3369,7 +3369,19 @@ export class DatabaseStorage implements IStorage {
     if (!recordTypes || recordTypes.includes('看護記録') || recordTypes.includes('医療記録') || recordTypes.includes('処置')) {
       try {
         
-        // 看護記録を取得
+        // 看護記録を取得（テナント分離条件付き）
+        const nursingConditions = [
+          gte(nursingRecords.recordDate, startDate),
+          lte(nursingRecords.recordDate, endDate)
+        ];
+
+        // テナント分離条件を追加
+        if (this.currentTenantId) {
+          nursingConditions.push(eq(nursingRecords.tenantId, this.currentTenantId));
+        } else {
+          nursingConditions.push(isNull(nursingRecords.tenantId));
+        }
+
         const nursingData = await db
           .select({
             id: nursingRecords.id,
@@ -3384,10 +3396,7 @@ export class DatabaseStorage implements IStorage {
             createdAt: nursingRecords.createdAt,
           })
           .from(nursingRecords)
-          .where(and(
-            gte(nursingRecords.recordDate, startDate),
-            lte(nursingRecords.recordDate, endDate)
-          ));
+          .where(and(...nursingConditions));
 
         // すべてのユーザー情報を取得（職員名マッピング用）
         const allUsers = await db.select().from(users);
