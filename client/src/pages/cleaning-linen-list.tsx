@@ -159,37 +159,43 @@ export default function CleaningLinenList() {
     onMutate: async (newRecord) => {
       // 楽観的更新の実装
       const queryKey = ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor];
-      
+
       // 進行中のクエリをキャンセル（競合を避けるため）
       await queryClient.cancelQueries({ queryKey });
-      
+
       // 現在のデータを取得（ロールバック用に保存）
       const previousData = queryClient.getQueryData<CleaningLinenRecord[]>(queryKey);
-      
+
+      // 利用者情報を取得
+      const resident = residents.find(r => r.id === newRecord.residentId);
+      if (!resident) return { previousData, queryKey };
+
       // 楽観的更新を実行
       queryClient.setQueryData<CleaningLinenRecord[]>(queryKey, (oldData) => {
         if (!oldData) return oldData;
-        
+
         // 既存のレコードを探す
         const existingRecordIndex = oldData.findIndex(
           record => record.residentId === newRecord.residentId && record.recordDate === newRecord.recordDate
         );
-        
+
         if (existingRecordIndex >= 0) {
-          // 既存レコードを更新
+          // 既存レコードを更新（必要な情報はすべて保持）
           const updatedData = [...oldData];
           updatedData[existingRecordIndex] = {
             ...updatedData[existingRecordIndex],
             cleaningValue: newRecord.cleaningValue !== undefined ? newRecord.cleaningValue : updatedData[existingRecordIndex].cleaningValue,
             linenValue: newRecord.linenValue !== undefined ? newRecord.linenValue : updatedData[existingRecordIndex].linenValue,
             recordNote: newRecord.recordNote !== undefined ? newRecord.recordNote : updatedData[existingRecordIndex].recordNote,
+            // 利用者情報と職員名は既存のものを保持
+            residentName: updatedData[existingRecordIndex].residentName || resident.name,
+            residentFloor: updatedData[existingRecordIndex].residentFloor || resident.floor,
+            residentRoom: updatedData[existingRecordIndex].residentRoom || resident.roomNumber,
+            staffName: updatedData[existingRecordIndex].staffName || "更新中",
           };
           return updatedData;
         } else {
-          // 新しいレコードを追加
-          const resident = residents.find(r => r.id === newRecord.residentId);
-          if (!resident) return oldData;
-          
+          // 新しいレコードを追加（完全な情報を含む）
           const newRecordEntry: CleaningLinenRecord = {
             id: `temp-${Date.now()}`, // 一時ID
             residentId: newRecord.residentId,
@@ -198,17 +204,17 @@ export default function CleaningLinenList() {
             cleaningValue: newRecord.cleaningValue || "",
             linenValue: newRecord.linenValue || "",
             recordNote: newRecord.recordNote || "",
-            staffId: "", // サーバーから返される
+            staffId: "temp", // 一時的な値
             residentName: resident.name,
             residentFloor: resident.floor,
             residentRoom: resident.roomNumber,
-            staffName: "", // サーバーから返される
+            staffName: "新規", // 一時的な値
           };
-          
+
           return [...oldData, newRecordEntry];
         }
       });
-      
+
       // ロールバック用にpreviousDataを返す
       return { previousData, queryKey };
     },
@@ -222,9 +228,32 @@ export default function CleaningLinenList() {
         queryKey: ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor] 
       });
     },
-    onSuccess: () => {
-      // 楽観的更新の結果をそのまま使用し、即座にUI反映
-      // サーバー同期はエラー時のみ実行
+    onSuccess: (data, variables, context) => {
+      // サーバーから返されたデータで既存のレコードを完全に置き換え
+      const queryKey = ["/api/cleaning-linen", selectedWeek.toISOString().split('T')[0], selectedFloor];
+
+      queryClient.setQueryData<CleaningLinenRecord[]>(queryKey, (oldData) => {
+        if (!oldData) return oldData;
+
+        // 日付の正規化関数（yyyy-MM-dd形式に統一）
+        const normalizeDate = (dateStr: string) => {
+          if (!dateStr) return '';
+          return dateStr.split('T')[0];
+        };
+
+        const dataRecordDate = normalizeDate(data.recordDate);
+
+        return oldData.map(record => {
+          const recordDate = normalizeDate(record.recordDate);
+
+          // 同じ利用者・同じ日付のレコードを見つけてサーバーデータで置き換え
+          if (record.residentId === data.residentId && recordDate === dataRecordDate) {
+            return data; // サーバーから返された完全なデータで置き換え
+          }
+
+          return record;
+        });
+      });
     },
   });
 

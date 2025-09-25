@@ -4460,7 +4460,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any;
 
       const record = await storage.upsertCleaningLinenRecord(recordWithCreatedAt);
-      res.status(201).json(record);
+
+      // recordDateをJST時刻として正しく返すために変換
+      const convertedRecord = {
+        ...record,
+        recordDate: record.recordDate ? new Date(record.recordDate).toISOString().replace('Z', '+09:00') : record.recordDate,
+        recordTime: record.recordTime ? new Date(record.recordTime).toISOString().replace('Z', '+09:00') : record.recordTime,
+        createdAt: record.createdAt ? new Date(record.createdAt).toISOString().replace('Z', '+09:00') : record.createdAt,
+        updatedAt: record.updatedAt ? new Date(record.updatedAt).toISOString().replace('Z', '+09:00') : record.updatedAt,
+      };
+
+      res.status(201).json(convertedRecord);
     } catch (error: any) {
       console.error("Error upserting cleaning linen record:", error);
       res.status(400).json({ message: "Invalid cleaning linen data" });

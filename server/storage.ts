@@ -2264,20 +2264,29 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<CleaningLinenRecord> {
+  async upsertCleaningLinenRecord(record: InsertCleaningLinenRecord): Promise<any> {
     const recordDateStr = record.recordDate.toISOString().split('T')[0];
     const recordTime = record.recordTime || new Date(); // recordTimeが指定されていない場合は現在時刻を使用
-    
-    // まず既存レコードを検索
+    const tenantId = record.tenantId || this.currentTenantId;
+
+    // まず既存レコードを検索（tenant_idも考慮）
+    const whereConditions = [];
+    whereConditions.push(eq(cleaningLinenRecords.residentId, record.residentId));
+    whereConditions.push(eq(cleaningLinenRecords.recordDate, recordDateStr));
+
+    // tenant_idがある場合は条件に追加
+    if (tenantId) {
+      whereConditions.push(eq(cleaningLinenRecords.tenantId, tenantId));
+    } else {
+      whereConditions.push(isNull(cleaningLinenRecords.tenantId));
+    }
+
     const existing = await db.select()
       .from(cleaningLinenRecords)
-      .where(
-        and(
-          eq(cleaningLinenRecords.residentId, record.residentId),
-          eq(cleaningLinenRecords.recordDate, recordDateStr)
-        )
-      )
+      .where(and(...whereConditions))
       .limit(1);
+
+    let recordId: string;
 
     if (existing.length > 0) {
       // 既存レコードを更新（記録内容またはrecordTimeに変更があった場合にrecordTimeを更新）
@@ -2286,8 +2295,8 @@ export class DatabaseStorage implements IStorage {
         existing[0].linenValue !== record.linenValue ||
         existing[0].recordNote !== record.recordNote ||
         (existing[0].recordTime?.getTime() || 0) !== recordTime.getTime();
-      
-      const [updated] = await db.update(cleaningLinenRecords)
+
+      await db.update(cleaningLinenRecords)
         .set({
           cleaningValue: record.cleaningValue,
           linenValue: record.linenValue,
@@ -2300,23 +2309,51 @@ export class DatabaseStorage implements IStorage {
             return new Date(now.getTime() + jstOffset);
           })(), // JST時刻で更新
         })
-        .where(eq(cleaningLinenRecords.id, existing[0].id))
-        .returning();
-      return updated;
+        .where(eq(cleaningLinenRecords.id, existing[0].id));
+
+      recordId = existing[0].id;
     } else {
       // 新規レコードを作成
       const recordWithStringDate = {
         ...record,
         recordDate: recordDateStr,
         recordTime: recordTime,
-        tenantId: record.tenantId || this.currentTenantId
+        tenantId: tenantId
       };
 
       const [created] = await db.insert(cleaningLinenRecords)
         .values(recordWithStringDate)
         .returning();
-      return created;
+
+      recordId = created.id;
     }
+
+    // 利用者情報と職員情報を含む完全なレコードを取得して返す
+    const fullRecord = await db.select({
+      id: cleaningLinenRecords.id,
+      tenantId: cleaningLinenRecords.tenantId,
+      residentId: cleaningLinenRecords.residentId,
+      recordDate: cleaningLinenRecords.recordDate,
+      recordTime: cleaningLinenRecords.recordTime,
+      dayOfWeek: cleaningLinenRecords.dayOfWeek,
+      cleaningValue: cleaningLinenRecords.cleaningValue,
+      linenValue: cleaningLinenRecords.linenValue,
+      recordNote: cleaningLinenRecords.recordNote,
+      staffId: cleaningLinenRecords.staffId,
+      residentName: residents.name,
+      residentFloor: residents.floor,
+      residentRoom: residents.roomNumber,
+      staffName: staffManagement.staffName,
+      createdAt: cleaningLinenRecords.createdAt,
+      updatedAt: cleaningLinenRecords.updatedAt,
+    })
+    .from(cleaningLinenRecords)
+    .leftJoin(residents, eq(cleaningLinenRecords.residentId, residents.id))
+    .leftJoin(staffManagement, eq(cleaningLinenRecords.staffId, staffManagement.staffId))
+    .where(eq(cleaningLinenRecords.id, recordId))
+    .limit(1);
+
+    return fullRecord[0];
   }
   async deleteCleaningLinenRecord(id: string): Promise<void> {
     await db.delete(cleaningLinenRecords).where(eq(cleaningLinenRecords.id, id));
