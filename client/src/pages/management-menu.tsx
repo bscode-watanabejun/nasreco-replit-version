@@ -121,31 +121,13 @@ export default function ManagementMenu() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  console.log('🔍 === 戻るボタンクリック開始 ===');
-                  console.log('🔍 Before getEnvironmentPath - sessionStorage selectedTenantId:', sessionStorage.getItem('selectedTenantId'));
-                  console.log('🔍 Before getEnvironmentPath - current URL pathname:', window.location.pathname);
-                  console.log('🔍 Before getEnvironmentPath - full URL:', window.location.href);
-
                   const params = new URLSearchParams();
                   if (selectedDate) params.set('date', selectedDate);
                   if (selectedFloor) params.set('floor', selectedFloor);
 
                   const dashboardPath = getEnvironmentPath("/");
-                  console.log('🔍 getEnvironmentPath("/") result:', dashboardPath);
-
                   const targetUrl = `${dashboardPath}?${params.toString()}`;
-                  console.log('🔍 Final navigate target URL:', targetUrl);
-
                   navigate(targetUrl);
-                  console.log('🔍 navigate() called with:', targetUrl);
-
-                  // ナビゲーション後の確認
-                  setTimeout(() => {
-                    console.log('🔍 === ナビゲーション後の状態 ===');
-                    console.log('🔍 After navigate - actual pathname:', window.location.pathname);
-                    console.log('🔍 After navigate - actual full URL:', window.location.href);
-                    console.log('🔍 After navigate - sessionStorage selectedTenantId:', sessionStorage.getItem('selectedTenantId'));
-                  }, 100);
                 }}
                 className="p-2"
                 data-testid="button-back-dashboard"
