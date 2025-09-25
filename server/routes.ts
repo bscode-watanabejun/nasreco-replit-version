@@ -6385,6 +6385,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Master Categories API
+  app.get('/api/master-categories', isAuthenticated, async (req, res) => {
+    try {
+      const categories = await storage.getMasterCategories();
+      res.json(categories);
+    } catch (error: any) {
+      console.error('Failed to get master categories:', error);
+      res.status(500).json({ error: 'Failed to get master categories' });
+    }
+  });
+
+  app.get('/api/master-categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      const category = await storage.getMasterCategory(req.params.id);
+      if (!category) {
+        res.status(404).json({ error: 'Category not found' });
+        return;
+      }
+      res.json(category);
+    } catch (error: any) {
+      console.error('Failed to get master category:', error);
+      res.status(500).json({ error: 'Failed to get master category' });
+    }
+  });
+
+  app.post('/api/master-categories', isAuthenticated, async (req, res) => {
+    try {
+      const insertMasterCategorySchema = (await import('@shared/schema')).insertMasterCategorySchema;
+      const parsed = insertMasterCategorySchema.parse(req.body);
+      const category = await storage.createMasterCategory(parsed);
+      res.json(category);
+    } catch (error: any) {
+      console.error('Failed to create master category:', error);
+      res.status(500).json({ error: 'Failed to create master category' });
+    }
+  });
+
+  app.patch('/api/master-categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      const updateMasterCategorySchema = (await import('@shared/schema')).updateMasterCategorySchema;
+      const parsed = updateMasterCategorySchema.parse(req.body);
+      const category = await storage.updateMasterCategory(req.params.id, parsed);
+      res.json(category);
+    } catch (error: any) {
+      console.error('Failed to update master category:', error);
+      res.status(500).json({ error: 'Failed to update master category' });
+    }
+  });
+
+  app.delete('/api/master-categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteMasterCategory(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Failed to delete master category:', error);
+      res.status(500).json({ error: 'Failed to delete master category' });
+    }
+  });
+
+  app.post('/api/master-categories/initialize', isAuthenticated, async (req, res) => {
+    try {
+      console.log('🔄 [API] マスタ初期化開始');
+      console.log('🔍 [API] Request user:', (req.user as any)?.claims?.sub || (req.user as any)?.id);
+      console.log('🔍 [API] Current tenant:', storage.getCurrentTenant());
+
+      await storage.initializeMasterCategories();
+
+      console.log('✅ [API] マスタ初期化完了');
+      res.json({ success: true, message: 'Master categories initialized' });
+    } catch (error: any) {
+      console.error('❌ [API] Failed to initialize master categories:', error);
+      res.status(500).json({ error: 'Failed to initialize master categories', details: error.message });
+    }
+  });
+
+  // Master Settings API
+  app.get('/api/master-settings', isAuthenticated, async (req, res) => {
+    try {
+      const categoryKey = req.query.categoryKey as string | undefined;
+      const settings = await storage.getMasterSettings(categoryKey);
+      res.json(settings);
+    } catch (error: any) {
+      console.error('Failed to get master settings:', error);
+      res.status(500).json({ error: 'Failed to get master settings' });
+    }
+  });
+
+  app.get('/api/master-settings/:id', isAuthenticated, async (req, res) => {
+    try {
+      const setting = await storage.getMasterSetting(req.params.id);
+      if (!setting) {
+        res.status(404).json({ error: 'Setting not found' });
+        return;
+      }
+      res.json(setting);
+    } catch (error: any) {
+      console.error('Failed to get master setting:', error);
+      res.status(500).json({ error: 'Failed to get master setting' });
+    }
+  });
+
+  app.post('/api/master-settings', isAuthenticated, async (req, res) => {
+    try {
+      const insertMasterSettingSchema = (await import('@shared/schema')).insertMasterSettingSchema;
+      const parsed = insertMasterSettingSchema.parse(req.body);
+      const setting = await storage.createMasterSetting(parsed);
+      res.json(setting);
+    } catch (error: any) {
+      console.error('Failed to create master setting:', error);
+      res.status(500).json({ error: 'Failed to create master setting' });
+    }
+  });
+
+  app.patch('/api/master-settings/:id', isAuthenticated, async (req, res) => {
+    try {
+      const updateMasterSettingSchema = (await import('@shared/schema')).updateMasterSettingSchema;
+      const parsed = updateMasterSettingSchema.parse(req.body);
+      const setting = await storage.updateMasterSetting(req.params.id, parsed);
+      res.json(setting);
+    } catch (error: any) {
+      console.error('Failed to update master setting:', error);
+      res.status(500).json({ error: 'Failed to update master setting' });
+    }
+  });
+
+  app.delete('/api/master-settings/:id', isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteMasterSetting(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Failed to delete master setting:', error);
+      res.status(500).json({ error: 'Failed to delete master setting' });
+    }
+  });
+
+  app.post('/api/master-settings/reorder', isAuthenticated, async (req, res) => {
+    try {
+      const updates = req.body as { id: string; sortOrder: number }[];
+      await storage.bulkUpdateMasterSettingsOrder(updates);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Failed to reorder master settings:', error);
+      res.status(500).json({ error: 'Failed to reorder master settings' });
+    }
+  });
+
+
   const httpServer = createServer(app);
   return httpServer;
 }

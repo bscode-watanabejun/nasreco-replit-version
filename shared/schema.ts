@@ -926,3 +926,76 @@ export const changePasswordSchema = z.object({
 });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+// マスタカテゴリー定義テーブル
+export const masterCategories = pgTable("master_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.tenantId),
+  categoryKey: varchar("category_key").notNull(), // 一意識別子（other_items, floor等）
+  categoryName: varchar("category_name").notNull(), // 表示名（ユーザーが変更可能）
+  description: text("description"), // 説明文
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true), // 将来用
+  isSystem: boolean("is_system").default(true), // システム定義フラグ
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+});
+
+// マスタ設定値テーブル
+export const masterSettings = pgTable("master_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").references(() => tenants.tenantId),
+  categoryKey: varchar("category_key").notNull(), // カテゴリーキー
+  value: varchar("value").notNull(), // 実際の値
+  label: varchar("label").notNull(), // 表示名
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  updatedAt: timestamp("updated_at").$defaultFn(() => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" }))),
+  createdBy: varchar("created_by"),
+  updatedBy: varchar("updated_by"),
+});
+
+// Zodスキーマ定義
+export const insertMasterCategorySchema = createInsertSchema(masterCategories, {
+  tenantId: z.string().nullable().optional(),
+  categoryKey: z.string().min(1, "カテゴリーキーは必須です"),
+  categoryName: z.string().min(1, "カテゴリー名は必須です"),
+  description: z.string().optional(),
+  sortOrder: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  isSystem: z.boolean().default(false),
+}).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+
+export const updateMasterCategorySchema = createInsertSchema(masterCategories, {
+  categoryName: z.string().min(1, "カテゴリー名は必須です"),
+  description: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+}).pick({ categoryName: true, description: true, sortOrder: true });
+
+export const insertMasterSettingSchema = createInsertSchema(masterSettings, {
+  tenantId: z.string().nullable().optional(),
+  categoryKey: z.string().min(1, "カテゴリーキーは必須です"),
+  value: z.string().min(1, "値は必須です"),
+  label: z.string().min(1, "表示名は必須です"),
+  sortOrder: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+}).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+
+export const updateMasterSettingSchema = createInsertSchema(masterSettings, {
+  value: z.string().min(1, "値は必須です"),
+  label: z.string().min(1, "表示名は必須です"),
+  sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+}).pick({ value: true, label: true, sortOrder: true, isActive: true });
+
+// 型定義
+export type MasterCategory = typeof masterCategories.$inferSelect;
+export type InsertMasterCategory = z.infer<typeof insertMasterCategorySchema>;
+export type UpdateMasterCategory = z.infer<typeof updateMasterCategorySchema>;
+
+export type MasterSetting = typeof masterSettings.$inferSelect;
+export type InsertMasterSetting = z.infer<typeof insertMasterSettingSchema>;
+export type UpdateMasterSetting = z.infer<typeof updateMasterSettingSchema>;

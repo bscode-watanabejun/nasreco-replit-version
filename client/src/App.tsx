@@ -41,6 +41,7 @@ import WeightCheckList from "@/pages/weight-check-list";
 import RoundCheckList from "@/pages/round-check-list";
 import JournalCheckList from "@/pages/journal-check-list";
 import MultiTenantManagement from "@/pages/multi-tenant-management";
+import MasterSettings from "@/pages/master-settings";
 import { useAuth } from "@/hooks/useAuth";
 
 
@@ -114,6 +115,7 @@ function Router() {
           <Route path="/tenant/:tenantId/round-check-list" component={RoundCheckList} />
           <Route path="/tenant/:tenantId/journal-check-list" component={JournalCheckList} />
           <Route path="/tenant/:tenantId/multi-tenant-management" component={MultiTenantManagement} />
+          <Route path="/tenant/:tenantId/master-settings" component={MasterSettings} />
 
           {/* Parent environment routes */}
           <Route path="/" component={Dashboard} />
@@ -150,6 +152,7 @@ function Router() {
           <Route path="/round-check-list" component={RoundCheckList} />
           <Route path="/journal-check-list" component={JournalCheckList} />
           <Route path="/multi-tenant-management" component={MultiTenantManagement} />
+          <Route path="/master-settings" component={MasterSettings} />
           <Route component={NotFound} />
         </>
       )}

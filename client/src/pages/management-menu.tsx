@@ -75,7 +75,8 @@ export default function ManagementMenu() {
       title: "マスタ設定",
       description: "システムのマスタ情報を設定する画面です。薬、食事その他など、システム全体で使用するマスタの設定が行えます。",
       onClick: () => {
-        // TODO: Implement master settings
+        const managementPath = getEnvironmentPath("/master-settings");
+        navigate(managementPath);
       }
     },
     {

@@ -20,6 +20,8 @@ import {
   journalCheckboxes,
   journalEntries,
   tenants,
+  masterCategories,
+  masterSettings,
   type User,
   type UpsertUser,
   type Resident,
@@ -65,6 +67,12 @@ import {
   type Tenant,
   type InsertTenant,
   type UpdateTenantApi,
+  type MasterCategory,
+  type InsertMasterCategory,
+  type UpdateMasterCategory,
+  type MasterSetting,
+  type InsertMasterSetting,
+  type UpdateMasterSetting,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, gte, lte, or, sql, like, isNull, isNotNull, not, ne } from "drizzle-orm";
@@ -292,6 +300,22 @@ export interface IStorage {
   updateJournalEntry(id: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry>;
   upsertJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
   deleteJournalEntry(id: string): Promise<void>;
+
+  // Master Category operations
+  getMasterCategories(): Promise<MasterCategory[]>;
+  getMasterCategory(id: string): Promise<MasterCategory | undefined>;
+  createMasterCategory(category: InsertMasterCategory): Promise<MasterCategory>;
+  updateMasterCategory(id: string, category: UpdateMasterCategory): Promise<MasterCategory>;
+  deleteMasterCategory(id: string): Promise<void>;
+  initializeMasterCategories(): Promise<void>;
+
+  // Master Setting operations
+  getMasterSettings(categoryKey?: string): Promise<MasterSetting[]>;
+  getMasterSetting(id: string): Promise<MasterSetting | undefined>;
+  createMasterSetting(setting: InsertMasterSetting): Promise<MasterSetting>;
+  updateMasterSetting(id: string, setting: UpdateMasterSetting): Promise<MasterSetting>;
+  deleteMasterSetting(id: string): Promise<void>;
+  bulkUpdateMasterSettingsOrder(updates: { id: string; sortOrder: number }[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3748,6 +3772,198 @@ export class DatabaseStorage implements IStorage {
 
   async deleteJournalEntry(id: string): Promise<void> {
     await db.delete(journalEntries).where(eq(journalEntries.id, id));
+  }
+
+  // Master Category operations
+  async getMasterCategories(): Promise<MasterCategory[]> {
+    const tenantId = this.currentTenantId;
+    if (!tenantId) {
+      // 親環境の場合はtenantIdがnullのレコードを取得
+      return await db.select().from(masterCategories)
+        .where(isNull(masterCategories.tenantId))
+        .orderBy(masterCategories.sortOrder);
+    }
+    return await db.select().from(masterCategories)
+      .where(eq(masterCategories.tenantId, tenantId))
+      .orderBy(masterCategories.sortOrder);
+  }
+
+  async getMasterCategory(id: string): Promise<MasterCategory | undefined> {
+    const result = await db.select().from(masterCategories)
+      .where(eq(masterCategories.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async createMasterCategory(category: InsertMasterCategory): Promise<MasterCategory> {
+    const tenantId = this.currentTenantId;
+    const newCategory = {
+      ...category,
+      tenantId: tenantId || category.tenantId,
+      createdAt: getJSTTime(),
+      updatedAt: getJSTTime(),
+    };
+
+    const result = await db.insert(masterCategories).values(newCategory).returning();
+    return result[0];
+  }
+
+  async updateMasterCategory(id: string, category: UpdateMasterCategory): Promise<MasterCategory> {
+    const result = await db.update(masterCategories)
+      .set({
+        ...category,
+        updatedAt: getJSTTime(),
+      })
+      .where(eq(masterCategories.id, id))
+      .returning();
+
+    if (!result[0]) {
+      throw new Error('カテゴリーが見つかりません');
+    }
+    return result[0];
+  }
+
+  async deleteMasterCategory(id: string): Promise<void> {
+    await db.delete(masterCategories).where(eq(masterCategories.id, id));
+  }
+
+  async initializeMasterCategories(): Promise<void> {
+    const tenantId = this.currentTenantId;
+
+    // 既存のカテゴリーをチェック
+    const existing = await this.getMasterCategories();
+
+    if (existing.length > 0) {
+      return;
+    }
+
+    // 初期カテゴリーを作成（親環境の場合はtenantIdはnull）
+    const initialCategories = [
+      {
+        tenantId: tenantId || null,
+        categoryKey: 'other_items',
+        categoryName: 'その他項目',
+        description: '食事記録で使用する補助食品等',
+        sortOrder: 1,
+        isActive: true,
+        isSystem: true,
+      },
+      {
+        tenantId: tenantId || null,
+        categoryKey: 'floor',
+        categoryName: '階数',
+        description: '施設の階数設定',
+        sortOrder: 2,
+        isActive: true,
+        isSystem: true,
+      },
+    ];
+
+    for (const cat of initialCategories) {
+      await this.createMasterCategory(cat);
+    }
+
+    // 実際の運用データに基づく初期設定値
+    const otherItems = [
+      'ラコール 200ml',
+      'エンシュア 200ml',
+      'メイバランス 200ml',
+      'ツインラインNF 400ml',
+      'エンシュア 250ml',
+      'イノラス 187.5ml',
+      'ラコールNF半固形剤 300g'
+    ];
+
+    for (let i = 0; i < otherItems.length; i++) {
+      await this.createMasterSetting({
+        tenantId: tenantId || null,
+        categoryKey: 'other_items',
+        value: otherItems[i],
+        label: otherItems[i],
+        sortOrder: i,
+        isActive: true,
+      });
+    }
+
+    const floors = ['全階', '1階', '2階', '3階', '4階'];
+
+    for (let i = 0; i < floors.length; i++) {
+      await this.createMasterSetting({
+        tenantId: tenantId || null,
+        categoryKey: 'floor',
+        value: floors[i],
+        label: floors[i],
+        sortOrder: i,
+        isActive: true,
+      });
+    }
+  }
+
+  // Master Setting operations
+  async getMasterSettings(categoryKey?: string): Promise<MasterSetting[]> {
+    const tenantId = this.currentTenantId;
+    let query = db.select().from(masterSettings);
+
+    const conditions = [];
+    if (!tenantId) {
+      // 親環境の場合はtenantIdがnullのレコードを取得
+      conditions.push(isNull(masterSettings.tenantId));
+    } else {
+      conditions.push(eq(masterSettings.tenantId, tenantId));
+    }
+
+    if (categoryKey) {
+      conditions.push(eq(masterSettings.categoryKey, categoryKey));
+    }
+
+    return await query.where(and(...conditions)).orderBy(masterSettings.sortOrder);
+  }
+
+  async getMasterSetting(id: string): Promise<MasterSetting | undefined> {
+    const result = await db.select().from(masterSettings)
+      .where(eq(masterSettings.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async createMasterSetting(setting: InsertMasterSetting): Promise<MasterSetting> {
+    const tenantId = this.currentTenantId;
+    const newSetting = {
+      ...setting,
+      tenantId: tenantId || setting.tenantId,
+      createdAt: getJSTTime(),
+      updatedAt: getJSTTime(),
+    };
+
+    const result = await db.insert(masterSettings).values(newSetting).returning();
+    return result[0];
+  }
+
+  async updateMasterSetting(id: string, setting: UpdateMasterSetting): Promise<MasterSetting> {
+    const result = await db.update(masterSettings)
+      .set({
+        ...setting,
+        updatedAt: getJSTTime(),
+      })
+      .where(eq(masterSettings.id, id))
+      .returning();
+
+    if (!result[0]) {
+      throw new Error('設定が見つかりません');
+    }
+    return result[0];
+  }
+
+  async deleteMasterSetting(id: string): Promise<void> {
+    await db.delete(masterSettings).where(eq(masterSettings.id, id));
+  }
+
+  async bulkUpdateMasterSettingsOrder(updates: { id: string; sortOrder: number }[]): Promise<void> {
+    for (const update of updates) {
+      await db.update(masterSettings)
+        .set({ sortOrder: update.sortOrder, updatedAt: getJSTTime() })
+        .where(eq(masterSettings.id, update.id));
+    }
   }
 }
 
