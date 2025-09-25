@@ -332,7 +332,7 @@ export default function StaffManagement() {
                 新規作成
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>新しい職員を追加</DialogTitle>
                 <DialogDescription>
@@ -503,7 +503,7 @@ export default function StaffManagement() {
 
           {/* 編集用Dialog */}
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>職員情報を編集</DialogTitle>
                 <DialogDescription>
