@@ -41,6 +41,7 @@ const careRecordSchema = z.object({
   category: z.string().min(1, "カテゴリを選択してください"),
   description: z.string().min(1, "記録内容を入力してください"),
   notes: z.string().optional(),
+  isUserAdded: z.boolean().optional(), // ユーザー追加カード識別フラグ
 });
 
 type CareRecordForm = z.infer<typeof careRecordSchema>;
@@ -421,10 +422,10 @@ export default function CareRecords() {
   const createMutation = useMutation({
     mutationFn: async (data: CareRecordForm) => {
       // recordDateがISO形式になるよう確保
-      const recordDate = data.recordDate.includes('T') 
-        ? data.recordDate 
+      const recordDate = data.recordDate.includes('T')
+        ? data.recordDate
         : data.recordDate + 'T' + new Date().toTimeString().slice(0, 8);
-      
+
       const requestData = {
         ...data,
         recordDate: recordDate, // ISO形式の文字列で送信
@@ -434,7 +435,66 @@ export default function CareRecords() {
       return response;
     },
     onMutate: async (newData) => {
-      // フォームをリセットしてモーダルを閉じる
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ['/api/care-records'] });
+
+      // 現在のデータのスナップショットを取得
+      const previousCareRecords = queryClient.getQueryData(['/api/care-records']);
+
+      // 楽観的更新（temp-IDで新規レコードを即座に追加）
+      const tempId = `temp-${Date.now()}`;
+      const tempRecord = {
+        ...newData,
+        id: tempId,
+        recordDate: newData.recordDate.includes('T')
+          ? newData.recordDate
+          : newData.recordDate + 'T' + new Date().toTimeString().slice(0, 8),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        resident: selectedResident,
+        notes: newData.notes?.trim() || null,
+        isUserAdded: true, // ユーザー追加カード識別フラグ
+      };
+
+      // キャッシュに楽観的に追加（末尾に追加）
+      queryClient.setQueryData(['/api/care-records'], (old: any) => {
+        if (!old) return [tempRecord];
+        return [...old, tempRecord];
+      });
+
+      return { previousCareRecords };
+    },
+    onError: (error: any, newData, context) => {
+      // エラー時は元の状態に戻す
+      if (context?.previousCareRecords) {
+        queryClient.setQueryData(['/api/care-records'], context.previousCareRecords);
+      }
+      console.error("❌ Care record creation failed:", error);
+      // モーダルを再度開く
+      setOpen(true);
+      console.error("介護記録の作成エラー:", error);
+    },
+    onSuccess: (response, newData) => {
+      // temp-IDを実際のIDに置き換え
+      queryClient.setQueryData(['/api/care-records'], (old: any) => {
+        if (!old) return old;
+
+        return old.map((record: any) => {
+          if (record.id && record.id.toString().startsWith('temp-')) {
+            console.log(`Updating temp record ${record.id} to real ID ${response.id}`);
+            return {
+              ...record,
+              id: response.id,
+              createdAt: response.createdAt,
+              updatedAt: response.updatedAt,
+              isUserAdded: record.isUserAdded, // フラグを維持
+            };
+          }
+          return record;
+        });
+      });
+
+      // 成功後にフォームをリセットしてモーダルを閉じる
       form.reset({
         residentId: selectedResident?.id || "",
         recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
@@ -443,22 +503,12 @@ export default function CareRecords() {
         notes: "",
       });
       setOpen(false);
-    },
-    onError: (error: any, newData, context) => {
-      console.error("❌ Care record creation failed:", error);
-      // モーダルを再度開く
-      setOpen(true);
-      console.error("介護記録の作成エラー:", error);
-    },
-    onSettled: () => {
-      // 最終的にサーバーから最新データを取得（バックグラウンドで）
-      queryClient.invalidateQueries({ queryKey: ["/api/care-records"] });
+
+      // 楽観的更新を使用しているので、メインクエリは無効化しない
+      // 関連クエリのみ無効化
       if (selectedResident) {
         queryClient.invalidateQueries({ queryKey: ["/api/care-records", selectedResident.id] });
       }
-    },
-    onSuccess: () => {
-      // トースト表示を削除
     },
   });
 
@@ -646,6 +696,34 @@ export default function CareRecords() {
       notes: "",
     };
     setNewRecordBlocks(prev => [...prev, newBlock]);
+
+    // DOM更新後に新規カードまで自動スクロール
+    setTimeout(() => {
+      try {
+        const newCard = document.querySelector(`[data-care-record-id="${newBlock.id}"]`);
+        if (newCard) {
+          console.log('Found new care record card:', newBlock.id);
+
+          // 新規カードまでスムーズスクロール
+          try {
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // フォールバック用の全体スクロール
+            setTimeout(() => {
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 200);
+          } catch (scrollError) {
+            console.error('Scroll error:', scrollError);
+            // 強制的に最下部にスクロール
+            window.scrollTo(0, document.body.scrollHeight);
+          }
+        } else {
+          console.error('New care record card not found:', newBlock.id);
+        }
+      } catch (error) {
+        console.error('Error scrolling to new care record:', error);
+      }
+    }, 100);
   };
 
   // 新規記録ブロック削除
@@ -762,10 +840,11 @@ export default function CareRecords() {
         ...updatedBlock,
         residentId: selectedResident.id,
         category: '介護記録', // デフォルトカテゴリ
+        isUserAdded: true, // ユーザー追加カード識別フラグ
       };
       
       createMutation.mutate(submitData);
-      // 保存後にブロックを削除
+      // ブロック削除（即座に実行してUX向上）
       setNewRecordBlocks(prev => prev.filter(block => block.id !== blockId));
     }
   };
@@ -1234,6 +1313,7 @@ export default function CareRecords() {
                             category: '介護記録',
                             description: e.target.value,
                             notes: '',
+                            isUserAdded: true, // ユーザー追加カード識別フラグ
                           });
                         }
                       }
@@ -1356,222 +1436,14 @@ export default function CareRecords() {
         <main className="max-w-4xl mx-auto px-4 py-4 pb-20">
           {/* 利用者一覧テーブル（食事一覧と同じレイアウト） */}
           <div className="space-y-0 border rounded-lg overflow-hidden">
-            {/* 新規記録ブロック */}
-            {filteredNewRecordBlocks.map((block, index) => (
-              <div key={block.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
-                <div className="p-2">
-                  {/* 1行目：時間 + 記録内容 + アクションボタン */}
-                  <div className="flex items-center gap-2 h-20">
-                    {/* 左側：時間、カテゴリ、記録者を縦並び */}
-                    <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
-                      {/* 時間 */}
-                      <div className="flex items-center gap-0.5">
-                        <InputWithDropdown
-                          value={format(new Date(block.recordDate), "HH", { locale: ja })}
-                          options={hourOptions}
-                          onSave={(value) => {
-                            const currentDate = new Date(block.recordDate);
-                            currentDate.setHours(parseInt(value));
-                            const newDateString = currentDate.toISOString();
-                            
-                            // 即座に画面に反映
-                            setNewRecordBlocks(prev => 
-                              prev.map(b => 
-                                b.id === block.id 
-                                  ? { ...b, recordDate: newDateString }
-                                  : b
-                              )
-                            );
-                            
-                            // バックグラウンドで保存処理（非同期）
-                            if (block.description.trim() && selectedResident) {
-                              const submitData = {
-                                residentId: selectedResident.id,
-                                recordDate: currentDate.toISOString(),
-                                category: '介護記録',
-                                description: block.description,
-                                notes: '',
-                              };
-                              createMutation.mutate(submitData);
-                              // 保存後にブロックを削除
-                              setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
-                            }
-                          }}
-                          placeholder="--"
-                          className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-xs">:</span>
-                        <InputWithDropdown
-                          value={format(new Date(block.recordDate), "mm", { locale: ja })}
-                          options={minuteOptions}
-                          onSave={(value) => {
-                            const currentMinute = format(new Date(block.recordDate), "mm", { locale: ja });
-                            
-                            // 値が実際に変更された場合のみ処理を実行
-                            if (value !== currentMinute) {
-                              const currentDate = new Date(block.recordDate);
-                              currentDate.setMinutes(parseInt(value));
-                              const newDateString = currentDate.toISOString();
-                              
-                              // 即座に画面に反映
-                              setNewRecordBlocks(prev => 
-                                prev.map(b => 
-                                  b.id === block.id 
-                                    ? { ...b, recordDate: newDateString }
-                                    : b
-                                )
-                              );
-                              
-                              // バックグラウンドで保存処理（非同期）
-                              if (block.description.trim() && selectedResident) {
-                                const submitData = {
-                                  residentId: selectedResident.id,
-                                  recordDate: currentDate.toISOString(),
-                                  category: '介護記録',
-                                  description: block.description,
-                                  notes: '',
-                                };
-                                createMutation.mutate(submitData);
-                                // 保存後にブロックを削除
-                                setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
-                              }
-                              
-                              // 分選択後に記録内容をアクティブにする（値が変更された場合のみ）
-                              setTimeout(() => {
-                                const targetTextarea = document.querySelector(`textarea[data-block-id="${block.id}"]`) as HTMLTextAreaElement;
-                                if (targetTextarea) {
-                                  targetTextarea.focus();
-                                }
-                              }, 200);
-                            }
-                          }}
-                          placeholder="--"
-                          className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      
-                      {/* カテゴリ */}
-                      <div>
-                        <input
-                          type="text"
-                          value="様子"
-                          readOnly
-                          className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
-                        />
-                      </div>
-                      
-                      {/* 記録者 */}
-                      <div>
-                        <input
-                          type="text"
-                          value={(() => {
-                            // 職員ログインの場合
-                            if ((currentUser as any)?.staffName) {
-                              return (currentUser as any).staffName;
-                            }
-                            // Replitユーザーの場合
-                            if ((currentUser as any)?.firstName) {
-                              return (currentUser as any).firstName;
-                            }
-                            if ((currentUser as any)?.email) {
-                              return (currentUser as any).email.split('@')[0];
-                            }
-                            return "不明";
-                          })()}
-                          readOnly
-                          className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 記録内容（高さいっぱい） */}
-                    <div className="flex-1">
-                      <textarea
-                        value={getNewBlockDescription(block.id)}
-                        onChange={(e) => {
-                          // 食事一覧画面と同じパターン：ローカル状態のみ更新
-                          setLocalNewBlockDescriptions(prev => ({
-                            ...prev,
-                            [block.id]: e.target.value
-                          }));
-                        }}
-                        onBlur={(e) => {
-                          // カーソルアウト時に保存処理
-                          if (e.target.value.trim() && selectedResident) {
-                            const submitData = {
-                              residentId: selectedResident.id,
-                              recordDate: new Date(block.recordDate).toISOString(),
-                              category: '介護記録',
-                              description: e.target.value,
-                              notes: '',
-                            };
-                            
-                            // 保存処理を実行（ブロック削除は成功後に行う）
-                            createMutation.mutate(submitData, {
-                              onSuccess: () => {
-                                // 保存成功後にブロックを削除
-                                setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
-                                // ローカル状態もクリア
-                                setLocalNewBlockDescriptions(prev => {
-                                  const newState = { ...prev };
-                                  delete newState[block.id];
-                                  return newState;
-                                });
-                              }
-                            });
-                          } else {
-                            // 空の場合はローカル状態のみクリア
-                            setLocalNewBlockDescriptions(prev => {
-                              const newState = { ...prev };
-                              delete newState[block.id];
-                              return newState;
-                            });
-                          }
-                        }}
-                        placeholder="記録内容を入力してください"
-                        className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
-                        rows={4}
-                        data-block-id={block.id}
-                      />
-                    </div>
-
-                    {/* アイコンボタン - 3つ縦並び */}
-                    <div className="flex flex-col justify-center gap-6 sm:-space-y-4 flex-shrink-0">
-                      <Button 
-                        variant="ghost" 
-                        className="text-gray-400 hover:bg-gray-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0 cursor-not-allowed"
-                        disabled
-                      >
-                        <Info className="w-3 h-3" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        className="text-gray-400 hover:bg-gray-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0 cursor-not-allowed"
-                        disabled
-                      >
-                        <Search className="w-3 h-3" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        className="text-red-600 hover:bg-red-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0"
-                        onClick={() => removeNewRecordBlock(block.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-
             {/* 既存の記録 */}
             {sortedCareRecords
               .map((record: any, index: number) => {
-                const adjustedIndex = index + filteredNewRecordBlocks.length; // 新規ブロック分のインデックス調整
-                const displayDate = localRecordDates[record.id] || record.recordDate;
+                const adjustedIndex = index; // 新規ブロックが後になるため調整不要
+                const displayDate = record.recordDate;
                 
                 return (
-                  <div key={record.id} className={`${(adjustedIndex > 0 || filteredNewRecordBlocks.length > 0) ? 'border-t' : ''} bg-white`}>
+                  <div key={record.id} className={`${adjustedIndex > 0 ? 'border-t' : ''} bg-white`}>
                     <div className="p-2">
                       {/* 1行目：時間 + 記録内容 + アクションボタン */}
                       <div className="flex items-center gap-2 h-24">
@@ -1762,6 +1634,215 @@ export default function CareRecords() {
                   </div>
                 );
               })}
+
+            {/* 新規記録ブロック */}
+            {filteredNewRecordBlocks.map((block, index) => (
+              <div key={block.id} className="border-t bg-white" data-care-record-id={block.id}>
+                <div className="p-2">
+                  {/* 1行目：時間 + 記録内容 + アクションボタン */}
+                  <div className="flex items-center gap-2 h-20">
+                    {/* 左側：時間、カテゴリ、記録者を縦並び */}
+                    <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
+                      {/* 時間 */}
+                      <div className="flex items-center gap-0.5">
+                        <InputWithDropdown
+                          value={format(new Date(block.recordDate), "HH", { locale: ja })}
+                          options={hourOptions}
+                          onSave={(value) => {
+                            const currentDate = new Date(block.recordDate);
+                            currentDate.setHours(parseInt(value));
+                            const newDateString = currentDate.toISOString();
+
+                            // 即座に画面に反映
+                            setNewRecordBlocks(prev =>
+                              prev.map(b =>
+                                b.id === block.id
+                                  ? { ...b, recordDate: newDateString }
+                                  : b
+                              )
+                            );
+
+                            // バックグラウンドで保存処理（非同期）
+                            if (block.description.trim() && selectedResident) {
+                              const submitData = {
+                                residentId: selectedResident.id,
+                                recordDate: currentDate.toISOString(),
+                                category: '介護記録',
+                                description: block.description,
+                                notes: '',
+                                isUserAdded: true, // ユーザー追加カード識別フラグ
+                              };
+                              createMutation.mutate(submitData);
+                              // ブロック削除（即座に実行してUX向上）
+                              setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                            }
+                          }}
+                          placeholder="--"
+                          className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-xs">:</span>
+                        <InputWithDropdown
+                          value={format(new Date(block.recordDate), "mm", { locale: ja })}
+                          options={minuteOptions}
+                          onSave={(value) => {
+                            const currentMinute = format(new Date(block.recordDate), "mm", { locale: ja });
+
+                            // 値が実際に変更された場合のみ処理を実行
+                            if (value !== currentMinute) {
+                              const currentDate = new Date(block.recordDate);
+                              currentDate.setMinutes(parseInt(value));
+                              const newDateString = currentDate.toISOString();
+
+                              // 即座に画面に反映
+                              setNewRecordBlocks(prev =>
+                                prev.map(b =>
+                                  b.id === block.id
+                                    ? { ...b, recordDate: newDateString }
+                                    : b
+                                )
+                              );
+
+                              // バックグラウンドで保存処理（非同期）
+                              if (block.description.trim() && selectedResident) {
+                                const submitData = {
+                                  residentId: selectedResident.id,
+                                  recordDate: currentDate.toISOString(),
+                                  category: '介護記録',
+                                  description: block.description,
+                                  notes: '',
+                                  isUserAdded: true, // ユーザー追加カード識別フラグ
+                                };
+                                createMutation.mutate(submitData);
+                                // ブロック削除（即座に実行してUX向上）
+                                setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                              }
+
+                              // 分選択後に記録内容をアクティブにする（値が変更された場合のみ）
+                              setTimeout(() => {
+                                const targetTextarea = document.querySelector(`textarea[data-block-id="${block.id}"]`) as HTMLTextAreaElement;
+                                if (targetTextarea) {
+                                  targetTextarea.focus();
+                                }
+                              }, 200);
+                            }
+                          }}
+                          placeholder="--"
+                          className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      {/* カテゴリ */}
+                      <div>
+                        <input
+                          type="text"
+                          value="様子"
+                          readOnly
+                          className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                        />
+                      </div>
+
+                      {/* 記録者 */}
+                      <div>
+                        <input
+                          type="text"
+                          value={(() => {
+                            // 職員ログインの場合
+                            if ((currentUser as any)?.staffName) {
+                              return (currentUser as any).staffName;
+                            }
+                            // Replitユーザーの場合
+                            if ((currentUser as any)?.firstName) {
+                              return (currentUser as any).firstName;
+                            }
+                            if ((currentUser as any)?.email) {
+                              return (currentUser as any).email.split('@')[0];
+                            }
+                            return "不明";
+                          })()}
+                          readOnly
+                          className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 記録内容（高さいっぱい） */}
+                    <div className="flex-1">
+                      <textarea
+                        value={getNewBlockDescription(block.id)}
+                        onChange={(e) => {
+                          // 食事一覧画面と同じパターン：ローカル状態のみ更新
+                          setLocalNewBlockDescriptions(prev => ({
+                            ...prev,
+                            [block.id]: e.target.value
+                          }));
+                        }}
+                        onBlur={(e) => {
+                          // カーソルアウト時に保存処理
+                          if (e.target.value.trim() && selectedResident) {
+                            const submitData = {
+                              residentId: selectedResident.id,
+                              recordDate: new Date(block.recordDate).toISOString(),
+                              category: '介護記録',
+                              description: e.target.value,
+                              notes: '',
+                              isUserAdded: true, // ユーザー追加カード識別フラグ
+                            };
+
+                            // 保存処理を実行
+                            createMutation.mutate(submitData);
+
+                            // ブロック削除（即座に実行してUX向上）
+                            setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                            // ローカル状態もクリア
+                            setLocalNewBlockDescriptions(prev => {
+                              const newState = { ...prev };
+                              delete newState[block.id];
+                              return newState;
+                            });
+                          } else {
+                            // 空の場合はローカル状態のみクリア
+                            setLocalNewBlockDescriptions(prev => {
+                              const newState = { ...prev };
+                              delete newState[block.id];
+                              return newState;
+                            });
+                          }
+                        }}
+                        placeholder="記録内容を入力してください"
+                        className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                        rows={4}
+                        data-block-id={block.id}
+                      />
+                    </div>
+
+                    {/* アイコンボタン - 3つ縦並び */}
+                    <div className="flex flex-col justify-center gap-6 sm:-space-y-4 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        className="text-gray-400 hover:bg-gray-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0 cursor-not-allowed"
+                        disabled
+                      >
+                        <Info className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-gray-400 hover:bg-gray-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0 cursor-not-allowed"
+                        disabled
+                      >
+                        <Search className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="text-red-600 hover:bg-red-50 !p-0 sm:!p-1 !h-3 !w-3 sm:!h-6 sm:!w-6 !min-h-0 !min-w-0"
+                        onClick={() => removeNewRecordBlock(block.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* 記録がない場合のメッセージ */}
