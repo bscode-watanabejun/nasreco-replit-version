@@ -4722,6 +4722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const validatedData = insertResidentAttachmentSchema.parse({
         residentId,
+        tenantId: req.tenantId || null,
         uploadedBy: userId,
         fileName: file.originalname,
         filePath: file.filename,
