@@ -674,6 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { residentId, startDate, endDate } = req.query;
       const tenantId = storage.getCurrentTenant();
+
       const records = await storage.getCareRecords(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
@@ -1392,6 +1393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { residentId, startDate, endDate } = req.query;
       const tenantId = storage.getCurrentTenant();
+
       const vitals = await storage.getVitalSigns(
         residentId as string,
         startDate ? new Date(startDate as string) : undefined,
@@ -3894,7 +3896,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/medication-records', isAuthenticated, async (req, res) => {
     try {
       const { recordDate, dateFrom, dateTo, timing, floor } = req.query;
-      
+      const tenantId = storage.getCurrentTenant();
+
       let records;
       
       // 日付範囲が指定されている場合は一括取得
@@ -3918,13 +3921,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else {
         records = await storage.getAllMedicationRecords(floor as string);
       }
-      
+
       // recordDateをJST時刻として正しく返すために変換
       const convertedRecords = records.map(record => ({
         ...record,
         recordDate: new Date(record.recordDate).toISOString().replace('Z', '+09:00')
       }));
-      
+
       res.json(convertedRecords);
     } catch (error: any) {
       console.error("Error fetching medication records:", error);

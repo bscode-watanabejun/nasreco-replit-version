@@ -2387,15 +2387,29 @@ export class DatabaseStorage implements IStorage {
   async getStaffManagement(tenantId?: string): Promise<StaffManagement[]> {
     // テナントフィルタリング
     if (tenantId) {
+      // 指定されたテナントの職員 + システム管理者権限職員（tenantId が NULL）
       return await db.select().from(staffManagement)
-        .where(eq(staffManagement.tenantId, tenantId))
+        .where(or(
+          eq(staffManagement.tenantId, tenantId),
+          and(
+            isNull(staffManagement.tenantId),
+            eq(staffManagement.authority, 'システム管理者')
+          )
+        ))
         .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
     } else if (this.currentTenantId) {
+      // 現在のテナントの職員 + システム管理者権限職員（tenantId が NULL）
       return await db.select().from(staffManagement)
-        .where(eq(staffManagement.tenantId, this.currentTenantId))
+        .where(or(
+          eq(staffManagement.tenantId, this.currentTenantId),
+          and(
+            isNull(staffManagement.tenantId),
+            eq(staffManagement.authority, 'システム管理者')
+          )
+        ))
         .orderBy(staffManagement.sortOrder, staffManagement.createdAt);
     } else {
-      // 親環境では tenant_id が NULL の職員のみ
+      // 親環境では tenant_id が NULL の職員のみ（従来通り）
       return await db.select().from(staffManagement)
         .where(isNull(staffManagement.tenantId))
         .orderBy(staffManagement.sortOrder, staffManagement.createdAt);

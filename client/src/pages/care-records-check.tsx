@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
-import { getEnvironmentPath } from "@/lib/queryClient";
+import { getEnvironmentPath, getCurrentEnvironment } from "@/lib/queryClient";
 import { ArrowLeft, Search, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Select,
   SelectContent,
@@ -143,7 +144,11 @@ function InputWithDropdown({
 export default function CareRecordsCheck() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-  
+
+  // 現在の認証情報と環境情報を取得
+  const auth = useAuth();
+  const currentEnv = getCurrentEnvironment();
+
   // URLパラメータから日付を取得
   const urlParams = new URLSearchParams(window.location.search);
   const dateParam = urlParams.get('date');
@@ -261,25 +266,48 @@ export default function CareRecordsCheck() {
     };
   };
 
+  // 権限判定関数
+  const hasSystemAdminPermission = () => {
+    return (auth.user as any)?.authority === 'システム管理者';
+  };
+
+  const isSameTenantStaff = (staffTenantId: string | null) => {
+    // システム管理者権限職員は tenantId が null でも同一テナントとして扱う
+    return auth.tenantId === staffTenantId;
+  };
+
   const getStaffName = (staffId: string) => {
     if (!staffId) return '';
-    // 職員データがまだ読み込まれていない場合はIDを返す
+
+    // 職員データがまだ読み込まれていない場合
     if (!staffList || staffList.length === 0) {
-      return staffId;
+      return '不明';
     }
+
     const staff = staffList.find((s: any) => s.id === staffId);
-    // staffName フィールドを使用し、なければ name を使用
-    return staff?.staffName || staff?.name || staffId;
+
+    if (!staff) {
+      return '不明';
+    }
+
+    // 権限チェック
+    const isSystemAdmin = hasSystemAdminPermission();
+    const isSameTenant = isSameTenantStaff(staff.tenantId);
+    const staffIsSystemAdmin = staff.authority === 'システム管理者';
+
+    // システム管理者または同一テナント、または記録者がシステム管理者の場合は名前を表示
+    if (isSystemAdmin || isSameTenant || staffIsSystemAdmin) {
+      return staff?.staffName || staff?.name || '不明';
+    }
+
+    // その他の場合は「不明」を表示（運用上はありえない）
+    return '不明';
   };
 
   // 統合されたケース記録データ
   const careRecords = useMemo(() => {
-    // 職員データがまだ読み込まれていない場合は空配列を返す
-    if (!staffList || staffList.length === 0) {
-      return [];
-    }
-    
     const allRecords: any[] = [];
+
 
     // 介護記録
     careRecordsData.forEach((record: any, index: number) => {
@@ -288,12 +316,7 @@ export default function CareRecordsCheck() {
       if (recordContent && recordContent.trim()) {
         const recordDateObj = new Date(record.recordDate);
         const residentInfo = getResidentInfo(record.residentId);
-        
-        // デバッグ: 記録者IDの確認(簡潔版)
-        if (index === 0) {
-          console.log(`介護記録[${index}] 記録者:`, record.staffId, '→', getStaffName(record.staffId));
-        }
-        
+
         allRecords.push({
           id: `care_${record.id}`,
           recordDate: recordDateObj,
@@ -527,7 +550,7 @@ export default function CareRecordsCheck() {
 
     // 日付順でソート
     return allRecords.sort((a, b) => b.recordDate.getTime() - a.recordDate.getTime());
-  }, [careRecordsData, vitalsData, mealsData, medicationData, excretionData, weightData, cleaningData, nursingData, residents, staffList]);
+  }, [careRecordsData, vitalsData, mealsData, medicationData, excretionData, weightData, cleaningData, nursingData, residents, staffList, currentEnv, auth]);
 
   // カテゴリマッピング
   const getCategoryMapping = (recordCategory: string) => {
@@ -541,12 +564,12 @@ export default function CareRecordsCheck() {
 
   // フィルタリングされたレコード
   const filteredRecords = useMemo(() => {
-    return careRecords.filter((record) => {
+    const filtered = careRecords.filter((record) => {
       const recordDate = format(record.recordDate, "yyyy-MM-dd");
-      
+
       // 日付範囲フィルタ
       if (recordDate < dateFrom || recordDate > dateTo) return false;
-      
+
       // カテゴリフィルタ
       if (recordCategory && recordCategory !== "all") {
         const allowedCategories = getCategoryMapping(recordCategory);
@@ -554,15 +577,17 @@ export default function CareRecordsCheck() {
           return false;
         }
       }
-      
+
       // 階数フィルタ
       if (selectedFloor !== "all" && record.floor !== selectedFloor) return false;
-      
+
       // 利用者フィルタ
       if (selectedResident !== "all" && record.residentId !== selectedResident) return false;
-      
+
       return true;
     });
+
+    return filtered;
   }, [careRecords, dateFrom, dateTo, recordCategory, selectedFloor, selectedResident]);
 
   // ローカル編集用の状態管理（楽観的更新用）
@@ -706,7 +731,13 @@ export default function CareRecordsCheck() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-lg font-semibold">ケース記録チェック一覧</h1>
+        <div className="flex flex-col">
+          <h1 className="text-lg font-semibold">ケース記録チェック一覧</h1>
+          <div className="text-xs text-gray-500">
+            {currentEnv.environmentName} | 記録数: {filteredRecords.length}
+            {currentEnv.tenantId && ` (${currentEnv.tenantId})`}
+          </div>
+        </div>
       </header>
 
       {/* フィルタ項目 */}
