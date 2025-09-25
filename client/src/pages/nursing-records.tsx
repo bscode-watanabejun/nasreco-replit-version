@@ -350,12 +350,70 @@ export default function NursingRecords() {
         nurseId: nurseId,
         recordDate: new Date(data.recordDate),
       };
-      
-      
-      await apiRequest("/api/nursing-records", "POST", payload);
+
+      const response = await apiRequest("/api/nursing-records", "POST", payload);
+      return response;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/nursing-records"] });
+    onMutate: async (newData) => {
+      // 進行中のクエリをキャンセル
+      await queryClient.cancelQueries({ queryKey: ["/api/nursing-records"] });
+
+      // 現在のデータのスナップショットを取得
+      const previousNursingRecords = queryClient.getQueryData(["/api/nursing-records"]);
+
+      // 楽観的更新（temp-IDで新規レコードを即座に追加）
+      const tempId = `temp-${Date.now()}`;
+      const tempRecord = {
+        ...newData,
+        id: tempId,
+        nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
+        recordDate: new Date(newData.recordDate).toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        resident: selectedResident,
+        isUserAdded: true, // ユーザー追加カード識別フラグ
+      };
+
+      // キャッシュに楽観的に追加（末尾に追加）
+      queryClient.setQueryData(["/api/nursing-records"], (old: any) => {
+        if (!old) return [tempRecord];
+        return [...old, tempRecord];
+      });
+
+      return { previousNursingRecords };
+    },
+    onError: (error: any, newData, context) => {
+      // エラー時は元の状態に戻す
+      if (context?.previousNursingRecords) {
+        queryClient.setQueryData(["/api/nursing-records"], context.previousNursingRecords);
+      }
+      console.error("看護記録の作成に失敗しました:", error);
+      toast({
+        title: "エラー",
+        description: "看護記録の作成に失敗しました",
+        variant: "destructive",
+      });
+    },
+    onSuccess: (response, newData) => {
+      // temp-IDを実際のIDに置き換え
+      queryClient.setQueryData(["/api/nursing-records"], (old: any) => {
+        if (!old) return old;
+
+        return old.map((record: any) => {
+          if (record.id && record.id.toString().startsWith('temp-')) {
+            return {
+              ...record,
+              id: response.id,
+              createdAt: response.createdAt,
+              updatedAt: response.updatedAt,
+              isUserAdded: record.isUserAdded, // フラグを維持
+            };
+          }
+          return record;
+        });
+      });
+
+      // 成功後にフォームをリセット
       form.reset({
         residentId: selectedResident?.id || "",
         recordDate: new Date(format(selectedDate, 'yyyy-MM-dd') + "T" + new Date().toTimeString().slice(0, 8)).toISOString().slice(0, 16),
@@ -363,13 +421,6 @@ export default function NursingRecords() {
         description: "",
       });
       setOpen(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "エラー",
-        description: "看護記録の作成に失敗しました",
-        variant: "destructive",
-      });
     },
   });
 
@@ -584,6 +635,34 @@ export default function NursingRecords() {
       description: "",
     };
     setNewRecordBlocks(prev => [...prev, newBlock]);
+
+    // DOM更新後に新規カードまで自動スクロール
+    setTimeout(() => {
+      try {
+        const newCard = document.querySelector(`[data-nursing-record-id="${newBlock.id}"]`);
+        if (newCard) {
+          console.log('Found new nursing record card:', newBlock.id);
+
+          // 新規カードまでスムーズスクロール
+          try {
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // フォールバック用の全体スクロール
+            setTimeout(() => {
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 200);
+          } catch (scrollError) {
+            console.error('Scroll error:', scrollError);
+            // 強制的に最下部にスクロール
+            window.scrollTo(0, document.body.scrollHeight);
+          }
+        } else {
+          console.error('New nursing record card not found:', newBlock.id);
+        }
+      } catch (error) {
+        console.error('Error scrolling to new nursing record:', error);
+      }
+    }, 100);
   };
 
 
@@ -635,6 +714,34 @@ export default function NursingRecords() {
       notes: "",
     };
     setNewTreatmentBlocks(prev => [...prev, newBlock]);
+
+    // DOM更新後に新規カードまで自動スクロール
+    setTimeout(() => {
+      try {
+        const newCard = document.querySelector(`[data-treatment-record-id="${newBlock.id}"]`);
+        if (newCard) {
+          console.log('Found new treatment record card:', newBlock.id);
+
+          // 新規カードまでスムーズスクロール
+          try {
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            // フォールバック用の全体スクロール
+            setTimeout(() => {
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }, 200);
+          } catch (scrollError) {
+            console.error('Scroll error:', scrollError);
+            // 強制的に最下部にスクロール
+            window.scrollTo(0, document.body.scrollHeight);
+          }
+        } else {
+          console.error('New treatment record card not found:', newBlock.id);
+        }
+      } catch (error) {
+        console.error('Error scrolling to new treatment record:', error);
+      }
+    }, 100);
   };
 
   // カテゴリは「看護記録」に固定のため、オプションは不要
@@ -1176,166 +1283,14 @@ export default function NursingRecords() {
             <TabsContent value="nursing-records">
               {/* 看護記録一覧テーブル */}
               <div className="space-y-0 border rounded-lg overflow-hidden mt-4">
-                {/* 新規記録ブロック */}
-                {filteredNewRecordBlocks.map((block, index) => (
-                  <div key={block.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
-                    <div className="p-2">
-                      {/* 1行目：時間 + 記録内容 + アクションボタン */}
-                      <div className="flex items-center gap-2 h-20">
-                        {/* 左側：時間、カテゴリ、記録者を縦並び */}
-                        <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
-                          {/* 時間 */}
-                          <div className="flex items-center gap-0.5">
-                            <InputWithDropdown
-                              value={format(new Date(block.recordDate), "HH", { locale: ja })}
-                              options={hourOptions}
-                              onSave={(value) => {
-                                const currentDate = new Date(block.recordDate);
-                                currentDate.setHours(parseInt(value));
-                                const newDateString = currentDate.toISOString();
-                                
-                                setNewRecordBlocks(prev => 
-                                  prev.map(b => 
-                                    b.id === block.id 
-                                      ? { ...b, recordDate: newDateString }
-                                      : b
-                                  )
-                                );
-                              }}
-                              placeholder="--"
-                              className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <span className="text-xs">:</span>
-                            <InputWithDropdown
-                              value={format(new Date(block.recordDate), "mm", { locale: ja })}
-                              options={minuteOptions}
-                              onSave={(value) => {
-                                const currentDate = new Date(block.recordDate);
-                                currentDate.setMinutes(parseInt(value));
-                                const newDateString = currentDate.toISOString();
-                                
-                                setNewRecordBlocks(prev => 
-                                  prev.map(b => 
-                                    b.id === block.id 
-                                      ? { ...b, recordDate: newDateString }
-                                      : b
-                                  )
-                                );
-                              }}
-                              placeholder="--"
-                              className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                          
-                          {/* カテゴリ */}
-                          <div>
-                            <input
-                              type="text"
-                              value="看護記録"
-                              readOnly
-                              className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
-                            />
-                          </div>
-                          
-                          {/* 記録者 */}
-                          <div>
-                            <input
-                              type="text"
-                              value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
-                              readOnly
-                              className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
-                            />
-                          </div>
-                        </div>
-
-                        {/* 記録内容（高さいっぱい） */}
-                        <div className="flex-1">
-                          <textarea
-                            value={getNewBlockDescription(block.id)}
-                            onChange={(e) => {
-                              setLocalNewBlockDescriptions(prev => ({
-                                ...prev,
-                                [block.id]: e.target.value
-                              }));
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value.trim() && selectedResident) {
-                                const submitData = {
-                                  residentId: selectedResident.id,
-                                  recordDate: new Date(block.recordDate).toISOString(),
-                                  category: '看護記録',
-                                  description: e.target.value,
-                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
-                                };
-                                createMutation.mutate(submitData, {
-                                  onSuccess: () => {
-                                    setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
-                                    setLocalNewBlockDescriptions(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[block.id];
-                                      return newState;
-                                    });
-                                  }
-                                });
-                              } else {
-                                setLocalNewBlockDescriptions(prev => {
-                                  const newState = { ...prev };
-                                  delete newState[block.id];
-                                  return newState;
-                                });
-                              }
-                            }}
-                            placeholder="記録内容を入力してください"
-                            className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
-                            rows={4}
-                            data-block-id={block.id}
-                          />
-                        </div>
-
-                        {/* アイコンボタン */}
-                        <div className="flex flex-col justify-center gap-1 flex-shrink-0">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-green-600 hover:bg-green-50 p-1 h-6 w-6"
-                            onClick={() => {
-                              setSelectedRecordForDetail({
-                                id: 'new',
-                                residentId: selectedResident.id,
-                                category: "看護記録",
-                                description: block.description,
-                                recordDate: block.recordDate
-                              });
-                              setShowRecordDetail(true);
-                            }}
-                          >
-                            <Info className="w-3 h-3" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
-                            onClick={() => {
-                              setSelectedRecordContent(block.description);
-                              setContentDialogOpen(true);
-                            }}
-                          >
-                            <Search className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
 
                 {/* 既存の記録 */}
                 {sortedNursingRecords
                   .map((record: any, index: number) => {
-                    const adjustedIndex = index + filteredNewRecordBlocks.length;
                     const displayDate = localRecordDates[record.id] || record.recordDate;
-                    
+
                     return (
-                      <div key={record.id} className={`${(adjustedIndex > 0 || filteredNewRecordBlocks.length > 0) ? 'border-t' : ''} bg-white`}>
+                      <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
                         <div className="p-2">
                           {/* 1行目：時間 + 記録内容 + アクションボタン */}
                           <div className="flex items-center gap-2 h-20">
@@ -1462,21 +1417,12 @@ export default function NursingRecords() {
                       </div>
                     );
                   })}
-              </div>
 
-              {/* 記録がない場合のメッセージ */}
-              {sortedNursingRecords.length === 0 && filteredNewRecordBlocks.length === 0 && (
-                <div className="text-center py-8 text-slate-600">
-                  <p>選択した日付の看護記録がありません</p>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="treatments">
-              {/* 処置一覧テーブル */}
-              <div className="space-y-0 border rounded-lg overflow-hidden mt-4">
-                {/* 新規処置ブロック */}
-                {filteredNewTreatmentBlocks.map((block, index) => (
-                  <div key={block.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
+                {/* 新規記録ブロック */}
+                {filteredNewRecordBlocks.map((block, index) => {
+                  const adjustedIndex = index + sortedNursingRecords.length;
+                  return (
+                  <div key={block.id} className={`${(adjustedIndex > 0 || sortedNursingRecords.length > 0) ? 'border-t' : ''} bg-white`} data-nursing-record-id={block.id}>
                     <div className="p-2">
                       {/* 1行目：時間 + 記録内容 + アクションボタン */}
                       <div className="flex items-center gap-2 h-20">
@@ -1491,10 +1437,10 @@ export default function NursingRecords() {
                                 const currentDate = new Date(block.recordDate);
                                 currentDate.setHours(parseInt(value));
                                 const newDateString = currentDate.toISOString();
-                                
-                                setNewTreatmentBlocks(prev => 
-                                  prev.map(b => 
-                                    b.id === block.id 
+
+                                setNewRecordBlocks(prev =>
+                                  prev.map(b =>
+                                    b.id === block.id
                                       ? { ...b, recordDate: newDateString }
                                       : b
                                   )
@@ -1511,10 +1457,10 @@ export default function NursingRecords() {
                                 const currentDate = new Date(block.recordDate);
                                 currentDate.setMinutes(parseInt(value));
                                 const newDateString = currentDate.toISOString();
-                                
-                                setNewTreatmentBlocks(prev => 
-                                  prev.map(b => 
-                                    b.id === block.id 
+
+                                setNewRecordBlocks(prev =>
+                                  prev.map(b =>
+                                    b.id === block.id
                                       ? { ...b, recordDate: newDateString }
                                       : b
                                   )
@@ -1524,17 +1470,17 @@ export default function NursingRecords() {
                               className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
-                          
+
                           {/* カテゴリ */}
                           <div>
                             <input
                               type="text"
-                              value="処置"
+                              value="看護記録"
                               readOnly
                               className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
                             />
                           </div>
-                          
+
                           {/* 記録者 */}
                           <div>
                             <input
@@ -1546,112 +1492,59 @@ export default function NursingRecords() {
                           </div>
                         </div>
 
-                        {/* 記録内容エリア */}
-                        <div className="flex-1 flex flex-col gap-1">
-                          {/* 処置部位 */}
-                          <input
-                            type="text"
-                            value={getNewTreatmentBlockNotes(block.id)}
-                            onChange={(e) => {
-                              setLocalNewTreatmentBlockNotes(prev => ({
-                                ...prev,
-                                [block.id]: e.target.value
-                              }));
-                            }}
-                            onBlur={(e) => {
-                              // 処置部位または処置内容が入力されている場合に保存
-                              const description = getNewTreatmentBlockDescription(block.id);
-                              if ((e.target.value.trim() || description.trim()) && selectedResident) {
-                                const submitData = {
-                                  residentId: selectedResident.id,
-                                  recordDate: new Date(block.recordDate).toISOString(),
-                                  category: '処置',
-                                  description: description,
-                                  notes: e.target.value,
-                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
-                                };
-                                createMutation.mutate(submitData, {
-                                  onSuccess: () => {
-                                    setNewTreatmentBlocks(prev => prev.filter(b => b.id !== block.id));
-                                    setLocalNewTreatmentBlockDescriptions(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[block.id];
-                                      return newState;
-                                    });
-                                    setLocalNewTreatmentBlockNotes(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[block.id];
-                                      return newState;
-                                    });
-                                  }
-                                });
-                              }
-                            }}
-                            placeholder="処置部位"
-                            className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
-                          />
-                          {/* 処置内容 */}
+                        {/* 記録内容（高さいっぱい） */}
+                        <div className="flex-1">
                           <textarea
-                            value={getNewTreatmentBlockDescription(block.id)}
+                            value={getNewBlockDescription(block.id)}
                             onChange={(e) => {
-                              setLocalNewTreatmentBlockDescriptions(prev => ({
+                              setLocalNewBlockDescriptions(prev => ({
                                 ...prev,
                                 [block.id]: e.target.value
                               }));
                             }}
                             onBlur={(e) => {
-                              // 処置内容または処置部位が入力されている場合に保存
-                              const notes = getNewTreatmentBlockNotes(block.id);
-                              if ((e.target.value.trim() || notes.trim()) && selectedResident) {
+                              if (e.target.value.trim() && selectedResident) {
                                 const submitData = {
                                   residentId: selectedResident.id,
                                   recordDate: new Date(block.recordDate).toISOString(),
-                                  category: '処置',
+                                  category: '看護記録',
                                   description: e.target.value,
-                                  notes: notes,
                                   nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
                                 };
-                                createMutation.mutate(submitData, {
-                                  onSuccess: () => {
-                                    setNewTreatmentBlocks(prev => prev.filter(b => b.id !== block.id));
-                                    setLocalNewTreatmentBlockDescriptions(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[block.id];
-                                      return newState;
-                                    });
-                                    setLocalNewTreatmentBlockNotes(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[block.id];
-                                      return newState;
-                                    });
-                                  }
+                                createMutation.mutate(submitData);
+                                // 楽観的更新により即座に新規ブロックを削除
+                                setNewRecordBlocks(prev => prev.filter(b => b.id !== block.id));
+                                setLocalNewBlockDescriptions(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
                                 });
                               } else {
-                                setLocalNewTreatmentBlockDescriptions(prev => {
+                                setLocalNewBlockDescriptions(prev => {
                                   const newState = { ...prev };
                                   delete newState[block.id];
                                   return newState;
                                 });
                               }
                             }}
-                            placeholder="処置内容を入力してください"
-                            className="h-12 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
-                            rows={2}
+                            placeholder="記録内容を入力してください"
+                            className="h-20 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                            rows={4}
                             data-block-id={block.id}
                           />
                         </div>
 
                         {/* アイコンボタン */}
                         <div className="flex flex-col justify-center gap-1 flex-shrink-0">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="text-green-600 hover:bg-green-50 p-1 h-6 w-6"
                             onClick={() => {
                               setSelectedRecordForDetail({
                                 id: 'new',
                                 residentId: selectedResident.id,
-                                category: "処置",
+                                category: "看護記録",
                                 description: block.description,
                                 recordDate: block.recordDate
                               });
@@ -1660,9 +1553,9 @@ export default function NursingRecords() {
                           >
                             <Info className="w-3 h-3" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
                             onClick={() => {
                               setSelectedRecordContent(block.description);
@@ -1675,16 +1568,28 @@ export default function NursingRecords() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
+              </div>
+
+              {/* 記録がない場合のメッセージ */}
+              {sortedNursingRecords.length === 0 && filteredNewRecordBlocks.length === 0 && (
+                <div className="text-center py-8 text-slate-600">
+                  <p>選択した日付の看護記録がありません</p>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="treatments">
+              {/* 処置一覧テーブル */}
+              <div className="space-y-0 border rounded-lg overflow-hidden mt-4">
 
                 {/* 既存の処置 */}
                 {sortedTreatments
                   .map((record: any, index: number) => {
-                    const adjustedIndex = index + filteredNewTreatmentBlocks.length;
                     const displayDate = localTreatmentRecordDates[record.id] || record.recordDate;
-                    
+
                     return (
-                      <div key={record.id} className={`${(adjustedIndex > 0 || filteredNewTreatmentBlocks.length > 0) ? 'border-t' : ''} bg-white`}>
+                      <div key={record.id} className={`${index > 0 ? 'border-t' : ''} bg-white`}>
                         <div className="p-2">
                           {/* 1行目：時間 + 記録内容 + アクションボタン */}
                           <div className="flex items-center gap-2 h-20">
@@ -1835,6 +1740,208 @@ export default function NursingRecords() {
                       </div>
                     );
                   })}
+
+                {/* 新規処置ブロック */}
+                {filteredNewTreatmentBlocks.map((block, index) => {
+                  const adjustedIndex = index + sortedTreatments.length;
+                  return (
+                  <div key={block.id} className={`${(adjustedIndex > 0 || sortedTreatments.length > 0) ? 'border-t' : ''} bg-white`} data-treatment-record-id={block.id}>
+                    <div className="p-2">
+                      {/* 1行目：時間 + 記録内容 + アクションボタン */}
+                      <div className="flex items-center gap-2 h-20">
+                        {/* 左側：時間、カテゴリ、記録者を縦並び */}
+                        <div className="w-16 flex-shrink-0 flex flex-col justify-center space-y-1">
+                          {/* 時間 */}
+                          <div className="flex items-center gap-0.5">
+                            <InputWithDropdown
+                              value={format(new Date(block.recordDate), "HH", { locale: ja })}
+                              options={hourOptions}
+                              onSave={(value) => {
+                                const currentDate = new Date(block.recordDate);
+                                currentDate.setHours(parseInt(value));
+                                const newDateString = currentDate.toISOString();
+
+                                setNewTreatmentBlocks(prev =>
+                                  prev.map(b =>
+                                    b.id === block.id
+                                      ? { ...b, recordDate: newDateString }
+                                      : b
+                                  )
+                                );
+                              }}
+                              placeholder="--"
+                              className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <span className="text-xs">:</span>
+                            <InputWithDropdown
+                              value={format(new Date(block.recordDate), "mm", { locale: ja })}
+                              options={minuteOptions}
+                              onSave={(value) => {
+                                const currentDate = new Date(block.recordDate);
+                                currentDate.setMinutes(parseInt(value));
+                                const newDateString = currentDate.toISOString();
+
+                                setNewTreatmentBlocks(prev =>
+                                  prev.map(b =>
+                                    b.id === block.id
+                                      ? { ...b, recordDate: newDateString }
+                                      : b
+                                  )
+                                );
+                              }}
+                              placeholder="--"
+                              className="w-7 h-6 px-1 text-xs text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+
+                          {/* カテゴリ */}
+                          <div>
+                            <input
+                              type="text"
+                              value="処置"
+                              readOnly
+                              className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                            />
+                          </div>
+
+                          {/* 記録者 */}
+                          <div>
+                            <input
+                              type="text"
+                              value={(effectiveUser as any)?.staffName || (effectiveUser as any)?.firstName || (effectiveUser as any)?.email?.split('@')[0] || (effectiveUser as any)?.id || "不明"}
+                              readOnly
+                              className="h-6 w-full px-1 text-xs text-center border border-slate-300 rounded bg-slate-100 text-slate-600"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 記録内容エリア */}
+                        <div className="flex-1 flex flex-col gap-1">
+                          {/* 処置部位 */}
+                          <input
+                            type="text"
+                            value={getNewTreatmentBlockNotes(block.id)}
+                            onChange={(e) => {
+                              setLocalNewTreatmentBlockNotes(prev => ({
+                                ...prev,
+                                [block.id]: e.target.value
+                              }));
+                            }}
+                            onBlur={(e) => {
+                              // 処置部位または処置内容が入力されている場合に保存
+                              const description = getNewTreatmentBlockDescription(block.id);
+                              if ((e.target.value.trim() || description.trim()) && selectedResident) {
+                                const submitData = {
+                                  residentId: selectedResident.id,
+                                  recordDate: new Date(block.recordDate).toISOString(),
+                                  category: '処置',
+                                  description: description,
+                                  notes: e.target.value,
+                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
+                                };
+                                createMutation.mutate(submitData);
+                                // 楽観的更新により即座に新規ブロックを削除
+                                setNewTreatmentBlocks(prev => prev.filter(b => b.id !== block.id));
+                                setLocalNewTreatmentBlockDescriptions(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
+                                });
+                                setLocalNewTreatmentBlockNotes(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
+                                });
+                              }
+                            }}
+                            placeholder="処置部位"
+                            className="h-6 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1"
+                          />
+                          {/* 処置内容 */}
+                          <textarea
+                            value={getNewTreatmentBlockDescription(block.id)}
+                            onChange={(e) => {
+                              setLocalNewTreatmentBlockDescriptions(prev => ({
+                                ...prev,
+                                [block.id]: e.target.value
+                              }));
+                            }}
+                            onBlur={(e) => {
+                              // 処置内容または処置部位が入力されている場合に保存
+                              const notes = getNewTreatmentBlockNotes(block.id);
+                              if ((e.target.value.trim() || notes.trim()) && selectedResident) {
+                                const submitData = {
+                                  residentId: selectedResident.id,
+                                  recordDate: new Date(block.recordDate).toISOString(),
+                                  category: '処置',
+                                  description: e.target.value,
+                                  notes: notes,
+                                  nurseId: (effectiveUser as any)?.userId || (effectiveUser as any)?.id,
+                                };
+                                createMutation.mutate(submitData);
+                                // 楽観的更新により即座に新規ブロックを削除
+                                setNewTreatmentBlocks(prev => prev.filter(b => b.id !== block.id));
+                                setLocalNewTreatmentBlockDescriptions(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
+                                });
+                                setLocalNewTreatmentBlockNotes(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
+                                });
+                              } else {
+                                setLocalNewTreatmentBlockDescriptions(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[block.id];
+                                  return newState;
+                                });
+                              }
+                            }}
+                            placeholder="処置内容を入力してください"
+                            className="h-12 text-xs w-full border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-1 py-1 resize-none"
+                            rows={2}
+                            data-block-id={block.id}
+                          />
+                        </div>
+
+                        {/* アイコンボタン */}
+                        <div className="flex flex-col justify-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-green-600 hover:bg-green-50 p-1 h-6 w-6"
+                            onClick={() => {
+                              setSelectedRecordForDetail({
+                                id: 'new',
+                                residentId: selectedResident.id,
+                                category: "処置",
+                                description: block.description,
+                                recordDate: block.recordDate
+                              });
+                              setShowRecordDetail(true);
+                            }}
+                          >
+                            <Info className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-600 hover:bg-blue-50 p-1 h-6 w-6"
+                            onClick={() => {
+                              setSelectedRecordContent(block.description);
+                              setContentDialogOpen(true);
+                            }}
+                          >
+                            <Search className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
               </div>
 
               {/* 記録がない場合のメッセージ */}
