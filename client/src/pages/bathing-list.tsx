@@ -18,6 +18,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -37,6 +44,9 @@ import {
   User,
   Trash2,
   ArrowLeft,
+  Sparkles,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -299,6 +309,7 @@ function BathingCard({
   handleFieldUpdate,
   handleSaveRecord,
   handleStaffStamp,
+  handleAIButtonClick,
   deleteMutation,
   changeResidentMutation,
 }: {
@@ -319,6 +330,7 @@ function BathingCard({
   handleFieldUpdate: (residentId: string, field: string, value: any) => void;
   handleSaveRecord: (residentId: string, field: string, value: any) => void;
   handleStaffStamp: (recordId: string, residentId?: string) => void;
+  handleAIButtonClick: (resident: any, record: any) => void;
   deleteMutation: any;
   changeResidentMutation: any;
 }) {
@@ -452,12 +464,12 @@ function BathingCard({
             <button
               className="bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center justify-center"
               style={{
-                height: "32px",
-                width: "32px",
-                minHeight: "32px",
-                minWidth: "32px",
-                maxHeight: "32px",
-                maxWidth: "32px",
+                height: "24px",
+                width: "24px",
+                minHeight: "24px",
+                minWidth: "24px",
+                maxHeight: "24px",
+                maxWidth: "24px",
               }}
               onClick={() => handleStaffStamp(record.id, record.residentId)}
               data-testid={`button-stamp-${record.id}`}
@@ -560,7 +572,7 @@ function BathingCard({
         {/* 下段：記録、差し戻し、看護チェックボックス、削除アイコン */}
         <div className="flex items-center gap-0.5 sm:gap-1">
           {/* 記録 */}
-          <div className="flex items-center flex-1">
+          <div className="flex items-center flex-1 gap-1">
             <NotesInput
               residentId={record.residentId}
               initialValue={notes}
@@ -571,6 +583,23 @@ function BathingCard({
                 }
               }}
             />
+
+            {/* AIボタン */}
+            <button
+              className="rounded text-xs flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white"
+              style={{
+                height: "24px",
+                width: "24px",
+                minHeight: "24px",
+                minWidth: "24px",
+                maxHeight: "24px",
+                maxWidth: "24px",
+              }}
+              onClick={() => handleAIButtonClick(resident, record)}
+              title="音声認識"
+            >
+              <Sparkles className="w-3 h-3" />
+            </button>
           </div>
 
           {/* 差し戻し */}
@@ -604,12 +633,12 @@ function BathingCard({
                 <button
                   className="bg-red-500 hover:bg-red-600 text-white ml-1 rounded text-xs flex items-center justify-center"
                   style={{
-                    height: "32px",
-                    width: "32px",
-                    minHeight: "32px",
-                    minWidth: "32px",
-                    maxHeight: "32px",
-                    maxWidth: "32px",
+                    height: "24px",
+                    width: "24px",
+                    minHeight: "24px",
+                    minWidth: "24px",
+                    maxHeight: "24px",
+                    maxWidth: "24px",
                   }}
                   data-testid={`button-delete-${record.id}`}
                 >
@@ -663,6 +692,18 @@ export default function BathingList() {
     residentId?: string;
     currentStaffName: string;
   } | null>(null);
+
+  // 音声認識ダイアログ用の状態
+  const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
+  const [selectedResidentForVoice, setSelectedResidentForVoice] = useState<{
+    id: string;
+    name: string;
+    recordId: string;
+  } | null>(null);
+  const [voiceText, setVoiceText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const [selectedFloor, setSelectedFloor] = useState(() => {
     // URLパラメータから階数を取得
@@ -1353,6 +1394,201 @@ export default function BathingList() {
     }
   };
 
+  // 音声認識の初期化とハンドラ
+  const initializeSpeechRecognition = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast({
+        title: "エラー",
+        description: "お使いのブラウザは音声認識に対応していません。",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = 'ja-JP';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        setVoiceText(prev => prev + finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('音声認識エラー:', event.error);
+      setIsRecording(false);
+
+      if (event.error === 'not-allowed') {
+        toast({
+          title: "マイクへのアクセスが拒否されました",
+          description: "音声認識を使用するにはマイクへのアクセスを許可してください。",
+          variant: "destructive",
+        });
+      } else if (event.error === 'no-speech') {
+        // 音声が検出されなかった場合は特に何もしない（継続的に待機）
+      } else {
+        toast({
+          title: "音声認識エラー",
+          description: "音声認識中にエラーが発生しました。",
+          variant: "destructive",
+        });
+      }
+    };
+
+    recognition.onend = () => {
+      console.log('音声認識が終了しました');
+      // 録音状態をfalseに更新
+      setIsRecording(false);
+    };
+
+    return recognition;
+  };
+
+  // 音声認識の開始/停止
+  const toggleRecording = () => {
+    if (isRecording) {
+      // 停止
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      setIsRecording(false);
+    } else {
+      // 開始
+      const recognition = initializeSpeechRecognition();
+      if (recognition) {
+        recognitionRef.current = recognition;
+        try {
+          recognition.start();
+          setIsRecording(true);
+        } catch (e) {
+          console.error('音声認識の開始に失敗:', e);
+          toast({
+            title: "エラー",
+            description: "音声認識を開始できませんでした。",
+            variant: "destructive",
+          });
+        }
+      }
+    }
+  };
+
+  // AIボタンクリック時の処理
+  const handleAIButtonClick = (resident: any, record: any) => {
+    setSelectedResidentForVoice({
+      id: resident?.id || record.residentId,
+      name: resident?.name || "未選択",
+      recordId: record.id,
+    });
+    setVoiceText("");
+    setVoiceDialogOpen(true);
+
+    // ダイアログ表示後に少し待ってから自動で音声認識を開始
+    setTimeout(() => {
+      const recognition = initializeSpeechRecognition();
+      if (recognition) {
+        recognitionRef.current = recognition;
+        try {
+          recognition.start();
+          setIsRecording(true);
+        } catch (e) {
+          console.error('音声認識の自動開始に失敗:', e);
+        }
+      }
+    }, 1000);
+  };
+
+  // AI処理の実行
+  const handleAIProcess = async () => {
+    if (!voiceText.trim()) {
+      toast({
+        title: "エラー",
+        description: "処理するテキストがありません。",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // AI処理APIの呼び出し
+      const response = await apiRequest('/api/ai/process-record', 'POST', {
+        text: voiceText,
+        prompt: `あなたは優秀な看護師兼介護士です。
+他の看護師および介護士が記録した看護記録または介護記録を提示しますので、記録として
+１、シンプルに
+２、ふさわしい丁寧語の文章
+
+に修正してください。記録に存在しない情報は一切追加しないでください。
+もし人名が入っている場合は人名はひらがなにして、敬称は「さん」にしてください。
+日本語以外の場合は、日本語に翻訳してから文章を修正してください。彼や彼女など記録の対象者を指す言葉は取り除いてください。
+看護用語、介護用語の誤変換と想定される単語は看護用語、介護用語に直してください。
+（例）正式畳→清拭畳
+一度修正した文章を見直し、必要な場合は再度修正を行ってから返してください。`
+      });
+
+      if (response.processedText) {
+        // 処理結果を記録内容に反映
+        if (selectedResidentForVoice) {
+          handleFieldUpdate(selectedResidentForVoice.recordId, 'notes', response.processedText);
+          if (selectedResidentForVoice.id !== "未選択") {
+            handleSaveRecord(selectedResidentForVoice.id, 'notes', response.processedText);
+          }
+        }
+
+        // ダイアログを閉じる
+        setVoiceDialogOpen(false);
+
+        // 音声認識を停止
+        if (recognitionRef.current) {
+          recognitionRef.current.stop();
+          recognitionRef.current = null;
+        }
+        setIsRecording(false);
+
+      }
+    } catch (error) {
+      console.error('AI処理エラー:', error);
+      toast({
+        title: "エラー",
+        description: "AI処理に失敗しました。",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ダイアログクローズ時のクリーンアップ
+  const handleVoiceDialogClose = () => {
+    // 音声認識を停止
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+    setVoiceDialogOpen(false);
+    setVoiceText("");
+    setSelectedResidentForVoice(null);
+  };
+
   // スタッフ印機能（確認ダイアログ付き）
   const handleStaffStamp = (recordId: string, residentId?: string) => {
     const user = currentUser as any;
@@ -1769,6 +2005,7 @@ export default function BathingList() {
                     handleFieldUpdate={handleFieldUpdate}
                     handleSaveRecord={handleSaveRecord}
                     handleStaffStamp={handleStaffStamp}
+                    handleAIButtonClick={handleAIButtonClick}
                     deleteMutation={deleteMutation}
                     changeResidentMutation={changeResidentMutation}
                   />
@@ -1812,6 +2049,75 @@ export default function BathingList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 音声認識ダイアログ */}
+      <Dialog open={voiceDialogOpen} onOpenChange={handleVoiceDialogClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>音声認識</DialogTitle>
+            <DialogDescription>
+              音声で記録を入力できます。マイクボタンを押して話してください。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* テキストエリア */}
+            <div>
+              <textarea
+                value={voiceText}
+                onChange={(e) => setVoiceText(e.target.value)}
+                placeholder="音声認識されたテキストがここに表示されます..."
+                className="w-full h-32 p-3 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
+
+            {/* 録音状態表示 */}
+            <div className="flex items-center justify-center gap-2">
+              {isRecording ? (
+                <div className="flex items-center gap-2 text-red-600">
+                  <MicOff className="w-5 h-5 animate-pulse" />
+                  <span className="text-sm">録音中...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Mic className="w-5 h-5" />
+                  <span className="text-sm">待機中</span>
+                </div>
+              )}
+            </div>
+
+            {/* ボタン */}
+            <div className="flex gap-2 justify-center">
+              <Button
+                onClick={toggleRecording}
+                variant={isRecording ? "destructive" : "default"}
+                disabled={isProcessing}
+                className="min-w-[100px]"
+              >
+                {isRecording ? (
+                  <>
+                    <MicOff className="w-4 h-4 mr-2" />
+                    停止
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4 mr-2" />
+                    録音
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={handleAIProcess}
+                disabled={isProcessing || !voiceText.trim()}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {isProcessing ? '処理中...' : '認識'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
