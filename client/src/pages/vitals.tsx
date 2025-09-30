@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -835,6 +836,7 @@ export default function Vitals() {
   const [voiceText, setVoiceText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('auto');
   const recognitionRef = useRef<any>(null);
 
   // 共通スタイル定数
@@ -1425,7 +1427,9 @@ export default function Vitals() {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     const recognition = new SpeechRecognition();
 
-    recognition.lang = 'ja-JP';
+    // 言語設定（autoの場合は日本語をデフォルトに）
+    const languageCode = selectedLanguage === 'auto' ? 'ja-JP' : selectedLanguage;
+    recognition.lang = languageCode;
     recognition.continuous = true;
     recognition.interimResults = true;
 
@@ -2016,6 +2020,24 @@ export default function Vitals() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* 言語選択 */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700">言語</Label>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isRecording}
+              >
+                <option value="auto">🌐 自動検出</option>
+                <option value="ja-JP">🇯🇵 日本語</option>
+                <option value="en-US">🇺🇸 英語</option>
+                <option value="vi-VN">🇻🇳 ベトナム語</option>
+                <option value="zh-CN">🇨🇳 中国語</option>
+                <option value="ko-KR">🇰🇷 韓国語</option>
+              </select>
+            </div>
+
             {/* テキストエリア */}
             <div>
               <textarea
@@ -2023,7 +2045,6 @@ export default function Vitals() {
                 onChange={(e) => setVoiceText(e.target.value)}
                 placeholder="音声認識されたテキストがここに表示されます..."
                 className="w-full h-32 p-3 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                autoFocus
               />
             </div>
 
