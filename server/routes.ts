@@ -9,6 +9,7 @@ import { db } from "./db";
 import { users, excretionRecords, staffManagement } from "../shared/schema";
 import { and, gte, lte, desc, eq } from "drizzle-orm";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import OpenAI from "openai";
 
 // テナント抽出ミドルウェア
 const extractTenant = async (req: any, res: any, next: any) => {
@@ -6535,77 +6536,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 基本的な英語→日本語翻訳関数（モック実装）
-  const translateToJapanese = (text: string): string => {
-    // 基本的な医療・介護に関する英語表現の翻訳
-    const translations: { [key: string]: string } = {
-      'good': '良好',
-      'bad': '不良',
-      'pain': '痛み',
-      'fever': '発熱',
-      'cough': '咳',
-      'tired': '疲労',
-      'dizzy': '目眩',
-      'nausea': '吐き気',
-      'headache': '頭痛',
-      'sleep': '睡眠',
-      'eat': '食事',
-      'drink': '水分摂取',
-      'walk': '歩行',
-      'sit': '座位',
-      'stand': '立位',
-      'bathroom': 'トイレ',
-      'shower': '入浴',
-      'medication': '服薬',
-      'blood pressure': '血圧',
-      'temperature': '体温',
-      'pulse': '脈拍',
-      'breathing': '呼吸',
-      'comfortable': '快適',
-      'uncomfortable': '不快',
-      'help': '介助',
-      'assistance': '支援',
-      'morning': '朝',
-      'afternoon': '午後',
-      'evening': '夕方',
-      'night': '夜',
-      'today': '本日',
-      'yesterday': '昨日',
-      'tomorrow': '明日'
-    };
-
-    let translatedText = text.toLowerCase();
-
-    // 辞書ベースの基本翻訳
-    Object.keys(translations).forEach(englishWord => {
-      const regex = new RegExp(`\\b${englishWord}\\b`, 'gi');
-      translatedText = translatedText.replace(regex, translations[englishWord]);
-    });
-
-    // 基本的な文構造の翻訳
-    translatedText = translatedText
-      .replace(/\bis\s+(good|bad|fine|ok)/gi, '$1です')
-      .replace(/\bhas\s+/gi, '')
-      .replace(/\bwas\s+/gi, 'でした')
-      .replace(/\bwere\s+/gi, 'でした')
-      .replace(/\bwill\s+/gi, '')
-      .replace(/\bthe\s+/gi, '')
-      .replace(/\ba\s+/gi, '')
-      .replace(/\ban\s+/gi, '');
-
-    // 不要な英語の冠詞・前置詞を削除
-    translatedText = translatedText
-      .replace(/\b(in|on|at|to|for|with|by|from|of|about)\b/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // 翻訳できなかった場合は元のテキストを返す
-    if (translatedText === text.toLowerCase() || !translatedText.trim()) {
-      return text + '（翻訳処理済み）';
-    }
-
-    return translatedText;
-  };
+  // OpenAIクライアントの初期化
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   // AI処理API（看護・介護記録の文章修正）
   app.post('/api/ai/process-record', isAuthenticated, async (req, res) => {
@@ -6616,72 +6550,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: '処理するテキストが必要です。' });
       }
 
-      let inputText = text.trim();
+      const inputText = text.trim();
 
-      // 言語検出：日本語文字（ひらがな、カタカナ、漢字）が含まれているかチェック
-      const isJapanese = (text: string): boolean => {
-        const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/;
-        return japaneseRegex.test(text);
-      };
+      console.log('OpenAI API呼び出し開始:', {
+        text: inputText.substring(0, 50) + '...',
+        promptLength: prompt?.length || 0
+      });
 
-      // 日本語以外の場合は翻訳処理
-      if (!isJapanese(inputText)) {
-        console.log('日本語以外のテキストを検出、翻訳処理を実行:', inputText);
+      // OpenAI APIを使用して文章を修正
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: prompt || `あなたは優秀な看護師兼介護士です。
+他の看護師および介護士が記録した看護記録または介護記録を提示しますので、記録として
+１、シンプルに
+２、ふさわしい丁寧語の文章
 
-        // 基本的な英語→日本語翻訳（モック実装）
-        // 実際の実装時にはGoogle Translate APIやDeepL APIを使用
-        inputText = translateToJapanese(inputText);
-        console.log('翻訳後:', inputText);
-      }
+に修正してください。記録に存在しない情報は一切追加しないでください。
+もし人名が入っている場合は人名はひらがなにして、敬称は「さん」にしてください。
+日本語以外の場合は、日本語に翻訳してから文章を修正してください。彼や彼女など記録の対象者を指す言葉は取り除いてください。
+看護用語、介護用語の誤変換と想定される単語は看護用語、介護用語に直してください。
+（例）正式畳→清拭畳
+一度修正した文章を見直し、必要な場合は再度修正を行ってから返してください。`
+          },
+          {
+            role: "user",
+            content: inputText
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      });
 
-      // 現状はモック実装として簡易的な文章修正を行う
-      // 実際の実装時にはOpenAI APIやClaude APIを使用
-      let processedText = inputText;
+      const processedText = completion.choices[0]?.message?.content?.trim() || inputText;
 
-      // 基本的な文章修正ルールを適用
-      processedText = processedText
-        // 語尾を丁寧語に修正
-        .replace(/だった$/g, 'でした')
-        .replace(/だ$/g, 'です')
-        .replace(/である$/g, 'です')
-        .replace(/した$/g, 'しました')
-        .replace(/なった$/g, 'になりました')
-        .replace(/いた$/g, 'いました')
-        .replace(/ていた$/g, 'ていました')
-        .replace(/てた$/g, 'ていました')
-
-        // 看護・介護用語の修正
-        .replace(/正式畳/g, '清拭畳')
-        .replace(/おしっこ/g, '排尿')
-        .replace(/うんち/g, '排便')
-        .replace(/うんこ/g, '排便')
-
-        // 人物参照の修正（彼、彼女などを削除）
-        .replace(/彼は/g, '')
-        .replace(/彼が/g, '')
-        .replace(/彼女は/g, '')
-        .replace(/彼女が/g, '')
-
-        // 文頭の小文字を大文字に
-        .replace(/^[a-z]/, (match: string) => match.toUpperCase())
-
-        // 冗長な表現を簡潔に
-        .replace(/とても良い/g, '良好')
-        .replace(/すごく/g, '')
-        .replace(/めちゃくちゃ/g, '')
-        .replace(/やばい/g, '状態が良くない')
-
-        // 文末に句点を追加（ない場合）
-        .replace(/([^。！？])$/, '$1。');
-
-      // 空文字になった場合の処理
-      if (!processedText.trim()) {
-        processedText = text.trim() + '。';
-      }
-
-      console.log('AI処理結果:', {
-        original: text,
-        processed: processedText
+      console.log('OpenAI API処理完了:', {
+        original: inputText.substring(0, 50) + '...',
+        processed: processedText.substring(0, 50) + '...',
+        tokensUsed: completion.usage?.total_tokens || 0
       });
 
       res.json({
@@ -6691,6 +6599,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
       console.error('AI処理エラー:', error);
+
+      // OpenAI APIエラーの詳細をログ出力
+      if (error.response) {
+        console.error('OpenAI APIエラーレスポンス:', error.response.data);
+      }
+
       res.status(500).json({
         error: 'AI処理に失敗しました。',
         details: error.message
