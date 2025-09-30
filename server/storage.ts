@@ -698,6 +698,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(nursingRecords.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(nursingRecords.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(nursingRecords.tenantId));
     }
 
     return await db.select({
@@ -851,6 +854,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(mealsAndMedication.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(mealsAndMedication.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(mealsAndMedication.tenantId));
     }
 
     return await db.select()
@@ -1039,6 +1045,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(excretionRecords.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(excretionRecords.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(excretionRecords.tenantId));
     }
 
     return await db.select({
@@ -1096,6 +1105,9 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(weightRecords.tenantId, tenantId));
     } else if (this.currentTenantId) {
       conditions.push(eq(weightRecords.tenantId, this.currentTenantId));
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      conditions.push(isNull(weightRecords.tenantId));
     }
 
     return await db.select()
@@ -1222,20 +1234,23 @@ export class DatabaseStorage implements IStorage {
       }).from(roundRecords)
       .where(and(eq(roundRecords.recordDate, formattedDate), eq(roundRecords.tenantId, this.currentTenantId)))
       .orderBy(roundRecords.hour);
+    } else {
+      // 親環境では tenant_id が NULL のデータのみ
+      return await db.select({
+        id: roundRecords.id,
+        residentId: roundRecords.residentId,
+        recordDate: roundRecords.recordDate,
+        hour: roundRecords.hour,
+        recordType: roundRecords.recordType,
+        staffName: roundRecords.staffName,
+        positionValue: roundRecords.positionValue,
+        notes: roundRecords.notes,
+        createdBy: roundRecords.createdBy,
+        createdAt: roundRecords.createdAt,
+      }).from(roundRecords)
+      .where(and(eq(roundRecords.recordDate, formattedDate), isNull(roundRecords.tenantId)))
+      .orderBy(roundRecords.hour);
     }
-
-    return await db.select({
-      id: roundRecords.id,
-      residentId: roundRecords.residentId,
-      recordDate: roundRecords.recordDate,
-      hour: roundRecords.hour,
-      recordType: roundRecords.recordType,
-      staffName: roundRecords.staffName,
-      positionValue: roundRecords.positionValue,
-      notes: roundRecords.notes,
-      createdBy: roundRecords.createdBy,
-      createdAt: roundRecords.createdAt,
-    }).from(roundRecords).where(eq(roundRecords.recordDate, formattedDate)).orderBy(roundRecords.hour);
   }
 
   async createRoundRecord(record: InsertRoundRecord): Promise<RoundRecord> {

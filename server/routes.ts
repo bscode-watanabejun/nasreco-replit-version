@@ -105,33 +105,29 @@ const extractTenant = async (req: any, res: any, next: any) => {
       }
     }
 
-    // 4. スタッフセッションからテナントIDを取得
-    // ただし、URLパスが明示的に親環境を示している場合（/staff-login など）は無視
-    if (!tenantId && req.session?.staff?.tenantId) {
-      // 親環境でのAPIエンドポイント（ログイン等）の場合はセッション情報を無視
-      const isParentEnvironmentEndpoint = req.path === '/api/auth/staff-login' &&
-                                         !req.path.includes('/tenant/') &&
-                                         !req.headers['x-tenant-id'] &&
-                                         !req.get('host')?.includes('.');
+    // セッション情報からテナントIDを取得する前に、親環境へのアクセスかどうかを判定
+    // 親環境の判定条件:
+    // - ヘッダーにx-tenant-idがない
+    // - サブドメインがない（または予約済みサブドメイン）
+    // - URLパスが/tenant/で始まらない
+    const host = req.get('host');
+    const hasSubdomain = host && host.includes('.') && !['www', 'api', 'admin', 'mail', 'ftp', 'cpanel', 'webmail', 'localhost'].includes(host.split('.')[0]?.toLowerCase());
+    const hasPathTenant = req.path.match(/^\/tenant\/([^\/]+)/);
+    const hasHeaderTenant = !!req.headers['x-tenant-id'];
+    const isExplicitParentEnvironment = !hasHeaderTenant && !hasSubdomain && !hasPathTenant;
 
-      if (!isParentEnvironmentEndpoint) {
-        tenantId = req.session.staff.tenantId;
-        tenantSource = 'staff_session';
-      }
+    // 4. スタッフセッションからテナントIDを取得
+    // 親環境への明示的アクセスの場合はセッション情報を使用しない
+    if (!tenantId && !isExplicitParentEnvironment && req.session?.staff?.tenantId) {
+      tenantId = req.session.staff.tenantId;
+      tenantSource = 'staff_session';
     }
 
     // 5. ユーザーセッションからテナントIDを取得
-    // 同様に親環境エンドポイントの場合は無視
-    if (!tenantId && req.session?.tenant?.currentTenantId) {
-      const isParentEnvironmentEndpoint = req.path === '/api/auth/staff-login' &&
-                                         !req.path.includes('/tenant/') &&
-                                         !req.headers['x-tenant-id'] &&
-                                         !req.get('host')?.includes('.');
-
-      if (!isParentEnvironmentEndpoint) {
-        tenantId = req.session.tenant.currentTenantId;
-        tenantSource = 'user_session';
-      }
+    // 親環境への明示的アクセスの場合はセッション情報を使用しない
+    if (!tenantId && !isExplicitParentEnvironment && req.session?.tenant?.currentTenantId) {
+      tenantId = req.session.tenant.currentTenantId;
+      tenantSource = 'user_session';
     }
 
 
