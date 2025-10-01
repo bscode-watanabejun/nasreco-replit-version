@@ -145,8 +145,13 @@ function InputWithDropdown({
     setOpen(false);
     setJustSelected(true);
 
-    // フォーカス移動が無効化されている場合はスキップ
-    if (disableFocusMove || disableAutoFocus) return;
+    // フォーカス移動が無効化されている場合はjustSelectedをリセット
+    if (disableFocusMove || disableAutoFocus) {
+      setTimeout(() => {
+        setJustSelected(false);
+      }, 300);
+      return;
+    }
 
     // 自動フォーカス移動を実行
     setTimeout(() => {
@@ -163,12 +168,9 @@ function InputWithDropdown({
         const currentIndex = allElements.indexOf(currentElement);
         if (currentIndex >= 0 && currentIndex < allElements.length - 1) {
           allElements[currentIndex + 1].focus();
-        } else {
-          // 最後の要素の場合、一時的にフォーカスを無効化してからリセット
-          setTimeout(() => {
-            setJustSelected(false);
-          }, 500);
         }
+        // justSelectedフラグを確実にリセット
+        setJustSelected(false);
       }
     }, 200);
   };
@@ -182,13 +184,21 @@ function InputWithDropdown({
             type="text"
             value={inputValue}
             readOnly
-            onFocus={() => !justSelected && setOpen(true)}
+            onFocus={() => {
+              if (!justSelected) {
+                setOpen(true);
+              }
+            }}
             onClick={(e) => {
+              e.preventDefault();
               if (disableFocusMove) {
                 // フィルタ条件項目の場合はクリックでプルダウンを開く
                 setOpen(!open);
               } else {
-                e.preventDefault();
+                // 通常の入力項目の場合もクリックでプルダウンを開く
+                if (!justSelected) {
+                  setOpen(true);
+                }
               }
             }}
             placeholder={placeholder}
@@ -581,25 +591,30 @@ export default function MealsMedicationPage() {
     queryKey: ['/api/residents'],
   }) as { data: any[] };
 
+  // マスタ設定から「その他項目」を取得
+  const { data: otherItemsSettings = [] } = useQuery({
+    queryKey: ['/api/master-settings', 'other_items'],
+    queryFn: async () => {
+      return await apiRequest('/api/master-settings?categoryKey=other_items', 'GET');
+    },
+  });
+
   const mealTimes = ["朝", "10時", "昼", "15時", "夕"];
-  
+
   // 主・副の選択肢
   const mainOptions = ["empty", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
   const sideOptions = ["empty", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "-", "欠", "拒"];
-  
+
   // 水分の選択肢
   const waterOptions = ["empty", "300", "250", "200", "150", "100", "50", "0"];
-  
-  // その他の選択肢
+
+  // その他の選択肢（マスタ設定から動的に生成）
   const supplementOptions = [
     "empty",
-    "ラコール 200ml",
-    "エンシュア 200ml", 
-    "メイバランス 200ml",
-    "ツインラインNF 400ml",
-    "エンシュア 250ml",
-    "イノラス 187.5ml",
-    "ラコールＮＦ半固形剤 300g"
+    ...otherItemsSettings
+      .filter((item: any) => item.isActive) // 有効な項目のみ
+      .sort((a: any, b: any) => (a.sortOrder || 0) - (b.sortOrder || 0)) // sortOrderでソート
+      .map((item: any) => item.value) // valueを使用
   ];
 
   // 記録保存時に適切な時間を決定する関数
