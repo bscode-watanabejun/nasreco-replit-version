@@ -19,7 +19,7 @@ import { useLocation } from "wouter";
 import { getEnvironmentPath } from "@/lib/queryClient";
 import { useEffect } from "react";
 import ResidentAttachments from "@/components/ResidentAttachments";
-import type { InsertResident, Resident } from "@shared/schema";
+import type { InsertResident, Resident, MasterSetting } from "@shared/schema";
 
 // 年齢計算関数
 const calculateAge = (birthDate: string): string => {
@@ -48,6 +48,14 @@ export default function UserInfoManagement() {
 
   const { data: residents = [], isLoading } = useQuery<Resident[]>({
     queryKey: ["/api/residents"],
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   const form = useForm<any>({
@@ -385,10 +393,16 @@ export default function UserInfoManagement() {
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  <SelectItem value="1階">1階</SelectItem>
-                                  <SelectItem value="2階">2階</SelectItem>
-                                  <SelectItem value="3階">3階</SelectItem>
-                                  <SelectItem value="4階">4階</SelectItem>
+                                  {/* マスタ設定から取得した階数データで動的生成 */}
+                                  {floorMasterSettings
+                                    .filter(setting => setting.isActive !== false && setting.value !== "全階") // 有効で「全階」以外
+                                    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                                    .map((setting) => (
+                                      <SelectItem key={setting.id} value={setting.value}>
+                                        {setting.label}
+                                      </SelectItem>
+                                    ))
+                                  }
                                 </SelectContent>
                               </Select>
                               <FormMessage />
@@ -1892,10 +1906,16 @@ export default function UserInfoManagement() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="1階">1階</SelectItem>
-                              <SelectItem value="2階">2階</SelectItem>
-                              <SelectItem value="3階">3階</SelectItem>
-                              <SelectItem value="4階">4階</SelectItem>
+                              {/* マスタ設定から取得した階数データで動的生成 */}
+                              {floorMasterSettings
+                                .filter(setting => setting.isActive !== false && setting.value !== "全階") // 有効で「全階」以外
+                                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                                .map((setting) => (
+                                  <SelectItem key={setting.id} value={setting.value}>
+                                    {setting.label}
+                                  </SelectItem>
+                                ))
+                              }
                             </SelectContent>
                           </Select>
                           <FormMessage />

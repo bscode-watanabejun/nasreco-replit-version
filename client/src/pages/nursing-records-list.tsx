@@ -35,6 +35,8 @@ import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Baby, FileText, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Paperclip, Trash2, Building } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import type { MasterSetting } from "@shared/schema";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 const careRecordSchema = z.object({
   residentId: z.string().min(1, "利用者を選択してください"),
@@ -329,18 +331,7 @@ export default function NursingRecordsList() {
   // URLパラメータから日付とフロアの初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState<Date>(urlParams.get('date') ? new Date(urlParams.get('date')!) : new Date());
-  const [selectedFloor, setSelectedFloor] = useState<string>(() => {
-    // URLパラメータから階数を取得
-    const floorParam = urlParams.get("floor");
-    if (floorParam) {
-      if (floorParam === "all") {
-        return "全階";
-      } else {
-        return `${floorParam}階`;
-      }
-    }
-    return "全階";
-  });
+  const [selectedFloor, setSelectedFloor] = useState<string>(urlParams.get('floor') || 'all');
 
   // 一括登録モード用のstate
   const [bulkMode, setBulkMode] = useState(false);
@@ -388,6 +379,14 @@ export default function NursingRecordsList() {
 
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/user"],
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // 全利用者の入浴記録データ（入浴チェック判定用）
@@ -790,39 +789,23 @@ export default function NursingRecordsList() {
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
   }, [nursingRecords, selectedResident, selectedDate]);
 
-  // 階数のオプションを生成（利用者データから）
-  const floorOptions = [
-    { value: "全階", label: "全階" },
-    ...Array.from(new Set((residents as any[]).map(r => {
-      // "1F", "2F" などのF文字を除去して数値のみ取得
-      const floor = r.floor?.toString().replace('F', '');
-      return floor ? parseInt(floor) : null;
-    }).filter(Boolean)))
-      .sort((a, b) => (a || 0) - (b || 0))
-      .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
-  ];
+  // 階数のオプションを生成（マスタ設定から）
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   // フィルター適用済みの利用者一覧（useMemoで依存関係を明確化）
   const filteredResidents = useMemo(() => {
     return (residents as any[]).filter((resident: any) => {
     // 階数フィルター
-    if (selectedFloor !== "全階") {
-      const residentFloor = resident.floor?.toString();
-      if (!residentFloor) return false;
-      
-      // 複数のフォーマットに対応した比較
-      const selectedFloorNumber = selectedFloor.replace("階", "");
-      
-      // "1階" 形式との比較
-      if (residentFloor === selectedFloor) return true;
-      
-      // "1" 形式との比較
-      if (residentFloor === selectedFloorNumber) return true;
-      
-      // "1F" 形式との比較
-      if (residentFloor.replace('F', '') === selectedFloorNumber) return true;
-      
-      return false;
+    if (selectedFloor !== "all") {
+      if (!matchFloor(resident.floor, selectedFloor)) return false;
     }
     
     // 日付フィルター（入所日・退所日による絞り込み）
@@ -1809,9 +1792,8 @@ export default function NursingRecordsList() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
               const dashboardPath = getEnvironmentPath("/");
-              const targetUrl = `${dashboardPath}?date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${floorParam}`;
+              const targetUrl = `${dashboardPath}?date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${selectedFloor}`;
               setLocation(targetUrl);
             }}
             className="p-2"
@@ -2064,8 +2046,8 @@ export default function NursingRecordsList() {
                         className="flex items-center gap-0.5 px-1.5 sm:px-3 text-xs sm:text-sm flex-shrink-0"
                         onClick={() => {
                           if (!bulkMode) {
-                            const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
-                            setLocation(`/nursing-records?residentId=${resident.id}&date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${floorParam}`);
+                            const nursingRecordsPath = getEnvironmentPath("/nursing-records");
+                            setLocation(`${nursingRecordsPath}?residentId=${resident.id}&date=${format(selectedDate, 'yyyy-MM-dd')}&floor=${selectedFloor}`);
                           }
                         }}
                         disabled={bulkMode}

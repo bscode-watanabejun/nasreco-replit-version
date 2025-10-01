@@ -27,9 +27,10 @@ import { format, parseISO, startOfDay, endOfDay, addDays, addMonths, differenceI
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { BathingRecord, Resident } from "@shared/schema";
+import type { BathingRecord, Resident, MasterSetting } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 // 入浴カテゴリの選択肢
 const bathTypeOptions = [
@@ -318,6 +319,14 @@ export default function BathingCheckList() {
     queryFn: () => apiRequest("/api/residents"),
   });
 
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
   // 入浴記録データの取得
   const { data: bathingData = [], isLoading } = useQuery<BathingRecord[]>({
     queryKey: ["/api/bathing-records"],
@@ -489,8 +498,7 @@ export default function BathingCheckList() {
     if (selectedFloor !== "all") {
       filtered = filtered.filter(record => {
         const resident = residents.find(r => r.id === record.residentId);
-        return resident?.floor === selectedFloor || 
-               resident?.floor === `${selectedFloor}階`;
+        return matchFloor(resident?.floor, selectedFloor);
       });
     }
 
@@ -524,9 +532,8 @@ export default function BathingCheckList() {
     
     // Step 2: 表示対象の利用者を取得（入浴日設定でフィルタ）
     const displayResidents = residents.filter(r => {
-      if (selectedFloor !== "all" && 
-          r.floor !== selectedFloor && 
-          r.floor !== `${selectedFloor}階`) return false;
+      if (selectedFloor !== "all" &&
+          !matchFloor(r.floor, selectedFloor)) return false;
       if (selectedResident !== "all" && r.id !== selectedResident) return false;
       
       // 入浴日設定の確認
@@ -714,11 +721,20 @@ export default function BathingCheckList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全階</SelectItem>
-              <SelectItem value="1">1階</SelectItem>
-              <SelectItem value="2">2階</SelectItem>
-              <SelectItem value="3">3階</SelectItem>
-              <SelectItem value="4">4階</SelectItem>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <SelectItem key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </SelectItem>
+                  );
+                })
+              }
             </SelectContent>
           </Select>
 
@@ -1020,9 +1036,8 @@ export default function BathingCheckList() {
 
                 // 利用者ごとにグループ化して入浴日の記録を表示
                 const monthlyData = residents.filter(resident => {
-                  if (selectedFloor !== "all" && 
-                      resident.floor !== selectedFloor && 
-                      resident.floor !== `${selectedFloor}階`) return false;
+                  if (selectedFloor !== "all" &&
+                      !matchFloor(resident.floor, selectedFloor)) return false;
                   if (selectedResident !== "all" && resident.id !== selectedResident) return false;
                   
                   // 入浴日設定の確認

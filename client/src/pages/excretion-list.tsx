@@ -22,7 +22,8 @@ import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { Resident, FacilitySettings } from "@shared/schema";
+import type { Resident, FacilitySettings, MasterSetting } from "@shared/schema";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 interface ExcretionRecord {
   id: string;
@@ -479,17 +480,9 @@ export default function ExcretionList() {
   // URLパラメータから初期値を取得
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState(urlParams.get('date') || format(new Date(), 'yyyy-MM-dd'));
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    const floorParam = urlParams.get('floor');
-    if (floorParam) {
-      if (floorParam === 'all') return '全階';
-      const floorNumber = floorParam.replace('F', '');
-      if (!isNaN(Number(floorNumber))) {
-        return `${floorNumber}階`;
-      }
-    }
-    return '全階';
-  });
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get('floor') || 'all'
+  );
   
   // ダイアログ状態管理
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -544,6 +537,14 @@ export default function ExcretionList() {
     queryKey: ["/api/facility-settings"],
     refetchOnMount: true, // ページ遷移時に必ず最新データを取得
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // 日付や階数が変更されたときにローカル状態をリセット
@@ -690,23 +691,7 @@ export default function ExcretionList() {
   // フィルタリングされた利用者リスト
   const filteredResidents = allResidents.filter((resident: Resident) => {
     if (selectedFloor === 'all' || selectedFloor === '全階') return true;
-    
-    const residentFloor = resident.floor;
-    if (!residentFloor) return false; // null/undefinedをフィルタアウト
-    
-    // 複数のフォーマットに対応した比較
-    const selectedFloorNumber = selectedFloor.replace("階", "").replace("F", "");
-    
-    // "1階" 形式との比較
-    if (residentFloor === selectedFloor) return true;
-    
-    // "1F" 形式との比較
-    if (residentFloor === `${selectedFloorNumber}F`) return true;
-    
-    // "1" 形式との比較
-    if (residentFloor === selectedFloorNumber) return true;
-    
-    return false;
+    return matchFloor(resident.floor, selectedFloor);
   }).sort((a: Resident, b: Resident) => {
     // 居室番号で昇順ソート
     const roomA = parseInt(a.roomNumber || "0");
@@ -1055,7 +1040,7 @@ export default function ExcretionList() {
             onClick={() => {
               const params = new URLSearchParams();
               params.set('date', selectedDate);
-              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              params.set('floor', selectedFloor);
               const dashboardPath = getEnvironmentPath("/");
               const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
@@ -1094,12 +1079,20 @@ export default function ExcretionList() {
               onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="全階">全階</option>
-              <option value="1階">1階</option>
-              <option value="2階">2階</option>
-              <option value="3階">3階</option>
-              <option value="4階">4階</option>
-              <option value="5階">5階</option>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <option key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </option>
+                  );
+                })
+              }
             </select>
           </div>
         </div>

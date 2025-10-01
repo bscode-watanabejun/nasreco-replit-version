@@ -8,8 +8,9 @@ import ResidentAttachmentsView from "@/components/ResidentAttachmentsView";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { getEnvironmentPath } from "@/lib/queryClient";
-import type { Resident } from "@shared/schema";
+import { getEnvironmentPath, apiRequest } from "@/lib/queryClient";
+import type { Resident, MasterSetting } from "@shared/schema";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 
 export default function UserInfoView() {
@@ -38,8 +39,16 @@ export default function UserInfoView() {
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [], isLoading: isLoadingFloorSettings } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
   // Handle loading state
-  if (isLoading) {
+  if (isLoading || isLoadingFloorSettings) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -74,19 +83,6 @@ export default function UserInfoView() {
     return value || "未設定";
   };
 
-  // 階数のオプションを生成（利用者データから）
-  const floorOptions = [
-    { value: "all", label: "全階" },
-    ...Array.from(new Set((residents as any[]).map(r => {
-      // "1F", "2F" などのF文字を除去して数値のみ取得
-      const floor = r.floor?.toString().replace('F', '');
-      return floor ? parseInt(floor) : null;
-    }).filter(Boolean)))
-      .sort((a, b) => (a || 0) - (b || 0))
-      .map(floor => ({ value: (floor || 0).toString(), label: `${floor || 0}階` }))
-  ];
-  
-
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // アクティブな利用者のみ表示
@@ -96,24 +92,7 @@ export default function UserInfoView() {
     
     // 階数フィルター
     if (selectedFloor !== "all") {
-      if (!resident.floor) {
-        return false;
-      }
-      
-      // 複数のパターンでマッチを試みる
-      const residentFloorStr = resident.floor?.toString();
-      const residentFloorNum = residentFloorStr?.replace(/[^\d]/g, ''); // 数字のみ抽出
-      const selectedFloorNum = selectedFloor.replace(/[^\d]/g, ''); // 数字のみ抽出
-      
-      const matches = 
-        residentFloorStr === selectedFloor || // 完全一致
-        residentFloorNum === selectedFloor || // 数字部分が一致
-        residentFloorNum === selectedFloorNum || // 両方の数字部分が一致
-        residentFloorStr === selectedFloor + 'F' || // selectedFloorにFを追加した形と一致
-        residentFloorStr === selectedFloor + '階'; // selectedFloorに階を追加した形と一致
-      
-      
-      if (!matches) {
+      if (!matchFloor(resident.floor, selectedFloor)) {
         return false;
       }
     }
@@ -193,12 +172,20 @@ export default function UserInfoView() {
                 onChange={(e) => setSelectedFloor(e.target.value)}
                 className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
-                <option value="all">全階</option>
-                <option value="1">1階</option>
-                <option value="2">2階</option>
-                <option value="3">3階</option>
-                <option value="4">4階</option>
-                <option value="5">5階</option>
+                {/* マスタ設定から取得した階数データで動的生成 */}
+                {floorMasterSettings
+                  .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                  .map((setting) => {
+                    // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                    const optionValue = setting.value === "全階" ? "all" : setting.value;
+                    return (
+                      <option key={setting.id} value={optionValue}>
+                        {setting.label}
+                      </option>
+                    );
+                  })
+                }
               </select>
             </div>
         </div>

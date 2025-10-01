@@ -13,7 +13,7 @@ import { format, parseISO, addMonths } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { JournalEntry } from "@shared/schema";
+import type { JournalEntry, MasterSetting } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 // 種別の選択肢
@@ -71,6 +71,14 @@ export default function JournalCheckList() {
       setDateTo(value);
     }
   };
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
 
   // 日誌エントリデータの取得
   const { data: journalEntries = [], isLoading } = useQuery<JournalEntry[]>({
@@ -177,11 +185,20 @@ export default function JournalCheckList() {
               <SelectValue placeholder="階数" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全階</SelectItem>
-              <SelectItem value="1">1階</SelectItem>
-              <SelectItem value="2">2階</SelectItem>
-              <SelectItem value="3">3階</SelectItem>
-              <SelectItem value="4">4階</SelectItem>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <SelectItem key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </SelectItem>
+                  );
+                })
+              }
             </SelectContent>
           </Select>
         </div>

@@ -15,6 +15,8 @@ import { ArrowLeft, Calendar, Filter, Building, User, ChevronLeft, ChevronRight,
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 interface DailyRecord {
   id: string;
@@ -191,12 +193,9 @@ export default function NursingJournal() {
   const urlParams = new URLSearchParams(window.location.search);
   const [selectedDate, setSelectedDate] = useState<Date>(urlParams.get('date') ? new Date(urlParams.get('date')!) : new Date());
   const [selectedRecordType, setSelectedRecordType] = useState("日中");
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    const floorParam = urlParams.get('floor');
-    if (floorParam === 'all') return '全階';
-    if (floorParam) return `${floorParam}階`;
-    return '全階';
-  });
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get('floor') || 'all'
+  );
   
   // 記入者
   const [enteredBy, setEnteredBy] = useState("");
@@ -247,28 +246,24 @@ export default function NursingJournal() {
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
-  // 階数オプション（住民データから動的に生成）
-  const floorOptions = useMemo(() => {
-    if (!residents) return [{ value: "全階", label: "全階" }];
-    
-    const floors = new Set<string>();
-    residents.forEach((resident) => {
-      if (resident.floor) {
-        floors.add(resident.floor);
-      }
-    });
-    
-    const sortedFloors = Array.from(floors).sort((a, b) => {
-      const aNum = parseInt(a.replace(/[^0-9]/g, '')) || 0;
-      const bNum = parseInt(b.replace(/[^0-9]/g, '')) || 0;
-      return aNum - bNum;
-    });
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
 
-    return [
-      { value: "全階", label: "全階" },
-      ...sortedFloors.map(floor => ({ value: floor, label: floor }))
-    ];
-  }, [residents]);
+  // 階数オプション（マスタ設定から動的に生成）
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   // チェックボックスでフィルタされた記録（日中、夜間、看護のチェックが付いた記録のみ）
   const filteredJournalRecords = useMemo(() => {
@@ -283,14 +278,12 @@ export default function NursingJournal() {
     let filtered = records.filter(record => checkedRecordIds.includes(record.id));
 
     // 階数フィルタ
-    if (selectedFloor !== "全階") {
-      const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
+    if (selectedFloor !== "all") {
       filtered = filtered.filter(record => {
         const resident = residents.find(r => r.id === record.residentId);
         if (!resident || !resident.floor) return false;
-        
-        const residentFloorNumber = resident.floor.toString().replace(/[^0-9]/g, "");
-        return residentFloorNumber === selectedFloorNumber;
+
+        return matchFloor(resident.floor, selectedFloor);
       });
     }
 
@@ -334,7 +327,7 @@ export default function NursingJournal() {
   const handleBack = () => {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-    params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+    params.set('floor', selectedFloor);
     const dashboardPath = getEnvironmentPath("/");
     const targetUrl = `${dashboardPath}?${params.toString()}`;
     navigate(targetUrl);
@@ -357,8 +350,8 @@ export default function NursingJournal() {
       params.set('dateFrom', format(selectedDate, 'yyyy-MM-dd'));
       params.set('dateTo', format(selectedDate, 'yyyy-MM-dd'));
       params.set('recordType', selectedRecordType);
-      if (selectedFloor !== '全階') {
-        params.set('floor', selectedFloor.replace('階', ''));
+      if (selectedFloor !== 'all') {
+        params.set('floor', selectedFloor);
       }
 
       const response = await apiRequest(`/api/journal-entries?${params.toString()}`);
@@ -368,7 +361,7 @@ export default function NursingJournal() {
       return entries.find(e =>
         e.recordDate === format(selectedDate, 'yyyy-MM-dd') &&
         e.recordType === selectedRecordType &&
-        (selectedFloor === '全階' ? true : e.floor === selectedFloor.replace('階', ''))
+        (selectedFloor === 'all' ? true : matchFloor(e.floor, selectedFloor))
       ) || null;
     },
     enabled: !!isAuthenticated && !!selectedDate && !!selectedRecordType,
@@ -429,7 +422,7 @@ export default function NursingJournal() {
         enteredBy: null, // NULLに設定
         residentCount: residentStats.totalResidents,
         hospitalizedCount: residentStats.hospitalizedCount,
-        floor: selectedFloor === '全階' ? null : selectedFloor.replace('階', ''),
+        floor: selectedFloor === 'all' ? null : selectedFloor,
         createdBy: userId
       });
     } else {
@@ -447,7 +440,7 @@ export default function NursingJournal() {
         enteredBy: userName,
         residentCount: residentStats.totalResidents,
         hospitalizedCount: residentStats.hospitalizedCount,
-        floor: selectedFloor === '全階' ? null : selectedFloor.replace('階', ''),
+        floor: selectedFloor === 'all' ? null : selectedFloor,
         createdBy: userId
       });
     }
@@ -464,7 +457,7 @@ export default function NursingJournal() {
       const params = new URLSearchParams({
         date: format(selectedDate, 'yyyy-MM-dd'),
         recordType: selectedRecordType,
-        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''),
+        floor: selectedFloor,
         enteredBy: enteredBy || ''
       });
       const printUrl = `/api/nursing-journal/print?${params.toString()}`;

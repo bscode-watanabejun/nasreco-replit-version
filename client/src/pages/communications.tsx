@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Info, Calendar, Building } from "lucide-react";
 import { useLocation } from "wouter";
-import { type StaffNotice } from "@shared/schema";
+import { type StaffNotice, MasterSetting } from "@shared/schema";
 import { queryClient, getEnvironmentPath, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,17 +30,9 @@ export default function Communications() {
     return new Date();
   });
   const [selectedJobRole, setSelectedJobRole] = useState("全体");
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    const floorParam = urlParams.get('floor');
-    if (floorParam) {
-      if (floorParam === 'all') return '全階';
-      const floorNumber = floorParam.replace('F', '');
-      if (!isNaN(Number(floorNumber))) {
-        return `${floorNumber}階`;
-      }
-    }
-    return '全階';
-  });
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get('floor') || 'all'
+  );
   const [selectedNotice, setSelectedNotice] = useState<StaffNotice | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
@@ -52,6 +44,14 @@ export default function Communications() {
     refetchOnWindowFocus: true, // ウィンドウフォーカス時に再取得
     staleTime: 0, // 常に最新データを取得
     retry: 3, // 失敗時に3回まで再試行
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // Fetch read status for all notices to determine unread status
@@ -278,7 +278,7 @@ export default function Communications() {
             onClick={() => {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              params.set('floor', selectedFloor);
               const dashboardPath = getEnvironmentPath("/");
               const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
@@ -330,11 +330,20 @@ export default function Communications() {
               onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="全階">全階</option>
-              <option value="1階">1階</option>
-              <option value="2階">2階</option>
-              <option value="3階">3階</option>
-              <option value="4階">4階</option>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <option key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </option>
+                  );
+                })
+              }
             </select>
           </div>
         </div>

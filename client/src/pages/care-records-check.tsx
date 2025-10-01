@@ -30,7 +30,9 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import type { MasterSetting } from "@shared/schema";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 // 記録内容用のIME対応リサイズ可能textareaコンポーネント
 function ResizableNotesInput({
@@ -174,6 +176,14 @@ export default function CareRecordsCheck() {
     queryKey: ["residents"],
     queryFn: () => apiRequest("/api/residents"),
     ...queryOptions,
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // 職員データを取得
@@ -579,7 +589,7 @@ export default function CareRecordsCheck() {
       }
 
       // 階数フィルタ
-      if (selectedFloor !== "all" && record.floor !== selectedFloor) return false;
+      if (selectedFloor !== "all" && !matchFloor(record.floor, selectedFloor)) return false;
 
       // 利用者フィルタ
       if (selectedResident !== "all" && record.residentId !== selectedResident) return false;
@@ -781,12 +791,20 @@ export default function CareRecordsCheck() {
                 <SelectValue placeholder="階数" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全階</SelectItem>
-                <SelectItem value="1階">1階</SelectItem>
-                <SelectItem value="2階">2階</SelectItem>
-                <SelectItem value="3階">3階</SelectItem>
-                <SelectItem value="4階">4階</SelectItem>
-                <SelectItem value="5階">5階</SelectItem>
+                {/* マスタ設定から取得した階数データで動的生成 */}
+                {floorMasterSettings
+                  .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                  .map((setting) => {
+                    // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                    const optionValue = setting.value === "全階" ? "all" : setting.value;
+                    return (
+                      <SelectItem key={setting.id} value={optionValue}>
+                        {setting.label}
+                      </SelectItem>
+                    );
+                  })
+                }
               </SelectContent>
             </Select>
           </div>

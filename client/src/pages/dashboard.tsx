@@ -6,6 +6,7 @@ import ModuleCard from "@/components/dashboard/module-card";
 import { TenantSelector } from "@/components/tenant-selector";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
+import type { MasterSetting } from "@shared/schema";
 import {
   Users,
   Bell,
@@ -71,6 +72,14 @@ export default function Dashboard() {
     }
   }, [location]); // locationが変更されるたびに実行
   
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [], isLoading: isLoadingFloorSettings } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
   // 未チェック看護記録の有無を確認
   const { data: hasUncheckedNursingRecords, isPending: isCheckingNursingRecords } = useQuery({
     queryKey: ["hasUncheckedNursingRecords", selectedDate],
@@ -85,9 +94,9 @@ export default function Dashboard() {
           return bathingDate === format(selectedDate, "yyyy-MM-dd");
         });
         const uncheckedRecords = selectedDateRecords.filter((record: any) => {
-          const hasCompleteVitals = record.temperature && 
-                                  record.bloodPressureSystolic && 
-                                  record.pulseRate && 
+          const hasCompleteVitals = record.temperature &&
+                                  record.bloodPressureSystolic &&
+                                  record.pulseRate &&
                                   record.oxygenSaturation;
           return hasCompleteVitals && !record.nursingCheck;
         });
@@ -308,12 +317,20 @@ export default function Dashboard() {
               onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="all">全階</option>
-              <option value="1">1階</option>
-              <option value="2">2階</option>
-              <option value="3">3階</option>
-              <option value="4">4階</option>
-              <option value="5">5階</option>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <option key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </option>
+                  );
+                })
+              }
             </select>
           </div>
         </div>

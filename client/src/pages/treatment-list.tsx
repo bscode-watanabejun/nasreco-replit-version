@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 // Input + Popoverコンポーネント（手入力とプルダウン選択両対応）
 function InputWithDropdown({
@@ -184,18 +186,10 @@ export default function TreatmentList() {
       ? new Date(new URLSearchParams(window.location.search).get("date")!)
       : new Date()
   );
-  const [selectedFloor, setSelectedFloor] = useState<string>(() => {
-    // URLパラメータから階数を取得
-    const floorParam = new URLSearchParams(window.location.search).get("floor");
-    if (floorParam) {
-      if (floorParam === "all") {
-        return "全階";
-      } else {
-        return `${floorParam}階`;
-      }
-    }
-    return "全階";
-  });
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedFloor, setSelectedFloor] = useState<string>(
+    urlParams.get("floor") || "all"
+  );
 
   const { data: residents = [] } = useQuery<any[]>({
     queryKey: ["/api/residents"],
@@ -221,9 +215,17 @@ export default function TreatmentList() {
     refetchOnMount: true, // ページ遷移時に必ず最新データを取得
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
-  
+
   // 職員ログインを優先、フォールバックでReplitユーザーを使用
   const currentUser = staffUser || replitUser;
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
 
   // ローカル状態でフィルタされた処置記録を管理
   const [localTreatmentRecords, setLocalTreatmentRecords] = useState<any[]>([]);
@@ -298,22 +300,7 @@ export default function TreatmentList() {
     const filteredResidents = residents.filter((resident: any) => {
       // 階数フィルター
       if (selectedFloor !== "全階") {
-        const residentFloor = resident.floor?.toString();
-        if (!residentFloor) return false;
-        
-        // 複数のフォーマットに対応した比較
-        const selectedFloorNumber = selectedFloor.replace("階", "");
-        
-        // "1階" 形式との比較
-        if (residentFloor === selectedFloor) return true;
-        
-        // "1" 形式との比較
-        if (residentFloor === selectedFloorNumber) return true;
-        
-        // "1F" 形式との比較
-        if (residentFloor.replace('F', '') === selectedFloorNumber) return true;
-        
-        return false;
+        return matchFloor(resident.floor, selectedFloor);
       }
       return true;
     });
@@ -386,17 +373,16 @@ export default function TreatmentList() {
   const residentOptions = useMemo(() => [
     ...residents.map((r: any) => ({ value: r.id, label: r.name }))
   ], [residents]);
-  
-  const floorOptions = useMemo(() => [
-    { value: "全階", label: "全階" },
-    ...Array.from(new Set((residents as any[]).map(r => {
-      // "1F", "2F" などのF文字を除去して数値のみ取得
-      const floor = r.floor?.toString().replace('F', '');
-      return floor ? parseInt(floor) : null;
-    }).filter(Boolean)))
-      .sort((a, b) => (a || 0) - (b || 0))
-      .map(floor => ({ value: `${floor}階`, label: `${floor}階` }))
-  ], [residents]);
+
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -409,7 +395,7 @@ export default function TreatmentList() {
               onClick={() => {
                 const params = new URLSearchParams();
                 params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-                params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+                params.set('floor', selectedFloor);
                 const dashboardPath = getEnvironmentPath("/");
                 const targetUrl = `${dashboardPath}?${params.toString()}`;
                 setLocation(targetUrl);

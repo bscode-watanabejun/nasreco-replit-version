@@ -9,6 +9,8 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 interface CleaningLinenRecord {
   id: string;
@@ -107,18 +109,7 @@ export default function CleaningLinenList() {
     }
     return startOfWeek(new Date(), { weekStartsOn: 1 }); // 月曜日始まり
   });
-  const [selectedFloor, setSelectedFloor] = useState("全階");
-
-  useEffect(() => {
-    const floorParam = urlParams.get('floor');
-    if (floorParam) {
-      if (floorParam === 'all') {
-        setSelectedFloor('全階');
-      } else {
-        setSelectedFloor(`${floorParam}階`);
-      }
-    }
-  }, []);
+  const [selectedFloor, setSelectedFloor] = useState(urlParams.get('floor') || 'all');
   
   // ポップアップ用の状態
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -134,6 +125,14 @@ export default function CleaningLinenList() {
     queryKey: ["/api/residents"],
     refetchOnMount: true, // ページ遷移時に必ず最新データを取得
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   const { data: cleaningLinenRecords = [] } = useQuery<CleaningLinenRecord[]>({
@@ -258,17 +257,21 @@ export default function CleaningLinenList() {
   });
 
   const weekDays = ['月', '火', '水', '木', '金', '土', '日'];
-  const floors = ["全階", "1階", "2階", "3階", "4階"];
+
+  // 階数選択肢（マスタ設定から動的生成）
+  const floors = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map(setting => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   const filteredResidents = useMemo(() => {
-    if (selectedFloor === "全階") return residents;
-    // "1階" -> "1" or "1F" にマッチ
-    const floorNumber = selectedFloor.replace('階', '');
-    return residents.filter(r => 
-      r.floor === floorNumber || 
-      r.floor === `${floorNumber}F` || 
-      r.floor === selectedFloor
-    );
+    if (selectedFloor === "all") return residents;
+    return residents.filter(r => matchFloor(r.floor, selectedFloor));
   }, [residents, selectedFloor]);
 
   const getRecordForDate = (residentId: string, date: Date) => {
@@ -394,7 +397,7 @@ export default function CleaningLinenList() {
             onClick={() => {
               const params = new URLSearchParams();
               if (selectedDateFromUrl) params.set('date', selectedDateFromUrl);
-              params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+              params.set('floor', selectedFloor);
               const dashboardPath = getEnvironmentPath("/");
               const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
@@ -436,9 +439,9 @@ export default function CleaningLinenList() {
             onChange={(e) => setSelectedFloor(e.target.value)}
             className="w-16 sm:w-20 h-6 text-xs px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {floors.map((floor) => (
-              <option key={floor} value={floor}>
-                {floor}
+            {floors.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 // 記録内容用のIME対応textareaコンポーネント（入浴一覧と同じ）
 function NotesInput({
@@ -858,30 +860,9 @@ export default function Vitals() {
   const [selectedTiming, setSelectedTiming] = useState(
     urlParams.get("timing") || (new Date().getHours() < 12 ? "午前" : "午後"),
   );
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    // URLパラメータから階数を取得
-    const floorParam = urlParams.get("floor");
-    if (floorParam) {
-      // ダッシュボードから来た'all'を'全階'に変換
-      if (floorParam === "all") {
-        return "全階";
-      }
-      return `${floorParam}階`;
-    }
-
-    // localStorageからトップ画面の選択階数を取得
-    const savedFloor = localStorage.getItem("selectedFloor");
-    if (savedFloor) {
-      if (savedFloor === "all") {
-        return "全階";
-      } else {
-        // "1F" -> "1階" の変換を行う
-        const cleanFloor = savedFloor.replace("F", "階");
-        return cleanFloor;
-      }
-    }
-    return "全階";
-  });
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get("floor") || "all"
+  );
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -908,6 +889,14 @@ export default function Vitals() {
 
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/user"],
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // 楽観的更新内でレコード統合を行う関数（食事画面と同じパターン）
@@ -1261,14 +1250,15 @@ export default function Vitals() {
     { value: "臨時", label: "臨時" },
   ];
 
-  const floorOptions = [
-    { value: "全階", label: "全階" },
-    { value: "1階", label: "1階" },
-    { value: "2階", label: "2階" },
-    { value: "3階", label: "3階" },
-    { value: "4階", label: "4階" },
-    { value: "5階", label: "5階" },
-  ];
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({
     value: i.toString(),
@@ -1701,21 +1691,8 @@ export default function Vitals() {
   // フィルタリングロジック
   const getFilteredVitalSigns = () => {
     const filteredResidents = (residents as any[]).filter((resident: any) => {
-      if (selectedFloor === "全階") return true;
-
-      const residentFloor = resident.floor;
-      if (!residentFloor) return false; // null/undefinedをフィルタアウト
-      
-      // 複数のフォーマットに対応した比較
-      const selectedFloorNumber = selectedFloor.replace("階", "");
-      
-      // "1階" 形式との比較
-      if (residentFloor === selectedFloor) return true;
-      
-      // "1" 形式との比較
-      if (residentFloor === selectedFloorNumber) return true;
-      
-      return false;
+      if (selectedFloor === "all") return true;
+      return matchFloor(resident.floor, selectedFloor);
     });
 
     const existingVitals = (vitalSigns as any[]).filter((vital: any) => {
@@ -1841,7 +1818,7 @@ export default function Vitals() {
               onClick={() => {
                 const params = new URLSearchParams();
                 params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-                params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+                params.set('floor', selectedFloor);
                 const dashboardPath = getEnvironmentPath("/");
                 const targetUrl = `${dashboardPath}?${params.toString()}`;
                 setLocation(targetUrl);

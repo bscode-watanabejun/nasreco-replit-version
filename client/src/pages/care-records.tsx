@@ -34,6 +34,8 @@ import { Plus, Calendar, User, Edit, ClipboardList, Activity, Utensils, Pill, Ba
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import type { MasterSetting } from "@shared/schema";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 const careRecordSchema = z.object({
   residentId: z.string().min(1, "利用者を選択してください"),
@@ -352,6 +354,14 @@ export default function CareRecords() {
     staleTime: 0, // キャッシュを無効化
     refetchOnMount: true, // マウント時に必ず最新データを取得
     refetchOnWindowFocus: true, // ウィンドウフォーカス時にも最新データを取得
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   const { data: currentUser } = useQuery({
@@ -895,25 +905,11 @@ export default function CareRecords() {
       .sort((a: any, b: any) => new Date(a.recordDate).getTime() - new Date(b.recordDate).getTime());
   }, [careRecords, selectedResident, selectedDate]);
 
-  // 階数のオプションを生成（利用者データから）
-  const floorOptions = [
-    { value: "all", label: "全階" },
-    ...Array.from(new Set((residents as any[]).map(r => {
-      // "1F", "2F" などのF文字を除去して数値のみ取得
-      const floor = r.floor?.toString().replace('F', '');
-      return floor ? parseInt(floor) : null;
-    }).filter(Boolean)))
-      .sort((a, b) => (a || 0) - (b || 0))
-      .map(floor => ({ value: floor?.toString() || '', label: `${floor}階` }))
-  ];
-
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // 階数フィルター
     if (selectedFloor !== "all") {
-      // 利用者のfloor値も正規化（"1F", "1階" → "1"）
-      const residentFloor = resident.floor?.toString().replace(/[F階]/g, '');
-      if (residentFloor !== selectedFloor) {
+      if (!matchFloor(resident.floor, selectedFloor)) {
         return false;
       }
     }
@@ -2004,12 +2000,20 @@ export default function CareRecords() {
                 onChange={(e) => setSelectedFloor(e.target.value)}
                 className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">全階</option>
-                <option value="1">1階</option>
-                <option value="2">2階</option>
-                <option value="3">3階</option>
-                <option value="4">4階</option>
-                <option value="5">5階</option>
+                {/* マスタ設定から取得した階数データで動的生成 */}
+                {floorMasterSettings
+                  .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                  .map((setting) => {
+                    // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                    const optionValue = setting.value === "全階" ? "all" : setting.value;
+                    return (
+                      <option key={setting.id} value={optionValue}>
+                        {setting.label}
+                      </option>
+                    );
+                  })
+                }
               </select>
             </div>
           </div>

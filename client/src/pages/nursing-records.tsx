@@ -18,10 +18,12 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getEnvironmentPath } from "@/lib/queryClient";
 import { Plus, Calendar, User, Edit, ClipboardList, ArrowLeft, Save, Check, X, MoreHorizontal, Info, Search, Building, FileText, Trash2, Paperclip, Download, Eye, File, Image } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 const nursingRecordSchema = z.object({
   residentId: z.string().min(1, "利用者を選択してください"),
@@ -828,44 +830,49 @@ export default function NursingRecords() {
     }
   }, [nursingRecords, selectedDate, selectedResident?.id]);
 
-  // 階数のオプションを生成（利用者データから）
-  const floorOptions = [
-    { value: "all", label: "全階" },
-    ...Array.from(new Set((residents as any[]).map(r => {
-      // "1F", "2F" などのF文字を除去して数値のみ取得
-      const floor = r.floor?.toString().replace('F', '');
-      return floor ? parseInt(floor) : null;
-    }).filter(Boolean)))
-      .sort((a, b) => (a || 0) - (b || 0))
-      .map(floor => ({ value: floor?.toString() || '', label: `${floor}階` }))
-  ];
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
+  // 階数のオプションを生成（マスタ設定から）
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   // フィルター適用済みの利用者一覧
   const filteredResidents = (residents as any[]).filter((resident: any) => {
     // 階数フィルター
     if (selectedFloor !== "all") {
-      // 利用者のfloor値も正規化（"1F" → "1"）
-      const residentFloor = resident.floor?.toString().replace('F', '');
-      if (residentFloor !== selectedFloor) {
+      if (!matchFloor(resident.floor, selectedFloor)) {
         return false;
       }
     }
-    
+
     // 日付フィルター（入所日・退所日による絞り込み）
     const filterDate = selectedDate;
     const admissionDate = resident.admissionDate ? new Date(resident.admissionDate) : null;
     const retirementDate = resident.retirementDate ? new Date(resident.retirementDate) : null;
-    
+
     // 入所日がある場合、選択した日付が入所日以降である必要がある
     if (admissionDate && filterDate < admissionDate) {
       return false;
     }
-    
+
     // 退所日がある場合、選択した日付が退所日以前である必要がある
     if (retirementDate && filterDate > retirementDate) {
       return false;
     }
-    
+
     return true;
   }).sort((a, b) => {
     const roomA = parseInt(a.roomNumber || '999999');
@@ -2070,12 +2077,13 @@ export default function NursingRecords() {
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4">
           <div className="flex items-center justify-between max-w-lg mx-auto">
             <Button 
-              variant="outline" 
+              variant="outline"
               onClick={() => {
                 const params = new URLSearchParams();
                 params.set('date', format(selectedDate, 'yyyy-MM-dd'));
                 params.set('floor', selectedFloor);
-                setLocation(`/nursing-records-list?${params.toString()}`);
+                const listPath = getEnvironmentPath("/nursing-records-list");
+                setLocation(`${listPath}?${params.toString()}`);
               }}
               className="flex items-center gap-2"
             >

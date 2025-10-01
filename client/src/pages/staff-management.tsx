@@ -17,7 +17,7 @@ import { Plus, UserCog, Edit, ArrowLeft, Trash2, Unlock, Lock } from "lucide-rea
 import { useLocation } from "wouter";
 import { getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement, UpdateStaffManagementApi } from "@shared/schema";
+import type { StaffManagement, InsertStaffManagement, UpdateStaffManagement, UpdateStaffManagementApi, MasterSetting } from "@shared/schema";
 
 
 export default function StaffManagement() {
@@ -248,12 +248,23 @@ export default function StaffManagement() {
 
   const sortedStaff = [...filteredStaff].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-  const floorOptions = [
-    { value: "全階", label: "全階" },
-    { value: "1階", label: "1階" },
-    { value: "2階", label: "2階" },
-    { value: "3階", label: "3階" },
-  ];
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => ({
+        value: setting.value,
+        label: setting.label
+      }));
+  }, [floorMasterSettings]);
 
   const jobRoleOptions = [
     { value: "全体", label: "全体" },

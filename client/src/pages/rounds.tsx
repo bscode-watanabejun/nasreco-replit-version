@@ -10,7 +10,8 @@ import { ArrowLeft, Calendar, Building } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { RoundRecord, Resident } from "@shared/schema";
+import type { RoundRecord, Resident, MasterSetting } from "@shared/schema";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 interface RoundGridData {
   [residentId: string]: {
@@ -51,14 +52,19 @@ export default function Rounds() {
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
   });
 
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
   // 選択された階数に基づいてフィルタリングし、居室番号順でソート
   const residents = allResidents
     .filter(resident => {
       if (selectedFloor === 'all') return true;
-      // データベースの「1階」「2階」形式と選択値「1」「2」を比較
-      return resident.floor === `${selectedFloor}階` || 
-             resident.floor === selectedFloor || 
-             resident.floor === `${selectedFloor}F`;
+      return matchFloor(resident.floor, selectedFloor);
     })
     .sort((a, b) => {
       // 居室番号を数値として比較（文字列の場合は文字列比較）
@@ -333,12 +339,20 @@ export default function Rounds() {
                 onChange={(e) => setSelectedFloor(e.target.value)}
                 className="w-16 sm:w-20 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">全階</option>
-                <option value="1">1階</option>
-                <option value="2">2階</option>
-                <option value="3">3階</option>
-                <option value="4">4階</option>
-                <option value="5">5階</option>
+                {/* マスタ設定から取得した階数データで動的生成 */}
+                {floorMasterSettings
+                  .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                  .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                  .map((setting) => {
+                    // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                    const optionValue = setting.value === "全階" ? "all" : setting.value;
+                    return (
+                      <option key={setting.id} value={optionValue}>
+                        {setting.label}
+                      </option>
+                    );
+                  })
+                }
               </select>
             </div>
 

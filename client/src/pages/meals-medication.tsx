@@ -30,10 +30,11 @@ import { ArrowLeft as ArrowLeftIcon, Calendar as CalendarIcon, User as UserIcon,
 import { cn } from "@/lib/utils";
 import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import type { MealsAndMedication, InsertMealsAndMedication } from "@shared/schema";
+import type { MealsAndMedication, InsertMealsAndMedication, MasterSetting } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 interface MealsMedicationWithResident extends MealsAndMedication {
   residentName: string;
@@ -248,18 +249,10 @@ export default function MealsMedicationPage() {
     if (currentHour < 17) return "15時";
     return "夕";
   });
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const floorParam = params.get('floor');
-    if (floorParam) {
-      if (floorParam === 'all') return '全階';
-      const floorNumber = floorParam.replace('F', '');
-      if (!isNaN(Number(floorNumber))) {
-        return `${floorNumber}階`;
-      }
-    }
-    return '全階';
-  });
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get('floor') || 'all'
+  );
 
   // 一括登録モード用のstate（介護記録一覧と統一）
   const [bulkMode, setBulkMode] = useState(false);
@@ -280,7 +273,7 @@ export default function MealsMedicationPage() {
     const params = new URLSearchParams();
     params.set('date', format(selectedDate, 'yyyy-MM-dd'));
     params.set('mealTime', selectedMealTime);
-    params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+    params.set('floor', selectedFloor);
     window.history.replaceState({}, '', `?${params.toString()}`);
   }, [selectedDate, selectedMealTime, selectedFloor]);
 
@@ -360,7 +353,7 @@ export default function MealsMedicationPage() {
       const params = new URLSearchParams({
         recordDate: format(selectedDate, 'yyyy-MM-dd'),
         mealTime: selectedMealTime,
-        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''),
+        floor: selectedFloor,
       });
       const response = await apiRequest(`/api/meals-medication?${params}`);
       console.log('食事一覧 API レスポンス:', response);
@@ -423,7 +416,7 @@ export default function MealsMedicationPage() {
       const params = new URLSearchParams({
         recordDate: format(selectedDate, 'yyyy-MM-dd'),
         mealTime: selectedMealTime,
-        floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''),
+        floor: selectedFloor,
       });
       const freshData = await apiRequest(`/api/meals-medication?${params}`);
       const currentData: MealsMedicationWithResident[] = Array.isArray(freshData) ? freshData : [];
@@ -596,6 +589,14 @@ export default function MealsMedicationPage() {
     queryKey: ['/api/master-settings', 'other_items'],
     queryFn: async () => {
       return await apiRequest('/api/master-settings?categoryKey=other_items', 'GET');
+    },
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
     },
   });
 
@@ -1039,18 +1040,8 @@ export default function MealsMedicationPage() {
 
 
   const filteredResidents = residents.filter((resident: any) => {
-    if (selectedFloor === '全階') return true;
-
-    const residentFloor = resident.floor;
-    if (!residentFloor) return false;
-    
-    const selectedFloorNumber = selectedFloor.replace("階", "");
-    
-    if (residentFloor === selectedFloor) return true; // "1階" === "1階"
-    if (residentFloor === selectedFloorNumber) return true; // "1" === "1"
-    if (residentFloor === `${selectedFloorNumber}F`) return true; // "1F" === "1F"
-    
-    return false;
+    if (selectedFloor === 'all') return true;
+    return matchFloor(resident.floor, selectedFloor);
   }).sort((a: any, b: any) => {
     // 居室番号で並べ替え（数値として比較）
     const roomA = parseInt(a.roomNumber) || 0;
@@ -1071,7 +1062,7 @@ export default function MealsMedicationPage() {
             onClick={() => {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              params.set('floor', selectedFloor);
               const dashboardPath = getEnvironmentPath("/");
               const targetUrl = `${dashboardPath}?${params.toString()}`;
               setLocation(targetUrl);
@@ -1135,12 +1126,20 @@ export default function MealsMedicationPage() {
               onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="全階">全階</option>
-              <option value="1階">1階</option>
-              <option value="2階">2階</option>
-              <option value="3階">3階</option>
-              <option value="4階">4階</option>
-              <option value="5階">5階</option>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <option key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </option>
+                  );
+                })
+              }
             </select>
           </div>
         </div>
@@ -1402,7 +1401,7 @@ export default function MealsMedicationPage() {
             onClick={() => {
               const params = new URLSearchParams();
               params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+              params.set('floor', selectedFloor);
               const medicationPath = getEnvironmentPath("/medication-list");
               setLocation(`${medicationPath}?${params.toString()}`);
             }}

@@ -51,6 +51,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 // 記録内容用のIME対応textareaコンポーネント（食事一覧と同じ）
 function NotesInput({
@@ -707,32 +709,19 @@ export default function BathingList() {
   const [selectedLanguage, setSelectedLanguage] = useState('auto');
   const recognitionRef = useRef<any>(null);
 
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    // URLパラメータから階数を取得
-    const floorParam = urlParams.get("floor");
-    if (floorParam) {
-      // ダッシュボードから来た'all'を'全階'に変換
-      if (floorParam === "all") {
-        return "全階";
-      }
-      return `${floorParam}階`;
-    }
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get("floor") || "all"
+  );
 
-    // localStorageからトップ画面の選択階数を取得
-    const savedFloor = localStorage.getItem("selectedFloor");
-    if (savedFloor) {
-      if (savedFloor === "all") {
-        return "全階";
-      } else {
-        // "1F" -> "1階" の変換を行う
-        const cleanFloor = savedFloor.replace("F", "階");
-        return cleanFloor;
-      }
-    }
-    return "全階";
-  });
-  
   const [localValues, setLocalValues] = useState<Record<string, Record<string, string>>>({});
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
   
   // デバウンス用タイマー
   const invalidateTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1745,13 +1734,8 @@ export default function BathingList() {
     // 2. 入浴日設定のある利用者から、レコードが存在しない利用者用の一時レコードを生成
     const filteredResidents = (residents as any[]).filter((resident: any) => {
       // フロアフィルタ
-      if (selectedFloor !== "全階") {
-        const residentFloor = resident.floor;
-        if (!residentFloor) return false;
-
-        const selectedFloorNumber = selectedFloor.replace(/[^0-9]/g, "");
-        const residentFloorNumber = residentFloor.toString().replace(/[^0-9]/g, "");
-        if (!residentFloorNumber || selectedFloorNumber !== residentFloorNumber) {
+      if (selectedFloor !== "all") {
+        if (!matchFloor(resident.floor, selectedFloor)) {
           return false;
         }
       }
@@ -1826,15 +1810,16 @@ export default function BathingList() {
   // 共通のスタイル
   const inputBaseClass = "text-center border rounded px-1 py-1 text-xs h-8 transition-colors focus:border-blue-500 focus:outline-none";
 
-  // ドロップダウンオプション
-  const floorOptions = [
-    { value: "全階", label: "全階" },
-    { value: "1階", label: "1階" },
-    { value: "2階", label: "2階" },
-    { value: "3階", label: "3階" },
-    { value: "4階", label: "4階" },
-    { value: "5階", label: "5階" },
-  ];
+  // ドロップダウンオプション（マスタ設定から動的生成）
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   const hourOptions = [
     // 6時から23時まで
@@ -1917,7 +1902,7 @@ export default function BathingList() {
                 setTimeout(() => {
                   const params = new URLSearchParams();
                   params.set('date', format(selectedDate, 'yyyy-MM-dd'));
-                  params.set('floor', selectedFloor === "全階" ? "all" : selectedFloor.replace("階", ""));
+                  params.set('floor', selectedFloor);
                   const dashboardPath = getEnvironmentPath("/");
                   const targetUrl = `${dashboardPath}?${params.toString()}`;
                   setLocation(targetUrl);

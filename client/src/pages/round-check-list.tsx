@@ -23,9 +23,10 @@ import { format, parseISO, startOfDay, endOfDay, addDays } from "date-fns";
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { RoundRecord, Resident } from "@shared/schema";
+import type { RoundRecord, Resident, MasterSetting } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 // 記録内容用のIME対応リサイズ可能textareaコンポーネント
 function ResizableNotesInput({
@@ -110,6 +111,14 @@ export default function RoundCheckList() {
   const { data: residents = [] } = useQuery<Resident[]>({
     queryKey: ["residents"],
     queryFn: () => apiRequest("/api/residents"),
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // ラウンド記録データの取得
@@ -312,9 +321,7 @@ export default function RoundCheckList() {
     // 階数フィルタ
     if (selectedFloor !== "all") {
       filtered = filtered.filter(resident => {
-        return resident.floor === selectedFloor ||
-               resident.floor === `${selectedFloor}階` ||
-               resident.floor === `${selectedFloor}F`;
+        return matchFloor(resident.floor, selectedFloor);
       });
     }
 
@@ -488,12 +495,20 @@ export default function RoundCheckList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全階</SelectItem>
-              <SelectItem value="1">1階</SelectItem>
-              <SelectItem value="2">2階</SelectItem>
-              <SelectItem value="3">3階</SelectItem>
-              <SelectItem value="4">4階</SelectItem>
-              <SelectItem value="5">5階</SelectItem>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <SelectItem key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </SelectItem>
+                  );
+                })
+              }
             </SelectContent>
           </Select>
 

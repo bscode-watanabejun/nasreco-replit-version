@@ -26,9 +26,10 @@ import { format, parseISO, startOfDay, endOfDay, addDays, differenceInDays, addM
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { Resident } from "@shared/schema";
+import type { Resident, MasterSetting } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 // 時のオプション（6時〜23時）
 const hourOptions = [
@@ -357,6 +358,14 @@ export default function CleaningLinenCheckList() {
   const { data: residents = [] } = useQuery<Resident[]>({
     queryKey: ["residents"],
     queryFn: () => apiRequest("/api/residents"),
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // 清掃リネンデータの取得
@@ -704,11 +713,20 @@ export default function CleaningLinenCheckList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全階</SelectItem>
-              <SelectItem value="1階">1階</SelectItem>
-              <SelectItem value="2階">2階</SelectItem>
-              <SelectItem value="3階">3階</SelectItem>
-              <SelectItem value="4階">4階</SelectItem>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <SelectItem key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </SelectItem>
+                  );
+                })
+              }
             </SelectContent>
           </Select>
 
@@ -929,8 +947,7 @@ export default function CleaningLinenCheckList() {
                 // 利用者ごとにグループ化
                 const monthlyData = residents.filter(resident => {
                   if (selectedFloor !== "all" &&
-                      resident.floor !== selectedFloor &&
-                      resident.floor !== `${selectedFloor}階`) return false;
+                      !matchFloor(resident.floor, selectedFloor)) return false;
                   if (selectedResident !== "all" && resident.id !== selectedResident) return false;
                   return true;
                 }).sort((a, b) => {

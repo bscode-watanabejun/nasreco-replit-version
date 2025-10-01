@@ -28,7 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest, getEnvironmentPath } from "@/lib/queryClient";
-import type { MedicationRecord, InsertMedicationRecord, Resident } from "@shared/schema";
+import type { MedicationRecord, InsertMedicationRecord, Resident, MasterSetting } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
 
@@ -284,18 +284,10 @@ export default function MedicationList() {
     currentConfirmerName: string;
   } | null>(null);
 
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const floorParam = params.get('floor');
-    if (floorParam) {
-      if (floorParam === 'all') return '全階';
-      const floorNumber = floorParam.replace('F', '');
-      if (!isNaN(Number(floorNumber))) {
-        return `${floorNumber}階`;
-      }
-    }
-    return '全階';
-  });
+  const urlParams = new URLSearchParams(window.location.search);
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get('floor') || 'all'
+  );
   
   // ローカル状態管理は不要（NotesInputコンポーネントが内部管理）
   // savedTempRecordsは不要になったので削除
@@ -303,6 +295,14 @@ export default function MedicationList() {
   // 利用者データ取得
   const { data: residents } = useQuery<Resident[]>({
     queryKey: ["/api/residents"]
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
   // 服薬記録データ取得
@@ -313,7 +313,7 @@ export default function MedicationList() {
         const params = new URLSearchParams({
           recordDate: selectedDate,
           timing: selectedTiming,
-          floor: selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', '')
+          floor: selectedFloor
         });
         const data = await apiRequest(`/api/medication-records?${params}`, 'GET');
         return data || [];
@@ -889,8 +889,9 @@ export default function MedicationList() {
             onClick={() => {
               const params = new URLSearchParams();
               params.set('date', selectedDate);
-              params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
-              setLocation(`/?${params.toString()}`);
+              params.set('floor', selectedFloor);
+              const dashboardPath = getEnvironmentPath("/");
+              setLocation(`${dashboardPath}?${params.toString()}`);
             }}
           >
             <ArrowLeftIcon className="h-4 w-4" />
@@ -929,7 +930,7 @@ export default function MedicationList() {
               ))}
             </select>
           </div>
-          
+
           {/* フロア選択 */}
           <div className="flex items-center space-x-1">
             <BuildingIcon className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
@@ -938,12 +939,20 @@ export default function MedicationList() {
               onChange={(e) => setSelectedFloor(e.target.value)}
               className="w-20 sm:w-32 h-6 sm:h-8 text-xs sm:text-sm px-1 text-center border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="全階">全階</option>
-              <option value="1階">1階</option>
-              <option value="2階">2階</option>
-              <option value="3階">3階</option>
-              <option value="4階">4階</option>
-              <option value="5階">5階</option>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <option key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </option>
+                  );
+                })
+              }
             </select>
           </div>
         </div>
@@ -1235,7 +1244,7 @@ export default function MedicationList() {
           <Button variant="outline" className="flex items-center gap-2" onClick={() => {
             const params = new URLSearchParams();
             params.set('date', selectedDate);
-            params.set('floor', selectedFloor === '全階' ? 'all' : selectedFloor.replace('階', ''));
+            params.set('floor', selectedFloor);
             const mealsPath = getEnvironmentPath("/meals-medication");
             setLocation(`${mealsPath}?${params.toString()}`);
           }}>

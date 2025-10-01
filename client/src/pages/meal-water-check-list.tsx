@@ -15,9 +15,10 @@ import { format, parseISO, startOfDay, endOfDay, addDays, addMonths } from "date
 import { ja } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { MealsAndMedication, Resident } from "@shared/schema";
+import type { MealsAndMedication, Resident, MasterSetting } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { matchFloor } from "@/lib/floorFilterUtils";
 
 // 主食・副食の選択肢
 const mainFoodOptions = [
@@ -293,6 +294,14 @@ export default function MealWaterCheckList() {
     queryFn: () => apiRequest("/api/residents"),
   });
 
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
+  });
+
   // 食事データの取得
   const { data: mealsData = [], isLoading } = useQuery<MealsAndMedication[]>({
     queryKey: ["meals-medication", dateFrom, dateTo],
@@ -472,8 +481,7 @@ export default function MealWaterCheckList() {
     if (selectedFloor !== "all") {
       filtered = filtered.filter(meal => {
         const resident = residents.find(r => r.id === meal.residentId);
-        return resident?.floor === selectedFloor || 
-               resident?.floor === `${selectedFloor}階`;
+        return matchFloor(resident?.floor, selectedFloor);
       });
     }
 
@@ -507,9 +515,7 @@ export default function MealWaterCheckList() {
     
     // Step 2: 表示対象の利用者を取得
     const displayResidents = residents.filter(r => {
-      if (selectedFloor !== "all" && 
-          r.floor !== selectedFloor && 
-          r.floor !== `${selectedFloor}階`) return false;
+      if (selectedFloor !== "all" && !matchFloor(r.floor, selectedFloor)) return false;
       if (selectedResident !== "all" && r.id !== selectedResident) return false;
       return true;
     });
@@ -715,11 +721,20 @@ export default function MealWaterCheckList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全階</SelectItem>
-              <SelectItem value="1">1階</SelectItem>
-              <SelectItem value="2">2階</SelectItem>
-              <SelectItem value="3">3階</SelectItem>
-              <SelectItem value="4">4階</SelectItem>
+              {/* マスタ設定から取得した階数データで動的生成 */}
+              {floorMasterSettings
+                .filter(setting => setting.isActive !== false) // 有効な項目のみ
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)) // ソート順に並べる
+                .map((setting) => {
+                  // "全階"の場合はvalue="all"、それ以外はvalueを使用
+                  const optionValue = setting.value === "全階" ? "all" : setting.value;
+                  return (
+                    <SelectItem key={setting.id} value={optionValue}>
+                      {setting.label}
+                    </SelectItem>
+                  );
+                })
+              }
             </SelectContent>
           </Select>
 

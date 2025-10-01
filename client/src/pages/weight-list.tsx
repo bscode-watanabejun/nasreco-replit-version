@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import { format, addMonths, subMonths } from "date-fns";
 import { ja } from "date-fns/locale";
+import { matchFloor } from "@/lib/floorFilterUtils";
+import type { MasterSetting } from "@shared/schema";
 
 // 記録内容用のIME対応textareaコンポーネント（入浴一覧と同じ）
 function NotesInput({
@@ -813,30 +815,9 @@ export default function WeightList() {
   const [selectedMonth, setSelectedMonth] = useState(
     urlParams.get("month") || format(new Date(), "yyyy-MM"),
   );
-  const [selectedFloor, setSelectedFloor] = useState(() => {
-    // URLパラメータから階数を取得
-    const floorParam = urlParams.get("floor");
-    if (floorParam) {
-      // ダッシュボードから来た'all'を'全階'に変換
-      if (floorParam === "all") {
-        return "全階";
-      }
-      return `${floorParam}階`;
-    }
-
-    // localStorageからトップ画面の選択階数を取得
-    const savedFloor = localStorage.getItem("selectedFloor");
-    if (savedFloor) {
-      if (savedFloor === "all") {
-        return "全階";
-      } else {
-        // "1F" -> "1階" の変換を行う
-        const cleanFloor = savedFloor.replace("F", "階");
-        return cleanFloor;
-      }
-    }
-    return "全階";
-  });
+  const [selectedFloor, setSelectedFloor] = useState(
+    urlParams.get("floor") || "all"
+  );
 
   const { data: residents = [] } = useQuery({
     queryKey: ["/api/residents"],
@@ -854,6 +835,14 @@ export default function WeightList() {
     queryKey: ["/api/auth/user"],
     refetchOnMount: true, // ページ遷移時に必ず最新データを取得
     staleTime: 0, // キャッシュを常に古い扱いにして確実に再取得
+  });
+
+  // マスタ設定から階数データを取得
+  const { data: floorMasterSettings = [] } = useQuery<MasterSetting[]>({
+    queryKey: ["/api/master-settings", "floor"],
+    queryFn: async () => {
+      return await apiRequest(`/api/master-settings?categoryKey=floor`, "GET");
+    },
   });
 
 
@@ -1205,14 +1194,15 @@ export default function WeightList() {
   });
 
   // 選択肢の定義
-  const floorOptions = [
-    { value: "全階", label: "全階" },
-    { value: "1階", label: "1階" },
-    { value: "2階", label: "2階" },
-    { value: "3階", label: "3階" },
-    { value: "4階", label: "4階" },
-    { value: "5階", label: "5階" },
-  ];
+  const floorOptions = useMemo(() => {
+    return floorMasterSettings
+      .filter(setting => setting.isActive !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      .map((setting) => {
+        const optionValue = setting.value === "全階" ? "all" : setting.value;
+        return { value: optionValue, label: setting.label };
+      });
+  }, [floorMasterSettings]);
 
   // スタッフ印の実際の処理を実行する関数
   const executeStaffStamp = async (weightId: string, residentId?: string, includeDateTime: boolean = true) => {
@@ -1333,21 +1323,8 @@ export default function WeightList() {
     const cacheData = queryClient.getQueryData(["/api/weight-records"]) as any[];
     const currentWeightRecords = cacheData || weightRecords;
     const filteredResidents = (residents as any[]).filter((resident: any) => {
-      if (selectedFloor === "全階") return true;
-
-      const residentFloor = resident.floor;
-      if (!residentFloor) return false; // null/undefinedをフィルタアウト
-      
-      // 複数のフォーマットに対応した比較
-      const selectedFloorNumber = selectedFloor.replace("階", "");
-      
-      // "1階" 形式との比較
-      if (residentFloor === selectedFloor) return true;
-      
-      // "1" 形式との比較
-      if (residentFloor === selectedFloorNumber) return true;
-      
-      return false;
+      if (selectedFloor === "all") return true;
+      return matchFloor(resident.floor, selectedFloor);
     });
 
     const existingWeights = (currentWeightRecords as any[]).filter((weight: any) => {
@@ -1500,10 +1477,8 @@ export default function WeightList() {
                 const params = new URLSearchParams();
                 const urlParams = new URLSearchParams(window.location.search);
                 const selectedDate = urlParams.get('date') || format(new Date(), "yyyy-MM-dd");
-                // 現在選択されているfloorを使用し、適切なURLパラメータ形式に変換
-                const floorParam = selectedFloor === "全階" ? "all" : selectedFloor.replace("階", "");
                 params.set('date', selectedDate);
-                params.set('floor', floorParam);
+                params.set('floor', selectedFloor);
                 const dashboardPath = getEnvironmentPath("/");
                 const targetUrl = `${dashboardPath}?${params.toString()}`;
                 setLocation(targetUrl);
