@@ -782,11 +782,11 @@ export default function CareRecordsCheck() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全階</SelectItem>
-                <SelectItem value="1">1階</SelectItem>
-                <SelectItem value="2">2階</SelectItem>
-                <SelectItem value="3">3階</SelectItem>
-                <SelectItem value="4">4階</SelectItem>
-                <SelectItem value="5">5階</SelectItem>
+                <SelectItem value="1階">1階</SelectItem>
+                <SelectItem value="2階">2階</SelectItem>
+                <SelectItem value="3階">3階</SelectItem>
+                <SelectItem value="4階">4階</SelectItem>
+                <SelectItem value="5階">5階</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -798,11 +798,17 @@ export default function CareRecordsCheck() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全利用者</SelectItem>
-                {residents.map((resident: any) => (
-                  <SelectItem key={resident.id} value={resident.id}>
-                    {resident.name}
-                  </SelectItem>
-                ))}
+                {[...residents]
+                  .sort((a: any, b: any) => {
+                    const roomA = a.roomNumber || '';
+                    const roomB = b.roomNumber || '';
+                    return roomA.localeCompare(roomB, 'ja', { numeric: true });
+                  })
+                  .map((resident: any) => (
+                    <SelectItem key={resident.id} value={resident.id}>
+                      {resident.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>

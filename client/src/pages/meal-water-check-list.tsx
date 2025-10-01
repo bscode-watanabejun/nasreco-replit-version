@@ -729,11 +729,17 @@ export default function MealWaterCheckList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全利用者</SelectItem>
-              {residents.map((resident) => (
-                <SelectItem key={resident.id} value={resident.id}>
-                  {resident.name}
-                </SelectItem>
-              ))}
+              {[...residents]
+                .sort((a, b) => {
+                  const roomA = a.roomNumber || '';
+                  const roomB = b.roomNumber || '';
+                  return roomA.localeCompare(roomB, 'ja', { numeric: true });
+                })
+                .map((resident) => (
+                  <SelectItem key={resident.id} value={resident.id}>
+                    {resident.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
 
